@@ -1,46 +1,397 @@
-import { getMyLeaveHistory } from "@/app/actions/leave";
+"use client";
 
-export default async function HistoryPage() {
-  const history = await getMyLeaveHistory();
+import { useState, useEffect, useRef } from "react";
+import { getMyLeaveHistory, cancelLeaveRequest, getStaffList, adminDeleteLeaveRequest } from "@/app/actions/leave";
+import { getLeaveConfigs } from "@/app/actions/settings";
+import { useSession } from "@/lib/auth-client";
+import { format } from "date-fns";
+import { CalendarDays, Clock, FileX, CheckCircle2, XCircle, Download, Printer, FileSpreadsheet } from "lucide-react";
+import * as XLSX from "xlsx";
+import { CycleSelect } from "@/components/cycle-select";
+import { useSearchParams } from "next/navigation";
+import { getLeaveCycleFilter } from "@/lib/cycle";
+import { useI18n } from "@/lib/i18n";
 
-  return (
-    <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-sm overflow-hidden">
-      <div className="p-6 border-b border-zinc-200 dark:border-zinc-800">
-        <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-50">Leave History</h2>
-      </div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm text-left text-zinc-500 dark:text-zinc-400">
-          <thead className="text-xs text-zinc-700 uppercase bg-zinc-50 dark:bg-zinc-800 dark:text-zinc-400">
+export default function HistoryPage() {
+  const { data: session } = useSession();
+  const isAdmin = (session?.user as any)?.role === "ADMIN" || (session?.user as any)?.position === "แอดมิน";
+  
+  const searchParams = useSearchParams();
+  const cycleParam = searchParams.get("cycle") || "all";
+  const { t, lang, tLeaveType, tPosition } = useI18n();
+
+  const [history, setHistory] = useState<any[]>([]);
+  const [leaveConfigs, setLeaveConfigs] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [staffList, setStaffList] = useState<any[]>([]);
+  const [selectedUserId, setSelectedUserId] = useState<string>("me");
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+  const printRef = useRef<HTMLDivElement>(null);
+
+  const getCycleLabel = () => {
+    if (cycleParam === "all") {
+      return t("allFiscalYears");
+    }
+    const filter = getLeaveCycleFilter(new Date(), cycleParam as any, lang);
+    return filter ? filter.label : t("currentCycle");
+  };
+
+  useEffect(() => {
+    getStaffList().then(setStaffList).catch(console.error);
+  }, []);
+
+  useEffect(() => {
+    setLoading(true);
+    setCurrentPage(1);
+    Promise.all([
+      getMyLeaveHistory(cycleParam as any, selectedUserId),
+      getLeaveConfigs()
+    ]).then(([h, c]) => {
+      setHistory(h);
+      setLeaveConfigs(c);
+    }).catch(console.error).finally(() => setLoading(false));
+  }, [cycleParam, selectedUserId]);
+
+  const getLeaveTypeName = (type: string) => {
+    const config = leaveConfigs.find((c) => c.type === type);
+    return tLeaveType(type, config?.name);
+  };
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case "APPROVED":
+        return <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-medium border border-emerald-200 dark:border-emerald-800"><CheckCircle2 className="w-3.5 h-3.5" /> {t("approved")}</span>;
+      case "REJECTED":
+        return <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 text-xs font-medium border border-rose-200 dark:border-rose-800"><XCircle className="w-3.5 h-3.5" /> {t("rejected")}</span>;
+      case "CANCELLED":
+        return <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-xs font-medium border border-slate-200 dark:border-slate-700"><FileX className="w-3.5 h-3.5" /> {t("cancelled")}</span>;
+      case "PENDING_HEAD":
+      case "PENDING_EXEC":
+      default:
+        return <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-orange-50 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400 text-xs font-medium border border-orange-200 dark:border-orange-800"><Clock className="w-3.5 h-3.5" /> {t("pending")}</span>;
+    }
+  };
+
+  const getStatusText = (status: string) => {
+    switch (status) {
+      case "APPROVED": return t("approved");
+      case "REJECTED": return t("rejected");
+      case "CANCELLED": return t("cancelled");
+      default: return t("pending");
+    }
+  };
+
+  const handleCancel = async (id: string) => {
+    if (!confirm("ยืนยันการยกเลิกคำขอลานี้?")) return;
+    try {
+      await cancelLeaveRequest(id);
+      setHistory((prev) => prev.map((h) => h.id === id ? { ...h, status: "CANCELLED" } : h));
+    } catch (err) {
+      alert("เกิดข้อผิดพลาดในการยกเลิก");
+    }
+  };
+
+  const handleDelete = async (id: string, typeName: string, userName: string) => {
+    const confirmKeyword = "CONFIRM";
+    const input = prompt(
+      `⚠️ คำเตือนที่เป็นอันตราย: คุณกำลังจะลบประวัติการลาแบบถาวร!\n` +
+      `ประเภทการลา: ${typeName}\n` +
+      `ชื่อผู้ลา: ${userName}\n\n` +
+      `หากต้องการดำเนินการต่ออย่างแน่วแน่ กรุณาพิมพ์ "${confirmKeyword}" เพื่อยืนยัน:`
+    );
+    if (input !== confirmKeyword) {
+      if (input !== null) {
+        alert("การยืนยันไม่ถูกต้อง ยกเลิกการลบประวัติ");
+      }
+      return;
+    }
+    try {
+      await adminDeleteLeaveRequest(id);
+      setHistory((prev) => prev.filter((h) => h.id !== id));
+      alert("ลบข้อมูลการลาสำเร็จเรียบร้อย");
+    } catch (err: any) {
+      alert("เกิดข้อผิดพลาดในการลบ: " + (err.message || ""));
+    }
+  };
+
+  // ========= Print as PDF (browser print dialog) =========
+  const handlePrint = () => {
+    const printContent = printRef.current;
+    if (!printContent) return;
+
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) {
+      alert("กรุณาอนุญาต Pop-up เพื่อพิมพ์เอกสาร");
+      return;
+    }
+
+    const rows = history.map((item, i) => `
+      <tr>
+        <td style="border:1px solid #ddd;padding:8px;text-align:center;">${i + 1}</td>
+        <td style="border:1px solid #ddd;padding:8px;">${getLeaveTypeName(item.type)}</td>
+        <td style="border:1px solid #ddd;padding:8px;text-align:center;">${format(new Date(item.startDate), "dd/MM/yyyy")}</td>
+        <td style="border:1px solid #ddd;padding:8px;text-align:center;">${format(new Date(item.endDate), "dd/MM/yyyy")}</td>
+        <td style="border:1px solid #ddd;padding:8px;text-align:center;">${Math.ceil((new Date(item.endDate).getTime() - new Date(item.startDate).getTime()) / (1000*60*60*24)) + 1}</td>
+        <td style="border:1px solid #ddd;padding:8px;">${item.reason}</td>
+        <td style="border:1px solid #ddd;padding:8px;text-align:center;">${getStatusText(item.status)}</td>
+      </tr>
+    `).join("");
+
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8" />
+        <title>ประวัติการลา</title>
+        <style>
+          @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@400;700&display=swap');
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body { font-family: 'Sarabun', sans-serif; padding: 40px; color: #333; }
+          h1 { text-align: center; font-size: 22px; margin-bottom: 4px; }
+          .subtitle { text-align: center; font-size: 13px; color: #666; margin-bottom: 20px; }
+          table { width: 100%; border-collapse: collapse; font-size: 13px; table-layout: fixed; }
+          th { background: #f5f5f5; border: 1px solid #ddd; padding: 10px 8px; font-weight: 700; text-align: center; }
+          td { border: 1px solid #ddd; padding: 8px; vertical-align: top; word-wrap: break-word; }
+          tr { page-break-inside: avoid; }
+          thead { display: table-header-group; }
+          .footer { margin-top: 30px; text-align: right; font-size: 12px; color: #999; }
+          @media print { 
+            body { padding: 20px; } 
+            @page { margin: 15mm; }
+          }
+        </style>
+      </head>
+      <body>
+        <h1>ประวัติการลา</h1>
+        <p class="subtitle">ชื่อ-นามสกุล: ${selectedUserId === "me" ? (history[0]?.userName || "ผู้ยื่นคำขอ") : (staffList.find(s => s.id === selectedUserId)?.name || "ผู้ยื่นคำขอ")} | ประจำ${getCycleLabel()} | พิมพ์เมื่อ ${format(new Date(), "dd/MM/yyyy HH:mm")} น.</p>
+        <table>
+          <thead>
             <tr>
-              <th scope="col" className="px-6 py-3">Type</th>
-              <th scope="col" className="px-6 py-3">Dates</th>
-              <th scope="col" className="px-6 py-3">Reason</th>
-              <th scope="col" className="px-6 py-3">Status</th>
+              <th style="width:40px;">#</th>
+              <th style="width:15%">ประเภท</th>
+              <th style="width:12%">วันเริ่มต้น</th>
+              <th style="width:12%">วันสิ้นสุด</th>
+              <th style="width:10%">จำนวนวัน</th>
+              <th style="width:36%">เหตุผล</th>
+              <th style="width:15%">สถานะ</th>
             </tr>
           </thead>
           <tbody>
-            {history.length === 0 ? (
-              <tr>
-                <td colSpan={4} className="px-6 py-4 text-center">No leave requests found.</td>
-              </tr>
-            ) : history.map((item) => (
-              <tr key={item.id} className="bg-white border-b dark:bg-zinc-900 dark:border-zinc-800">
-                <td className="px-6 py-4 font-medium text-zinc-900 whitespace-nowrap dark:text-zinc-50">{item.type}</td>
-                <td className="px-6 py-4">{item.startDate.toLocaleDateString()} - {item.endDate.toLocaleDateString()}</td>
-                <td className="px-6 py-4">{item.reason}</td>
-                <td className="px-6 py-4">
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                    item.status === 'APPROVED' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' :
-                    item.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400' :
-                    'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
-                  }`}>
-                    {item.status}
-                  </span>
-                </td>
-              </tr>
-            ))}
+            ${rows}
           </tbody>
         </table>
+        <div class="footer">ทั้งหมด ${history.length} รายการ</div>
+      </body>
+      </html>
+    `);
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => printWindow.print(), 400);
+  };
+
+  // ========= Export XLSX =========
+  const handleExportXlsx = () => {
+    const leaveTypeMap: Record<string, string> = {};
+    leaveConfigs.forEach(c => { leaveTypeMap[c.type] = c.name; });
+
+    const formattedData = history.map((item) => ({
+      "รหัสการลา": item.id.substring(0, 8),
+      "ประเภท": leaveTypeMap[item.type] || item.type,
+      "วันที่เริ่ม": new Date(item.startDate).toLocaleDateString("th-TH"),
+      "ถึงวันที่": new Date(item.endDate).toLocaleDateString("th-TH"),
+      "จำนวนวัน": Math.ceil((new Date(item.endDate).getTime() - new Date(item.startDate).getTime()) / (1000 * 60 * 60 * 24)) + 1,
+      "เหตุผล": item.reason,
+      "สถานะ": getStatusText(item.status),
+      "วันที่ยื่นใบลา": new Date(item.createdAt).toLocaleDateString("th-TH"),
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(formattedData);
+    ws["!cols"] = [
+      { wch: 10 }, { wch: 20 }, { wch: 15 }, { wch: 15 }, { wch: 10 }, { wch: 40 }, { wch: 15 }, { wch: 15 },
+    ];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Leave_History");
+    XLSX.writeFile(wb, `ประวัติการลา_${format(new Date(), "yyyy-MM-dd")}.xlsx`);
+  };
+
+  return (
+    <div className="max-w-6xl mx-auto space-y-6" ref={printRef}>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">{t("leaveHistory")}</h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+            {selectedUserId === "me" 
+              ? t("leaveHistorySubtitle") 
+              : `${t("leaveHistory")}: ${staffList.find(s => s.id === selectedUserId)?.name || ""}`}
+          </p>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap print:hidden">
+          {staffList.length > 0 && (
+            <select
+              value={selectedUserId}
+              onChange={(e) => setSelectedUserId(e.target.value)}
+              className="h-10 px-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all cursor-pointer"
+            >
+              <option value="me">{t("myHistory")}</option>
+              {staffList.map((staff) => (
+                <option key={staff.id} value={staff.id}>
+                  {staff.name} ({tPosition(staff.position) || t("staffMember")})
+                </option>
+              ))}
+            </select>
+          )}
+          <CycleSelect defaultValue="all" showAll={true} />
+          {history.length > 0 && (
+            <>
+              <button
+                onClick={handlePrint}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 dark:bg-indigo-500/10 dark:text-indigo-400 dark:hover:bg-indigo-500/20 text-sm font-semibold rounded-xl border border-indigo-200 dark:border-indigo-800 transition-colors shadow-sm"
+                title="พิมพ์ / บันทึกเป็น PDF"
+              >
+                <Printer className="w-4 h-4" />
+                {t("printPdf")}
+              </button>
+              <button
+                onClick={handleExportXlsx}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 dark:bg-emerald-500/10 dark:text-emerald-400 dark:hover:bg-emerald-500/20 text-sm font-semibold rounded-xl border border-emerald-200 dark:border-emerald-800 transition-colors shadow-sm"
+                title="ส่งออกเป็น Excel"
+              >
+                <FileSpreadsheet className="w-4 h-4" />
+                Export Excel
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+
+      <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white/60 dark:border-slate-800 rounded-3xl p-2 md:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+        {loading ? (
+          <div className="animate-pulse space-y-3 p-6">
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className="h-12 bg-slate-100 dark:bg-slate-800 rounded-xl" />
+            ))}
+          </div>
+        ) : (() => {
+          const totalPages = Math.ceil(history.length / itemsPerPage);
+          const paginatedHistory = history.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+          
+          return (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm whitespace-nowrap">
+                <thead>
+                  <tr className="border-b border-slate-100 dark:border-slate-800">
+                    <th className="px-6 py-4 font-semibold text-slate-500 dark:text-slate-400">{t("type")}</th>
+                    <th className="px-6 py-4 font-semibold text-slate-500 dark:text-slate-400">{t("date")}</th>
+                    <th className="px-6 py-4 font-semibold text-slate-500 dark:text-slate-400">{t("reason")}</th>
+                    <th className="px-6 py-4 font-semibold text-slate-500 dark:text-slate-400">{t("status")}</th>
+                    <th className="px-6 py-4 font-semibold text-slate-500 dark:text-slate-400 text-right print:hidden">{t("manage")}</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {history.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="px-6 py-12 text-center text-slate-400">
+                        <div className="flex flex-col items-center gap-2">
+                          <CalendarDays className="w-8 h-8 text-slate-300 dark:text-slate-600" />
+                          <p>{t("noLeaveHistory")}</p>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : paginatedHistory.map((item) => (
+                    <tr key={item.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
+                      <td className="px-6 py-4">
+                        <div className="font-medium text-slate-900 dark:text-white">
+                          {getLeaveTypeName(item.type)}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-slate-600 dark:text-slate-300">
+                        {format(new Date(item.startDate), "dd MMM yyyy")} - {format(new Date(item.endDate), "dd MMM yyyy")}
+                      </td>
+                      <td className="px-6 py-4 text-slate-600 dark:text-slate-300 max-w-[200px] truncate">
+                        {item.reason}
+                      </td>
+                      <td className="px-6 py-4">
+                        {getStatusBadge(item.status)}
+                      </td>
+                      <td className="px-6 py-4 text-right print:hidden">
+                        <div className="flex items-center justify-end gap-2">
+                          {selectedUserId === "me" && (item.status === "PENDING_HEAD" || item.status === "PENDING_EXEC") && (
+                            <button
+                              onClick={() => handleCancel(item.id)}
+                              className="text-xs font-medium text-slate-500 hover:text-rose-600 transition-colors px-3 py-1.5 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-500/10"
+                            >
+                              {t("cancelLeave")}
+                            </button>
+                          )}
+                          {isAdmin && (
+                            <button
+                              onClick={() => handleDelete(item.id, getLeaveTypeName(item.type), item.userName || (selectedUserId === "me" ? (session?.user as any)?.name : staffList.find(s => s.id === selectedUserId)?.name) || "ผู้ยื่นคำขอ")}
+                              className="text-xs font-medium text-rose-600 hover:text-rose-700 transition-colors px-3 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 dark:bg-rose-500/10 dark:hover:bg-rose-500/20"
+                              title="ลบข้อมูลนี้ออกจากระบบ (Admin Only)"
+                            >
+                              {t("deleteRecord")}
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              {/* Pagination Bar */}
+              {history.length > itemsPerPage && (
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-6 py-5 border-t border-slate-100 dark:border-slate-800/80 mt-4 print:hidden">
+                  <div className="text-xs font-semibold text-slate-400 dark:text-slate-500">
+                    {lang === "en" ? "Showing" : "แสดง"} {((currentPage - 1) * itemsPerPage) + 1} - {Math.min(currentPage * itemsPerPage, history.length)} {lang === "en" ? "of" : "จาก"} {history.length} {lang === "en" ? "records" : "รายการ"}
+                  </div>
+                  
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                      disabled={currentPage === 1}
+                      className="px-3.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-850 text-xs font-bold text-slate-700 dark:text-slate-300 disabled:opacity-40 disabled:pointer-events-none transition-all shadow-sm"
+                    >
+                      {lang === "en" ? "Previous" : "ก่อนหน้า"}
+                    </button>
+                    
+                    {[...Array(totalPages)].map((_, index) => {
+                      const pageNum = index + 1;
+                      if (totalPages > 5 && Math.abs(currentPage - pageNum) > 1 && pageNum !== 1 && pageNum !== totalPages) {
+                        if (pageNum === 2 || pageNum === totalPages - 1) {
+                          return <span key={pageNum} className="px-1 text-xs text-slate-400 dark:text-slate-600">...</span>;
+                        }
+                        return null;
+                      }
+                      return (
+                        <button
+                          key={pageNum}
+                          onClick={() => setCurrentPage(pageNum)}
+                          className={`w-8 h-8 rounded-xl text-xs font-bold transition-all ${
+                            currentPage === pageNum
+                              ? "bg-purple-600 text-white shadow-md shadow-purple-500/20"
+                              : "border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-850 text-slate-700 dark:text-slate-300 shadow-sm"
+                          }`}
+                        >
+                          {pageNum}
+                        </button>
+                      );
+                    })}
+                    
+                    <button
+                      onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                      disabled={currentPage === totalPages}
+                      className="px-3.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-850 text-xs font-bold text-slate-700 dark:text-slate-300 disabled:opacity-40 disabled:pointer-events-none transition-all shadow-sm"
+                    >
+                      {lang === "en" ? "Next" : "ถัดไป"}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })()}
       </div>
     </div>
   );

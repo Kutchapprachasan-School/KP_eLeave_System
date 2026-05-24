@@ -1,0 +1,445 @@
+"use server";
+
+import { auth } from "@/lib/auth";
+import { prisma } from "@/lib/db";
+import { headers } from "next/headers";
+import { getCurrentLeaveCycle } from "@/lib/cycle";
+import { getDashboardStats } from "./leave"; // Reuse stats calculation for the snapshot
+
+async function requireAdmin() {
+  const session = await auth.api.getSession({
+    headers: await headers()
+  });
+
+  if (!session?.user || (session.user.role !== "ADMIN" && (session.user as any).position !== "แอดมิน")) {
+    throw new Error("Unauthorized");
+  }
+  return session;
+}
+
+/**
+ * Archive the current leave cycle.
+ * Takes a snapshot of all user's quotas and used days, saves to LeaveArchive,
+ * and clears old LeaveRequests in that cycle to start fresh.
+ */
+export async function archiveCurrentCycle() {
+  const session = await requireAdmin();
+  const cycle = getCurrentLeaveCycle();
+
+  // Get current stats using existing logic
+  const stats = await getDashboardStats();
+
+  // Fetch all users and calculate their individual usage for the snapshot
+  const users = await prisma.user.findMany({
+    where: { role: { not: "ADMIN" } },
+    select: { id: true, name: true, position: true, subjectGroup: true }
+  });
+
+  const snapshotData = [];
+  let totalDaysUsed = 0;
+
+  for (const u of users) {
+    const userRequests = await prisma.leaveRequest.findMany({
+      where: {
+        userId: u.id,
+        status: "APPROVED",
+        startDate: { gte: cycle.start, lte: cycle.end }
+      }
+    });
+
+    const userUsedDays: Record<string, number> = {};
+    for (const r of userRequests) {
+      const days = Math.ceil((r.endDate.getTime() - r.startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+      userUsedDays[r.type] = (userUsedDays[r.type] || 0) + days;
+      totalDaysUsed += days;
+    }
+
+    snapshotData.push({
+      userId: u.id,
+      name: u.name,
+      position: u.position,
+      subjectGroup: u.subjectGroup,
+      usedDays: userUsedDays
+    });
+  }
+
+  // Create Archive record
+  const archive = await prisma.leaveArchive.create({
+    data: {
+      cycleLabel: cycle.label,
+      cycleStart: cycle.start,
+      cycleEnd: cycle.end,
+      data: JSON.stringify(snapshotData),
+      totalStaff: users.length,
+      totalDays: totalDaysUsed,
+      archivedBy: session.user.id
+    }
+  });
+
+  // Optional: clear old requests from DB to reset the system for the new cycle
+  // Only delete APPROVED or REJECTED leaves in this cycle. Leave PENDING ones?
+  // Usually, a cut-off resets everything.
+  await prisma.leaveRequest.deleteMany({
+    where: {
+      startDate: { gte: cycle.start, lte: cycle.end },
+      status: { in: ["APPROVED", "REJECTED"] }
+    }
+  });
+
+  await prisma.systemLog.create({
+    data: {
+      actionType: "ARCHIVE_CYCLE",
+      description: `ตัดรอบการลา ${cycle.label}`,
+      userId: session.user.id
+    }
+  });
+
+  return { success: true, archiveId: archive.id };
+}
+
+/**
+ * Fetch all archived cycles
+ */
+export async function getArchives() {
+  await requireAdmin();
+  const archives = await prisma.leaveArchive.findMany({
+    orderBy: { createdAt: 'desc' }
+  });
+  return archives.map(a => ({
+    ...a,
+    cycleStart: a.cycleStart.toISOString(),
+    cycleEnd: a.cycleEnd.toISOString(),
+    createdAt: a.createdAt.toISOString()
+  }));
+}
+
+/**
+ * Backup the System Settings to SystemBackup
+ */
+export async function backupSettings(label: string) {
+  const session = await requireAdmin();
+  const settings = await prisma.systemSettings.findUnique({ where: { id: "default" } });
+  const configs = await prisma.leaveConfig.findMany();
+
+  const snapshot = {
+    settings,
+    leaveConfigs: configs
+  };
+
+  await prisma.systemBackup.create({
+    data: {
+      label: label || `Backup ${new Date().toLocaleDateString('th-TH')}`,
+      data: JSON.stringify(snapshot),
+      createdBy: session.user.id
+    }
+  });
+
+  await prisma.systemLog.create({
+    data: {
+      actionType: "BACKUP_SETTINGS",
+      description: `สำรองการตั้งค่าระบบ: ${label}`,
+      userId: session.user.id
+    }
+  });
+
+  return { success: true };
+}
+
+export async function getBackups() {
+  await requireAdmin();
+  const backups = await prisma.systemBackup.findMany({
+    orderBy: { createdAt: 'desc' },
+    select: { id: true, label: true, createdAt: true, createdBy: true }
+  });
+  return backups.map(b => ({
+    ...b,
+    createdAt: b.createdAt.toISOString()
+  }));
+}
+
+export async function restoreBackup(backupId: string) {
+  const session = await requireAdmin();
+  const backup = await prisma.systemBackup.findUnique({ where: { id: backupId } });
+  if (!backup) throw new Error("Backup not found");
+
+  const snapshot = JSON.parse(backup.data);
+
+  // Restore settings
+  if (snapshot.settings) {
+    const { id, updatedAt, ...restSettings } = snapshot.settings;
+    await prisma.systemSettings.update({
+      where: { id: "default" },
+      data: restSettings
+    });
+  }
+
+  // Restore leave configs
+  if (snapshot.leaveConfigs && Array.isArray(snapshot.leaveConfigs)) {
+    // Delete existing configs
+    await prisma.leaveConfig.deleteMany();
+    // Insert configs from backup
+    for (const conf of snapshot.leaveConfigs) {
+      await prisma.leaveConfig.create({
+        data: {
+          type: conf.type,
+          name: conf.name,
+          maxDaysPerYear: conf.maxDaysPerYear,
+          warningThreshold: conf.warningThreshold
+        }
+      });
+    }
+  }
+
+  await prisma.systemLog.create({
+    data: {
+      actionType: "RESTORE_SETTINGS",
+      description: `กู้คืนการตั้งค่าระบบจาก: ${backup.label}`,
+      userId: session.user.id
+    }
+  });
+
+  return { success: true };
+}
+
+export async function importBackupFromJson(jsonString: string) {
+  const session = await requireAdmin();
+  let snapshot;
+  try {
+    snapshot = JSON.parse(jsonString);
+  } catch(e) {
+    throw new Error("Invalid JSON file");
+  }
+
+  // Support old full-system backup or new settings-only backup
+  const settingsToRestore = snapshot.settings || snapshot;
+
+  if (settingsToRestore && settingsToRestore.schoolName) {
+    const { id, updatedAt, ...restSettings } = settingsToRestore;
+    await prisma.systemSettings.update({
+      where: { id: "default" },
+      data: restSettings
+    });
+  }
+
+  if (snapshot.leaveConfigs && Array.isArray(snapshot.leaveConfigs)) {
+    await prisma.leaveConfig.deleteMany();
+    for (const conf of snapshot.leaveConfigs) {
+      await prisma.leaveConfig.create({
+        data: {
+          type: conf.type,
+          name: conf.name,
+          maxDaysPerYear: conf.maxDaysPerYear,
+          warningThreshold: conf.warningThreshold
+        }
+      });
+    }
+  }
+
+  await prisma.systemLog.create({
+    data: {
+      actionType: "RESTORE_SETTINGS",
+      description: `กู้คืนการตั้งค่าระบบจากไฟล์อิมพอร์ต JSON`,
+      userId: session.user.id
+    }
+  });
+
+  return { success: true };
+}
+
+/**
+ * Export leave data for the current fiscal year as a JSON backup.
+ * Includes: all leave requests (with user name/email), leave configs, and metadata.
+ */
+export async function exportLeaveBackup() {
+  const session = await requireAdmin();
+  const { getLeaveCycleFilter } = await import("@/lib/cycle");
+  const cycle = getLeaveCycleFilter(new Date(), "year");
+
+  // Fetch leave requests within the fiscal year
+  const whereClause: any = {};
+  if (cycle) {
+    whereClause.startDate = { gte: cycle.start, lte: cycle.end };
+  }
+
+  const leaveRequests = await prisma.leaveRequest.findMany({
+    where: whereClause,
+    include: {
+      user: {
+        select: { id: true, name: true, email: true, role: true, position: true, subjectGroup: true }
+      }
+    },
+    orderBy: { createdAt: "asc" }
+  });
+
+  const leaveConfigs = await prisma.leaveConfig.findMany();
+
+  const backupPayload = {
+    _type: "eleave-leave-backup",
+    _version: 1,
+    exportedAt: new Date().toISOString(),
+    exportedBy: session.user.name || session.user.email,
+    fiscalYear: cycle?.label || "All",
+    cycleStart: cycle?.start.toISOString() || null,
+    cycleEnd: cycle?.end.toISOString() || null,
+    leaveConfigs: leaveConfigs.map(c => ({
+      type: c.type,
+      name: c.name,
+      maxDaysPerYear: c.maxDaysPerYear,
+      warningThreshold: c.warningThreshold,
+    })),
+    leaveRequests: leaveRequests.map(r => ({
+      id: r.id,
+      userId: r.userId,
+      userName: r.user.name,
+      userEmail: r.user.email,
+      userPosition: r.user.position,
+      userSubjectGroup: r.user.subjectGroup,
+      type: r.type,
+      startDate: r.startDate.toISOString(),
+      endDate: r.endDate.toISOString(),
+      reason: r.reason,
+      status: r.status,
+      documentUrl: r.documentUrl,
+      createdAt: r.createdAt.toISOString(),
+      updatedAt: r.updatedAt.toISOString(),
+    })),
+    summary: {
+      totalRequests: leaveRequests.length,
+      approved: leaveRequests.filter(r => r.status === "APPROVED").length,
+      rejected: leaveRequests.filter(r => r.status === "REJECTED").length,
+      pending: leaveRequests.filter(r => r.status.startsWith("PENDING")).length,
+      cancelled: leaveRequests.filter(r => r.status === "CANCELLED").length,
+    }
+  };
+
+  await prisma.systemLog.create({
+    data: {
+      actionType: "EXPORT_LEAVE_BACKUP",
+      description: `สำรองข้อมูลการลา ${cycle?.label || "ทั้งหมด"} (${leaveRequests.length} รายการ)`,
+      userId: session.user.id
+    }
+  });
+
+  return JSON.stringify(backupPayload, null, 2);
+}
+
+/**
+ * Import leave data from a JSON backup.
+ * Restores leave requests and optionally updates leave configs.
+ */
+export async function importLeaveBackup(jsonString: string, mode: "merge" | "replace" = "merge") {
+  const session = await requireAdmin();
+  let backup;
+  try {
+    backup = JSON.parse(jsonString);
+  } catch {
+    throw new Error("Invalid JSON format");
+  }
+
+  if (backup._type !== "eleave-leave-backup") {
+    throw new Error("Invalid backup file: not a leave backup (missing _type: eleave-leave-backup)");
+  }
+
+  if (!Array.isArray(backup.leaveRequests)) {
+    throw new Error("Invalid backup file: leaveRequests array not found");
+  }
+
+  // Build a map of userEmail -> userId from the current database
+  const existingUsers = await prisma.user.findMany({
+    select: { id: true, email: true, name: true }
+  });
+  const emailToUserId = new Map<string, string>();
+  for (const u of existingUsers) {
+    emailToUserId.set(u.email, u.id);
+  }
+
+  // If replace mode, delete existing leave requests in the same fiscal year range
+  if (mode === "replace" && backup.cycleStart && backup.cycleEnd) {
+    await prisma.leaveRequest.deleteMany({
+      where: {
+        startDate: { gte: new Date(backup.cycleStart), lte: new Date(backup.cycleEnd) }
+      }
+    });
+  }
+
+  let imported = 0;
+  let skipped = 0;
+  const errors: string[] = [];
+
+  for (const record of backup.leaveRequests) {
+    // Find matching user by email
+    const matchedUserId = emailToUserId.get(record.userEmail);
+    if (!matchedUserId) {
+      skipped++;
+      errors.push(`User not found: ${record.userEmail} (${record.userName})`);
+      continue;
+    }
+
+    // Check for duplicate (same user, same type, same start date)
+    if (mode === "merge") {
+      const existing = await prisma.leaveRequest.findFirst({
+        where: {
+          userId: matchedUserId,
+          type: record.type,
+          startDate: new Date(record.startDate),
+          endDate: new Date(record.endDate),
+        }
+      });
+      if (existing) {
+        skipped++;
+        continue; // Skip duplicate
+      }
+    }
+
+    try {
+      await prisma.leaveRequest.create({
+        data: {
+          userId: matchedUserId,
+          type: record.type,
+          startDate: new Date(record.startDate),
+          endDate: new Date(record.endDate),
+          reason: record.reason || "",
+          status: record.status || "APPROVED",
+          documentUrl: record.documentUrl || null,
+        }
+      });
+      imported++;
+    } catch (err: any) {
+      skipped++;
+      errors.push(`Failed to import: ${record.userName} ${record.type} (${err.message})`);
+    }
+  }
+
+  // Restore leave configs if present
+  if (Array.isArray(backup.leaveConfigs) && backup.leaveConfigs.length > 0) {
+    for (const conf of backup.leaveConfigs) {
+      const existing = await prisma.leaveConfig.findFirst({ where: { type: conf.type } });
+      if (existing) {
+        await prisma.leaveConfig.update({
+          where: { id: existing.id },
+          data: {
+            name: conf.name,
+            maxDaysPerYear: conf.maxDaysPerYear,
+            warningThreshold: conf.warningThreshold,
+          }
+        });
+      }
+    }
+  }
+
+  await prisma.systemLog.create({
+    data: {
+      actionType: "IMPORT_LEAVE_BACKUP",
+      description: `นำเข้าข้อมูลการลา: ${imported} รายการสำเร็จ, ${skipped} ข้าม` + (errors.length > 0 ? ` (${errors.length} ข้อผิดพลาด)` : ""),
+      userId: session.user.id
+    }
+  });
+
+  return {
+    success: true,
+    imported,
+    skipped,
+    errors: errors.slice(0, 10), // Return first 10 errors
+    total: backup.leaveRequests.length
+  };
+}
