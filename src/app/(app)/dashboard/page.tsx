@@ -44,6 +44,7 @@ export default function DashboardPage() {
   const { t, lang } = useI18n();
 
   const [cycleFilter, setCycleFilter] = useState<"current" | "cycle1" | "cycle2" | "year">("current");
+  const [leaderboardFilter, setLeaderboardFilter] = useState<"times" | "days">("times");
 
   useEffect(() => { 
     setMounted(true); 
@@ -66,30 +67,10 @@ export default function DashboardPage() {
     totalUsed += usedDaysMap[type];
   }
 
-  let totalQuota = 0;
-  for (const config of leaveConfigs) {
-    totalQuota += config.maxDaysPerYear;
-  }
-
+  const totalQuota = 15;
   const totalRemaining = Math.max(totalQuota - totalUsed, 0);
 
-  const usedSegments = leaveConfigs.filter((c: any) => usedDaysMap[c.type] > 0).map((c: any, i: number) => ({
-    name: c.name,
-    value: usedDaysMap[c.type],
-    fill: COLOR_PALETTE[i % COLOR_PALETTE.length]
-  }));
 
-  const usageData = [
-    ...usedSegments,
-    { name: 'Remaining', value: totalRemaining, fill: COLORS.blue }
-  ];
-
-  const quotaProgress = leaveConfigs.filter((c: any) => c.maxDaysPerYear > 0).map((c: any, i: number) => ({
-    name: c.name,
-    used: usedDaysMap[c.type] || 0,
-    total: c.maxDaysPerYear,
-    fill: COLOR_PALETTE[i % COLOR_PALETTE.length]
-  }));
 
   return (
     <motion.div 
@@ -163,24 +144,47 @@ export default function DashboardPage() {
       {/* Main Complex Widgets */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
-        {/* Category List */}
-        <motion.div variants={itemVariants} className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white/60 dark:border-slate-800 rounded-3xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] lg:col-span-1 flex flex-col max-h-[400px] overflow-y-auto custom-scrollbar">
-          <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-6 sticky top-0 bg-white/80 dark:bg-slate-900/80 py-1 z-10 backdrop-blur-sm">{t("byCategory")}</h3>
-          <div className="space-y-4">
-            {usedSegments.map((d: any, i: number) => (
-              <div key={i} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-100 dark:border-slate-800">
-                <div className="flex items-center gap-3">
-                  <div className="w-3 h-3 rounded-full shadow-sm" style={{ backgroundColor: d.fill }} />
-                  <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">{d.name}</span>
-                </div>
-                <span className="text-sm font-bold text-slate-900 dark:text-white bg-white dark:bg-slate-700 px-3 py-1 rounded-full shadow-sm border border-slate-100 dark:border-slate-600">
-                  {d.value} {t("days")}
-                </span>
+        {/* Global Quota Progress */}
+        <motion.div variants={itemVariants} className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white/60 dark:border-slate-800 rounded-3xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] lg:col-span-1 flex flex-col justify-center">
+          <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-6">ภาพรวมโควตาการลา (รวมทุกประเภท)</h3>
+          <div className="space-y-6">
+            {/* Times Progress */}
+            <div>
+              <div className="flex justify-between text-sm font-semibold mb-2">
+                <span className="text-slate-700 dark:text-slate-300">จำนวนครั้งที่ใช้สิทธิ์ไปแล้ว</span>
+                <span className="text-slate-900 dark:text-white">{stats.userWatchlistStats?.totalTimes || 0} / 6 ครั้ง</span>
               </div>
-            ))}
-            {usedSegments.length === 0 && (
-               <p className="text-sm text-slate-500 text-center py-4">{t("noUsageYet")}</p>
-            )}
+              <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-3.5 overflow-hidden">
+                <motion.div 
+                  initial={{ width: 0 }}
+                  animate={{ width: `${Math.min(((stats.userWatchlistStats?.totalTimes || 0) / 6) * 100, 100)}%` }}
+                  transition={{ duration: 1, ease: "easeOut" }}
+                  className={`h-full rounded-full ${(stats.userWatchlistStats?.totalTimes || 0) >= 4 ? 'bg-orange-500' : 'bg-purple-500'}`}
+                />
+              </div>
+            </div>
+            
+            {/* Days Progress */}
+            <div>
+              <div className="flex justify-between text-sm font-semibold mb-2">
+                <span className="text-slate-700 dark:text-slate-300">จำนวนวันที่ใช้สิทธิ์ไปแล้ว</span>
+                <span className="text-slate-900 dark:text-white">{stats.userWatchlistStats?.totalDays || 0} / 15 วัน</span>
+              </div>
+              <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-3.5 overflow-hidden">
+                <motion.div 
+                  initial={{ width: 0 }}
+                  animate={{ width: `${Math.min(((stats.userWatchlistStats?.totalDays || 0) / 15) * 100, 100)}%` }}
+                  transition={{ duration: 1, ease: "easeOut", delay: 0.2 }}
+                  className={`h-full rounded-full ${(stats.userWatchlistStats?.totalDays || 0) >= 12 ? 'bg-rose-500' : 'bg-blue-500'}`}
+                />
+              </div>
+            </div>
+
+            <div className="pt-4 border-t border-slate-100 dark:border-slate-800">
+              <p className="text-xs text-slate-500 dark:text-slate-400 text-center leading-relaxed">
+                * โควตาการลาเป็นเพียงการบอกสิทธิ์เบื้องต้น การลาเกินโควตายังสามารถยื่นคำขอได้ตามปกติ
+              </p>
+            </div>
           </div>
         </motion.div>
 
@@ -224,29 +228,45 @@ export default function DashboardPage() {
 
         {/* Admin Watchlist / Leaderboard */}
         {isOverview && (
-          <motion.div variants={itemVariants} className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white/60 dark:border-slate-800 rounded-3xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] flex flex-col max-h-[400px] overflow-y-auto custom-scrollbar">
+          <motion.div variants={itemVariants} className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white/60 dark:border-slate-800 rounded-3xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] flex flex-col max-h-[400px] overflow-hidden">
             <div className="sticky top-0 bg-white/80 dark:bg-slate-900/80 py-1 z-10 backdrop-blur-sm mb-4">
-              <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                <AlertCircle className="w-5 h-5 text-rose-500" />
-                {t("watchlist")}
-              </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{t("watchlistDesc")}</p>
+              <div className="flex justify-between items-center mb-1">
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <AlertCircle className="w-5 h-5 text-rose-500" />
+                  {t("watchlist")}
+                </h3>
+                <select 
+                  value={leaderboardFilter}
+                  onChange={(e) => setLeaderboardFilter(e.target.value as "times" | "days")}
+                  className="h-8 px-2 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800"
+                >
+                  <option value="times">เรียงตามจำนวนครั้ง</option>
+                  <option value="days">เรียงตามจำนวนวัน</option>
+                </select>
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400">แสดงรายชื่อผู้ที่มีการลา (ทุกประเภท)</p>
             </div>
-            <div className="space-y-3">
+            <div className="space-y-3 overflow-y-auto custom-scrollbar flex-1 pr-2">
               {stats.leaveLeaderboard?.length === 0 ? (
                 <p className="text-sm text-slate-500 dark:text-slate-400 text-center py-4">{t("noStaffLeaveYet")}</p>
               ) : (
-                stats.leaveLeaderboard?.map((item: any, i: number) => (
+                [...stats.leaveLeaderboard]
+                  .sort((a, b) => leaderboardFilter === "times" ? b.totalTimes - a.totalTimes : b.totalDays - a.totalDays)
+                  .map((item: any, i: number) => (
                   <div key={i} className={`flex items-center justify-between p-3 rounded-2xl border ${item.isWarning ? 'bg-rose-50 border-rose-100 dark:bg-rose-900/20 dark:border-rose-800' : 'bg-slate-50 border-slate-100 dark:bg-slate-800/50 dark:border-slate-700'} transition-colors`}>
                     <div className="flex-1 min-w-0">
-                      <p className={`text-sm font-bold leading-snug ${item.isWarning ? 'text-rose-700 dark:text-rose-400' : 'text-slate-900 dark:text-white'}`}>{item.name}</p>
+                      <p className={`text-sm font-bold leading-snug ${item.isWarning ? 'text-rose-700 dark:text-rose-400' : 'text-slate-900 dark:text-white'}`}>
+                        <span className="text-xs text-slate-400 mr-2">#{i + 1}</span>{item.name}
+                      </p>
                       <p className="text-xs text-slate-500 dark:text-slate-400">{item.position}</p>
                     </div>
                     <div className="text-right ml-4 shrink-0">
-                      <p className={`text-sm font-bold ${item.isWarning ? 'text-rose-600 dark:text-rose-400' : 'text-slate-700 dark:text-slate-300'}`}>
-                        {t("leaveTimesCount")} {item.totalTimes} {t("leaveTimes")}
+                      <p className={`text-sm font-bold ${leaderboardFilter === 'times' ? (item.isWarning ? 'text-rose-600 dark:text-rose-400' : 'text-slate-700 dark:text-slate-300') : 'text-slate-500 dark:text-slate-400'}`}>
+                        {item.totalTimes} {t("timesUnit")}
                       </p>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">{t("leaveTotal")} {item.totalDays} {t("days")}</p>
+                      <p className={`text-xs ${leaderboardFilter === 'days' ? (item.isWarning ? 'text-rose-600 font-bold' : 'text-slate-700 font-bold dark:text-slate-300') : 'text-slate-500 dark:text-slate-400'}`}>
+                        {item.totalDays} {t("days")}
+                      </p>
                     </div>
                   </div>
                 ))

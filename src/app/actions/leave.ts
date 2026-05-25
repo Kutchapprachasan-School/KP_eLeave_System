@@ -211,12 +211,12 @@ export async function getDashboardStats(cycleFilter: "current" | "cycle1" | "cyc
   // Get total requests for approval rate
   const allRequestsCount = await prisma.leaveRequest.count({
     where: isApprover
-      ? (isHead ? { user: { subjectGroup: user.subjectGroup } } : {})
+      ? (isHead ? {} : {}) // HR head sees all
       : { userId: session.user.id }
   });
   const approvedRequestsCount = await prisma.leaveRequest.count({
     where: isApprover
-      ? { status: "APPROVED", ...(isHead ? { user: { subjectGroup: user.subjectGroup } } : {}) }
+      ? { status: "APPROVED", ...(isHead ? {} : {}) }
       : { userId: session.user.id, status: "APPROVED" }
   });
   const approvalRate = allRequestsCount === 0 ? 100 : Math.round((approvedRequestsCount / allRequestsCount) * 100);
@@ -254,6 +254,24 @@ export async function getDashboardStats(cycleFilter: "current" | "cycle1" | "cyc
   let leaveLeaderboard: any[] = [];
   let userWatchlistStats = { totalDays: 0, totalTimes: 0, isWarning: false };
 
+  // Always calculate personal watchlist stats
+  const ownRequests = isApprover 
+    ? await prisma.leaveRequest.findMany({
+        where: {
+          userId: session.user.id,
+          status: "APPROVED",
+          ...(filter ? { startDate: { gte: filter.start, lte: filter.end } } : {})
+        }
+      })
+    : requests;
+
+  for (const r of ownRequests) {
+    const days = Math.ceil((r.endDate.getTime() - r.startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+    userWatchlistStats.totalDays += days;
+    userWatchlistStats.totalTimes += 1;
+  }
+  userWatchlistStats.isWarning = userWatchlistStats.totalTimes >= 4 || userWatchlistStats.totalDays >= 12;
+
   if (isApprover) {
     const userStatsMap: Record<string, any> = {};
     for (const r of requests) {
@@ -262,26 +280,15 @@ export async function getDashboardStats(cycleFilter: "current" | "cycle1" | "cyc
       if (!userStatsMap[uid]) {
         userStatsMap[uid] = { userId: uid, name: r.user.name, totalDays: 0, totalTimes: 0, position: (r.user as any).position || "-" };
       }
-      if (r.type === "SICK" || r.type === "PERSONAL") {
-        const days = Math.ceil((r.endDate.getTime() - r.startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-        userStatsMap[uid].totalDays += days;
-        userStatsMap[uid].totalTimes += 1;
-      }
+      const days = Math.ceil((r.endDate.getTime() - r.startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+      userStatsMap[uid].totalDays += days;
+      userStatsMap[uid].totalTimes += 1;
     }
     leaveLeaderboard = Object.values(userStatsMap)
-      .map((stat: any) => ({ ...stat, isWarning: stat.totalTimes >= 6 || stat.totalDays >= 15 }))
+      .map((stat: any) => ({ ...stat, isWarning: stat.totalTimes >= 4 || stat.totalDays >= 12 }))
       .filter((stat: any) => stat.totalTimes > 0)
       .sort((a: any, b: any) => b.totalTimes - a.totalTimes || b.totalDays - a.totalDays)
-      .slice(0, 10);
-  } else {
-    for (const r of requests) {
-      if (r.type === "SICK" || r.type === "PERSONAL") {
-        const days = Math.ceil((r.endDate.getTime() - r.startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-        userWatchlistStats.totalDays += days;
-        userWatchlistStats.totalTimes += 1;
-      }
-    }
-    userWatchlistStats.isWarning = userWatchlistStats.totalTimes >= 6 || userWatchlistStats.totalDays >= 15;
+      .slice(0, 50); // increased slice to allow UI sorting
   }
 
   return {
@@ -666,29 +673,19 @@ export async function getMyLeaveUsageForCurrentCycle() {
     },
   });
 
-  let sickTimes = 0;
-  let sickDays = 0;
-  let personalTimes = 0;
-  let personalDays = 0;
+  let totalTimes = 0;
+  let totalDays = 0;
 
   for (const r of requests) {
     const days = Math.ceil((r.endDate.getTime() - r.startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-    if (r.type === "SICK") {
-      sickTimes += 1;
-      sickDays += days;
-    } else if (r.type === "PERSONAL") {
-      personalTimes += 1;
-      personalDays += days;
-    }
+    totalTimes += 1;
+    totalDays += days;
   }
 
   return {
     cycleLabel: cycle.label,
-    sickTimes,
-    sickDays,
-    personalTimes,
-    personalDays,
-    sickWarning: sickTimes >= 6 || sickDays >= 15,
-    personalWarning: personalTimes >= 6 || personalDays >= 15,
+    totalTimes,
+    totalDays,
+    isWarning: totalTimes >= 4 || totalDays >= 12,
   };
 }

@@ -287,49 +287,53 @@ export default function RequestLeavePage() {
             {leaveUsage ? (
               <>
                 <p className="text-[11px] text-slate-400 mb-4">{leaveUsage.cycleLabel}</p>
-                <div className="space-y-3">
-                  {/* Sick Leave */}
-                  <div className={`flex items-center justify-between p-3 rounded-xl border ${
-                    leaveUsage.sickWarning
-                      ? 'border-rose-200 dark:border-rose-800 bg-rose-50/50 dark:bg-rose-500/5'
-                      : 'border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30'
-                  }`}>
-                    <div className="flex items-center gap-2">
-                      {leaveUsage.sickWarning
-                        ? <AlertTriangle className="w-4 h-4 text-rose-500" />
-                        : <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                      }
-                      <div>
-                        <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">{t("sickLeaveShort")}</p>
-                        <p className="text-[11px] text-slate-400">{leaveUsage.sickTimes} {t("timesUnit")} / {leaveUsage.sickDays} {t("days")}</p>
-                      </div>
+                <div className="space-y-4">
+                  
+                  {/* Global Times Progress */}
+                  <div>
+                    <div className="flex justify-between text-xs font-semibold mb-1.5">
+                      <span className="text-slate-700 dark:text-slate-300">จำนวนครั้งที่ใช้สิทธิ์ไปแล้ว</span>
+                      <span className="text-slate-900 dark:text-white">{leaveUsage.totalTimes} / 6 ครั้ง</span>
                     </div>
-                    {leaveUsage.sickWarning && (
-                      <span className="text-[10px] font-bold text-rose-500 bg-rose-100 dark:bg-rose-500/10 px-2 py-0.5 rounded-full">{t("exceedThreshold")}</span>
-                    )}
-                  </div>
-                  {/* Personal Leave */}
-                  <div className={`flex items-center justify-between p-3 rounded-xl border ${
-                    leaveUsage.personalWarning
-                      ? 'border-rose-200 dark:border-rose-800 bg-rose-50/50 dark:bg-rose-500/5'
-                      : 'border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30'
-                  }`}>
-                    <div className="flex items-center gap-2">
-                      {leaveUsage.personalWarning
-                        ? <AlertTriangle className="w-4 h-4 text-rose-500" />
-                        : <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                      }
-                      <div>
-                        <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">{t("personalLeaveShort")}</p>
-                        <p className="text-[11px] text-slate-400">{leaveUsage.personalTimes} {t("timesUnit")} / {leaveUsage.personalDays} {t("days")}</p>
-                      </div>
+                    <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2 overflow-hidden flex">
+                      <motion.div 
+                        initial={{ width: 0 }}
+                        animate={{ width: `${Math.min((leaveUsage.totalTimes / 6) * 100, 100)}%` }}
+                        transition={{ duration: 1, ease: "easeOut" }}
+                        className={`h-full rounded-full ${leaveUsage.totalTimes >= 4 ? 'bg-orange-500' : 'bg-purple-500'}`}
+                      />
                     </div>
-                    {leaveUsage.personalWarning && (
-                      <span className="text-[10px] font-bold text-rose-500 bg-rose-100 dark:bg-rose-500/10 px-2 py-0.5 rounded-full">{t("exceedThreshold")}</span>
-                    )}
                   </div>
+
+                  {/* Global Days Progress */}
+                  <div>
+                    <div className="flex justify-between text-xs font-semibold mb-1.5">
+                      <span className="text-slate-700 dark:text-slate-300">จำนวนวันที่ใช้สิทธิ์ไปแล้ว</span>
+                      <span className="text-slate-900 dark:text-white">{leaveUsage.totalDays} / 15 วัน</span>
+                    </div>
+                    <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2 overflow-hidden flex">
+                      <motion.div 
+                        initial={{ width: 0 }}
+                        animate={{ width: `${Math.min((leaveUsage.totalDays / 15) * 100, 100)}%` }}
+                        transition={{ duration: 1, ease: "easeOut", delay: 0.2 }}
+                        className={`h-full rounded-full ${leaveUsage.totalDays >= 12 ? 'bg-rose-500' : 'bg-blue-500'}`}
+                      />
+                    </div>
+                  </div>
+
+                  {leaveUsage.isWarning && (
+                    <div className="flex items-center gap-2 mt-4 p-2.5 bg-rose-50 dark:bg-rose-500/10 border border-rose-100 dark:border-rose-800 rounded-xl">
+                      <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0" />
+                      <p className="text-[11px] text-rose-700 dark:text-rose-400 font-medium">
+                        คุณใช้สิทธิ์การลาใกล้ถึงกำหนด (4 ครั้ง หรือ 12 วัน) 
+                      </p>
+                    </div>
+                  )}
+
                 </div>
-                <p className="text-[10px] text-slate-400 mt-3 text-center">{t("thresholdNote")}</p>
+                <p className="text-[10px] text-slate-400 mt-4 text-center leading-relaxed">
+                  * โควตาการลาเป็นเพียงการบอกสิทธิ์เบื้องต้น<br/>การลาเกินโควตายังสามารถยื่นคำขอได้ตามปกติ
+                </p>
               </>
             ) : (
               <div className="animate-pulse space-y-2 mt-4">
