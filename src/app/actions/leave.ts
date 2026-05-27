@@ -7,6 +7,32 @@ import { revalidatePath } from "next/cache";
 import { sendLineNotify, formatLeaveMessage } from "@/lib/line-notify";
 import { getCurrentLeaveCycle, getLeaveCycleFilter } from "@/lib/cycle";
 
+// ========= Helper: Calculate leave days excluding weekends (except maternity) =========
+export function calculateLeaveDays(startDate: Date, endDate: Date, type: string): number {
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  
+  start.setHours(0, 0, 0, 0);
+  end.setHours(0, 0, 0, 0);
+
+  if (end < start) return 0;
+
+  if (type === "MATERNITY") {
+    return Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+  }
+
+  let count = 0;
+  const current = new Date(start);
+  while (current <= end) {
+    const day = current.getDay();
+    if (day !== 0 && day !== 6) { // 0 = Sunday, 6 = Saturday
+      count++;
+    }
+    current.setDate(current.getDate() + 1);
+  }
+  return count;
+}
+
 // ========= Helper: get session safely =========
 async function getSession() {
   const session = await auth.api.getSession({
@@ -42,7 +68,7 @@ export async function submitLeaveRequest(data: {
   }
 
   // Calculate requested days
-  const requestedDays = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+  const requestedDays = calculateLeaveDays(start, end, data.type);
 
   // Validate leave quota ONLY for non-sick and non-personal leave types
   if (data.type !== "SICK" && data.type !== "PERSONAL") {
@@ -63,7 +89,7 @@ export async function submitLeaveRequest(data: {
 
       let usedDays = 0;
       for (const r of pastRequests) {
-        const days = Math.ceil((r.endDate.getTime() - r.startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+        const days = calculateLeaveDays(r.startDate, r.endDate, r.type);
         usedDays += days;
       }
 
@@ -212,7 +238,7 @@ export async function getDashboardStats(cycleFilter: "current" | "cycle1" | "cyc
   }
 
   for (const r of requests) {
-    const days = Math.ceil((r.endDate.getTime() - r.startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+    const days = calculateLeaveDays(r.startDate, r.endDate, r.type);
     if (usedDaysMap[r.type] !== undefined) {
       usedDaysMap[r.type] += days;
     } else {
@@ -258,7 +284,7 @@ export async function getDashboardStats(cycleFilter: "current" | "cycle1" | "cyc
   const monthlyData = months.map(name => ({ name, value: 0 }));
   for (const r of requests) {
     const mIndex = r.startDate.getMonth();
-    const days = Math.ceil((r.endDate.getTime() - r.startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+    const days = calculateLeaveDays(r.startDate, r.endDate, r.type);
     monthlyData[mIndex].value += days;
   }
 
@@ -299,7 +325,7 @@ export async function getDashboardStats(cycleFilter: "current" | "cycle1" | "cyc
 
   for (const r of ownRequests) {
     if (r.type === "SICK" || r.type === "PERSONAL") {
-      const days = Math.ceil((r.endDate.getTime() - r.startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+      const days = calculateLeaveDays(r.startDate, r.endDate, r.type);
       userWatchlistStats.totalDays += days;
       userWatchlistStats.totalTimes += 1;
     }
@@ -315,7 +341,7 @@ export async function getDashboardStats(cycleFilter: "current" | "cycle1" | "cyc
         userStatsMap[uid] = { userId: uid, name: r.user.name, totalDays: 0, totalTimes: 0, position: (r.user as any).position || "-" };
       }
       if (r.type === "SICK" || r.type === "PERSONAL") {
-        const days = Math.ceil((r.endDate.getTime() - r.startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+        const days = calculateLeaveDays(r.startDate, r.endDate, r.type);
         userStatsMap[uid].totalDays += days;
         userStatsMap[uid].totalTimes += 1;
       }
@@ -713,9 +739,11 @@ export async function getMyLeaveUsageForCurrentCycle() {
   let totalDays = 0;
 
   for (const r of requests) {
-    const days = Math.ceil((r.endDate.getTime() - r.startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-    totalTimes += 1;
-    totalDays += days;
+    if (r.type === "SICK" || r.type === "PERSONAL") {
+      const days = calculateLeaveDays(r.startDate, r.endDate, r.type);
+      totalTimes += 1;
+      totalDays += days;
+    }
   }
 
   return {

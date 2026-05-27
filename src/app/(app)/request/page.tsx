@@ -187,6 +187,44 @@ export default function RequestLeavePage() {
               </div>
             </div>
 
+            {/* Live Day Count Preview */}
+            {startDate && endDate && (
+              <div className="p-4 bg-purple-500/5 border border-purple-500/10 dark:border-purple-500/20 rounded-2xl flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-purple-700 dark:text-purple-400">คำนวณจำนวนวันลา</p>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                    {selectedType === "MATERNITY" 
+                      ? "* รวมวันหยุดเสาร์-อาทิตย์และวันหยุดนักขัตฤกษ์" 
+                      : "* ไม่รวมวันหยุดเสาร์-อาทิตย์"
+                    }
+                  </p>
+                </div>
+                <div className="text-right">
+                  <span className="text-2xl font-black text-purple-600 dark:text-purple-400">
+                    {(() => {
+                      const start = new Date(startDate);
+                      const end = new Date(endDate);
+                      if (isNaN(start.getTime()) || isNaN(end.getTime()) || end < start) return 0;
+                      
+                      if (selectedType === "MATERNITY") {
+                        return Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+                      }
+                      
+                      let count = 0;
+                      const current = new Date(start);
+                      while (current <= end) {
+                        const day = current.getDay();
+                        if (day !== 0 && day !== 6) count++;
+                        current.setDate(current.getDate() + 1);
+                      }
+                      return count;
+                    })()}
+                  </span>
+                  <span className="text-sm font-bold text-slate-600 dark:text-slate-400 ml-1">วัน</span>
+                </div>
+              </div>
+            )}
+
             {/* Reason */}
             <div>
               <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">{t("leaveReason")}</label>
