@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { useSession } from "@/lib/auth-client";
 import { updateProfile } from "@/app/actions/user";
 import { authClient } from "@/lib/auth-client";
-import { Save, Lock, User as UserIcon, ShieldCheck, Mail, BookOpen, KeyRound, CheckCircle, Fingerprint, Camera, Trash2, Pencil, RefreshCw } from "lucide-react";
+import { Save, Lock, User as UserIcon, ShieldCheck, Mail, BookOpen, KeyRound, CheckCircle, Fingerprint, Camera, Trash2, Pencil, RefreshCw, Paperclip } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 
 export default function ProfilePage() {
@@ -116,11 +116,11 @@ export default function ProfilePage() {
     if (!canvasRef.current) return { x: 0, y: 0 };
     const canvas = canvasRef.current;
     const rect = canvas.getBoundingClientRect();
-    
+
     // Scale coords to handle canvas size vs ClientBoundingRect
     const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
     const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
-    
+
     const x = ((clientX - rect.left) / rect.width) * canvas.width;
     const y = ((clientY - rect.top) / rect.height) * canvas.height;
     return { x, y };
@@ -168,11 +168,11 @@ export default function ProfilePage() {
   const saveDrawnSignature = () => {
     if (!canvasRef.current) return;
     const canvas = canvasRef.current;
-    
+
     // Check if canvas is empty
     const buffer = new Uint32Array(canvas.getContext("2d")!.getImageData(0, 0, canvas.width, canvas.height).data.buffer);
     const isEmpty = !buffer.some(color => color !== 0);
-    
+
     if (isEmpty) {
       alert(lang === "en" ? "Please draw your signature first" : "กรุณาเซ็นชื่อก่อนกดบันทึก");
       return;
@@ -233,7 +233,7 @@ export default function ProfilePage() {
         currentPassword,
         revokeOtherSessions: true,
       });
-      
+
       if (res.error) {
         setPasswordError(res.error.message || (lang === "en" ? "Current password is incorrect" : "รหัสผ่านปัจจุบันไม่ถูกต้อง"));
       } else {
@@ -255,7 +255,7 @@ export default function ProfilePage() {
       <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-purple-900 via-indigo-950 to-slate-900 dark:from-purple-950 dark:via-indigo-950 dark:to-black p-8 md:p-10 shadow-lg border border-indigo-900/40">
         <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl -z-10" />
         <div className="absolute bottom-0 left-12 w-48 h-48 bg-purple-500/10 rounded-full blur-2xl -z-10" />
-        
+
         <div className="flex items-center gap-4">
           <div className="w-12 h-12 rounded-2xl bg-white/10 backdrop-blur-md flex items-center justify-center border border-white/10 text-white shadow-inner">
             <UserIcon className="w-6 h-6" />
@@ -284,10 +284,10 @@ export default function ProfilePage() {
               </span>
             </div>
           </div>
-          
+
           <div className="px-6 pb-8 pt-0 flex flex-col items-center text-center relative">
             {/* Avatar */}
-            <div 
+            <div
               onClick={() => avatarInputRef.current?.click()}
               className="-mt-16 w-28 h-28 rounded-full border-4 border-white dark:border-slate-950 bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-4xl font-extrabold shadow-xl relative group overflow-hidden cursor-pointer"
             >
@@ -301,16 +301,16 @@ export default function ProfilePage() {
                 <span>เปลี่ยนรูป</span>
               </div>
             </div>
-            <input 
-              ref={avatarInputRef} 
-              type="file" 
-              accept="image/*" 
-              className="hidden" 
-              onChange={handleAvatarChange} 
+            <input
+              ref={avatarInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleAvatarChange}
             />
 
             <h2 className="text-xl font-extrabold text-slate-900 dark:text-white mt-4 leading-tight">{user?.name}</h2>
-            
+
             <div className="flex items-center gap-1.5 mt-1 text-slate-500 dark:text-slate-400 text-xs font-semibold">
               <Mail className="w-3.5 h-3.5" />
               {user?.email}
@@ -349,14 +349,14 @@ export default function ProfilePage() {
 
         {/* Edit Forms */}
         <div className="lg:col-span-2 space-y-8">
-          
+
           {/* Profile Info Form */}
           <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white/60 dark:border-slate-800 rounded-3xl p-6 md:p-8 shadow-[0_8px_30px_rgb(0,0,0,0.02)]">
             <h3 className="text-lg font-bold mb-6 flex items-center gap-2 text-slate-900 dark:text-white pb-4 border-b border-slate-100 dark:border-slate-800/80">
               <UserIcon className="w-5 h-5 text-indigo-500" />
               {lang === "en" ? "Personal Information" : "ข้อมูลส่วนตัว"}
             </h3>
-            
+
             <form onSubmit={handleUpdateProfile} className="space-y-5">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div>
@@ -437,7 +437,7 @@ export default function ProfilePage() {
                   {signaturePreview ? (
                     <>
                       <img src={signaturePreview} alt="Signature Preview" className="max-h-full max-w-full object-contain dark:invert" />
-                      <button 
+                      <button
                         onClick={handleDeleteSignature}
                         className="absolute bottom-3 right-3 w-8 h-8 rounded-xl bg-rose-50 dark:bg-rose-950 hover:bg-rose-100 dark:hover:bg-rose-900 flex items-center justify-center text-rose-600 transition-colors shadow-sm"
                         title={lang === "en" ? "Delete Signature" : "ลบลายเซ็นต์"}
@@ -472,10 +472,10 @@ export default function ProfilePage() {
                 <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                   {lang === "en" ? "Upload or Draw New Signature" : "เพิ่มลายเซ็นต์ใหม่ (อัปโหลด หรือ วาดบนจอ)"}
                 </label>
-                
+
                 {/* Method selector tab */}
                 <div className="grid grid-cols-2 gap-2 p-1.5 bg-slate-100 dark:bg-slate-800/80 rounded-xl">
-                  <label 
+                  <label
                     onClick={() => {
                       const drawEl = document.getElementById("sig-draw-section");
                       const uploadEl = document.getElementById("sig-upload-section");
@@ -496,7 +496,7 @@ export default function ProfilePage() {
                     <Paperclip className="w-3.5 h-3.5" />
                     <span>{lang === "en" ? "Upload Image" : "อัปโหลดภาพแสกน"}</span>
                   </label>
-                  <label 
+                  <label
                     onClick={() => {
                       const drawEl = document.getElementById("sig-draw-section");
                       const uploadEl = document.getElementById("sig-upload-section");
@@ -535,12 +535,12 @@ export default function ProfilePage() {
                 {/* Upload Section */}
                 <div id="sig-upload-section" className="block">
                   <label className="flex flex-col items-center justify-center w-full h-32 rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/10 hover:border-purple-400 dark:hover:border-purple-500 hover:bg-purple-50/30 dark:hover:bg-purple-500/5 transition-all cursor-pointer group">
-                    <input 
-                      ref={signatureInputRef} 
-                      type="file" 
-                      accept="image/*" 
-                      onChange={handleSignatureUpload} 
-                      className="hidden" 
+                    <input
+                      ref={signatureInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleSignatureUpload}
+                      className="hidden"
                     />
                     <Paperclip className="w-7 h-7 text-slate-300 dark:text-slate-700 group-hover:text-purple-400 transition-colors mb-1.5" />
                     <span className="text-xs text-slate-400 group-hover:text-purple-500 transition-colors">{lang === "en" ? "Click to upload signature file" : "คลิกเพื่อเลือกไฟล์รูปภาพลายเซ็นต์"}</span>
@@ -592,7 +592,7 @@ export default function ProfilePage() {
               <KeyRound className="w-5 h-5 text-purple-500" />
               {lang === "en" ? "Change Password" : "เปลี่ยนรหัสผ่าน"}
             </h3>
-            
+
             <form onSubmit={handleChangePassword} className="space-y-5">
               {passwordError && (
                 <div className="p-3.5 rounded-2xl bg-rose-50 dark:bg-rose-950/20 text-rose-600 dark:text-rose-400 text-xs font-semibold border border-rose-100 dark:border-rose-950">
@@ -605,7 +605,7 @@ export default function ProfilePage() {
                   {passwordSuccess}
                 </div>
               )}
-              
+
               <div>
                 <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1.5 uppercase tracking-wider">
                   {lang === "en" ? "Current Password" : "รหัสผ่านปัจจุบัน"}
@@ -621,7 +621,7 @@ export default function ProfilePage() {
                   <Lock className="w-4 h-4 text-slate-400 absolute right-4 top-3.5" />
                 </div>
               </div>
-              
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div>
                   <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1.5 uppercase tracking-wider">

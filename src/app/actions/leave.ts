@@ -8,7 +8,7 @@ import { sendLineNotify, formatLeaveMessage } from "@/lib/line-notify";
 import { getCurrentLeaveCycle, getLeaveCycleFilter } from "@/lib/cycle";
 
 // ========= Helper: Calculate leave days excluding weekends (except maternity) =========
-export function calculateLeaveDays(startDate: Date, endDate: Date, type: string): number {
+function calculateLeaveDays(startDate: Date, endDate: Date, type: string): number {
   const start = new Date(startDate);
   const end = new Date(endDate);
   
