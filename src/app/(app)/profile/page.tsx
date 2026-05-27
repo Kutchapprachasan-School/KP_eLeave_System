@@ -8,7 +8,7 @@ import { Save, Lock, User as UserIcon, ShieldCheck, Mail, BookOpen, KeyRound, Ch
 import { useI18n } from "@/lib/i18n";
 
 export default function ProfilePage() {
-  const { data: session, isPending } = useSession();
+  const { data: session, isPending, refetch } = useSession();
   const user = session?.user as any;
   const { t, lang, tPosition } = useI18n();
 
@@ -63,6 +63,7 @@ export default function ProfilePage() {
     setSavingProfile(true);
     try {
       await updateProfile({ name, subjectGroup });
+      await refetch();
       alert(lang === "en" ? "Profile updated successfully!" : "อัปเดตข้อมูลส่วนตัวสำเร็จ");
     } catch (error) {
       alert(lang === "en" ? "Failed to update profile" : "เกิดข้อผิดพลาดในการอัปเดตข้อมูล");
@@ -86,6 +87,7 @@ export default function ProfilePage() {
       setAvatarPreview(base64);
       try {
         await updateProfile({ name, subjectGroup, image: base64 });
+        await refetch();
       } catch (err) {
         console.error("Failed to save avatar", err);
       }
@@ -186,6 +188,7 @@ export default function ProfilePage() {
     setSavingSignature(true);
     try {
       await updateProfile({ name, subjectGroup, signatureUrl: signaturePreview });
+      await refetch();
       alert(lang === "en" ? "Signature saved successfully!" : "บันทึกลายเซ็นต์สำเร็จเรียบร้อยแล้ว");
     } catch (err) {
       alert(lang === "en" ? "Failed to save signature" : "เกิดข้อผิดพลาดในการบันทึกลายเซ็น");
@@ -199,6 +202,7 @@ export default function ProfilePage() {
     setSavingSignature(true);
     try {
       await updateProfile({ name, subjectGroup, signatureUrl: "" });
+      await refetch();
       setSignaturePreview("");
       alert(lang === "en" ? "Signature deleted successfully!" : "ลบลายเซ็นต์เรียบร้อยแล้ว");
     } catch (err) {

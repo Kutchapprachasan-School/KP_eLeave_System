@@ -13,6 +13,13 @@ function getTodayStr() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
+function getWeekdayName(dateStr: string, lang: string) {
+  if (!dateStr) return "";
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return "";
+  return d.toLocaleDateString(lang === "th" ? "th-TH" : "en-US", { weekday: 'long' });
+}
+
 export default function RequestLeavePage() {
   const [loading, setLoading] = useState(false);
   const [documentPreview, setDocumentPreview] = useState<string | null>(null);
@@ -168,7 +175,18 @@ export default function RequestLeavePage() {
             {/* Dates */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               <div>
-                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">{t("startDate")}</label>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300">{t("startDate")}</label>
+                  {startDate && (
+                    <span className={`text-[11px] font-bold px-2 py-0.5 rounded-md ${
+                      ["เสาร์", "อาทิตย์", "Saturday", "Sunday"].some(w => getWeekdayName(startDate, lang).includes(w))
+                        ? "bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400 border border-amber-200/50"
+                        : "bg-purple-50 dark:bg-purple-950/30 text-purple-600 dark:text-purple-400 border border-purple-200/50"
+                    }`}>
+                      {getWeekdayName(startDate, lang)}
+                    </span>
+                  )}
+                </div>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                     <Calendar className="h-5 w-5 text-slate-400" />
@@ -177,7 +195,18 @@ export default function RequestLeavePage() {
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">{t("endDate")}</label>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300">{t("endDate")}</label>
+                  {endDate && (
+                    <span className={`text-[11px] font-bold px-2 py-0.5 rounded-md ${
+                      ["เสาร์", "อาทิตย์", "Saturday", "Sunday"].some(w => getWeekdayName(endDate, lang).includes(w))
+                        ? "bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400 border border-amber-200/50"
+                        : "bg-purple-50 dark:bg-purple-950/30 text-purple-600 dark:text-purple-400 border border-purple-200/50"
+                    }`}>
+                      {getWeekdayName(endDate, lang)}
+                    </span>
+                  )}
+                </div>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                     <Calendar className="h-5 w-5 text-slate-400" />
@@ -189,18 +218,21 @@ export default function RequestLeavePage() {
 
             {/* Live Day Count Preview */}
             {startDate && endDate && (
-              <div className="p-4 bg-purple-500/5 border border-purple-500/10 dark:border-purple-500/20 rounded-2xl flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-semibold text-purple-700 dark:text-purple-400">คำนวณจำนวนวันลา</p>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+              <div className="p-5 bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-950/20 dark:to-indigo-950/20 border-2 border-purple-200/50 dark:border-purple-900/50 rounded-3xl flex items-center justify-between shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)]">
+                <div className="space-y-1">
+                  <p className="text-sm font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                    <Calendar className="w-4.5 h-4.5 text-purple-600 dark:text-purple-400" />
+                    จำนวนวันลาที่คำนวณในคำขอนี้
+                  </p>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
                     {selectedType === "MATERNITY" 
-                      ? "* รวมวันหยุดเสาร์-อาทิตย์และวันหยุดนักขัตฤกษ์" 
-                      : "* ไม่รวมวันหยุดเสาร์-อาทิตย์"
+                      ? "✓ คำนวณเป็นวันปฏิทิน (รวมวันหยุดเสาร์-อาทิตย์)" 
+                      : "✓ ไม่รวมวันหยุดเสาร์-อาทิตย์ (นับเฉพาะวันทำการปกติ)"
                     }
                   </p>
                 </div>
-                <div className="text-right">
-                  <span className="text-2xl font-black text-purple-600 dark:text-purple-400">
+                <div className="flex items-baseline gap-1 bg-white dark:bg-slate-900/80 px-4 py-2 rounded-2xl border border-slate-200/60 dark:border-slate-800 shadow-sm">
+                  <span className="text-3xl font-black bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent">
                     {(() => {
                       const start = new Date(startDate);
                       const end = new Date(endDate);
@@ -220,7 +252,7 @@ export default function RequestLeavePage() {
                       return count;
                     })()}
                   </span>
-                  <span className="text-sm font-bold text-slate-600 dark:text-slate-400 ml-1">วัน</span>
+                  <span className="text-xs font-bold text-slate-600 dark:text-slate-400">วัน</span>
                 </div>
               </div>
             )}

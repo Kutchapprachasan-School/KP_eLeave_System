@@ -427,9 +427,13 @@ function AppContent({ children }: { children: React.ReactNode }) {
         <div className="p-4 mx-4 mb-6 mt-auto">
           <div className="relative overflow-hidden rounded-2xl bg-white dark:bg-slate-800 border border-slate-200/50 dark:border-slate-700/50 p-4 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center text-white font-bold shadow-sm">
-                {user.name?.charAt(0)?.toUpperCase()}
-              </div>
+              {user.image ? (
+                <img src={user.image} alt={user.name} className="w-10 h-10 rounded-full object-cover shadow-sm border border-slate-200 dark:border-slate-700" />
+              ) : (
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center text-white font-bold shadow-sm">
+                  {user.name?.charAt(0)?.toUpperCase()}
+                </div>
+              )}
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">{user.name}</p>
                 <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{user.position || t("staff")}</p>
