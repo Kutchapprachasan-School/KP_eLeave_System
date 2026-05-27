@@ -5,8 +5,9 @@ export function middleware(request: NextRequest) {
   const sessionCookie = request.cookies.get("better-auth.session_token") || request.cookies.get("__Secure-better-auth.session_token");
   const isAuthRoute = request.nextUrl.pathname.startsWith("/login");
   const isApiRoute = request.nextUrl.pathname.startsWith("/api");
+  const isUploadRoute = request.nextUrl.pathname.startsWith("/uploads");
 
-  if (isApiRoute) {
+  if (isApiRoute || isUploadRoute) {
     return NextResponse.next();
   }
 
