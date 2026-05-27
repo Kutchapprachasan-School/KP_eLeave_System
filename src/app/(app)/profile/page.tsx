@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useSession } from "@/lib/auth-client";
 import { updateProfile } from "@/app/actions/user";
 import { authClient } from "@/lib/auth-client";
-import { Save, Lock, User as UserIcon, ShieldCheck, Mail, BookOpen, KeyRound, CheckCircle, Fingerprint } from "lucide-react";
+import { Save, Lock, User as UserIcon, ShieldCheck, Mail, BookOpen, KeyRound, CheckCircle, Fingerprint, Camera, Trash2, Pencil, RefreshCw } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 
 export default function ProfilePage() {
@@ -16,6 +16,10 @@ export default function ProfilePage() {
   const [subjectGroup, setSubjectGroup] = useState("");
   const [savingProfile, setSavingProfile] = useState(false);
 
+  const [avatarPreview, setAvatarPreview] = useState("");
+  const [signaturePreview, setSignaturePreview] = useState("");
+  const [savingSignature, setSavingSignature] = useState(false);
+
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -23,11 +27,18 @@ export default function ProfilePage() {
   const [passwordError, setPasswordError] = useState("");
   const [passwordSuccess, setPasswordSuccess] = useState("");
 
+  const [isDrawing, setIsDrawing] = useState(false);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const avatarInputRef = useRef<HTMLInputElement | null>(null);
+  const signatureInputRef = useRef<HTMLInputElement | null>(null);
+
   // Sync state with user data once loaded
   useEffect(() => {
     if (user) {
       setName(user.name || "");
       setSubjectGroup(user.subjectGroup || "");
+      setAvatarPreview(user.image || "");
+      setSignaturePreview(user.signatureUrl || "");
     }
   }, [user]);
 
@@ -57,6 +68,143 @@ export default function ProfilePage() {
       alert(lang === "en" ? "Failed to update profile" : "เกิดข้อผิดพลาดในการอัปเดตข้อมูล");
     } finally {
       setSavingProfile(false);
+    }
+  };
+
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 2 * 1024 * 1024) {
+      alert(lang === "en" ? "Image size should be less than 2MB" : "ขนาดรูปภาพต้องไม่เกิน 2MB");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = async (ev) => {
+      const base64 = ev.target?.result as string;
+      setAvatarPreview(base64);
+      try {
+        await updateProfile({ name, subjectGroup, image: base64 });
+      } catch (err) {
+        console.error("Failed to save avatar", err);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSignatureUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 1 * 1024 * 1024) {
+      alert(lang === "en" ? "Signature size should be less than 1MB" : "ขนาดไฟล์ลายเซ็นต้องไม่เกิน 1MB");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      setSignaturePreview(ev.target?.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // --- Signature Canvas Drawing Handlers ---
+  const getCanvasCoords = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+    if (!canvasRef.current) return { x: 0, y: 0 };
+    const canvas = canvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+    
+    // Scale coords to handle canvas size vs ClientBoundingRect
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+    
+    const x = ((clientX - rect.left) / rect.width) * canvas.width;
+    const y = ((clientY - rect.top) / rect.height) * canvas.height;
+    return { x, y };
+  };
+
+  const startDrawing = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
+    if (!canvasRef.current) return;
+    const ctx = canvasRef.current.getContext("2d");
+    if (!ctx) return;
+
+    ctx.lineWidth = 3;
+    ctx.lineCap = "round";
+    ctx.strokeStyle = "#4F46E5"; // Indigo-600
+
+    const { x, y } = getCanvasCoords(e);
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    setIsDrawing(true);
+  };
+
+  const draw = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+    if (!isDrawing || !canvasRef.current) return;
+    e.preventDefault();
+    const ctx = canvasRef.current.getContext("2d");
+    if (!ctx) return;
+
+    const { x, y } = getCanvasCoords(e);
+    ctx.lineTo(x, y);
+    ctx.stroke();
+  };
+
+  const stopDrawing = () => {
+    setIsDrawing(false);
+  };
+
+  const clearCanvas = () => {
+    if (!canvasRef.current) return;
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  };
+
+  const saveDrawnSignature = () => {
+    if (!canvasRef.current) return;
+    const canvas = canvasRef.current;
+    
+    // Check if canvas is empty
+    const buffer = new Uint32Array(canvas.getContext("2d")!.getImageData(0, 0, canvas.width, canvas.height).data.buffer);
+    const isEmpty = !buffer.some(color => color !== 0);
+    
+    if (isEmpty) {
+      alert(lang === "en" ? "Please draw your signature first" : "กรุณาเซ็นชื่อก่อนกดบันทึก");
+      return;
+    }
+
+    const base64 = canvas.toDataURL("image/png");
+    setSignaturePreview(base64);
+    clearCanvas();
+  };
+
+  const handleSaveSignatureToDb = async () => {
+    if (!signaturePreview) return;
+    setSavingSignature(true);
+    try {
+      await updateProfile({ name, subjectGroup, signatureUrl: signaturePreview });
+      alert(lang === "en" ? "Signature saved successfully!" : "บันทึกลายเซ็นต์สำเร็จเรียบร้อยแล้ว");
+    } catch (err) {
+      alert(lang === "en" ? "Failed to save signature" : "เกิดข้อผิดพลาดในการบันทึกลายเซ็น");
+    } finally {
+      setSavingSignature(false);
+    }
+  };
+
+  const handleDeleteSignature = async () => {
+    if (!confirm(lang === "en" ? "Are you sure you want to delete your signature?" : "คุณแน่ใจหรือไม่ว่าต้องการลบลายเซ็นต์นี้?")) return;
+    setSavingSignature(true);
+    try {
+      await updateProfile({ name, subjectGroup, signatureUrl: "" });
+      setSignaturePreview("");
+      alert(lang === "en" ? "Signature deleted successfully!" : "ลบลายเซ็นต์เรียบร้อยแล้ว");
+    } catch (err) {
+      alert(lang === "en" ? "Failed to delete signature" : "เกิดข้อผิดพลาดในการลบลายเซ็น");
+    } finally {
+      setSavingSignature(false);
     }
   };
 
@@ -135,12 +283,27 @@ export default function ProfilePage() {
           
           <div className="px-6 pb-8 pt-0 flex flex-col items-center text-center relative">
             {/* Avatar */}
-            <div className="-mt-16 w-28 h-28 rounded-full border-4 border-white dark:border-slate-950 bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-4xl font-extrabold shadow-xl relative group overflow-hidden">
-              {user?.name?.charAt(0)?.toUpperCase() || "U"}
-              <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer">
-                <UserIcon className="w-6 h-6 text-white" />
+            <div 
+              onClick={() => avatarInputRef.current?.click()}
+              className="-mt-16 w-28 h-28 rounded-full border-4 border-white dark:border-slate-950 bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-4xl font-extrabold shadow-xl relative group overflow-hidden cursor-pointer"
+            >
+              {avatarPreview ? (
+                <img src={avatarPreview} alt="Avatar" className="w-full h-full object-cover" />
+              ) : (
+                user?.name?.charAt(0)?.toUpperCase() || "U"
+              )}
+              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white gap-1 text-[10px] font-bold">
+                <Camera className="w-5 h-5 text-white" />
+                <span>เปลี่ยนรูป</span>
               </div>
             </div>
+            <input 
+              ref={avatarInputRef} 
+              type="file" 
+              accept="image/*" 
+              className="hidden" 
+              onChange={handleAvatarChange} 
+            />
 
             <h2 className="text-xl font-extrabold text-slate-900 dark:text-white mt-4 leading-tight">{user?.name}</h2>
             
@@ -251,6 +414,172 @@ export default function ProfilePage() {
                 </button>
               </div>
             </form>
+          </div>
+
+          {/* Signature Upload & Drawing Card */}
+          <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white/60 dark:border-slate-800 rounded-3xl p-6 md:p-8 shadow-[0_8px_30px_rgb(0,0,0,0.02)] space-y-6">
+            <h3 className="text-lg font-bold flex items-center gap-2 text-slate-900 dark:text-white pb-4 border-b border-slate-100 dark:border-slate-800/80">
+              <Fingerprint className="w-5 h-5 text-indigo-500" />
+              {lang === "en" ? "Leave Form Signature" : "ลายมือชื่อสำหรับใบลา (ลายเซ็นต์อิเล็กทรอนิกส์)"}
+            </h3>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Preview Container */}
+              <div className="space-y-3">
+                <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                  {lang === "en" ? "Current Signature" : "ลายเซ็นต์ปัจจุบันของคุณ"}
+                </label>
+                <div className="h-44 rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/20 flex flex-col items-center justify-center overflow-hidden p-4 relative group">
+                  {signaturePreview ? (
+                    <>
+                      <img src={signaturePreview} alt="Signature Preview" className="max-h-full max-w-full object-contain dark:invert" />
+                      <button 
+                        onClick={handleDeleteSignature}
+                        className="absolute bottom-3 right-3 w-8 h-8 rounded-xl bg-rose-50 dark:bg-rose-950 hover:bg-rose-100 dark:hover:bg-rose-900 flex items-center justify-center text-rose-600 transition-colors shadow-sm"
+                        title={lang === "en" ? "Delete Signature" : "ลบลายเซ็นต์"}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </>
+                  ) : (
+                    <div className="text-center text-slate-400 dark:text-slate-600">
+                      <Fingerprint className="w-10 h-10 mx-auto mb-2 text-slate-300 dark:text-slate-700" />
+                      <p className="text-xs font-semibold">{lang === "en" ? "No signature uploaded" : "ยังไม่ได้ตั้งค่าลายเซ็นต์"}</p>
+                      <p className="text-[10px] mt-1 text-slate-400 max-w-[180px]">{lang === "en" ? "Needed for generating leave forms automatically" : "จำเป็นต้องใช้สำหรับออกเอกสารใบลาโดยอัตโนมัติ"}</p>
+                    </div>
+                  )}
+                </div>
+                {signaturePreview && (
+                  <div className="flex justify-end">
+                    <button
+                      onClick={handleSaveSignatureToDb}
+                      disabled={savingSignature}
+                      className="flex items-center gap-2 px-5 h-9 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold shadow-md shadow-purple-500/10 transition-all disabled:opacity-50"
+                    >
+                      <Save className="w-3.5 h-3.5" />
+                      {savingSignature ? (lang === "en" ? "Saving..." : "กำลังบันทึก...") : (lang === "en" ? "Save Signature" : "ยืนยันและบันทึกลายเซ็นต์")}
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Upload/Draw Input Container */}
+              <div className="space-y-4">
+                <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                  {lang === "en" ? "Upload or Draw New Signature" : "เพิ่มลายเซ็นต์ใหม่ (อัปโหลด หรือ วาดบนจอ)"}
+                </label>
+                
+                {/* Method selector tab */}
+                <div className="grid grid-cols-2 gap-2 p-1.5 bg-slate-100 dark:bg-slate-800/80 rounded-xl">
+                  <label 
+                    onClick={() => {
+                      const drawEl = document.getElementById("sig-draw-section");
+                      const uploadEl = document.getElementById("sig-upload-section");
+                      const tabUpload = document.getElementById("tab-upload-label");
+                      const tabDraw = document.getElementById("tab-draw-label");
+                      if (drawEl) drawEl.style.display = "none";
+                      if (uploadEl) uploadEl.style.display = "block";
+                      if (tabUpload) {
+                        tabUpload.className = "flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-bold text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-900 shadow-sm border border-slate-200/40 dark:border-slate-800/40 cursor-pointer transition-all";
+                      }
+                      if (tabDraw) {
+                        tabDraw.className = "flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-bold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 cursor-pointer transition-all";
+                      }
+                    }}
+                    id="tab-upload-label"
+                    className="flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-bold text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-900 shadow-sm border border-slate-200/40 dark:border-slate-800/40 cursor-pointer transition-all"
+                  >
+                    <Paperclip className="w-3.5 h-3.5" />
+                    <span>{lang === "en" ? "Upload Image" : "อัปโหลดภาพแสกน"}</span>
+                  </label>
+                  <label 
+                    onClick={() => {
+                      const drawEl = document.getElementById("sig-draw-section");
+                      const uploadEl = document.getElementById("sig-upload-section");
+                      const tabUpload = document.getElementById("tab-upload-label");
+                      const tabDraw = document.getElementById("tab-draw-label");
+                      if (drawEl) drawEl.style.display = "block";
+                      if (uploadEl) uploadEl.style.display = "none";
+                      if (tabUpload) {
+                        tabUpload.className = "flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-bold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 cursor-pointer transition-all";
+                      }
+                      if (tabDraw) {
+                        tabDraw.className = "flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-bold text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-900 shadow-sm border border-slate-200/40 dark:border-slate-800/40 cursor-pointer transition-all";
+                      }
+                      // Wait for display change then ensure canvas width is matched to layout
+                      setTimeout(() => {
+                        const canvas = canvasRef.current;
+                        if (canvas) {
+                          const rect = canvas.getBoundingClientRect();
+                          canvas.width = rect.width * 2;
+                          canvas.height = rect.height * 2;
+                          const ctx = canvas.getContext("2d");
+                          if (ctx) {
+                            ctx.scale(2, 2);
+                          }
+                        }
+                      }, 50);
+                    }}
+                    id="tab-draw-label"
+                    className="flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-bold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 cursor-pointer transition-all"
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                    <span>{lang === "en" ? "Draw Signature" : "วาดบนหน้าจอ"}</span>
+                  </label>
+                </div>
+
+                {/* Upload Section */}
+                <div id="sig-upload-section" className="block">
+                  <label className="flex flex-col items-center justify-center w-full h-32 rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/10 hover:border-purple-400 dark:hover:border-purple-500 hover:bg-purple-50/30 dark:hover:bg-purple-500/5 transition-all cursor-pointer group">
+                    <input 
+                      ref={signatureInputRef} 
+                      type="file" 
+                      accept="image/*" 
+                      onChange={handleSignatureUpload} 
+                      className="hidden" 
+                    />
+                    <Paperclip className="w-7 h-7 text-slate-300 dark:text-slate-700 group-hover:text-purple-400 transition-colors mb-1.5" />
+                    <span className="text-xs text-slate-400 group-hover:text-purple-500 transition-colors">{lang === "en" ? "Click to upload signature file" : "คลิกเพื่อเลือกไฟล์รูปภาพลายเซ็นต์"}</span>
+                    <span className="text-[10px] text-slate-300 dark:text-slate-700 mt-1">{lang === "en" ? "PNG transparent background recommended" : "แนะนำเป็นไฟล์ PNG พื้นหลังโปร่งใส"}</span>
+                  </label>
+                </div>
+
+                {/* Draw Section */}
+                <div id="sig-draw-section" className="hidden">
+                  <div className="relative rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950/20 overflow-hidden">
+                    <canvas
+                      ref={canvasRef}
+                      onMouseDown={startDrawing}
+                      onMouseMove={draw}
+                      onMouseUp={stopDrawing}
+                      onMouseLeave={stopDrawing}
+                      onTouchStart={startDrawing}
+                      onTouchMove={draw}
+                      onTouchEnd={stopDrawing}
+                      className="w-full h-32 bg-slate-50/50 dark:bg-slate-900/10 cursor-crosshair touch-none"
+                    />
+                    <div className="absolute top-2 right-2 flex gap-1.5 z-10">
+                      <button
+                        type="button"
+                        onClick={clearCanvas}
+                        className="flex items-center justify-center p-1.5 rounded-lg bg-white/90 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-rose-600 transition-colors hover:border-rose-100 shadow-sm"
+                        title={lang === "en" ? "Clear" : "ล้างหน้าจอ"}
+                      >
+                        <RefreshCw className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={saveDrawnSignature}
+                        className="flex items-center justify-center px-2 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-[10px] font-bold shadow-sm transition-colors"
+                      >
+                        {lang === "en" ? "Apply" : "นำไปใช้"}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+            </div>
           </div>
 
           {/* Password Form */}

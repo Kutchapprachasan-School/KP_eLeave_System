@@ -5,8 +5,8 @@ import { prisma } from "@/lib/db";
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 
-// For updating profile details like name, subjectGroup
-export async function updateProfile(data: { name: string; subjectGroup: string; lineUserId?: string }) {
+// For updating profile details like name, subjectGroup, image, signatureUrl
+export async function updateProfile(data: { name: string; subjectGroup: string; lineUserId?: string; image?: string; signatureUrl?: string }) {
   const session = await auth.api.getSession({
     headers: await headers()
   });
@@ -21,6 +21,8 @@ export async function updateProfile(data: { name: string; subjectGroup: string; 
       name: data.name,
       subjectGroup: data.subjectGroup,
       lineUserId: data.lineUserId,
+      image: data.image !== undefined ? data.image : undefined,
+      signatureUrl: data.signatureUrl !== undefined ? data.signatureUrl : undefined,
     }
   });
 
