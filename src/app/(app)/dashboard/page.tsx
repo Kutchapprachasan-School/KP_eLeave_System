@@ -146,7 +146,7 @@ export default function DashboardPage() {
         
         {/* Global Quota Progress */}
         <motion.div variants={itemVariants} className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white/60 dark:border-slate-800 rounded-3xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] lg:col-span-1 flex flex-col justify-center">
-          <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-6">ภาพรวมโควตาการลา (รวมทุกประเภท)</h3>
+          <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-6">ภาพรวมการลา (ลากิจและลาป่วย)</h3>
           <div className="space-y-6">
             {/* Times Progress */}
             <div>
@@ -244,7 +244,7 @@ export default function DashboardPage() {
                   <option value="days">เรียงตามจำนวนวัน</option>
                 </select>
               </div>
-              <p className="text-xs text-slate-500 dark:text-slate-400">แสดงรายชื่อผู้ที่มีการลา (ทุกประเภท)</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">แสดงรายชื่อผู้ที่มีการลา (ลากิจและลาป่วย)</p>
             </div>
             <div className="space-y-3 overflow-y-auto custom-scrollbar flex-1 pr-2">
               {stats.leaveLeaderboard?.length === 0 ? (

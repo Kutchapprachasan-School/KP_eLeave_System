@@ -41,6 +41,38 @@ export async function submitLeaveRequest(data: {
     throw new Error("วันสิ้นสุดต้องไม่ก่อนวันเริ่มต้น");
   }
 
+  // Calculate requested days
+  const requestedDays = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+
+  // Validate leave quota ONLY for non-sick and non-personal leave types
+  if (data.type !== "SICK" && data.type !== "PERSONAL") {
+    const { getLeaveConfigs } = await import("./settings");
+    const leaveConfigs = await getLeaveConfigs();
+    const config = leaveConfigs.find((c) => c.type === data.type);
+
+    if (config) {
+      const cycle = getCurrentLeaveCycle();
+      const pastRequests = await prisma.leaveRequest.findMany({
+        where: {
+          userId: session.user.id,
+          type: data.type,
+          status: { in: ["APPROVED", "PENDING_HEAD", "PENDING_EXEC"] },
+          startDate: { gte: cycle.start, lte: cycle.end },
+        },
+      });
+
+      let usedDays = 0;
+      for (const r of pastRequests) {
+        const days = Math.ceil((r.endDate.getTime() - r.startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+        usedDays += days;
+      }
+
+      if (usedDays + requestedDays > config.maxDaysPerYear) {
+        throw new Error(`ขออภัย จำนวนวันลาประเภทนี้เกินโควตาสูงสุดที่กำหนด (คุณเหลือสิทธิ์ลาได้อีก ${Math.max(config.maxDaysPerYear - usedDays, 0)} วัน จากทั้งหมด ${config.maxDaysPerYear} วัน)`);
+      }
+    }
+  }
+
   // Determine initial status based on position
   // Teachers -> PENDING_HEAD (wait for Dept Head)
   // Dept Head -> PENDING_EXEC (skip to Executive)
@@ -266,9 +298,11 @@ export async function getDashboardStats(cycleFilter: "current" | "cycle1" | "cyc
     : requests;
 
   for (const r of ownRequests) {
-    const days = Math.ceil((r.endDate.getTime() - r.startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-    userWatchlistStats.totalDays += days;
-    userWatchlistStats.totalTimes += 1;
+    if (r.type === "SICK" || r.type === "PERSONAL") {
+      const days = Math.ceil((r.endDate.getTime() - r.startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+      userWatchlistStats.totalDays += days;
+      userWatchlistStats.totalTimes += 1;
+    }
   }
   userWatchlistStats.isWarning = userWatchlistStats.totalTimes >= 4 || userWatchlistStats.totalDays >= 12;
 
@@ -280,9 +314,11 @@ export async function getDashboardStats(cycleFilter: "current" | "cycle1" | "cyc
       if (!userStatsMap[uid]) {
         userStatsMap[uid] = { userId: uid, name: r.user.name, totalDays: 0, totalTimes: 0, position: (r.user as any).position || "-" };
       }
-      const days = Math.ceil((r.endDate.getTime() - r.startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-      userStatsMap[uid].totalDays += days;
-      userStatsMap[uid].totalTimes += 1;
+      if (r.type === "SICK" || r.type === "PERSONAL") {
+        const days = Math.ceil((r.endDate.getTime() - r.startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+        userStatsMap[uid].totalDays += days;
+        userStatsMap[uid].totalTimes += 1;
+      }
     }
     leaveLeaderboard = Object.values(userStatsMap)
       .map((stat: any) => ({ ...stat, isWarning: stat.totalTimes >= 4 || stat.totalDays >= 12 }))
