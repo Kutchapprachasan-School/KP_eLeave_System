@@ -93,7 +93,7 @@ export async function submitLeaveRequest(data: {
         usedDays += days;
       }
 
-      if (usedDays + requestedDays > config.maxDaysPerYear) {
+      if (config.maxDaysPerYear > 0 && (usedDays + requestedDays > config.maxDaysPerYear)) {
         throw new Error(`ขออภัย จำนวนวันลาประเภทนี้เกินโควตาสูงสุดที่กำหนด (คุณเหลือสิทธิ์ลาได้อีก ${Math.max(config.maxDaysPerYear - usedDays, 0)} วัน จากทั้งหมด ${config.maxDaysPerYear} วัน)`);
       }
     }

@@ -6,6 +6,25 @@ import { format } from "date-fns";
 import { UserCircle, Calendar, FileText, Check, X, AlertCircle } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 
+function calculateDays(startDateStr: string, endDateStr: string, type: string): number {
+  const start = new Date(startDateStr);
+  const end = new Date(endDateStr);
+  if (isNaN(start.getTime()) || isNaN(end.getTime()) || end < start) return 0;
+  
+  if (type === "MATERNITY") {
+    return Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+  }
+  
+  let count = 0;
+  const current = new Date(start);
+  while (current <= end) {
+    const day = current.getDay();
+    if (day !== 0 && day !== 6) count++;
+    current.setDate(current.getDate() + 1);
+  }
+  return count;
+}
+
 export default function ApprovalsPage() {
   const [pendingRequests, setPendingRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -89,10 +108,32 @@ export default function ApprovalsPage() {
                     <span className="w-2 h-2 rounded-full bg-purple-500"></span>
                     {getLeaveTypeName(item.type)}
                   </p>
-                  <p className="text-xs text-slate-500 mt-1 flex items-center gap-1.5">
+                  <p className="text-xs text-slate-500 mt-1 flex items-center gap-1.5 flex-wrap">
                     <Calendar className="w-3.5 h-3.5" />
-                    {format(new Date(item.startDate), "dd MMM")} - {format(new Date(item.endDate), "dd MMM")}
+                    <span>{format(new Date(item.startDate), "dd MMM")} - {format(new Date(item.endDate), "dd MMM")}</span>
+                    <span className="ml-1 px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-600 dark:text-purple-400 font-bold text-[10px]">
+                      ({calculateDays(item.startDate, item.endDate, item.type)} วัน)
+                    </span>
                   </p>
+                  
+                  {/* Attached Document Section */}
+                  <div className="mt-2">
+                    {item.documentUrl ? (
+                      <a
+                        href={item.documentUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-[11px] font-bold text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300 bg-purple-50 hover:bg-purple-100 dark:bg-purple-950/30 px-2 py-0.5 rounded border border-purple-200/40 dark:border-purple-800/40 transition-colors"
+                      >
+                        <FileText className="w-3 h-3" />
+                        เปิดดูเอกสารแนบ
+                      </a>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-400 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded border border-slate-200/10 dark:border-slate-800/10">
+                        ไม่มีเอกสารแนบ
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <div>
                   <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">{t("reason")}</p>

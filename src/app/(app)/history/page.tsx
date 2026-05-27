@@ -20,6 +20,25 @@ export default function HistoryPage() {
   const cycleParam = searchParams.get("cycle") || "all";
   const { t, lang, tLeaveType, tPosition } = useI18n();
 
+  const calculateDays = (startDateStr: string, endDateStr: string, type: string): number => {
+    const start = new Date(startDateStr);
+    const end = new Date(endDateStr);
+    if (isNaN(start.getTime()) || isNaN(end.getTime()) || end < start) return 0;
+    
+    if (type === "MATERNITY") {
+      return Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+    }
+    
+    let count = 0;
+    const current = new Date(start);
+    while (current <= end) {
+      const day = current.getDay();
+      if (day !== 0 && day !== 6) count++;
+      current.setDate(current.getDate() + 1);
+    }
+    return count;
+  };
+
   const [history, setHistory] = useState<any[]>([]);
   const [leaveConfigs, setLeaveConfigs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -283,6 +302,7 @@ export default function HistoryPage() {
                   <tr className="border-b border-slate-100 dark:border-slate-800">
                     <th className="px-6 py-4 font-semibold text-slate-500 dark:text-slate-400">{t("type")}</th>
                     <th className="px-6 py-4 font-semibold text-slate-500 dark:text-slate-400">{t("date")}</th>
+                    <th className="px-6 py-4 font-semibold text-slate-500 dark:text-slate-400">จำนวนวัน</th>
                     <th className="px-6 py-4 font-semibold text-slate-500 dark:text-slate-400">{t("reason")}</th>
                     <th className="px-6 py-4 font-semibold text-slate-500 dark:text-slate-400">{t("status")}</th>
                     <th className="px-6 py-4 font-semibold text-slate-500 dark:text-slate-400 text-right print:hidden">{t("manage")}</th>
@@ -291,7 +311,7 @@ export default function HistoryPage() {
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {history.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="px-6 py-12 text-center text-slate-400">
+                      <td colSpan={6} className="px-6 py-12 text-center text-slate-400">
                         <div className="flex flex-col items-center gap-2">
                           <CalendarDays className="w-8 h-8 text-slate-300 dark:text-slate-600" />
                           <p>{t("noLeaveHistory")}</p>
@@ -307,6 +327,11 @@ export default function HistoryPage() {
                       </td>
                       <td className="px-6 py-4 text-slate-600 dark:text-slate-300">
                         {format(new Date(item.startDate), "dd MMM yyyy")} - {format(new Date(item.endDate), "dd MMM yyyy")}
+                      </td>
+                      <td className="px-6 py-4 text-slate-600 dark:text-slate-300 font-semibold">
+                        <span className="px-2 py-0.5 rounded bg-purple-500/10 text-purple-600 dark:text-purple-400 text-xs">
+                          {calculateDays(item.startDate, item.endDate, item.type)} วัน
+                        </span>
                       </td>
                       <td className="px-6 py-4 text-slate-600 dark:text-slate-300 max-w-[200px] truncate">
                         {item.reason}

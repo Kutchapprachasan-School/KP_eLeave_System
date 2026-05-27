@@ -427,6 +427,9 @@ export default function SettingsPage() {
                         onChange={(e) => handleQuotaChange(config.id, "maxDaysPerYear", Number(e.target.value))}
                         className="w-full sm:w-28 h-10 px-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:ring-2 focus:ring-indigo-500/20" 
                       />
+                      <span className="block text-[10px] text-purple-500 font-semibold mt-1">
+                        * {lang === "en" ? "0 = Unlimited" : "0 = ไม่จำกัดจำนวนวัน"}
+                      </span>
                     </div>
                     <div>
                       <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">{t("warnWhenLeft")}</label>
