@@ -307,6 +307,7 @@ export async function GET(
       startDate: lastRequest.startDate,
       endDate: lastRequest.endDate,
       days: calculateLeaveDays(lastRequest.startDate, lastRequest.endDate, lastRequest.type),
+      type: lastRequest.type,
     };
   }
 
@@ -503,7 +504,7 @@ export async function GET(
 
   <!-- Last leave stats -->
   <div style="text-indent: 2.5em; text-align: justify; margin-bottom: 8px;">
-    ข้าพเจ้าได้ลา <span class="dotted-line" style="width: 150px;">${lastLeaveInfo ? getLeaveTypeName(request.type, extra.isHajj) : "-"}</span> ครั้งสุดท้าย
+    ข้าพเจ้าได้ลา <span class="dotted-line" style="width: 150px;">${lastLeaveInfo ? getLeaveTypeName(lastLeaveInfo.type, extra.isHajj) : "-"}</span> ครั้งสุดท้าย
     ตั้งแต่วันที่ <span class="dotted-line" style="width: 30px;">${lastLeaveInfo ? getThaiDay(lastLeaveInfo.startDate) : "-"}</span>
     เดือน <span class="dotted-line" style="width: 90px;">${lastLeaveInfo ? getThaiMonth(lastLeaveInfo.startDate) : "-"}</span>
     พ.ศ. <span class="dotted-line" style="width: 50px;">${lastLeaveInfo ? getThaiYear(lastLeaveInfo.startDate) : "-"}</span>

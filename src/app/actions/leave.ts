@@ -1320,6 +1320,7 @@ export async function getLeaveRequestForPrint(id: string) {
       startDate: lastRequest.startDate.toISOString(),
       endDate: lastRequest.endDate.toISOString(),
       days: calculateLeaveDays(lastRequest.startDate, lastRequest.endDate, lastRequest.type),
+      type: lastRequest.type,
     };
   }
 
@@ -1532,6 +1533,7 @@ export async function getBatchLeaveRequestsForPrint(year: number, start: number,
         startDate: lastRequest.startDate.toISOString(),
         endDate: lastRequest.endDate.toISOString(),
         days: calculateLeaveDays(lastRequest.startDate, lastRequest.endDate, lastRequest.type),
+        type: lastRequest.type,
       };
     }
 
