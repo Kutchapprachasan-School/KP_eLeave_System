@@ -45,13 +45,24 @@ export default function DashboardPage() {
   const [stats, setStats] = useState<any>(null);
   const { t, lang } = useI18n();
 
+  const getCurrentFiscalYear = () => {
+    const now = new Date();
+    const month = now.getMonth();
+    const calendarYear = now.getFullYear();
+    return (month >= 9 ? calendarYear + 1 : calendarYear) + 543;
+  };
+
+  const currentFY = getCurrentFiscalYear();
+  const availableYears = Array.from({ length: 5 }, (_, i) => currentFY - i);
+  const [dashboardYear, setDashboardYear] = useState<number>(currentFY);
+
   const [cycleFilter, setCycleFilter] = useState<"current" | "cycle1" | "cycle2" | "year">("current");
   const [leaderboardFilter, setLeaderboardFilter] = useState<"times" | "days">("times");
 
   useEffect(() => { 
     setMounted(true); 
     setStats(null);
-    getDashboardStats(cycleFilter, lang)
+    getDashboardStats(cycleFilter, lang, dashboardYear)
       .then(setStats)
       .catch((err: any) => {
         console.error("Dashboard error:", err);
@@ -59,7 +70,7 @@ export default function DashboardPage() {
           router.push("/login");
         }
       });
-  }, [cycleFilter, lang, router]);
+  }, [cycleFilter, lang, dashboardYear, router]);
 
   if (!mounted || !stats) {
     return (
@@ -99,17 +110,31 @@ export default function DashboardPage() {
           </p>
         </div>
         
-        {/* Cycle Filter */}
-        <select
-          value={cycleFilter}
-          onChange={(e: any) => setCycleFilter(e.target.value)}
-          className="h-10 px-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-medium focus:ring-2 focus:ring-purple-500/20"
-        >
-          <option value="current">{t("cycleCurrent")}</option>
-          <option value="cycle1">{t("cycle1")}</option>
-          <option value="cycle2">{t("cycle2")}</option>
-          <option value="year">{t("yearFull")}</option>
-        </select>
+        {/* Filters */}
+        <div className="flex gap-2 w-full md:w-auto">
+          {/* Year Filter */}
+          <select
+            value={dashboardYear}
+            onChange={(e: any) => setDashboardYear(Number(e.target.value))}
+            className="h-10 px-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-medium focus:ring-2 focus:ring-purple-500/20 cursor-pointer w-full md:w-auto"
+          >
+            {availableYears.map(yr => (
+              <option key={yr} value={yr}>ปีงบประมาณ {yr}</option>
+            ))}
+          </select>
+
+          {/* Cycle Filter */}
+          <select
+            value={cycleFilter}
+            onChange={(e: any) => setCycleFilter(e.target.value)}
+            className="h-10 px-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-medium focus:ring-2 focus:ring-purple-500/20 cursor-pointer w-full md:w-auto"
+          >
+            <option value="current">{t("cycleCurrent")}</option>
+            <option value="cycle1">{t("cycle1")}</option>
+            <option value="cycle2">{t("cycle2")}</option>
+            <option value="year">{t("yearFull")}</option>
+          </select>
+        </div>
       </div>
 
       <div className="hidden md:flex flex-col mb-6 space-y-3">

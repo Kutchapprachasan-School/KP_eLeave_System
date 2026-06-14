@@ -348,7 +348,11 @@ async function canGiveFinalApproval(userId: string, userPosition: string | null,
 }
 
 // ========= Get Dashboard Stats (Role-based) =========
-export async function getDashboardStats(cycleFilter: "current" | "cycle1" | "cycle2" | "year" | "all" = "current", lang: "th" | "en" = "th") {
+export async function getDashboardStats(
+  cycleFilter: "current" | "cycle1" | "cycle2" | "year" | "all" = "current",
+  lang: "th" | "en" = "th",
+  targetYear?: number | null
+) {
   const session = await getSession();
   const user = session.user as any;
   
@@ -360,8 +364,9 @@ export async function getDashboardStats(cycleFilter: "current" | "cycle1" | "cyc
   const { getLeaveConfigs } = await import("./settings");
   const leaveConfigs = await getLeaveConfigs();
 
-  const filter = getLeaveCycleFilter(new Date(), cycleFilter, lang);
-  const cycle = filter || getCurrentLeaveCycle(new Date(), lang); // fallback if all
+  const refDate = targetYear ? new Date(targetYear - 543, 5, 1) : new Date();
+  const filter = getLeaveCycleFilter(refDate, cycleFilter, lang);
+  const cycle = filter || getCurrentLeaveCycle(refDate, lang); // fallback if all
 
   const isHead = user.position === "หัวหน้างานบุคคล";
 
