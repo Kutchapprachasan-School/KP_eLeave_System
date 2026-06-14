@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { getPendingApprovals, approveLeaveRequest, rejectLeaveRequest } from "@/app/actions/leave";
 import { format } from "date-fns";
-import { UserCircle, Calendar, FileText, Check, X, AlertCircle } from "lucide-react";
+import { UserCircle, Calendar, FileText, Check, X, AlertCircle, Printer, Paperclip } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 
 function calculateDays(startDateStr: string, endDateStr: string, type: string): number {
@@ -25,10 +25,76 @@ function calculateDays(startDateStr: string, endDateStr: string, type: string): 
   return count;
 }
 
+const renderDocumentLinks = (documentUrl: string) => {
+  if (!documentUrl) {
+    return (
+      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-400 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded border border-slate-200/10 dark:border-slate-800/10">
+        ไม่มีเอกสารแนบ
+      </span>
+    );
+  }
+
+  let files: { name?: string; preview: string }[] = [];
+
+  if (documentUrl.trim().startsWith("[")) {
+    try {
+      const parsed = JSON.parse(documentUrl);
+      if (Array.isArray(parsed)) {
+        files = parsed.map((file: any) => {
+          if (typeof file === "string") {
+            return { preview: file };
+          }
+          return { name: file.name, preview: file.preview };
+        });
+      }
+    } catch (e) {
+      console.error("Failed to parse documentUrl JSON", e);
+    }
+  }
+
+  if (files.length > 0) {
+    return (
+      <>
+        {files.map((file, idx) => (
+          <a
+            key={idx}
+            href={file.preview}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-[11px] font-bold text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300 bg-purple-50 hover:bg-purple-100 dark:bg-purple-950/30 px-2 py-0.5 rounded border border-purple-200/40 dark:border-purple-800/40 transition-colors"
+          >
+            <Paperclip className="w-3 h-3" />
+            เอกสารแนบ {idx + 1}
+          </a>
+        ))}
+      </>
+    );
+  }
+
+  // Fallback for single/comma-separated strings
+  const urls = documentUrl.split(",");
+  return (
+    <>
+      {urls.map((url, idx) => (
+        <a
+          key={idx}
+          href={url.trim()}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1 text-[11px] font-bold text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300 bg-purple-50 hover:bg-purple-100 dark:bg-purple-950/30 px-2 py-0.5 rounded border border-purple-200/40 dark:border-purple-800/40 transition-colors"
+        >
+          <Paperclip className="w-3 h-3" />
+          {urls.length > 1 ? `เอกสารแนบ ${idx + 1}` : "เปิดดูเอกสารแนบ"}
+        </a>
+      ))}
+    </>
+  );
+};
+
 export default function ApprovalsPage() {
   const [pendingRequests, setPendingRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
 
   const loadData = () => {
     setLoading(true);
@@ -52,9 +118,20 @@ export default function ApprovalsPage() {
   };
 
   const handleReject = async (id: string) => {
-    await rejectLeaveRequest(id, "ไม่อนุมัติโดยหัวหน้า/ผู้บริหาร");
-    window.dispatchEvent(new Event("noti-refresh"));
-    loadData();
+    const reason = window.prompt("กรุณากรอกความเห็น/เหตุผลในการไม่อนุมัติ:");
+    if (reason === null) return;
+    const trimmedReason = reason.trim();
+    if (!trimmedReason) {
+      alert(lang === "en" ? "Rejection reason is required." : "จำเป็นต้องระบุเหตุผลในการปฏิเสธการอนุมัติ");
+      return;
+    }
+    try {
+      await rejectLeaveRequest(id, trimmedReason);
+      window.dispatchEvent(new Event("noti-refresh"));
+      loadData();
+    } catch (err: any) {
+      alert(err.message || "เกิดข้อผิดพลาด");
+    }
   };
 
   if (loading) {
@@ -91,9 +168,13 @@ export default function ApprovalsPage() {
               
               {/* User Info */}
               <div className="flex items-center gap-4 min-w-[240px]">
-                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-lg font-bold shadow-md">
-                  {item.user?.name?.charAt(0) || "U"}
-                </div>
+                {item.user?.image ? (
+                  <img src={item.user.image} alt={item.user.name} className="w-12 h-12 rounded-2xl object-cover shadow-md border border-slate-200 dark:border-slate-700" />
+                ) : (
+                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-lg font-bold shadow-md">
+                    {item.user?.name?.charAt(0) || "U"}
+                  </div>
+                )}
                 <div>
                   <p className="font-bold text-slate-900 dark:text-white">{item.user?.name}</p>
                   <p className="text-xs text-slate-500">{item.user?.position || t("staffMember")} • {item.user?.subjectGroup}</p>
@@ -103,7 +184,7 @@ export default function ApprovalsPage() {
               {/* Leave Info */}
               <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-4 border-y md:border-y-0 md:border-x border-slate-100 dark:border-slate-800 py-4 md:py-0 md:px-6">
                 <div>
-                  <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">{t("typeAndDate")}</p>
+                  <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">{t("typeAndDate")} • คำขอที่ {item.pendingSeq}/{item.fiscalYear}</p>
                   <p className="text-sm font-medium text-slate-900 dark:text-white flex items-center gap-1.5">
                     <span className="w-2 h-2 rounded-full bg-purple-500"></span>
                     {getLeaveTypeName(item.type)}
@@ -123,22 +204,18 @@ export default function ApprovalsPage() {
                   </p>
                   
                   {/* Attached Document Section */}
-                  <div className="mt-2">
-                    {item.documentUrl ? (
-                      <a
-                        href={item.documentUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-[11px] font-bold text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300 bg-purple-50 hover:bg-purple-100 dark:bg-purple-950/30 px-2 py-0.5 rounded border border-purple-200/40 dark:border-purple-800/40 transition-colors"
-                      >
-                        <FileText className="w-3 h-3" />
-                        เปิดดูเอกสารแนบ
-                      </a>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-400 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded border border-slate-200/10 dark:border-slate-800/10">
-                        ไม่มีเอกสารแนบ
-                      </span>
-                    )}
+                  <div className="mt-2 flex gap-2">
+                    {renderDocumentLinks(item.documentUrl)}
+
+                    <a
+                      href={`/print/leave/${item.id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-[11px] font-bold text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-500/10 dark:text-indigo-400 dark:hover:bg-indigo-500/20 px-2 py-0.5 rounded border border-indigo-200/40 dark:border-indigo-800/40 transition-colors"
+                    >
+                      <Printer className="w-3 h-3" />
+                      พิมพ์ใบลา
+                    </a>
                   </div>
                 </div>
                 <div>

@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { getSystemLogs, pruneSystemLogs } from "@/app/actions/leave";
 import { motion } from "framer-motion";
-import { FileText, Search, Activity, UserCheck, XCircle, PlusCircle, Settings2, Trash2 } from "lucide-react";
+import { FileText, Search, Activity, UserCheck, XCircle, PlusCircle, Settings2, Trash2, DownloadCloud } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 
 const ACTION_ICONS: Record<string, any> = {
@@ -64,6 +64,34 @@ export default function LogsPage() {
     }
   };
 
+  const handleExportCSV = () => {
+    try {
+      const headers = ["ID", "Action Type", "Description", "Date Time", "User ID"];
+      const rows = filteredLogs.map(log => [
+        log.id,
+        log.actionType,
+        `"${log.description.replace(/"/g, '""')}"`,
+        new Date(log.createdAt).toLocaleString("th-TH"),
+        log.userId
+      ]);
+
+      const csvContent = [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
+      const BOM = "\uFEFF";
+      const blob = new Blob([BOM + csvContent], { type: "text/csv;charset=utf-8;" });
+      
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.setAttribute("href", url);
+      link.setAttribute("download", `system-logs-${new Date().toISOString().split("T")[0]}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      alert("เกิดข้อผิดพลาดในการส่งออกข้อมูล");
+    }
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -113,6 +141,13 @@ export default function LogsPage() {
           <option value="60">{t("deleteOlderThan")} 60 {t("daysUnit")}</option>
           <option value="90">{t("deleteOlderThan")} 90 {t("daysUnit")}</option>
         </select>
+        <button
+          onClick={handleExportCSV}
+          className="h-11 px-5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-sm font-bold shadow-md shadow-purple-500/10 focus:ring-4 focus:ring-purple-500/20 transition-all flex items-center justify-center gap-2 shrink-0"
+        >
+          <DownloadCloud className="w-4.5 h-4.5" />
+          <span>{lang === "en" ? "Export CSV" : "ส่งออก CSV"}</span>
+        </button>
       </div>
 
       {/* Log List */}

@@ -10,6 +10,7 @@ model User {
   id            String         @id @default(cuid())
   name          String?
   email         String         @unique
+  username      String?        @unique
   emailVerified Boolean        @default(false)
   image         String?
   signatureUrl  String?
@@ -17,7 +18,10 @@ model User {
   role          String         @default("TEACHER") // ADMIN, TEACHER
   position      String? // ครู, หัวหน้าหมวด, ผู้บริหาร, แอดมิน
   subjectGroup  String?
+  level         String?
   lineUserId    String?
+  address       String?
+  phoneNumber   String?
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
   sessions      Session[]
@@ -66,6 +70,11 @@ model LeaveRequest {
   documentUrl    String?
   headApproverId String?
   execApproverId String?
+  rejectReason   String?
+  extraFields    String?
+  fiscalYear     Int?
+  pendingSeq     Int?
+  approvedSeq    Int?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -75,6 +84,7 @@ model LeaveRequest {
 model SystemSettings {
   id                     String   @id @default("default")
   schoolName             String   @default("ชื่อโรงเรียน")
+  affiliation            String   @default("สำนักงานเขตพื้นที่การศึกษามัธยมศึกษาอุดรธานี")
   subheader              String   @default("ระบบจัดการการลา")
   logoUrl                String?
   footerText             String   @default("© 2026 ระบบการลา")
@@ -82,6 +92,10 @@ model SystemSettings {
   lineChannelAccessToken String?
   lineTargetGroupId      String?
   leaveRules             String   @default("การลากิจต้องยื่นคำขอล่วงหน้าอย่างน้อย 3 วันทำการ\nการลาป่วยติดต่อกันเกิน 3 วัน ต้องแนบใบรับรองแพทย์\nระบบจะส่งแจ้งเตือนให้หัวหน้าหมวดของท่านพิจารณาเป็นลำดับแรก")
+  requirePersonalAdvance Boolean  @default(true)
+  memoThresholdTimes     Int      @default(6)
+  memoThresholdDays      Int      @default(15)
+  defaultInspectorId     String?
   updatedAt              DateTime @updatedAt
 }
 
@@ -91,6 +105,7 @@ model LeaveConfig {
   name             String
   maxDaysPerYear   Int      @default(0)
   warningThreshold Int      @default(3) // เตือนเมื่อเหลือน้อยกว่านี้
+  isActive         Boolean  @default(true)
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 }

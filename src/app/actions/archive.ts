@@ -1,17 +1,20 @@
 "use server";
 
 import { auth } from "@/lib/auth";
+import { getSession } from "@/lib/auth-session";
 import { prisma } from "@/lib/db";
 import { headers } from "next/headers";
 import { getCurrentLeaveCycle } from "@/lib/cycle";
 import { getDashboardStats } from "./leave"; // Reuse stats calculation for the snapshot
 
 async function requireAdmin() {
-  const session = await auth.api.getSession({
-    headers: await headers()
-  });
-
-  if (!session?.user || (session.user.role !== "ADMIN" && (session.user as any).position !== "แอดมิน")) {
+  const session = await getSession();
+  if (!session || !session.user) {
+    throw new Error("Unauthorized");
+  }
+  const user = session.user as any;
+  const isAdmin = user.role === "ADMIN" || user.position === "แอดมิน";
+  if (!isAdmin) {
     throw new Error("Unauthorized");
   }
   return session;

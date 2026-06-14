@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useSession } from "@/lib/auth-client";
 import { motion } from "framer-motion";
@@ -39,6 +40,7 @@ const COLOR_PALETTE = [COLORS.pink, COLORS.purple, COLORS.green, COLORS.orange, 
 
 export default function DashboardPage() {
   const { data: session } = useSession();
+  const router = useRouter();
   const [mounted, setMounted] = useState(false);
   const [stats, setStats] = useState<any>(null);
   const { t, lang } = useI18n();
@@ -49,8 +51,15 @@ export default function DashboardPage() {
   useEffect(() => { 
     setMounted(true); 
     setStats(null);
-    getDashboardStats(cycleFilter, lang).then(setStats).catch(console.error);
-  }, [cycleFilter, lang]);
+    getDashboardStats(cycleFilter, lang)
+      .then(setStats)
+      .catch((err: any) => {
+        console.error("Dashboard error:", err);
+        if (err.message === "Unauthorized") {
+          router.push("/login");
+        }
+      });
+  }, [cycleFilter, lang, router]);
 
   if (!mounted || !stats) {
     return (

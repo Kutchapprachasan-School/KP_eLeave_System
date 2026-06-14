@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { getSystemSettings, updateSystemSettings, updateFooter, generateBackup, getLeaveConfigs, updateLeaveConfig } from "@/app/actions/settings";
+import { getSystemSettings, updateSystemSettings, updateFooter, generateBackup, getLeaveConfigs, updateLeaveConfig, updateLeaveRules, setImpersonationCookie, clearImpersonation, getEligibleInspectors, updateDefaultInspector } from "@/app/actions/settings";
 import { archiveCurrentCycle, importBackupFromJson, exportLeaveBackup, importLeaveBackup } from "@/app/actions/archive";
 import { adminClearAllLeaveData } from "@/app/actions/leave";
 import { uploadLogo } from "@/app/actions/upload";
@@ -15,14 +15,21 @@ export default function SettingsPage() {
   const [settings, setSettings] = useState<any>(null);
   const [schoolName, setSchoolName] = useState("");
   const [subheader, setSubheader] = useState("");
+  const [affiliation, setAffiliation] = useState("");
   const [logoUrl, setLogoUrl] = useState("");
   const [footerText, setFooterText] = useState("");
   const [developerSecret, setDeveloperSecret] = useState("");
   const [lineChannelAccessToken, setLineChannelAccessToken] = useState("");
   const [lineTargetGroupId, setLineTargetGroupId] = useState("");
   const [leaveRules, setLeaveRules] = useState("");
+  const [requirePersonalAdvance, setRequirePersonalAdvance] = useState(true);
+  const [memoThresholdTimes, setMemoThresholdTimes] = useState(6);
+  const [memoThresholdDays, setMemoThresholdDays] = useState(15);
+  const [isImpersonating, setIsImpersonating] = useState(false);
   
   const [leaveConfigs, setLeaveConfigs] = useState<any[]>([]);
+  const [defaultInspectorId, setDefaultInspectorId] = useState("");
+  const [eligibleInspectors, setEligibleInspectors] = useState<any[]>([]);
   
   const [isSavingGeneral, setIsSavingGeneral] = useState(false);
   const [isSavingFooter, setIsSavingFooter] = useState(false);
@@ -44,13 +51,19 @@ export default function SettingsPage() {
       setSettings(data);
       setSchoolName(data.schoolName);
       setSubheader(data.subheader);
+      setAffiliation(data.affiliation || "สำนักงานเขตพื้นที่การศึกษามัธยมศึกษาอุดรธานี");
       setLogoUrl(data.logoUrl || "");
       setFooterText(data.footerText);
       setLineChannelAccessToken(data.lineChannelAccessToken || "");
       setLineTargetGroupId(data.lineTargetGroupId || "");
       setLeaveRules(data.leaveRules || "");
+      setRequirePersonalAdvance(data.requirePersonalAdvance !== false);
+      setMemoThresholdTimes(data.memoThresholdTimes ?? 6);
+      setMemoThresholdDays(data.memoThresholdDays ?? 15);
+      setDefaultInspectorId(data.defaultInspectorId || "");
     });
 
+    getEligibleInspectors().then(setEligibleInspectors);
     getLeaveConfigs().then(setLeaveConfigs);
   }, []);
 
@@ -58,12 +71,48 @@ export default function SettingsPage() {
     e.preventDefault();
     setIsSavingGeneral(true);
     try {
-      await updateSystemSettings({ schoolName, subheader, logoUrl, lineChannelAccessToken, lineTargetGroupId, leaveRules });
+      await updateSystemSettings({ 
+        schoolName, 
+        subheader, 
+        affiliation,
+        logoUrl, 
+        lineChannelAccessToken, 
+        lineTargetGroupId, 
+        leaveRules, 
+        requirePersonalAdvance,
+        memoThresholdTimes,
+        memoThresholdDays,
+        defaultInspectorId: defaultInspectorId || null
+      });
       alert("บันทึกการตั้งค่าทั่วไปสำเร็จ");
     } catch (error: any) {
       alert("เกิดข้อผิดพลาดในการบันทึก: " + (error?.message || error));
     } finally {
       setIsSavingGeneral(false);
+    }
+  };
+
+  const handleImpersonate = async (position: string | null, role: string | null) => {
+    setIsImpersonating(true);
+    try {
+      await setImpersonationCookie(position, role);
+      alert("จำลองบทบาทสำเร็จ กำลังรีโหลดหน้าเว็บ...");
+      window.location.href = "/";
+    } catch (error: any) {
+      alert("เกิดข้อผิดพลาด: " + (error?.message || error));
+      setIsImpersonating(false);
+    }
+  };
+
+  const handleClearImpersonation = async () => {
+    setIsImpersonating(true);
+    try {
+      await clearImpersonation();
+      alert("คืนสถานะแอดมินสำเร็จ กำลังรีโหลด...");
+      window.location.reload();
+    } catch (error: any) {
+      alert("เกิดข้อผิดพลาด: " + (error?.message || error));
+      setIsImpersonating(false);
     }
   };
 
@@ -136,14 +185,19 @@ export default function SettingsPage() {
     e.preventDefault();
     setIsSavingRules(true);
     try {
-      await updateSystemSettings({ 
-        schoolName, 
-        subheader, 
-        logoUrl, 
-        lineChannelAccessToken, 
-        lineTargetGroupId, 
-        leaveRules 
-      });
+      const isHRHead = (session?.user as any)?.position === "หัวหน้างานบุคคล" || (session?.user as any)?.position === "เจ้าหน้าที่บุคคล";
+      if (isHRHead) {
+        await updateLeaveRules(leaveRules);
+      } else {
+        await updateSystemSettings({ 
+          schoolName, 
+          subheader, 
+          logoUrl, 
+          lineChannelAccessToken, 
+          lineTargetGroupId, 
+          leaveRules 
+        });
+      }
       alert("บันทึกข้อความแสดงผลข้อกำหนดการลาสำเร็จ");
     } catch (error: any) {
       alert("เกิดข้อผิดพลาดในการบันทึก: " + (error?.message || error));
@@ -152,7 +206,7 @@ export default function SettingsPage() {
     }
   };
 
-  const handleQuotaChange = (id: string, field: "maxDaysPerYear" | "warningThreshold", value: number) => {
+  const handleQuotaChange = (id: string, field: string, value: any) => {
     setLeaveConfigs(prev => prev.map(c => c.id === id ? { ...c, [field]: value } : c));
   };
 
@@ -164,7 +218,8 @@ export default function SettingsPage() {
         leaveConfigs.map(c => 
           updateLeaveConfig(c.id, { 
             maxDaysPerYear: Number(c.maxDaysPerYear), 
-            warningThreshold: Number(c.warningThreshold) 
+            warningThreshold: Number(c.warningThreshold),
+            isActive: c.isActive !== false
           })
          )
       );
@@ -293,6 +348,20 @@ export default function SettingsPage() {
 
   if (!settings) return <div className="animate-pulse space-y-4"><div className="h-8 bg-gray-200 rounded w-1/4"></div><div className="h-40 bg-gray-200 rounded"></div></div>;
 
+  const user = session?.user as any;
+  const isAdmin = user?.role === "ADMIN" || user?.position === "แอดมิน";
+  const isHRHead = user?.position === "หัวหน้างานบุคคล" || user?.position === "เจ้าหน้าที่บุคคล";
+
+  if (!isAdmin && !isHRHead) {
+    return (
+      <div className="max-w-md mx-auto mt-20 p-6 bg-white dark:bg-gray-900 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-red-100 dark:border-red-900/30 text-center">
+        <ShieldAlert className="w-12 h-12 text-red-500 mx-auto mb-4" />
+        <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-2">เข้าถึงไม่ได้</h2>
+        <p className="text-sm text-gray-500">คุณไม่มีสิทธิ์ในการเข้าถึงการตั้งค่าระบบ</p>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-5xl mx-auto space-y-6 pb-12">
       <div>
@@ -300,108 +369,58 @@ export default function SettingsPage() {
         <p className="text-muted-foreground text-gray-500">{t("settingsSubtitle")}</p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
-        {/* Left Column (General Settings & Leave Config) */}
-        <div className="lg:col-span-2 space-y-6">
-          
-          <div className="bg-white dark:bg-gray-900 rounded-2xl p-6 md:p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-100 dark:border-gray-800">
-            <h3 className="text-lg font-semibold mb-6 text-gray-900 dark:text-white border-b border-gray-100 dark:border-gray-800 pb-4">
-              {t("generalSettings")}
-            </h3>
-            
-            <form onSubmit={handleGeneralSubmit} className="space-y-5">
-              {/* Logo Upload */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{t("schoolLogo")}</label>
-                <div className="flex items-center gap-6">
-                  <div className="w-20 h-20 rounded-xl bg-gray-50 dark:bg-gray-800 border-2 border-dashed border-gray-300 dark:border-gray-700 flex items-center justify-center overflow-hidden">
-                    {logoUrl ? (
-                      <img src={logoUrl} alt="Logo" className="w-full h-full object-contain p-1" />
-                    ) : (
-                      <ImageIcon className="w-8 h-8 text-gray-400" />
-                    )}
-                  </div>
-                  <div>
-                    <input type="file" id="logo-upload" accept="image/*" className="hidden" onChange={handleFileChange} disabled={isUploading} />
-                    <label 
-                      htmlFor="logo-upload" 
-                      className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                    >
-                      {isUploading ? t("uploading") : t("uploadNewImage")}
-                    </label>
-                    <p className="text-xs text-gray-500 mt-2">รองรับไฟล์ PNG, JPG ขนาดไม่เกิน 2MB (ไฟล์จะบันทึกในเซิร์ฟเวอร์)</p>
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t("schoolName")}</label>
-                <input
-                  type="text"
-                  required
-                  value={schoolName}
-                  onChange={(e) => setSchoolName(e.target.value)}
-                  className="w-full h-11 px-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t("subheaderLabel")}</label>
-                <input
-                  type="text"
-                  required
-                  value={subheader}
-                  onChange={(e) => setSubheader(e.target.value)}
-                  className="w-full h-11 px-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
-                />
-              </div>
-
-              <div className="border-t border-gray-100 dark:border-gray-800 pt-6">
-                <h4 className="text-md font-semibold text-gray-900 dark:text-white mb-4">{t("lineSettings")}</h4>
-                
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Channel Access Token</label>
-                    <input
-                      type="text"
-                      value={lineChannelAccessToken}
-                      onChange={(e) => setLineChannelAccessToken(e.target.value)}
-                      placeholder="ใส่ Channel Access Token (Long-lived) จาก LINE Developers"
-                      className="w-full h-11 px-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-mono text-sm"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Target Group ID (หรือ User ID)</label>
-                    <input
-                      type="text"
-                      value={lineTargetGroupId}
-                      onChange={(e) => setLineTargetGroupId(e.target.value)}
-                      placeholder="ใส่ Group ID หรือ User ID ที่ต้องการให้บอทส่งข้อความไป"
-                      className="w-full h-11 px-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-mono text-sm"
-                    />
-                    <p className="text-xs text-gray-500 mt-2">
-                      ใช้สำหรับการส่งแจ้งเตือนแบบ Push Message ผ่าน LINE Messaging API บอทต้องอยู่ในกลุ่มนั้นแล้ว หรือส่งเข้าหาผู้ใช้โดยตรงด้วย User ID
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="pt-4 flex justify-end">
-                <button
-                  type="submit"
-                  disabled={isSavingGeneral}
-                  className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-indigo-600 text-white font-medium hover:bg-indigo-700 focus:ring-4 focus:ring-indigo-500/20 transition-all disabled:opacity-50"
-                >
-                  <Save className="w-4 h-4" />
-                  {isSavingGeneral ? t("saving") : t("saveSettings")}
-                </button>
-              </div>
-            </form>
+      {isHRHead ? (
+        <div className="space-y-6 max-w-4xl">
+          {/* Restricted access banner */}
+          <div className="p-4 bg-blue-50 dark:bg-blue-950/20 border border-blue-200/40 dark:border-blue-900/40 rounded-2xl text-sm text-blue-700 dark:text-blue-300 flex items-start gap-3 shadow-sm">
+            <ShieldAlert className="w-5 h-5 text-blue-500 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-bold">{lang === "en" ? "Restricted Access Mode" : "โหมดสิทธิ์การเข้าถึงแบบจำกัด"}</p>
+              <p className="text-xs text-blue-600/90 dark:text-blue-400 mt-1">
+                {lang === "en" 
+                  ? "As HR role, you only have access to view/edit leave quotas and leave rules. General system settings, developer configurations, backups, and system clear actions are restricted."
+                  : "เนื่องจากบทบาทของคุณเป็นเจ้าหน้าที่งานบุคคล คุณจะมีสิทธิ์เข้าถึงเฉพาะการปรับแต่งโควตาการลาและแก้ไขกฎเกณฑ์การลาเท่านั้น ส่วนการตั้งค่าระบบทั่วไป ข้อมูลนักพัฒนา การสำรองข้อมูล และการล้างข้อมูลจะถูกจำกัดสิทธิ์การเข้าถึง"}
+              </p>
+            </div>
           </div>
 
-           {/* Leave Configuration */}
+          {/* Default Inspector Card for HR Head */}
+          <div className="bg-white dark:bg-gray-900 rounded-2xl p-6 md:p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-100 dark:border-gray-800">
+            <h3 className="text-lg font-semibold mb-6 text-gray-900 dark:text-white border-b border-gray-100 dark:border-gray-800 pb-4 flex items-center gap-2">
+              <Settings2 className="w-5 h-5 text-indigo-500" />
+              {lang === "en" ? "Default Inspector Setting" : "ตั้งค่าผู้ตรวจสอบระบบ"}
+            </h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  {lang === "en" ? "Default Inspector" : "ผู้ตรวจสอบใบลาสะสม (ค่าเริ่มต้น)"}
+                </label>
+                <select
+                  value={defaultInspectorId}
+                  onChange={async (e) => {
+                    const val = e.target.value;
+                    setDefaultInspectorId(val);
+                    try {
+                      await updateDefaultInspector(val || null);
+                      alert("บันทึกผู้ตรวจสอบระบบสำเร็จ");
+                    } catch (err: any) {
+                      alert("บันทึกไม่สำเร็จ: " + err.message);
+                    }
+                  }}
+                  className="w-full h-11 px-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm"
+                >
+                  <option value="">-- {lang === "en" ? "Select Default Inspector" : "เลือกผู้ตรวจสอบ (หรือระบบเลือก หัวหน้างานบุคคล อัตโนมัติ)"} --</option>
+                  {eligibleInspectors.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.name} {u.position ? `(${u.position})` : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* Leave Configuration */}
           <div className="bg-white dark:bg-gray-900 rounded-2xl p-6 md:p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-100 dark:border-gray-800">
             <h3 className="text-lg font-semibold mb-6 text-gray-900 dark:text-white border-b border-gray-100 dark:border-gray-800 pb-4 flex items-center gap-2">
               <Settings2 className="w-5 h-5 text-indigo-500" />
@@ -424,6 +443,17 @@ export default function SettingsPage() {
                     <div className="flex-1">
                       <label className="block text-sm font-semibold text-gray-900 dark:text-white mb-1">{config.name}</label>
                       <p className="text-xs text-slate-400 dark:text-slate-500 font-mono">{config.type}</p>
+                    </div>
+                    <div className="flex items-center gap-2 pb-1.5 sm:pb-0">
+                      <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-600 dark:text-slate-400">
+                        <input 
+                          type="checkbox" 
+                          checked={config.isActive !== false} 
+                          onChange={(e) => handleQuotaChange(config.id, "isActive", e.target.checked)}
+                          className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                        />
+                        <span>{lang === "en" ? "Active" : "เปิดใช้งาน"}</span>
+                      </label>
                     </div>
                     <div>
                       <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">{t("maxQuota")}</label>
@@ -490,242 +520,588 @@ export default function SettingsPage() {
             </div>
           </form>
 
-
         </div>
-
-        {/* Right Column (Advanced Settings) */}
-        <div className="space-y-6">
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           
-          {/* Footer Settings */}
-          <div className="bg-white dark:bg-gray-900 rounded-2xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-rose-100 dark:border-rose-900/30 relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-24 h-24 bg-rose-500/10 rounded-bl-[100px] -z-10" />
-            <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white flex items-center gap-2">
-              <ShieldAlert className="w-5 h-5 text-rose-500" />
-              {t("footerSettings")}
-            </h3>
-            <p className="text-xs text-gray-500 mb-4">
-              ส่วนนี้ต้องการ <span className="font-semibold text-rose-600">รหัสลับนักพัฒนา</span> ในการแก้ไข
-            </p>
+          {/* Left Column (General Settings & Leave Config) */}
+          <div className="lg:col-span-2 space-y-6">
+            
+            <div className="bg-white dark:bg-gray-900 rounded-2xl p-6 md:p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-100 dark:border-gray-800">
+              <h3 className="text-lg font-semibold mb-6 text-gray-900 dark:text-white border-b border-gray-100 dark:border-gray-800 pb-4">
+                {t("generalSettings")}
+              </h3>
+              
+              <form onSubmit={handleGeneralSubmit} className="space-y-5">
+                {/* Logo Upload */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{t("schoolLogo")}</label>
+                  <div className="flex items-center gap-6">
+                    <div className="w-20 h-20 rounded-xl bg-gray-50 dark:bg-gray-800 border-2 border-dashed border-gray-300 dark:border-gray-700 flex items-center justify-center overflow-hidden">
+                      {logoUrl ? (
+                        <img src={logoUrl} alt="Logo" className="w-full h-full object-contain p-1" />
+                      ) : (
+                        <ImageIcon className="w-8 h-8 text-gray-400" />
+                      )}
+                    </div>
+                    <div>
+                      <input type="file" id="logo-upload" accept="image/*" className="hidden" onChange={handleFileChange} disabled={isUploading} />
+                      <label 
+                        htmlFor="logo-upload" 
+                        className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                      >
+                        {isUploading ? t("uploading") : t("uploadNewImage")}
+                      </label>
+                      <p className="text-xs text-gray-500 mt-2">รองรับไฟล์ PNG, JPG ขนาดไม่เกิน 2MB (ไฟล์จะบันทึกในเซิร์ฟเวอร์)</p>
+                    </div>
+                  </div>
+                </div>
 
-            <form onSubmit={handleFooterSubmit} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t("footerText")}</label>
-                <input
-                  type="text"
-                  required
-                  value={footerText}
-                  onChange={(e) => setFooterText(e.target.value)}
-                  className="w-full h-10 px-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500"
-                />
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t("schoolName")}</label>
+                  <input
+                    type="text"
+                    required
+                    value={schoolName}
+                    onChange={(e) => setSchoolName(e.target.value)}
+                    className="w-full h-11 px-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t("subheaderLabel")}</label>
+                  <input
+                    type="text"
+                    required
+                    value={subheader}
+                    onChange={(e) => setSubheader(e.target.value)}
+                    className="w-full h-11 px-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">สังกัด</label>
+                  <input
+                    type="text"
+                    required
+                    value={affiliation}
+                    onChange={(e) => setAffiliation(e.target.value)}
+                    className="w-full h-11 px-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    {lang === "en" ? "Default Inspector" : "ผู้ตรวจสอบใบลา (ค่าเริ่มต้น)"}
+                  </label>
+                  <select
+                    value={defaultInspectorId}
+                    onChange={(e) => setDefaultInspectorId(e.target.value)}
+                    className="w-full h-11 px-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm mb-4"
+                  >
+                    <option value="">-- เลือกผู้ตรวจสอบ (หรือใช้ หัวหน้างานบุคคล เป็นค่าเริ่มต้น) --</option>
+                    {eligibleInspectors.map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.name} {u.position ? `(${u.position})` : ""}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="border-t border-gray-100 dark:border-gray-800 pt-6 space-y-4">
+                  <h4 className="text-md font-semibold text-gray-900 dark:text-white mb-2">{lang === "en" ? "General Restrictions" : "ข้อจำกัดทั่วไป"}</h4>
+                  <div>
+                    <label className="flex items-center gap-2 cursor-pointer text-sm font-semibold text-gray-700 dark:text-gray-300">
+                      <input
+                        type="checkbox"
+                        checked={requirePersonalAdvance}
+                        onChange={(e) => setRequirePersonalAdvance(e.target.checked)}
+                        className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                      />
+                      <span>{lang === "en" ? "Require Personal Leave 1-Day in Advance" : "ลากิจส่วนตัวต้องล่วงหน้าอย่างน้อย 1 วันทำการ"}</span>
+                    </label>
+                    <p className="text-xs text-gray-500 mt-1 pl-6">หากเปิดใช้งาน บุคลากรจะไม่สามารถยื่นคำขอลากิจส่วนตัวสำหรับวันนี้หรือย้อนหลังได้</p>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 pl-6">
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">
+                        เกณฑ์สะสมลารวมลากิจ+ลาป่วย (จำนวนครั้ง) เพื่อส่งข้อความถึง ผอ.
+                      </label>
+                      <input
+                        type="number"
+                        min={0}
+                        value={memoThresholdTimes}
+                        onChange={(e) => setMemoThresholdTimes(Number(e.target.value))}
+                        className="w-full h-11 px-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm font-bold"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">
+                        เกณฑ์สะสมลารวมลากิจ+ลาป่วย (จำนวนวัน) เพื่อส่งข้อความถึง ผอ.
+                      </label>
+                      <input
+                        type="number"
+                        min={0}
+                        value={memoThresholdDays}
+                        onChange={(e) => setMemoThresholdDays(Number(e.target.value))}
+                        className="w-full h-11 px-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm font-bold"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="border-t border-gray-100 dark:border-gray-800 pt-6">
+                  <h4 className="text-md font-semibold text-gray-900 dark:text-white mb-4">{t("lineSettings")}</h4>
+                  
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Channel Access Token</label>
+                      <input
+                        type="text"
+                        value={lineChannelAccessToken}
+                        onChange={(e) => setLineChannelAccessToken(e.target.value)}
+                        placeholder="ใส่ Channel Access Token (Long-lived) จาก LINE Developers"
+                        className="w-full h-11 px-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-mono text-sm"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Target Group ID (หรือ User ID)</label>
+                      <input
+                        type="text"
+                        value={lineTargetGroupId}
+                        onChange={(e) => setLineTargetGroupId(e.target.value)}
+                        placeholder="ใส่ Group ID หรือ User ID ที่ต้องการให้บอทส่งข้อความไป"
+                        className="w-full h-11 px-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-mono text-sm"
+                      />
+                      <p className="text-xs text-gray-500 mt-2">
+                        ใช้สำหรับการส่งแจ้งเตือนแบบ Push Message ผ่าน LINE Messaging API บอทต้องอยู่ในกลุ่มนั้นแล้ว หรือส่งเข้าหาผู้ใช้โดยตรงด้วย User ID
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-4 flex justify-end">
+                  <button
+                    type="submit"
+                    disabled={isSavingGeneral}
+                    className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-indigo-600 text-white font-medium hover:bg-indigo-700 focus:ring-4 focus:ring-indigo-500/20 transition-all disabled:opacity-50"
+                  >
+                    <Save className="w-4 h-4" />
+                    {isSavingGeneral ? t("saving") : t("saveSettings")}
+                  </button>
+                </div>
+              </form>
+            </div>
+
+             {/* Leave Configuration */}
+            <div className="bg-white dark:bg-gray-900 rounded-2xl p-6 md:p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-100 dark:border-gray-800">
+              <h3 className="text-lg font-semibold mb-6 text-gray-900 dark:text-white border-b border-gray-100 dark:border-gray-800 pb-4 flex items-center gap-2">
+                <Settings2 className="w-5 h-5 text-indigo-500" />
+                {t("leaveQuotaConfig")}
+              </h3>
+              
+              <form onSubmit={handleSaveAllQuotas} className="space-y-4">
+                {/* Quota Guideline Banner */}
+                <div className="p-3.5 bg-purple-50 dark:bg-purple-950/20 border border-purple-200/40 dark:border-purple-900/40 rounded-xl text-xs text-purple-700 dark:text-purple-300 font-semibold flex items-center gap-2">
+                  <Settings2 className="w-4 h-4 text-purple-500 shrink-0" />
+                  <span>💡 {lang === "en" ? "Tip: Setting max quota to 0 makes that leave type unlimited (e.g. sick leave)." : "คำแนะนำ: หากกำหนดค่าโควตาสูงสุดเป็น 0 จะหมายถึง 'ไม่จำกัดจำนวนวันทำการ' (เช่น ลาป่วย)"}</span>
+                </div>
+
+                <div className="space-y-4">
+                  {leaveConfigs.map((config) => (
+                    <div 
+                      key={config.id} 
+                      className="flex flex-col sm:flex-row sm:items-end gap-3 p-4 rounded-xl bg-gray-50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-700/50"
+                    >
+                      <div className="flex-1">
+                        <label className="block text-sm font-semibold text-gray-900 dark:text-white mb-1">{config.name}</label>
+                        <p className="text-xs text-slate-400 dark:text-slate-500 font-mono">{config.type}</p>
+                      </div>
+                      <div className="flex items-center gap-2 pb-1.5 sm:pb-0">
+                        <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-600 dark:text-slate-400">
+                          <input 
+                            type="checkbox" 
+                            checked={config.isActive !== false} 
+                            onChange={(e) => handleQuotaChange(config.id, "isActive", e.target.checked)}
+                            className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                          />
+                          <span>{lang === "en" ? "Active" : "เปิดใช้งาน"}</span>
+                        </label>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">{t("maxQuota")}</label>
+                        <input 
+                          type="number" 
+                          value={config.maxDaysPerYear || 0} 
+                          onChange={(e) => handleQuotaChange(config.id, "maxDaysPerYear", Number(e.target.value))}
+                          className="w-full sm:w-28 h-10 px-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:ring-2 focus:ring-indigo-500/20" 
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">{t("warnWhenLeft")}</label>
+                        <input 
+                          type="number" 
+                          value={config.warningThreshold || 0} 
+                          onChange={(e) => handleQuotaChange(config.id, "warningThreshold", Number(e.target.value))}
+                          className="w-full sm:w-28 h-10 px-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:ring-2 focus:ring-indigo-500/20" 
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="pt-4 flex justify-end">
+                  <button
+                    type="submit"
+                    disabled={isSavingAllQuotas}
+                    className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold shadow-md shadow-purple-500/10 focus:ring-4 focus:ring-purple-500/20 transition-all text-sm disabled:opacity-50"
+                  >
+                    <Save className="w-4 h-4" />
+                    {isSavingAllQuotas ? t("saving") : (lang === "en" ? "Save All Quotas" : "บันทึกโควตาการลาทั้งหมด")}
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            {/* Leave Rules Editor */}
+            <form onSubmit={handleSaveLeaveRules} className="bg-white dark:bg-gray-900 rounded-2xl p-6 md:p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-amber-100 dark:border-amber-900/30 relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-24 h-24 bg-amber-500/10 rounded-bl-[100px] -z-10" />
+              <h3 className="text-lg font-semibold mb-2 text-gray-900 dark:text-white flex items-center gap-2">
+                <ShieldAlert className="w-5 h-5 text-amber-500" />
+                {t("leaveRulesDisplay")}
+              </h3>
+              <p className="text-xs text-gray-500 mb-4">
+                {t("leaveRulesDesc")}
+              </p>
+              <textarea
+                rows={5}
+                value={leaveRules}
+                onChange={(e) => setLeaveRules(e.target.value)}
+                className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all resize-y"
+                placeholder="การลากิจต้องยื่นคำขอล่วงหน้าอย่างน้อย 3 วันทำการ&#10;การลาป่วยติดต่อกันเกิน 3 วัน ต้องแนบใบรับรองแพทย์"
+              />
+              <div className="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <p className="text-[11px] text-slate-400 dark:text-slate-500">* {lang === "en" ? "This text will be shown on the leave request form" : "ข้อความนี้จะแสดงผลบนหน้าต่างยื่นใบคำขอลาของบุคลากร"}</p>
+                <button
+                  type="submit"
+                  disabled={isSavingRules}
+                  className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold shadow-md shadow-amber-500/10 focus:ring-4 focus:ring-amber-500/20 transition-all text-sm disabled:opacity-50 shrink-0 self-end"
+                >
+                  <Save className="w-4 h-4" />
+                  {isSavingRules ? t("saving") : (lang === "en" ? "Save Rules Text" : "บันทึกข้อความแสดงผล")}
+                </button>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 flex items-center gap-1">
-                  <Code className="w-3.5 h-3.5" /> Developer Secret
-                </label>
-                <input
-                  type="password"
-                  required
-                  value={developerSecret}
-                  onChange={(e) => setDeveloperSecret(e.target.value)}
-                  placeholder="ใส่รหัสลับที่นี่"
-                  className="w-full h-10 px-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 font-mono"
-                />
-              </div>
-              <button
-                type="submit"
-                disabled={isSavingFooter}
-                className="w-full flex items-center justify-center gap-2 h-10 rounded-lg bg-rose-600 text-white font-medium hover:bg-rose-700 focus:ring-4 focus:ring-rose-500/20 transition-all text-sm disabled:opacity-50"
-              >
-                {isSavingFooter ? t("checking") : t("confirmFooter")}
-              </button>
             </form>
+
           </div>
 
-          {/* Leave Data Backup */}
-          <div className="bg-white dark:bg-gray-900 rounded-3xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.02)] border border-gray-100 dark:border-gray-800 relative overflow-hidden">
-            <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-start gap-2 mb-2">
-              <Database className="w-5 h-5 text-purple-500 mt-1 shrink-0" />
-              <div>
-                <span className="block">{lang === "th" ? "สำรองข้อมูลการลา" : "Leave Backup"}</span>
-                <span className="block text-xs font-semibold text-slate-400 dark:text-slate-500 mt-0.5">
-                  (Leave Backup)
-                </span>
-              </div>
-            </h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mb-5 leading-relaxed">
-              {t("leaveBackupDesc") || "นำออกข้อมูลการลาปีงบประมาณปัจจุบันเป็นไฟล์ JSON หรือนำเข้าไฟล์ JSON เพื่อกู้คืนข้อมูลการลา"}
-            </p>
+          {/* Right Column (Advanced Settings) */}
+          <div className="space-y-6">
             
-            <div className="space-y-4">
-              {/* Export */}
-              <button
-                onClick={handleExportLeave}
-                disabled={isExportingLeave}
-                className="w-full flex flex-col items-center justify-center gap-0.5 py-2.5 px-4 rounded-xl bg-purple-50 hover:bg-purple-100 dark:bg-purple-500/10 dark:hover:bg-purple-500/20 text-purple-600 dark:text-purple-400 border border-purple-100 dark:border-purple-900/50 font-bold text-sm transition-all disabled:opacity-50"
-              >
-                <div className="flex items-center gap-1.5 justify-center">
-                  <FileJson className="w-4 h-4 shrink-0" />
-                  <span>{isExportingLeave ? (lang === "en" ? "Backing up..." : "กำลังส่งออกข้อมูล...") : "ส่งออกข้อมูลการลา"}</span>
-                </div>
-                {!isExportingLeave && (
-                  <span className="text-[10px] font-semibold text-purple-500/70 dark:text-purple-400/70">
-                    (Export Leave Data)
-                  </span>
-                )}
-              </button>
-
-              {/* Import Mode Selector */}
-              <div className="bg-slate-50 dark:bg-slate-800/40 rounded-2xl p-4 border border-slate-100 dark:border-slate-800/80 space-y-3">
-                <p className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5 justify-center">
-                  <UploadCloud className="w-4 h-4 text-purple-500" /> {t("importModeLabel") || "เลือกโหมดการนำเข้า"}
-                </p>
-                
-                {/* Segmented Control */}
-                <div className="flex items-center gap-1.5 p-1 bg-slate-200/60 dark:bg-slate-800/80 rounded-xl">
-                  <button
-                    type="button"
-                    onClick={() => setImportLeaveMode("merge")}
-                    className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold transition-all ${
-                      importLeaveMode === "merge"
-                        ? "bg-white dark:bg-slate-700 text-purple-600 dark:text-purple-400 shadow-sm"
-                        : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
-                    }`}
-                  >
-                    ผสาน
-                    <span className="block text-[10px] font-semibold opacity-80">(Merge)</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setImportLeaveMode("replace")}
-                    className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold transition-all ${
-                      importLeaveMode === "replace"
-                        ? "bg-rose-500 text-white shadow-sm"
-                        : "text-slate-500 hover:text-rose-500"
-                    }`}
-                  >
-                    แทนที่
-                    <span className="block text-[10px] font-semibold opacity-80">(Replace)</span>
-                  </button>
-                </div>
-
-                {/* Inline Helper Description */}
-                <p className="text-[11px] text-slate-400 dark:text-slate-500 leading-normal text-center min-h-[32px] flex items-center justify-center px-1">
-                  {importLeaveMode === "merge"
-                    ? (lang === "en" ? "Only new records will be added without deleting existing data" : "เพิ่มเฉพาะรายการใหม่โดยไม่ลบหรือส่งผลต่อข้อมูลเดิม")
-                    : (lang === "en" ? "Warning: All current leave records will be completely replaced" : "⚠️ ระวัง: ข้อมูลการลาปัจจุบันทั้งหมดจะถูกลบและเขียนทับด้วยข้อมูลใหม่")}
-                </p>
-
-                <label className={`w-full flex flex-col items-center justify-center gap-0.5 py-3 px-4 rounded-xl border-2 border-dashed font-semibold cursor-pointer transition-all disabled:opacity-50 text-xs ${
-                  importLeaveMode === "replace"
-                    ? "border-rose-200 dark:border-rose-900/50 text-rose-600 dark:text-rose-400 hover:bg-rose-50/50 dark:hover:bg-rose-950/20"
-                    : "border-purple-200 dark:border-purple-900/50 text-purple-600 dark:text-purple-400 hover:bg-purple-50/50 dark:hover:bg-purple-950/20"
-                }`}>
-                  <div className="flex items-center gap-1.5 justify-center">
-                    <UploadCloud className="w-4 h-4 shrink-0" />
-                    <span>{isImportingLeave ? (lang === "en" ? "Importing..." : "กำลังนำเข้าข้อมูล...") : "นำเข้าไฟล์ JSON"}</span>
+            {/* Impersonation Mode Box */}
+            {(session?.user as any)?.isActualAdmin ? (
+              <div className="bg-white dark:bg-gray-900 rounded-3xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.02)] border border-indigo-100 dark:border-indigo-900/30 relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/10 rounded-bl-[100px] -z-10" />
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2 mb-2">
+                  <ShieldAlert className="w-5 h-5 text-indigo-500" />
+                  <div>
+                    <span className="block">{lang === "th" ? "จำลองมุมมองสิทธิ์" : "Impersonate Role"}</span>
+                    <span className="block text-xs font-semibold text-slate-400 dark:text-slate-500 mt-0.5">
+                      (Impersonation Mode)
+                    </span>
                   </div>
-                  {!isImportingLeave && (
-                    <span className="text-[10px] font-semibold opacity-70">
-                      (Import Leave Data)
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mb-4 leading-relaxed">
+                  สำหรับแอดมินเท่านั้น: สลับไปดูระบบในมุมมองของบทบาทต่าง ๆ เพื่อการปรับปรุงระบบและช่วยเหลือผู้ใช้
+                </p>
+
+                <div className="space-y-2">
+                  <button
+                    type="button"
+                    onClick={() => handleImpersonate(null, "TEACHER")}
+                    disabled={isImpersonating}
+                    className="w-full flex items-center justify-between py-2.5 px-4 rounded-xl bg-slate-50 hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700/80 text-slate-700 dark:text-slate-300 font-semibold text-sm transition-all border border-slate-100 dark:border-slate-800"
+                  >
+                    <span>ครู (TEACHER)</span>
+                    <span className="text-xs font-normal text-slate-400">สิทธิ์ทั่วไป</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleImpersonate("หัวหน้างานบุคคล", "TEACHER")}
+                    disabled={isImpersonating}
+                    className="w-full flex items-center justify-between py-2.5 px-4 rounded-xl bg-purple-50 hover:bg-purple-100 dark:bg-purple-950/20 dark:hover:bg-purple-900/30 text-purple-700 dark:text-purple-300 font-semibold text-sm transition-all border border-purple-100/55 dark:border-purple-900/30"
+                  >
+                    <span>หัวหน้างานบุคคล (HR Head)</span>
+                    <span className="text-xs font-normal text-purple-400">กำหนดโควตา/อนุมัติใบลา</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleImpersonate("เจ้าหน้าที่บุคคล", "TEACHER")}
+                    disabled={isImpersonating}
+                    className="w-full flex items-center justify-between py-2.5 px-4 rounded-xl bg-purple-50 hover:bg-purple-100 dark:bg-purple-950/20 dark:hover:bg-purple-900/30 text-purple-700 dark:text-purple-300 font-semibold text-sm transition-all border border-purple-100/55 dark:border-purple-900/30"
+                  >
+                    <span>เจ้าหน้าที่บุคคล (HR Officer)</span>
+                    <span className="text-xs font-normal text-purple-400">กำหนดโควตา/พิมพ์รายงาน</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleImpersonate("ผู้บริหาร", "TEACHER")}
+                    disabled={isImpersonating}
+                    className="w-full flex items-center justify-between py-2.5 px-4 rounded-xl bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/20 dark:hover:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 font-semibold text-sm transition-all border border-indigo-100/55 dark:border-indigo-900/30"
+                  >
+                    <span>ผู้บริหาร/ผู้อำนวยการ (EXEC)</span>
+                    <span className="text-xs font-normal text-indigo-400">อนุมัติขั้นสุดท้าย</span>
+                  </button>
+
+                  {/* Show Cancel Impersonation button if they are currently impersonating */}
+                  {((session?.user as any)?.role !== "ADMIN" && (session?.user as any)?.position !== "แอดมิน") && (
+                    <button
+                      type="button"
+                      onClick={handleClearImpersonation}
+                      disabled={isImpersonating}
+                      className="w-full flex items-center justify-center gap-2 py-2.5 px-4 mt-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-sm transition-all shadow-md shadow-rose-500/10"
+                    >
+                      <span>ยกเลิกการจำลองสิทธิ์ (กลับเป็นแอดมิน)</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            ) : null}
+
+            {/* Footer Settings */}
+            <div className="bg-white dark:bg-gray-900 rounded-2xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-rose-100 dark:border-rose-900/30 relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-24 h-24 bg-rose-500/10 rounded-bl-[100px] -z-10" />
+              <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white flex items-center gap-2">
+                <ShieldAlert className="w-5 h-5 text-rose-500" />
+                {t("footerSettings")}
+              </h3>
+              <p className="text-xs text-gray-500 mb-4">
+                ส่วนนี้ต้องการ <span className="font-semibold text-rose-600">รหัสลับนักพัฒนา</span> ในการแก้ไข
+              </p>
+
+              <form onSubmit={handleFooterSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t("footerText")}</label>
+                  <input
+                    type="text"
+                    required
+                    value={footerText}
+                    onChange={(e) => setFooterText(e.target.value)}
+                    className="w-full h-10 px-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 flex items-center gap-1">
+                    <Code className="w-3.5 h-3.5" /> Developer Secret
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    value={developerSecret}
+                    onChange={(e) => setDeveloperSecret(e.target.value)}
+                    placeholder="ใส่รหัสลับที่นี่"
+                    className="w-full h-10 px-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 font-mono"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={isSavingFooter}
+                  className="w-full flex items-center justify-center gap-2 h-10 rounded-lg bg-rose-600 text-white font-medium hover:bg-rose-700 focus:ring-4 focus:ring-rose-500/20 transition-all text-sm disabled:opacity-50"
+                >
+                  {isSavingFooter ? t("checking") : t("confirmFooter")}
+                </button>
+              </form>
+            </div>
+
+            {/* Leave Data Backup */}
+            <div className="bg-white dark:bg-gray-900 rounded-3xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.02)] border border-gray-100 dark:border-gray-800 relative overflow-hidden">
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-start gap-2 mb-2">
+                <Database className="w-5 h-5 text-purple-500 mt-1 shrink-0" />
+                <div>
+                  <span className="block">{lang === "th" ? "สำรองข้อมูลการลา" : "Leave Backup"}</span>
+                  <span className="block text-xs font-semibold text-slate-400 dark:text-slate-500 mt-0.5">
+                    (Leave Backup)
+                  </span>
+                </div>
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mb-5 leading-relaxed">
+                {t("leaveBackupDesc") || "นำออกข้อมูลการลาปีงบประมาณปัจจุบันเป็นไฟล์ JSON หรือนำเข้าไฟล์ JSON เพื่อกู้คืนข้อมูลการลา"}
+              </p>
+              
+              <div className="space-y-4">
+                {/* Export */}
+                <button
+                  onClick={handleExportLeave}
+                  disabled={isExportingLeave}
+                  className="w-full flex flex-col items-center justify-center gap-0.5 py-2.5 px-4 rounded-xl bg-purple-50 hover:bg-purple-100 dark:bg-purple-500/10 dark:hover:bg-purple-500/20 text-purple-600 dark:text-purple-400 border border-purple-100 dark:border-purple-900/50 font-bold text-sm transition-all disabled:opacity-50"
+                >
+                  <div className="flex items-center gap-1.5 justify-center">
+                    <FileJson className="w-4 h-4 shrink-0" />
+                    <span>{isExportingLeave ? (lang === "en" ? "Backing up..." : "กำลังส่งออกข้อมูล...") : "ส่งออกข้อมูลการลา"}</span>
+                  </div>
+                  {!isExportingLeave && (
+                    <span className="text-[10px] font-semibold text-purple-500/70 dark:text-purple-400/70">
+                      (Export Leave Data)
                     </span>
                   )}
-                  <input type="file" accept=".json" className="hidden" onChange={handleImportLeave} disabled={isImportingLeave} />
+                </button>
+
+                {/* Import Mode Selector */}
+                <div className="bg-slate-50 dark:bg-slate-800/40 rounded-2xl p-4 border border-slate-100 dark:border-slate-800/80 space-y-3">
+                  <p className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5 justify-center">
+                    <UploadCloud className="w-4 h-4 text-purple-500" /> {t("importModeLabel") || "เลือกโหมดการนำเข้า"}
+                  </p>
+                  
+                  {/* Segmented Control */}
+                  <div className="flex items-center gap-1.5 p-1 bg-slate-200/60 dark:bg-slate-800/80 rounded-xl">
+                    <button
+                      type="button"
+                      onClick={() => setImportLeaveMode("merge")}
+                      className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold transition-all ${
+                        importLeaveMode === "merge"
+                          ? "bg-white dark:bg-slate-700 text-purple-600 dark:text-purple-400 shadow-sm"
+                          : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                      }`}
+                    >
+                      ผสาน
+                      <span className="block text-[10px] font-semibold opacity-80">(Merge)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setImportLeaveMode("replace")}
+                      className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold transition-all ${
+                        importLeaveMode === "replace"
+                          ? "bg-rose-500 text-white shadow-sm"
+                          : "text-slate-500 hover:text-rose-500"
+                      }`}
+                    >
+                      แทนที่
+                      <span className="block text-[10px] font-semibold opacity-80">(Replace)</span>
+                    </button>
+                  </div>
+
+                  {/* Inline Helper Description */}
+                  <p className="text-[11px] text-slate-400 dark:text-slate-500 leading-normal text-center min-h-[32px] flex items-center justify-center px-1">
+                    {importLeaveMode === "merge"
+                      ? (lang === "en" ? "Only new records will be added without deleting existing data" : "เพิ่มเฉพาะรายการใหม่โดยไม่ลบหรือส่งผลต่อข้อมูลเดิม")
+                      : (lang === "en" ? "Warning: All current leave records will be completely replaced" : "⚠️ ระวัง: ข้อมูลการลาปัจจุบันทั้งหมดจะถูกลบและเขียนทับด้วยข้อมูลใหม่")}
+                  </p>
+
+                  <label className={`w-full flex flex-col items-center justify-center gap-0.5 py-3 px-4 rounded-xl border-2 border-dashed font-semibold cursor-pointer transition-all disabled:opacity-50 text-xs ${
+                    importLeaveMode === "replace"
+                      ? "border-rose-200 dark:border-rose-900/50 text-rose-600 dark:text-rose-400 hover:bg-rose-50/50 dark:hover:bg-rose-950/20"
+                      : "border-purple-200 dark:border-purple-900/50 text-purple-600 dark:text-purple-400 hover:bg-purple-50/50 dark:hover:bg-purple-950/20"
+                  }`}>
+                    <div className="flex items-center gap-1.5 justify-center">
+                      <UploadCloud className="w-4 h-4 shrink-0" />
+                      <span>{isImportingLeave ? (lang === "en" ? "Importing..." : "กำลังนำเข้าข้อมูล...") : "นำเข้าไฟล์ JSON"}</span>
+                    </div>
+                    {!isImportingLeave && (
+                      <span className="text-[10px] font-semibold opacity-70">
+                        (Import Leave Data)
+                      </span>
+                    )}
+                    <input type="file" accept=".json" className="hidden" onChange={handleImportLeave} disabled={isImportingLeave} />
+                  </label>
+                </div>
+
+                {/* Import Result */}
+                {importLeaveResult && (
+                  <div className={`rounded-2xl p-4 border text-xs ${
+                    importLeaveResult.errors?.length > 0
+                      ? "bg-amber-50/50 dark:bg-amber-500/5 border-amber-200 dark:border-amber-900/50"
+                      : "bg-emerald-50/50 dark:bg-emerald-500/5 border-emerald-200 dark:border-emerald-900/50"
+                  }`}>
+                    <div className="flex items-center gap-2 mb-2">
+                      {importLeaveResult.errors?.length > 0 ? (
+                        <AlertTriangle className="w-4 h-4 text-amber-500" />
+                      ) : (
+                        <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                      )}
+                      <span className="font-bold text-slate-800 dark:text-slate-200">{t("importResult")}</span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 text-center mb-1">
+                      <div className="bg-white/80 dark:bg-slate-800 rounded-lg p-2 border border-slate-100 dark:border-slate-800">
+                        <div className="font-bold text-sm text-emerald-600">{importLeaveResult.imported}</div>
+                        <div className="text-[10px] text-slate-400">{t("importedSuccess")}</div>
+                      </div>
+                      <div className="bg-white/80 dark:bg-slate-800 rounded-lg p-2 border border-slate-100 dark:border-slate-800">
+                        <div className="font-bold text-sm text-slate-400">{importLeaveResult.skipped}</div>
+                        <div className="text-[10px] text-slate-400">{t("skipped")}</div>
+                      </div>
+                      <div className="bg-white/80 dark:bg-slate-800 rounded-lg p-2 border border-slate-100 dark:border-slate-800">
+                        <div className="font-bold text-sm text-purple-600">{importLeaveResult.total}</div>
+                        <div className="text-[10px] text-slate-400">{t("total")}</div>
+                      </div>
+                    </div>
+                    {importLeaveResult.errors?.length > 0 && (
+                      <div className="mt-2 text-slate-600 dark:text-slate-400 space-y-1">
+                        <p className="font-bold">{t("errorDetails")}</p>
+                        {importLeaveResult.errors.map((err: string, i: number) => (
+                          <p key={i} className="pl-2">• {err}</p>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Backup Data */}
+            <div className="bg-white dark:bg-gray-900 rounded-3xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.02)] border border-gray-100 dark:border-gray-800 relative overflow-hidden">
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2 mb-2">
+                <DownloadCloud className="w-5 h-5 text-teal-500" />
+                {t("systemBackup") || "ระบบสำรองข้อมูล"}
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mb-5 leading-relaxed">
+                {t("systemBackupDesc") || "สำรองข้อมูลการตั้งค่าและประวัติทั้งหมด"}
+              </p>
+              
+              <div className="space-y-3">
+                <button
+                  onClick={handleBackup}
+                  disabled={isBackingUp}
+                  className="w-full flex items-center justify-center gap-2 h-10 rounded-xl bg-teal-50 hover:bg-teal-100 dark:bg-teal-500/10 dark:hover:bg-teal-500/20 text-teal-600 dark:text-teal-400 border border-teal-100 dark:border-teal-900/50 font-semibold text-sm transition-all disabled:opacity-50"
+                >
+                  <DownloadCloud className="w-4 h-4" />
+                  {isBackingUp ? t("creatingBackup") : t("exportBackup")}
+                </button>
+
+                <label className="w-full flex items-center justify-center gap-2 h-10 rounded-xl border-2 border-dashed border-teal-200 dark:border-teal-900/50 text-teal-600 dark:text-teal-400 font-semibold hover:bg-teal-50/50 dark:hover:bg-teal-950/20 cursor-pointer transition-all disabled:opacity-50 text-xs">
+                  <UploadCloud className="w-4 h-4" />
+                  {isImporting ? t("importingData") : t("importBackup")}
+                  <input type="file" accept=".json" className="hidden" onChange={handleImportBackup} disabled={isImporting} />
                 </label>
               </div>
-
-              {/* Import Result */}
-              {importLeaveResult && (
-                <div className={`rounded-2xl p-4 border text-xs ${
-                  importLeaveResult.errors?.length > 0
-                    ? "bg-amber-50/50 dark:bg-amber-500/5 border-amber-200 dark:border-amber-900/50"
-                    : "bg-emerald-50/50 dark:bg-emerald-500/5 border-emerald-200 dark:border-emerald-900/50"
-                }`}>
-                  <div className="flex items-center gap-2 mb-2">
-                    {importLeaveResult.errors?.length > 0 ? (
-                      <AlertTriangle className="w-4 h-4 text-amber-500" />
-                    ) : (
-                      <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                    )}
-                    <span className="font-bold text-slate-800 dark:text-slate-200">{t("importResult")}</span>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2 text-center mb-1">
-                    <div className="bg-white/80 dark:bg-slate-800 rounded-lg p-2 border border-slate-100 dark:border-slate-800">
-                      <div className="font-bold text-sm text-emerald-600">{importLeaveResult.imported}</div>
-                      <div className="text-[10px] text-slate-400">{t("importedSuccess")}</div>
-                    </div>
-                    <div className="bg-white/80 dark:bg-slate-800 rounded-lg p-2 border border-slate-100 dark:border-slate-800">
-                      <div className="font-bold text-sm text-slate-400">{importLeaveResult.skipped}</div>
-                      <div className="text-[10px] text-slate-400">{t("skipped")}</div>
-                    </div>
-                    <div className="bg-white/80 dark:bg-slate-800 rounded-lg p-2 border border-slate-100 dark:border-slate-800">
-                      <div className="font-bold text-sm text-purple-600">{importLeaveResult.total}</div>
-                      <div className="text-[10px] text-slate-400">{t("total")}</div>
-                    </div>
-                  </div>
-                  {importLeaveResult.errors?.length > 0 && (
-                    <div className="mt-2 text-slate-600 dark:text-slate-400 space-y-1">
-                      <p className="font-bold">{t("errorDetails")}</p>
-                      {importLeaveResult.errors.map((err: string, i: number) => (
-                        <p key={i} className="pl-2">• {err}</p>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
             </div>
+
+            {/* Danger Zone */}
+            {(session?.user as any)?.role === "ADMIN" || (session?.user as any)?.position === "แอดมิน" ? (
+              <div className="bg-white dark:bg-gray-900 rounded-2xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-rose-200 dark:border-rose-900/50 relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-24 h-24 bg-rose-500/10 rounded-bl-[100px] -z-10" />
+                <h3 className="text-lg font-semibold mb-2 text-rose-600 flex items-center gap-2">
+                  <ShieldAlert className="w-5 h-5" />
+                  {t("dangerZone")}
+                </h3>
+                <p className="text-sm text-gray-500 mb-5">
+                  {t("dangerZoneDesc")}
+                </p>
+                <button
+                  onClick={handleClearData}
+                  disabled={isClearing}
+                  className="w-full flex items-center justify-center gap-2 h-11 rounded-xl bg-rose-600 text-white font-medium hover:bg-rose-700 focus:ring-4 focus:ring-rose-500/20 transition-all disabled:opacity-50"
+                >
+                  {isClearing ? t("clearing") : t("clearAllLeave")}
+                </button>
+              </div>
+            ) : null}
+
           </div>
-
-          {/* Backup Data */}
-          <div className="bg-white dark:bg-gray-900 rounded-3xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.02)] border border-gray-100 dark:border-gray-800 relative overflow-hidden">
-            <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2 mb-2">
-              <DownloadCloud className="w-5 h-5 text-teal-500" />
-              {t("systemBackup") || "ระบบสำรองข้อมูล"}
-            </h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mb-5 leading-relaxed">
-              {t("systemBackupDesc") || "สำรองข้อมูลการตั้งค่าและประวัติทั้งหมด"}
-            </p>
-            
-            <div className="space-y-3">
-              <button
-                onClick={handleBackup}
-                disabled={isBackingUp}
-                className="w-full flex items-center justify-center gap-2 h-10 rounded-xl bg-teal-50 hover:bg-teal-100 dark:bg-teal-500/10 dark:hover:bg-teal-500/20 text-teal-600 dark:text-teal-400 border border-teal-100 dark:border-teal-900/50 font-semibold text-sm transition-all disabled:opacity-50"
-              >
-                <DownloadCloud className="w-4 h-4" />
-                {isBackingUp ? t("creatingBackup") : t("exportBackup")}
-              </button>
-
-              <label className="w-full flex items-center justify-center gap-2 h-10 rounded-xl border-2 border-dashed border-teal-200 dark:border-teal-900/50 text-teal-600 dark:text-teal-400 font-semibold hover:bg-teal-50/50 dark:hover:bg-teal-950/20 cursor-pointer transition-all disabled:opacity-50 text-xs">
-                <UploadCloud className="w-4 h-4" />
-                {isImporting ? t("importingData") : t("importBackup")}
-                <input type="file" accept=".json" className="hidden" onChange={handleImportBackup} disabled={isImporting} />
-              </label>
-            </div>
-          </div>
-
-          {/* Danger Zone */}
-          {(session?.user as any)?.role === "ADMIN" || (session?.user as any)?.position === "แอดมิน" ? (
-            <div className="bg-white dark:bg-gray-900 rounded-2xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-rose-200 dark:border-rose-900/50 relative overflow-hidden">
-              <div className="absolute top-0 right-0 w-24 h-24 bg-rose-500/10 rounded-bl-[100px] -z-10" />
-              <h3 className="text-lg font-semibold mb-2 text-rose-600 flex items-center gap-2">
-                <ShieldAlert className="w-5 h-5" />
-                {t("dangerZone")}
-              </h3>
-              <p className="text-sm text-gray-500 mb-5">
-                {t("dangerZoneDesc")}
-              </p>
-              <button
-                onClick={handleClearData}
-                disabled={isClearing}
-                className="w-full flex items-center justify-center gap-2 h-11 rounded-xl bg-rose-600 text-white font-medium hover:bg-rose-700 focus:ring-4 focus:ring-rose-500/20 transition-all disabled:opacity-50"
-              >
-                {isClearing ? t("clearing") : t("clearAllLeave")}
-              </button>
-            </div>
-          ) : null}
-
         </div>
-      </div>
+      )}
     </div>
   );
 }

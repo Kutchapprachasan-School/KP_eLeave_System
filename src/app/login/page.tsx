@@ -5,6 +5,7 @@ import { signIn, signUp, authClient } from "@/lib/auth-client";
 import { useRouter } from "next/navigation";
 import { Lock, User, Eye, EyeOff, Briefcase, BookOpen } from "lucide-react";
 import { getSystemSettings } from "@/app/actions/settings";
+import { resolveEmailForLogin } from "@/app/actions/auth_actions";
 
 export default function LoginPage() {
   const [isRegister, setIsRegister] = useState(false);
@@ -44,7 +45,7 @@ export default function LoginPage() {
     }
 
     if (isRegister) {
-      if (["ครู", "หัวหน้างานบุคคล"].includes(position) && !subjectGroup) {
+      if (["ครู", "นักศึกษาฝึกประสบการณ์", "หัวหน้างานบุคคล"].includes(position) && !subjectGroup) {
         alert("กรุณาเลือกกลุ่มสาระการเรียนรู้");
         setLoading(false);
         return;
@@ -57,7 +58,7 @@ export default function LoginPage() {
         // @ts-ignore
         role: position === "แอดมิน" ? "ADMIN" : "TEACHER",
         position,
-        subjectGroup: ["ครู", "หัวหน้างานบุคคล"].includes(position) ? subjectGroup : "",
+        subjectGroup: ["ครู", "นักศึกษาฝึกประสบการณ์", "หัวหน้างานบุคคล"].includes(position) ? subjectGroup : "",
         fetchOptions: {
           onSuccess: () => {
             alert("สมัครสมาชิกสำเร็จ! กรุณาเข้าสู่ระบบ");
@@ -72,19 +73,25 @@ export default function LoginPage() {
         },
       });
     } else {
-      await signIn.email({
-        email: finalEmail,
-        password,
-        fetchOptions: {
-          onSuccess: () => {
-            router.push("/dashboard");
+      try {
+        const resolvedEmail = await resolveEmailForLogin(email);
+        await signIn.email({
+          email: resolvedEmail,
+          password,
+          fetchOptions: {
+            onSuccess: () => {
+              router.push("/dashboard");
+            },
+            onError: (ctx: any) => {
+              alert(ctx.error.message);
+              setLoading(false);
+            },
           },
-          onError: (ctx: any) => {
-            alert(ctx.error.message);
-            setLoading(false);
-          },
-        },
-      });
+        });
+      } catch (err: any) {
+        alert(err.message || "เกิดข้อผิดพลาดในการเข้าสู่ระบบ");
+        setLoading(false);
+      }
     }
   };
 
@@ -92,12 +99,9 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     try {
-      let finalResetEmail = resetEmail.trim();
-      if (!finalResetEmail.includes("@")) {
-        finalResetEmail = `${finalResetEmail}@eleave.local`;
-      }
+      const resolvedEmail = await resolveEmailForLogin(resetEmail);
       await (authClient as any).forgetPassword({
-        email: finalResetEmail,
+        email: resolvedEmail,
         redirectTo: "/reset-password",
         fetchOptions: {
           onSuccess: () => {
@@ -226,13 +230,14 @@ export default function LoginPage() {
                   >
                     <option value="" disabled>เลือกตำแหน่ง</option>
                     <option value="ครู">ครู (Teacher)</option>
+                    <option value="นักศึกษาฝึกประสบการณ์">นักศึกษาฝึกประสบการณ์ (Trainee)</option>
                     <option value="หัวหน้างานบุคคล">หัวหน้างานบุคคล (HR Head)</option>
                     <option value="ผู้บริหาร">ผู้บริหาร (Executive)</option>
                     <option value="แอดมิน">แอดมิน (Admin)</option>
                   </select>
                 </div>
 
-                {["ครู", "หัวหน้างานบุคคล"].includes(position) && (
+                {["ครู", "นักศึกษาฝึกประสบการณ์", "หัวหน้างานบุคคล"].includes(position) && (
                   <div className="relative">
                     <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                       <BookOpen className="h-[20px] w-[20px] text-slate-400" />

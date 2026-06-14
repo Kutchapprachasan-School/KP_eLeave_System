@@ -145,9 +145,30 @@ export default function HistoryPage() {
       return;
     }
 
+    const showUserColumn = selectedUserId === "all";
+    const headerHtml = `
+      <tr>
+        <th style="width:40px;">#</th>
+        <th style="width:18%;">เลขที่ใบลา</th>
+        ${showUserColumn ? '<th style="width:18%;">ผู้ขอลา</th>' : ''}
+        <th style="width:15%;">ประเภท</th>
+        <th style="width:12%;">วันเริ่มต้น</th>
+        <th style="width:12%;">วันสิ้นสุด</th>
+        <th style="width:10%;">จำนวนวัน</th>
+        <th style="width:30%;">เหตุผล</th>
+        <th style="width:15%;">สถานะ</th>
+      </tr>
+    `;
+
     const rows = history.map((item, i) => `
       <tr>
         <td style="border:1px solid #ddd;padding:8px;text-align:center;">${i + 1}</td>
+        <td style="border:1px solid #ddd;padding:8px;">
+          ${item.status === "APPROVED" 
+            ? `<span style="color:#059669;font-weight:bold;">อนุมัติที่ ${item.approvedSeq}/${item.fiscalYear}</span>` 
+            : `<span style="color:#64748b;">คำขอที่ ${item.pendingSeq}/${item.fiscalYear}</span>`}
+        </td>
+        ${showUserColumn ? `<td style="border:1px solid #ddd;padding:8px;font-weight:bold;">${item.userName}</td>` : ''}
         <td style="border:1px solid #ddd;padding:8px;">${getLeaveTypeName(item.type)}</td>
         <td style="border:1px solid #ddd;padding:8px;text-align:center;">${format(new Date(item.startDate), "dd/MM/yyyy")}</td>
         <td style="border:1px solid #ddd;padding:8px;text-align:center;">${format(new Date(item.endDate), "dd/MM/yyyy")}</td>
@@ -183,18 +204,10 @@ export default function HistoryPage() {
       </head>
       <body>
         <h1>ประวัติการลา</h1>
-        <p class="subtitle">ชื่อ-นามสกุล: ${selectedUserId === "me" ? (history[0]?.userName || "ผู้ยื่นคำขอ") : (staffList.find(s => s.id === selectedUserId)?.name || "ผู้ยื่นคำขอ")} | ประจำ${getCycleLabel()} | พิมพ์เมื่อ ${format(new Date(), "dd/MM/yyyy HH:mm")} น.</p>
+        <p class="subtitle">ชื่อ-นามสกุล: ${selectedUserId === "me" ? (history[0]?.userName || "ผู้ยื่นคำขอ") : selectedUserId === "all" ? "บุคลากรทุกคน (ประวัติรวม)" : (staffList.find(s => s.id === selectedUserId)?.name || "ผู้ยื่นคำขอ")} | ประจำ${getCycleLabel()} | พิมพ์เมื่อ ${format(new Date(), "dd/MM/yyyy HH:mm")} น.</p>
         <table>
           <thead>
-            <tr>
-              <th style="width:40px;">#</th>
-              <th style="width:15%">ประเภท</th>
-              <th style="width:12%">วันเริ่มต้น</th>
-              <th style="width:12%">วันสิ้นสุด</th>
-              <th style="width:10%">จำนวนวัน</th>
-              <th style="width:36%">เหตุผล</th>
-              <th style="width:15%">สถานะ</th>
-            </tr>
+            ${headerHtml}
           </thead>
           <tbody>
             ${rows}
@@ -214,21 +227,30 @@ export default function HistoryPage() {
     const leaveTypeMap: Record<string, string> = {};
     leaveConfigs.forEach(c => { leaveTypeMap[c.type] = c.name; });
 
-    const formattedData = history.map((item) => ({
-      "รหัสการลา": item.id.substring(0, 8),
-      "ประเภท": leaveTypeMap[item.type] || item.type,
-      "วันที่เริ่ม": new Date(item.startDate).toLocaleDateString("th-TH"),
-      "ถึงวันที่": new Date(item.endDate).toLocaleDateString("th-TH"),
-      "จำนวนวัน": Math.ceil((new Date(item.endDate).getTime() - new Date(item.startDate).getTime()) / (1000 * 60 * 60 * 24)) + 1,
-      "เหตุผล": item.reason,
-      "สถานะ": getStatusText(item.status),
-      "วันที่ยื่นใบลา": new Date(item.createdAt).toLocaleDateString("th-TH"),
-    }));
+    const formattedData = history.map((item) => {
+      const row: any = {
+        "เลขที่ใบลา": item.status === "APPROVED" 
+          ? `อนุมัติที่ ${item.approvedSeq || "-"}/${item.fiscalYear || "-"}` 
+          : `คำขอที่ ${item.pendingSeq || "-"}/${item.fiscalYear || "-"}`,
+      };
+      if (selectedUserId === "all") {
+        row["ผู้ขอลา"] = item.userName;
+      }
+      row["รหัสการลา"] = item.id.substring(0, 8);
+      row["ประเภท"] = leaveTypeMap[item.type] || item.type;
+      row["วันที่เริ่ม"] = new Date(item.startDate).toLocaleDateString("th-TH");
+      row["ถึงวันที่"] = new Date(item.endDate).toLocaleDateString("th-TH");
+      row["จำนวนวัน"] = Math.ceil((new Date(item.endDate).getTime() - new Date(item.startDate).getTime()) / (1000 * 60 * 60 * 24)) + 1;
+      row["เหตุผล"] = item.reason;
+      row["สถานะ"] = getStatusText(item.status);
+      row["วันที่ยื่นใบลา"] = new Date(item.createdAt).toLocaleDateString("th-TH");
+      return row;
+    });
 
     const ws = XLSX.utils.json_to_sheet(formattedData);
-    ws["!cols"] = [
-      { wch: 10 }, { wch: 20 }, { wch: 15 }, { wch: 15 }, { wch: 10 }, { wch: 40 }, { wch: 15 }, { wch: 15 },
-    ];
+    ws["!cols"] = selectedUserId === "all" 
+      ? [{ wch: 18 }, { wch: 25 }, { wch: 12 }, { wch: 20 }, { wch: 15 }, { wch: 15 }, { wch: 10 }, { wch: 40 }, { wch: 15 }, { wch: 15 }]
+      : [{ wch: 18 }, { wch: 12 }, { wch: 20 }, { wch: 15 }, { wch: 15 }, { wch: 10 }, { wch: 40 }, { wch: 15 }, { wch: 15 }];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Leave_History");
     XLSX.writeFile(wb, `ประวัติการลา_${format(new Date(), "yyyy-MM-dd")}.xlsx`);
@@ -242,7 +264,9 @@ export default function HistoryPage() {
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
             {selectedUserId === "me" 
               ? t("leaveHistorySubtitle") 
-              : `${t("leaveHistory")}: ${staffList.find(s => s.id === selectedUserId)?.name || ""}`}
+              : selectedUserId === "all"
+                ? "ประวัติการลาของบุคลากรทุกคนในระบบ"
+                : `${t("leaveHistory")}: ${staffList.find(s => s.id === selectedUserId)?.name || ""}`}
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap print:hidden">
@@ -253,6 +277,7 @@ export default function HistoryPage() {
               className="h-10 px-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all cursor-pointer"
             >
               <option value="me">{t("myHistory")}</option>
+              <option value="all">ทุกคน (ประวัติรวม)</option>
               {staffList.map((staff) => (
                 <option key={staff.id} value={staff.id}>
                   {staff.name} ({tPosition(staff.position) || t("staffMember")})
@@ -300,6 +325,10 @@ export default function HistoryPage() {
               <table className="w-full text-left text-sm whitespace-nowrap">
                 <thead>
                   <tr className="border-b border-slate-100 dark:border-slate-800">
+                    <th className="px-6 py-4 font-semibold text-slate-500 dark:text-slate-400">เลขที่ใบลา</th>
+                    {selectedUserId === "all" && (
+                      <th className="px-6 py-4 font-semibold text-slate-500 dark:text-slate-400">ผู้ขอลา</th>
+                    )}
                     <th className="px-6 py-4 font-semibold text-slate-500 dark:text-slate-400">{t("type")}</th>
                     <th className="px-6 py-4 font-semibold text-slate-500 dark:text-slate-400">{t("date")}</th>
                     <th className="px-6 py-4 font-semibold text-slate-500 dark:text-slate-400">จำนวนวัน</th>
@@ -311,7 +340,7 @@ export default function HistoryPage() {
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {history.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="px-6 py-12 text-center text-slate-400">
+                      <td colSpan={7} className="px-6 py-12 text-center text-slate-400">
                         <div className="flex flex-col items-center gap-2">
                           <CalendarDays className="w-8 h-8 text-slate-300 dark:text-slate-600" />
                           <p>{t("noLeaveHistory")}</p>
@@ -320,6 +349,22 @@ export default function HistoryPage() {
                     </tr>
                   ) : paginatedHistory.map((item) => (
                     <tr key={item.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
+                      <td className="px-6 py-4">
+                        {item.status === "APPROVED" ? (
+                          <span className="text-emerald-600 dark:text-emerald-400 font-bold text-xs bg-emerald-50 dark:bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-200/40 dark:border-emerald-800/40">
+                            อนุมัติที่ {item.approvedSeq}/{item.fiscalYear}
+                          </span>
+                        ) : (
+                          <span className="text-slate-500 dark:text-slate-400 text-xs bg-slate-50 dark:bg-slate-800 px-2.5 py-1 rounded-lg border border-slate-200/40 dark:border-slate-700/40">
+                            คำขอที่ {item.pendingSeq}/{item.fiscalYear}
+                          </span>
+                        )}
+                      </td>
+                      {selectedUserId === "all" && (
+                        <td className="px-6 py-4 font-semibold text-slate-900 dark:text-white">
+                          {item.userName}
+                        </td>
+                      )}
                       <td className="px-6 py-4">
                         <div className="font-medium text-slate-900 dark:text-white">
                           {getLeaveTypeName(item.type)}
@@ -347,6 +392,16 @@ export default function HistoryPage() {
                       </td>
                       <td className="px-6 py-4 text-right print:hidden">
                         <div className="flex items-center justify-end gap-2">
+                          <a
+                            href={`/print/leave/${item.id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 dark:bg-indigo-500/10 dark:text-indigo-400 dark:hover:bg-indigo-500/20 text-xs font-semibold rounded-lg border border-indigo-200/40 dark:border-indigo-800/40 transition-colors shadow-sm"
+                            title="พิมพ์ใบลาทางการ / บันทึก PDF"
+                          >
+                            <Printer className="w-3.5 h-3.5" />
+                            <span>พิมพ์ใบลา</span>
+                          </a>
                           {selectedUserId === "me" && (item.status === "PENDING_HEAD" || item.status === "PENDING_EXEC") && (
                             <button
                               onClick={() => handleCancel(item.id)}

@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { getAllUsers, updateUserProfile, deleteUser, approveUser, resetUserPasswordByAdmin, suspendUser, createUserByAdmin } from "@/app/actions/admin";
+import { useState, useEffect, ChangeEvent } from "react";
+import { getAllUsers, updateUserProfile, deleteUser, approveUser, resetUserPasswordByAdmin, suspendUser, createUserByAdmin, importUsersByAdmin } from "@/app/actions/admin";
 import { motion } from "framer-motion";
-import { Users, Shield, Trash2, Search, UserCog, ChevronDown, Key, Ban, UserX, CheckCircle, Plus } from "lucide-react";
+import { Users, Shield, Trash2, Search, UserCog, ChevronDown, Key, Ban, UserX, CheckCircle, Plus, Upload, Download } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
+import * as XLSX from "xlsx";
 
 export default function UsersPage() {
   const [users, setUsers] = useState<any[]>([]);
@@ -18,6 +19,12 @@ export default function UsersPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
   const { t, lang, tPosition } = useI18n();
+  const [importResult, setImportResult] = useState<{
+    created: number;
+    updated: number;
+    skipped: number;
+    errors: string[];
+  } | null>(null);
 
   const loadUsers = () => {
     setLoading(true);
@@ -25,6 +32,124 @@ export default function UsersPage() {
       .then(setUsers)
       .catch(() => { })
       .finally(() => setLoading(false));
+  };
+
+  const handleExportExcel = () => {
+    try {
+      const dataToExport = users.map((u: any) => ({
+        "ไอดีเข้าใช้งาน": u.username || "",
+        "อีเมล": u.email || "",
+        "ชื่อ-นามสกุล": u.name || "",
+        "ตำแหน่ง": u.position || "",
+        "กลุ่มสาระ": u.subjectGroup || "",
+      }));
+
+      const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "รายชื่อครู");
+      XLSX.writeFile(workbook, "teacher_list.xlsx");
+    } catch (err: any) {
+      alert("เกิดข้อผิดพลาดในการส่งออกข้อมูล: " + (err.message || err));
+    }
+  };
+
+  const handleExportCSV = () => {
+    try {
+      const dataToExport = users.map((u: any) => ({
+        "ไอดีเข้าใช้งาน": u.username || "",
+        "อีเมล": u.email || "",
+        "ชื่อ-นามสกุล": u.name || "",
+        "ตำแหน่ง": u.position || "",
+        "กลุ่มสาระ": u.subjectGroup || "",
+      }));
+
+      const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+      const csvOutput = XLSX.utils.sheet_to_csv(worksheet);
+      
+      const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csvOutput], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.setAttribute("href", url);
+      link.setAttribute("download", "teacher_list.csv");
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (err: any) {
+      alert("เกิดข้อผิดพลาดในการส่งออก CSV: " + (err.message || err));
+    }
+  };
+
+  const handleImportFile = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    e.target.value = "";
+
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+      try {
+        const data = evt.target?.result;
+        const workbook = XLSX.read(data, { type: "array" });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const rawData = XLSX.utils.sheet_to_json<any>(worksheet);
+
+        if (rawData.length === 0) {
+          alert("ไม่พบข้อมูลในไฟล์");
+          return;
+        }
+
+        const mappedUsers = rawData.map((row: any) => {
+          let usernameVal = String(
+            row["ไอดีเข้าใช้งาน"] || 
+            row["username"] || 
+            row["ID"] || 
+            row["รหัสผู้ใช้"] || 
+            ""
+          ).trim();
+
+          let emailVal = String(
+            row["อีเมล"] || 
+            row["email"] || 
+            ""
+          ).trim();
+
+          // Auto map missing fields
+          if (!emailVal && usernameVal) {
+            if (usernameVal.includes("@")) {
+              emailVal = usernameVal.toLowerCase();
+              usernameVal = usernameVal.split("@")[0];
+            } else {
+              emailVal = `${usernameVal.toLowerCase()}@eleave.local`;
+            }
+          } else if (emailVal && !usernameVal) {
+            usernameVal = emailVal.split("@")[0];
+          }
+
+          return {
+            name: String(row["ชื่อ-นามสกุล"] || row["ชื่อ"] || row["name"] || "").trim(),
+            email: emailVal,
+            username: usernameVal || undefined,
+            position: row["ตำแหน่ง"] || row["position"] ? String(row["ตำแหน่ง"] || row["position"]).trim() : undefined,
+            subjectGroup: row["กลุ่มสาระ"] || row["กลุ่มสาระฯ"] || row["subjectGroup"] ? String(row["กลุ่มสาระ"] || row["กลุ่มสาระฯ"] || row["subjectGroup"]).trim() : undefined,
+          };
+        });
+
+        const validUsers = mappedUsers.filter(u => u.name && u.email);
+        if (validUsers.length === 0) {
+          alert("ข้อมูลในไฟล์ไม่ถูกต้องตามรูปแบบ (จำเป็นต้องมีชื่อและอีเมล/ไอดี)");
+          return;
+        }
+
+        const result = await importUsersByAdmin(validUsers);
+        setImportResult(result);
+        loadUsers();
+      } catch (err: any) {
+        alert("เกิดข้อผิดพลาดในการอ่านไฟล์: " + (err.message || err));
+      }
+    };
+    reader.readAsArrayBuffer(file);
   };
 
   useEffect(() => { loadUsers(); }, []);
@@ -39,6 +164,7 @@ export default function UsersPage() {
     await updateUserProfile(editingData.id, {
       name: editingData.name,
       email: editingData.email,
+      username: editingData.username,
       role,
       position: editingData.position,
       subjectGroup: editingData.subjectGroup
@@ -53,6 +179,7 @@ export default function UsersPage() {
       await createUserByAdmin({
         name: addingData.name,
         email: addingData.email,
+        username: addingData.username,
         password: addingData.password,
         position: addingData.position,
         subjectGroup: addingData.subjectGroup
@@ -120,7 +247,7 @@ export default function UsersPage() {
     u.position?.toLowerCase().includes(searchText.toLowerCase())
   );
 
-  const positionOptions = ["ครู", "หัวหน้างานบุคคล", "ผู้บริหาร", "แอดมิน"];
+  const positionOptions = ["ครู", "นักศึกษาฝึกประสบการณ์", "ผู้ตรวจสอบ", "หัวหน้างานบุคคล", "เจ้าหน้าที่บุคคล", "ผู้บริหาร", "แอดมิน"];
   const subjectGroupOptions = [
     "วิทยาศาสตร์และเทคโนโลยี",
     "คณิตศาสตร์",
@@ -138,6 +265,9 @@ export default function UsersPage() {
     if (role === "ADMIN" || position === "แอดมิน") return { text: "แอดมิน", cls: "bg-purple-50 text-purple-600 border-purple-200 dark:bg-purple-500/10 dark:text-purple-400 dark:border-purple-800" };
     if (position === "ผู้บริหาร") return { text: "ผู้บริหาร", cls: "bg-blue-50 text-blue-600 border-blue-200 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-800" };
     if (position === "หัวหน้างานบุคคล") return { text: "หัวหน้างานบุคคล", cls: "bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-800" };
+    if (position === "เจ้าหน้าที่บุคคล") return { text: "เจ้าหน้าที่บุคคล", cls: "bg-teal-50 text-teal-600 border-teal-200 dark:bg-teal-500/10 dark:text-teal-400 dark:border-teal-800" };
+    if (position === "ผู้ตรวจสอบ") return { text: "ผู้ตรวจสอบ", cls: "bg-amber-50 text-amber-600 border-amber-200 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-800" };
+    if (position === "นักศึกษาฝึกประสบการณ์") return { text: "นักศึกษาฝึกประสบการณ์", cls: "bg-pink-50 text-pink-600 border-pink-200 dark:bg-pink-500/10 dark:text-pink-400 dark:border-pink-800" };
     return { text: position || "ครู", cls: "bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700" };
   };
 
@@ -152,16 +282,52 @@ export default function UsersPage() {
           <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">{t("usersTitle")}</h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">{t("usersSubtitle")} • {users.length} {t("persons")}</p>
         </div>
-        <button
-          onClick={() => {
-            setIsAddingUser(true);
-            setAddingData({ name: "", email: "", password: "", position: "ครู", subjectGroup: "" });
-          }}
-          className="px-4 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:opacity-95 text-white text-xs font-semibold rounded-xl shadow-md shadow-purple-500/20 transition-all flex items-center gap-1.5"
-        >
-          <Plus className="w-4 h-4" />
-          {t("addUser")}
-        </button>
+        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+          <button
+            onClick={handleExportExcel}
+            className="px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-750 text-slate-700 dark:text-slate-200 text-xs font-semibold rounded-xl shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
+          >
+            <Download className="w-4 h-4" />
+            ส่งออกเป็น Excel
+          </button>
+
+          <button
+            onClick={handleExportCSV}
+            className="px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-750 text-slate-700 dark:text-slate-200 text-xs font-semibold rounded-xl shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
+          >
+            <Download className="w-4 h-4" />
+            ส่งออกเป็น CSV
+          </button>
+          
+          <button
+            onClick={() => {
+              const fileInput = document.getElementById("import-file-input");
+              if (fileInput) fileInput.click();
+            }}
+            className="px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-750 text-slate-700 dark:text-slate-200 text-xs font-semibold rounded-xl shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
+          >
+            <Upload className="w-4 h-4" />
+            นำเข้าข้อมูลครู (CSV/Excel)
+          </button>
+          <input
+            id="import-file-input"
+            type="file"
+            accept=".xlsx, .xls, .csv"
+            onChange={handleImportFile}
+            className="hidden"
+          />
+
+          <button
+            onClick={() => {
+              setIsAddingUser(true);
+              setAddingData({ name: "", email: "", username: "", password: "", position: "ครู", subjectGroup: "" });
+            }}
+            className="px-4 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:opacity-95 text-white text-xs font-semibold rounded-xl shadow-md shadow-purple-500/20 transition-all flex items-center gap-1.5 cursor-pointer"
+          >
+            <Plus className="w-4 h-4" />
+            {t("addUser")}
+          </button>
+        </div>
       </div>
 
       {/* Search */}
@@ -188,6 +354,7 @@ export default function UsersPage() {
               <thead>
                 <tr className="border-b border-slate-100 dark:border-slate-800">
                   <th className="px-6 py-4 font-semibold text-slate-500 dark:text-slate-400">{t("user")}</th>
+                  <th className="px-6 py-4 font-semibold text-slate-500 dark:text-slate-400">ไอดีเข้าใช้งาน</th>
                   <th className="px-6 py-4 font-semibold text-slate-500 dark:text-slate-400">{t("email")}</th>
                   <th className="px-6 py-4 font-semibold text-slate-500 dark:text-slate-400">{t("position")}</th>
                   <th className="px-6 py-4 font-semibold text-slate-500 dark:text-slate-400">{t("subjectGroup")}</th>
@@ -204,12 +371,17 @@ export default function UsersPage() {
                       <tr key={user.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-3">
-                            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-sm font-bold shadow-sm">
-                              {user.name?.charAt(0)?.toUpperCase() || "?"}
-                            </div>
+                            {user.image ? (
+                              <img src={user.image} alt={user.name} className="w-9 h-9 rounded-full object-cover shadow-sm border border-slate-200 dark:border-slate-700" />
+                            ) : (
+                              <div className="w-9 h-9 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-sm font-bold shadow-sm">
+                                {user.name?.charAt(0)?.toUpperCase() || "?"}
+                              </div>
+                            )}
                             <span className="font-medium text-slate-900 dark:text-white">{user.name || "-"}</span>
                           </div>
                         </td>
+                        <td className="px-6 py-4 text-slate-900 dark:text-white text-xs font-semibold">{user.username || "-"}</td>
                         <td className="px-6 py-4 text-slate-500 dark:text-slate-400 text-xs">{user.email}</td>
                         <td className="px-6 py-4">
                           <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border ${badge.cls}`}>
@@ -422,9 +594,19 @@ export default function UsersPage() {
                 />
               </div>
               <div>
+                <label className="block text-xs font-semibold text-slate-500 mb-1">ไอดีเข้าใช้งาน (ID / Username)</label>
+                <input
+                  type="text"
+                  value={editingData.username || ""}
+                  onChange={e => setEditingData({ ...editingData, username: e.target.value })}
+                  placeholder="เว้นว่างไว้เพื่อไม่ใช้ไอดีล็อกอิน"
+                  className="w-full h-10 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-850 text-sm focus:ring-2 focus:ring-purple-500/30 outline-none"
+                />
+              </div>
+              <div>
                 <label className="block text-xs font-semibold text-slate-500 mb-1">อีเมล</label>
                 <input
-                  type="email"
+                  type="text"
                   value={editingData.email || ""}
                   onChange={e => setEditingData({ ...editingData, email: e.target.value })}
                   className="w-full h-10 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-850 text-sm focus:ring-2 focus:ring-purple-500/30"
@@ -494,9 +676,19 @@ export default function UsersPage() {
                 />
               </div>
               <div>
+                <label className="block text-xs font-semibold text-slate-500 mb-1">ไอดีเข้าใช้งาน (ID / Username)</label>
+                <input
+                  type="text"
+                  value={addingData.username || ""}
+                  onChange={e => setAddingData({ ...addingData, username: e.target.value })}
+                  placeholder="เช่น 1002"
+                  className="w-full h-10 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-850 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-purple-500/30 outline-none"
+                />
+              </div>
+              <div>
                 <label className="block text-xs font-semibold text-slate-500 mb-1">อีเมล</label>
                 <input
-                  type="email"
+                  type="text"
                   value={addingData.email || ""}
                   onChange={e => setAddingData({ ...addingData, email: e.target.value })}
                   placeholder="เช่น somchai@gmail.com"
@@ -504,7 +696,7 @@ export default function UsersPage() {
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-500 mb-1">รหัสผ่าน (เว้นว่างไว้สำหรับค่าเริ่มต้น: 123456)</label>
+                <label className="block text-xs font-semibold text-slate-500 mb-1">รหัสผ่าน (เว้นว่างไว้สำหรับค่าเริ่มต้น: 12345678)</label>
                 <input
                   type="password"
                   value={addingData.password || ""}
@@ -550,6 +742,60 @@ export default function UsersPage() {
                 className="px-4 py-2 rounded-xl text-xs font-semibold bg-purple-600 hover:bg-purple-700 text-white shadow-md shadow-purple-500/20 transition-all"
               >
                 เพิ่มผู้ใช้
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Import Result Modal */}
+      {importResult && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="w-full max-w-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-xl p-6"
+          >
+            <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2 flex items-center gap-2">
+              <CheckCircle className="w-5 h-5 text-emerald-500" />
+              ผลการนำเข้าข้อมูลครู
+            </h3>
+            
+            <div className="grid grid-cols-3 gap-3 my-4">
+              <div className="p-3 bg-emerald-50 dark:bg-emerald-500/10 rounded-2xl text-center border border-emerald-100 dark:border-emerald-950">
+                <span className="block text-xs font-semibold text-emerald-600 dark:text-emerald-400">สร้างใหม่</span>
+                <span className="text-xl font-bold text-emerald-700 dark:text-emerald-300">{importResult.created}</span>
+              </div>
+              <div className="p-3 bg-blue-50 dark:bg-blue-500/10 rounded-2xl text-center border border-blue-100 dark:border-blue-950">
+                <span className="block text-xs font-semibold text-blue-600 dark:text-blue-400">อัปเดต</span>
+                <span className="text-xl font-bold text-blue-700 dark:text-blue-300">{importResult.updated}</span>
+              </div>
+              <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-2xl text-center border border-slate-200 dark:border-slate-700">
+                <span className="block text-xs font-semibold text-slate-500 dark:text-slate-400">ข้าม/ผิดพลาด</span>
+                <span className="text-xl font-bold text-slate-700 dark:text-slate-300">{importResult.skipped}</span>
+              </div>
+            </div>
+
+            {importResult.errors.length > 0 && (
+              <div className="mt-4">
+                <span className="block text-xs font-semibold text-rose-500 mb-1">รายละเอียดข้อผิดพลาด/ข้าม:</span>
+                <div className="max-h-40 overflow-y-auto space-y-1.5 p-3 rounded-2xl bg-rose-50/50 dark:bg-rose-950/20 border border-rose-100 dark:border-rose-950 text-xs text-rose-600 dark:text-rose-400">
+                  {importResult.errors.map((err, idx) => (
+                    <div key={idx} className="flex gap-1.5">
+                      <span>•</span>
+                      <span>{err}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="flex justify-end gap-2 mt-6">
+              <button
+                onClick={() => setImportResult(null)}
+                className="px-5 py-2.5 rounded-xl text-xs font-semibold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors cursor-pointer"
+              >
+                ปิดหน้าต่าง
               </button>
             </div>
           </motion.div>

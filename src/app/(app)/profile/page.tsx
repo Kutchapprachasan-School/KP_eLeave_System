@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { useSession } from "@/lib/auth-client";
 import { updateProfile } from "@/app/actions/user";
 import { authClient } from "@/lib/auth-client";
-import { Save, Lock, User as UserIcon, ShieldCheck, Mail, BookOpen, KeyRound, CheckCircle, Fingerprint, Camera, Trash2, Pencil, RefreshCw, Paperclip } from "lucide-react";
+import { Save, Lock, User as UserIcon, ShieldCheck, Mail, BookOpen, KeyRound, CheckCircle, Fingerprint, Camera, Trash2, Pencil, RefreshCw, Paperclip, Phone, MapPin, Award } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 
 export default function ProfilePage() {
@@ -13,7 +13,11 @@ export default function ProfilePage() {
   const { t, lang, tPosition } = useI18n();
 
   const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
   const [subjectGroup, setSubjectGroup] = useState("");
+  const [address, setAddress] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
+  const [level, setLevel] = useState("");
   const [savingProfile, setSavingProfile] = useState(false);
 
   const [avatarPreview, setAvatarPreview] = useState("");
@@ -36,7 +40,11 @@ export default function ProfilePage() {
   useEffect(() => {
     if (user) {
       setName(user.name || "");
+      setEmail(user.email || "");
       setSubjectGroup(user.subjectGroup || "");
+      setAddress(user.address || "");
+      setPhoneNumber(user.phoneNumber || "");
+      setLevel(user.level || "");
       setAvatarPreview(user.image || "");
       setSignaturePreview(user.signatureUrl || "");
     }
@@ -62,7 +70,7 @@ export default function ProfilePage() {
     e.preventDefault();
     setSavingProfile(true);
     try {
-      await updateProfile({ name, subjectGroup });
+      await updateProfile({ name, email, subjectGroup, address, phoneNumber, level });
       await refetch();
       alert(lang === "en" ? "Profile updated successfully!" : "อัปเดตข้อมูลส่วนตัวสำเร็จ");
     } catch (error) {
@@ -86,7 +94,7 @@ export default function ProfilePage() {
       const base64 = ev.target?.result as string;
       setAvatarPreview(base64);
       try {
-        await updateProfile({ name, subjectGroup, image: base64 });
+        await updateProfile({ name, subjectGroup, address, phoneNumber, level, image: base64 });
         await refetch();
       } catch (err) {
         console.error("Failed to save avatar", err);
@@ -187,7 +195,7 @@ export default function ProfilePage() {
     if (!signaturePreview) return;
     setSavingSignature(true);
     try {
-      await updateProfile({ name, subjectGroup, signatureUrl: signaturePreview });
+      await updateProfile({ name, subjectGroup, address, phoneNumber, level, signatureUrl: signaturePreview });
       await refetch();
       alert(lang === "en" ? "Signature saved successfully!" : "บันทึกลายเซ็นต์สำเร็จเรียบร้อยแล้ว");
     } catch (err) {
@@ -201,7 +209,7 @@ export default function ProfilePage() {
     if (!confirm(lang === "en" ? "Are you sure you want to delete your signature?" : "คุณแน่ใจหรือไม่ว่าต้องการลบลายเซ็นต์นี้?")) return;
     setSavingSignature(true);
     try {
-      await updateProfile({ name, subjectGroup, signatureUrl: "" });
+      await updateProfile({ name, subjectGroup, address, phoneNumber, level, signatureUrl: "" });
       await refetch();
       setSignaturePreview("");
       alert(lang === "en" ? "Signature deleted successfully!" : "ลบลายเซ็นต์เรียบร้อยแล้ว");
@@ -375,7 +383,23 @@ export default function ProfilePage() {
                   </div>
                 </div>
 
-                {["ครู", "หัวหน้างานบุคคล", "TEACHER", "HEAD"].includes(user?.position || "") && (
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1.5 uppercase tracking-wider">
+                    {lang === "en" ? "Email" : "อีเมล"}
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="w-full h-11 pl-4 pr-10 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-medium focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all text-sm"
+                      placeholder="example@email.com"
+                    />
+                    <Mail className="w-4 h-4 text-slate-400 absolute right-4 top-3.5" />
+                  </div>
+                </div>
+
+                {["ครู", "นักศึกษาฝึกประสบการณ์", "หัวหน้างานบุคคล", "TEACHER", "HEAD"].includes(user?.position || "") && (
                   <div>
                     <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1.5 uppercase tracking-wider">
                       {lang === "en" ? "Subject Group" : "กลุ่มสาระการเรียนรู้"}
@@ -405,6 +429,64 @@ export default function ProfilePage() {
                     </div>
                   </div>
                 )}
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1.5 uppercase tracking-wider">
+                    {lang === "en" ? "Level" : "ระดับ"}
+                  </label>
+                  <div className="relative">
+                    <select
+                      value={level}
+                      onChange={(e) => setLevel(e.target.value)}
+                      className="w-full h-11 px-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-medium focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all text-sm appearance-none cursor-pointer"
+                    >
+                      <option value="">{lang === "en" ? "No Level / Unspecified" : "ไม่มีระดับ / ไม่ระบุ"}</option>
+                      <option value="ครูผู้ช่วย">ครูผู้ช่วย</option>
+                      <option value="ครู">ครู</option>
+                      <option value="ครูชำนาญการ">ครูชำนาญการ</option>
+                      <option value="ครูชำนาญการพิเศษ">ครูชำนาญการพิเศษ</option>
+                      <option value="ครูเชี่ยวชาญ">ครูเชี่ยวชาญ</option>
+                      <option value="ครูเชี่ยวชาญพิเศษ">ครูเชี่ยวชาญพิเศษ</option>
+                    </select>
+                    <Award className="w-4 h-4 text-slate-400 absolute right-4 top-3.5 pointer-events-none" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1.5 uppercase tracking-wider">
+                    {lang === "en" ? "Phone Number" : "เบอร์โทรศัพท์ติดต่อ"}
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={phoneNumber}
+                      onChange={(e) => setPhoneNumber(e.target.value)}
+                      className="w-full h-11 pl-4 pr-10 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-medium focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all text-sm"
+                      placeholder="08XXXXXXXX"
+                    />
+                    <Phone className="w-4 h-4 text-slate-400 absolute right-4 top-3.5" />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1.5 uppercase tracking-wider">
+                    {lang === "en" ? "Contact Address" : "ที่อยู่ที่ติดต่อได้"}
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={address}
+                      onChange={(e) => setAddress(e.target.value)}
+                      className="w-full h-11 pl-4 pr-10 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-medium focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all text-sm"
+                      placeholder="บ้านเลขที่ ถนน ตำบล..."
+                    />
+                    <MapPin className="w-4 h-4 text-slate-400 absolute right-4 top-3.5" />
+                  </div>
+                </div>
               </div>
 
               <div className="pt-2 flex justify-end">

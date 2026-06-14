@@ -29,6 +29,19 @@ export default function ReportsPage() {
   const availableYears = Array.from({ length: 5 }, (_, i) => currentFY - i);
   const [fiscalYear, setFiscalYear] = useState<number>(currentFY);
 
+  // States for batch printing
+  const [batchYear, setBatchYear] = useState<number>(currentFY);
+  const [batchStart, setBatchStart] = useState<number>(1);
+  const [batchEnd, setBatchEnd] = useState<number>(50);
+
+  const handleBatchPdfDownload = () => {
+    if (batchStart > batchEnd) {
+      alert("ลำดับเริ่มต้นต้องไม่เกินลำดับสิ้นสุด");
+      return;
+    }
+    window.open(`/print/leave/batch?year=${batchYear}&start=${batchStart}&end=${batchEnd}`, "_blank");
+  };
+
   const getCycleLabel = () => {
     switch (cycle) {
       case "cycle1": return `รอบที่ 1 (ต.ค. - มี.ค.) ปีงบประมาณ ${fiscalYear}`;
@@ -82,6 +95,9 @@ export default function ReportsPage() {
   const handleExportExcel = () => {
     if (viewMode === "overview") {
       const formatted = data.map(item => ({
+        "เลขที่ใบลา": item.status === "APPROVED" 
+          ? `อนุมัติที่ ${item.approvedSeq || "-"}/${item.fiscalYear || "-"}` 
+          : `คำขอที่ ${item.pendingSeq || "-"}/${item.fiscalYear || "-"}`,
         "ชื่อ-นามสกุล": item.userName,
         "ตำแหน่ง": item.position,
         "กลุ่มสาระ": item.subjectGroup,
@@ -95,7 +111,7 @@ export default function ReportsPage() {
       }));
 
       const ws = XLSX.utils.json_to_sheet(formatted);
-      ws["!cols"] = [{ wch: 25 },{ wch: 15 },{ wch: 20 },{ wch: 12 },{ wch: 14 },{ wch: 14 },{ wch: 10 },{ wch: 40 },{ wch: 15 },{ wch: 14 }];
+      ws["!cols"] = [{ wch: 18 },{ wch: 25 },{ wch: 15 },{ wch: 20 },{ wch: 12 },{ wch: 14 },{ wch: 14 },{ wch: 10 },{ wch: 40 },{ wch: 15 },{ wch: 14 }];
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "รายงานการลา_ภาพรวม");
       XLSX.writeFile(wb, `รายงานการลา_${cycle}.xlsx`);
@@ -159,6 +175,11 @@ export default function ReportsPage() {
         return `
           <tr>
             <td style="border:1px solid #ddd;padding:8px;text-align:center;">${i + 1}</td>
+            <td style="border:1px solid #ddd;padding:8px;font-size:11px;">
+              ${item.status === "APPROVED" 
+                ? `<span style="color:#059669;font-weight:bold;">อนุมัติที่ ${item.approvedSeq}/${item.fiscalYear}</span>` 
+                : `<span style="color:#64748b;">คำขอที่ ${item.pendingSeq}/${item.fiscalYear}</span>`}
+            </td>
             <td style="border:1px solid #ddd;padding:8px;font-weight:bold;">${item.userName}</td>
             <td style="border:1px solid #ddd;padding:8px;">${item.position}</td>
             <td style="border:1px solid #ddd;padding:8px;">${leaveTypeMap[item.type] || item.type}</td>
@@ -178,6 +199,7 @@ export default function ReportsPage() {
           <thead>
             <tr>
               <th style="width:40px;">#</th>
+              <th style="width:15%;">เลขที่ใบลา</th>
               <th style="width:18%;">ชื่อ-นามสกุล</th>
               <th style="width:12%;">ตำแหน่ง</th>
               <th style="width:12%;">ประเภท</th>
@@ -188,7 +210,7 @@ export default function ReportsPage() {
             </tr>
           </thead>
           <tbody>
-            ${rows.length === 0 ? '<tr><td colspan="8" style="text-align:center;padding:20px;color:#999;">ไม่พบข้อมูลการลา</td></tr>' : rows}
+            ${rows.length === 0 ? '<tr><td colspan="9" style="text-align:center;padding:20px;color:#999;">ไม่พบข้อมูลการลา</td></tr>' : rows}
           </tbody>
         </table>
         <div style="margin-top: 20px; text-align: right; font-size: 12px; color: #666;">
@@ -300,35 +322,35 @@ export default function ReportsPage() {
       </div>
 
       {/* Controls */}
-      <div className="flex flex-col sm:flex-row gap-3 print:hidden">
-        <div className="flex gap-3 flex-1">
-          <select value={cycle} onChange={(e: any) => setCycle(e.target.value)} className="h-11 px-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all flex-1">
+      <div className="flex flex-col md:flex-row gap-3 print:hidden">
+        <div className="grid grid-cols-2 md:flex md:flex-row gap-3 flex-1">
+          <select value={cycle} onChange={(e: any) => setCycle(e.target.value)} className="h-11 px-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all w-full">
             <option value="current">{t("currentCycle")}</option>
             <option value="cycle1">{t("cycle1Label")}</option>
             <option value="cycle2">{t("cycle2Label")}</option>
             <option value="year">{t("fullYear")}</option>
           </select>
-          <select value={fiscalYear} onChange={(e: any) => setFiscalYear(Number(e.target.value))} className="h-11 px-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all">
+          <select value={fiscalYear} onChange={(e: any) => setFiscalYear(Number(e.target.value))} className="h-11 px-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all w-full">
             {availableYears.map(yr => (
               <option key={yr} value={yr}>{t("fiscalYearLabel")} {yr}</option>
             ))}
           </select>
-          <select value={viewMode} onChange={(e: any) => setViewMode(e.target.value)} className="h-11 px-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all">
+          <select value={viewMode} onChange={(e: any) => setViewMode(e.target.value)} className="h-11 px-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all w-full">
             <option value="overview">{t("overviewMode")}</option>
             <option value="individual">{t("individualMode")}</option>
           </select>
-          <button onClick={fetchReport} disabled={loading} className="h-11 px-6 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-medium text-sm hover:opacity-90 transition-all disabled:opacity-50 flex items-center gap-2">
+          <button onClick={fetchReport} disabled={loading} className="h-11 px-6 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-medium text-sm hover:opacity-90 transition-all disabled:opacity-50 flex items-center justify-center gap-2 w-full md:w-auto">
             <CalendarDays className="w-4 h-4" />
             {loading ? t("fetching") : t("fetchReport")}
           </button>
         </div>
 
         {fetched && (data.length > 0 || individualData.length > 0) && (
-          <div className="flex gap-2">
-            <button onClick={handleExportExcel} className="h-11 px-4 rounded-xl bg-emerald-50 text-emerald-600 hover:bg-emerald-100 dark:bg-emerald-500/10 dark:text-emerald-400 dark:hover:bg-emerald-500/20 font-medium text-sm border border-emerald-200 dark:border-emerald-800 transition-colors flex items-center gap-2">
+          <div className="grid grid-cols-2 gap-2 w-full md:w-auto md:flex md:flex-row">
+            <button onClick={handleExportExcel} className="h-11 px-4 rounded-xl bg-emerald-50 text-emerald-600 hover:bg-emerald-100 dark:bg-emerald-500/10 dark:text-emerald-400 dark:hover:bg-emerald-500/20 font-medium text-sm border border-emerald-200 dark:border-emerald-800 transition-colors flex items-center justify-center gap-2 w-full md:w-auto">
               <FileSpreadsheet className="w-4 h-4" /> Export Excel
             </button>
-            <button onClick={handlePrint} className="h-11 px-4 rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-100 dark:bg-blue-500/10 dark:text-blue-400 dark:hover:bg-blue-500/20 font-medium text-sm border border-blue-200 dark:border-blue-800 transition-colors flex items-center gap-2">
+            <button onClick={handlePrint} className="h-11 px-4 rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-100 dark:bg-blue-500/10 dark:text-blue-400 dark:hover:bg-blue-500/20 font-medium text-sm border border-blue-200 dark:border-blue-800 transition-colors flex items-center justify-center gap-2 w-full md:w-auto">
               <Printer className="w-4 h-4" /> {t("printBtn")}
             </button>
           </div>
@@ -366,6 +388,7 @@ export default function ReportsPage() {
                 <thead className="print:table-header-group">
                   <tr className="border-b border-slate-100 dark:border-slate-800 print:border-slate-400">
                     <th className="px-4 py-3 font-semibold text-slate-500 dark:text-slate-400 print:text-gray-700">#</th>
+                    <th className="px-4 py-3 font-semibold text-slate-500 dark:text-slate-400 print:text-gray-700">เลขที่ใบลา</th>
                     <th className="px-4 py-3 font-semibold text-slate-500 dark:text-slate-400 print:text-gray-700">{t("fullName")}</th>
                     <th className="px-4 py-3 font-semibold text-slate-500 dark:text-slate-400 print:text-gray-700">{t("position")}</th>
                     <th className="px-4 py-3 font-semibold text-slate-500 dark:text-slate-400 print:text-gray-700">{t("type")}</th>
@@ -381,6 +404,17 @@ export default function ReportsPage() {
                     return (
                       <tr key={item.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors print:hover:bg-transparent print:break-inside-avoid">
                         <td className="px-4 py-3 text-slate-400 print:text-black print:border print:border-gray-300">{i + 1}</td>
+                        <td className="px-4 py-3 text-slate-700 dark:text-slate-300 print:text-black print:border print:border-gray-300 text-xs">
+                          {item.status === "APPROVED" ? (
+                            <span className="text-emerald-600 dark:text-emerald-400 font-bold">
+                              อนุมัติที่ {item.approvedSeq}/{item.fiscalYear}
+                            </span>
+                          ) : (
+                            <span className="text-slate-500 dark:text-slate-400">
+                              คำขอที่ {item.pendingSeq}/{item.fiscalYear}
+                            </span>
+                          )}
+                        </td>
                         <td className="px-4 py-3 font-medium text-slate-900 dark:text-white print:text-black print:border print:border-gray-300">{item.userName}</td>
                         <td className="px-4 py-3 text-slate-500 dark:text-slate-400 text-xs print:text-black print:border print:border-gray-300">{item.position}</td>
                         <td className="px-4 py-3 text-slate-700 dark:text-slate-300 print:text-black print:border print:border-gray-300">{tLeaveType(item.type, leaveTypeMap[item.type])}</td>
@@ -441,6 +475,59 @@ export default function ReportsPage() {
           )}
         </div>
       )}
+
+      {/* Batch PDF Download Section */}
+      <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white/60 dark:border-slate-800 rounded-3xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] print:hidden mt-6">
+        <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2 mb-2">
+          <Download className="w-5 h-5 text-purple-500" />
+          ดาวน์โหลดใบลาแบบกลุ่ม (PDF)
+        </h2>
+        <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
+          ระบุช่วงลำดับการอนุมัติและปีงบประมาณที่ต้องการพิมพ์ใบลาที่ได้รับการอนุมัติแล้วออกเป็น PDF ทั้งหมดพร้อมกัน
+        </p>
+        
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 items-end">
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">ปีงบประมาณ</label>
+            <select 
+              value={batchYear} 
+              onChange={(e) => setBatchYear(Number(e.target.value))}
+              className="h-10 px-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all w-full cursor-pointer"
+            >
+              {availableYears.map(yr => (
+                <option key={yr} value={yr}>ปีงบประมาณ {yr}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">จากลำดับอนุมัติที่</label>
+            <input 
+              type="number" 
+              min={1}
+              value={batchStart} 
+              onChange={(e) => setBatchStart(Math.max(1, Number(e.target.value)))}
+              className="h-10 px-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all w-full" 
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">ถึงลำดับอนุมัติที่</label>
+            <input 
+              type="number" 
+              min={1}
+              value={batchEnd} 
+              onChange={(e) => setBatchEnd(Math.max(1, Number(e.target.value)))}
+              className="h-10 px-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all w-full" 
+            />
+          </div>
+          <button 
+            onClick={handleBatchPdfDownload}
+            className="h-10 px-6 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-sm shadow-md shadow-purple-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
+          >
+            <Printer className="w-4.5 h-4.5" />
+            ดาวน์โหลด PDF
+          </button>
+        </div>
+      </div>
     </motion.div>
   );
 }

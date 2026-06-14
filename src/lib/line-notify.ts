@@ -19,6 +19,9 @@ export async function sendLineNotify(message: string) {
       return;
     }
 
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+
     const res = await fetch("https://api.line.me/v2/bot/message/push", {
       method: "POST",
       headers: {
@@ -34,7 +37,10 @@ export async function sendLineNotify(message: string) {
           }
         ]
       }),
+      signal: controller.signal,
     });
+
+    clearTimeout(timeout);
 
     if (!res.ok) {
       console.error("[LINE OA] Failed:", res.status, await res.text());
@@ -48,7 +54,7 @@ export async function sendLineNotify(message: string) {
  * Helper to format a leave notification message in Thai.
  */
 export function formatLeaveMessage(
-  action: "CREATE" | "APPROVE" | "REJECT" | "CANCEL",
+  action: "CREATE" | "APPROVE" | "REJECT" | "CANCEL" | "DELETE",
   userName: string,
   leaveType: string,
   startDate: string,
@@ -58,6 +64,7 @@ export function formatLeaveMessage(
     subjectGroup?: string;
     actorName?: string;
     statusText?: string;
+    requestedDays?: number;
   }
 ): string {
   const typeMap: Record<string, string> = {
@@ -88,7 +95,21 @@ export function formatLeaveMessage(
   const fStart = formatThaiDate(startDate);
   const fEnd = formatThaiDate(endDate);
   
+  const safeReason = reason ? reason.substring(0, 500) : undefined;
+  
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : "https://your-domain.com");
+
+  if (action === "DELETE") {
+    return `🚨 มีการลบข้อมูลใบลาที่อนุมัติแล้ว!
+------------------
+ชื่อครูผู้ลา: ${userName}
+ประเภท: ${typeName}
+วันที่ลา: ${fStart} ถึง ${fEnd}
+สถานะก่อนลบ: ✅ อนุมัติแล้ว
+ผู้ลบรายการ: ${options?.actorName || "แอดมิน"}
+------------------
+⚠️ แจ้งเตือนเพื่อความโปร่งใสในระบบ`;
+  }
 
   if (action === "CREATE") {
     let header = `🔔 มีคำขอลาใหม่!`;
@@ -98,12 +119,14 @@ export function formatLeaveMessage(
       header += ` (รอผู้อำนวยการอนุมัติ)`;
     }
     
+    const daysLine = options?.requestedDays !== undefined ? `จำนวนวันลา: ${options.requestedDays} วัน\n` : '';
+    
     return `${header}
 ------------------
 ชื่อ: ${userName}
 ${options?.subjectGroup ? `กลุ่มสาระฯ: ${options.subjectGroup}\n` : ''}ประเภท: ${typeName}
-วันที่ลา: ${fStart} ถึง ${fEnd}
-เหตุผล: ${reason || "-"}
+${daysLine}วันที่ลา: ${fStart} ถึง ${fEnd}
+เหตุผล: ${safeReason || "-"}
 ------------------
 โปรดตรวจสอบในระบบ: ${appUrl}/approvals`;
   } else {

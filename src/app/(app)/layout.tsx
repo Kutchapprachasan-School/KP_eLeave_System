@@ -112,6 +112,28 @@ function ToolbarButtons({ isAdmin, isApprover }: { isAdmin: boolean; isApprover:
 
   return (
     <div className="flex items-center gap-2">
+      <button
+        onClick={() => setLang(lang === "th" ? "en" : "th")}
+        className="flex items-center justify-center w-10 h-10 rounded-full hover:bg-gray-100 dark:hover:bg-slate-800 text-gray-500 transition-all duration-300 font-bold text-sm"
+        title={lang === "th" ? "เปลี่ยนเป็นภาษาอังกฤษ" : "Switch to Thai"}
+      >
+        {lang === "th" ? "TH" : "EN"}
+      </button>
+
+      <button
+        onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+        className="flex items-center justify-center w-10 h-10 rounded-full hover:bg-gray-100 dark:hover:bg-slate-800 text-gray-500 transition-all duration-300"
+      >
+        {theme === "dark" ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+      </button>
+
+      <button
+        onClick={toggleFullscreen}
+        className="flex items-center justify-center w-10 h-10 rounded-full hover:bg-gray-100 dark:hover:bg-slate-800 text-gray-500 transition-all duration-300"
+      >
+        {isFullscreen ? <Minimize className="w-5 h-5" /> : <Maximize className="w-5 h-5" />}
+      </button>
+
       {/* Notification Bell + Panel */}
       {(isAdmin || isApprover) && (
         <div className="relative" ref={notiRef}>
@@ -238,28 +260,6 @@ function ToolbarButtons({ isAdmin, isApprover }: { isAdmin: boolean; isApprover:
           </AnimatePresence>
         </div>
       )}
-
-      <button
-        onClick={() => setLang(lang === "th" ? "en" : "th")}
-        className="flex items-center justify-center w-10 h-10 rounded-full hover:bg-gray-100 dark:hover:bg-slate-800 text-gray-500 transition-all duration-300 font-bold text-sm"
-        title={lang === "th" ? "เปลี่ยนเป็นภาษาอังกฤษ" : "Switch to Thai"}
-      >
-        {lang === "th" ? "TH" : "EN"}
-      </button>
-
-      <button
-        onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-        className="flex items-center justify-center w-10 h-10 rounded-full hover:bg-gray-100 dark:hover:bg-slate-800 text-gray-500 transition-all duration-300"
-      >
-        {theme === "dark" ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-      </button>
-
-      <button
-        onClick={toggleFullscreen}
-        className="flex items-center justify-center w-10 h-10 rounded-full hover:bg-gray-100 dark:hover:bg-slate-800 text-gray-500 transition-all duration-300"
-      >
-        {isFullscreen ? <Minimize className="w-5 h-5" /> : <Maximize className="w-5 h-5" />}
-      </button>
     </div>
   );
 }
@@ -340,19 +340,55 @@ function AppContent({ children }: { children: React.ReactNode }) {
     navItems.push({ href: "/approvals", label: t("approvals"), icon: CheckSquare });
   }
   
+  if (isAdmin || user.position === "ผู้ตรวจสอบ" || user.position === "หัวหน้างานบุคคล" || user.position === "เจ้าหน้าที่บุคคล") {
+    navItems.push({ href: "/reports", label: t("reports"), icon: FileSpreadsheet });
+  }
   if (isAdmin) {
     navItems.push(
-      { href: "/reports", label: t("reports"), icon: FileSpreadsheet },
       { href: "/users", label: t("users"), icon: Users },
-      { href: "/logs", label: t("logs"), icon: Activity },
-      { href: "/settings", label: t("settings"), icon: Settings }
+      { href: "/logs", label: t("logs"), icon: Activity }
     );
   }
 
+  if (isAdmin || user.position === "หัวหน้างานบุคคล" || user.position === "เจ้าหน้าที่บุคคล") {
+    navItems.push({ href: "/settings", label: t("settings"), icon: Settings });
+  }
+
+  const isImpersonating = user.isActualAdmin === true && (user.role !== "ADMIN" && user.position !== "แอดมิน");
+
+  const handleClearImpersonation = async () => {
+    try {
+      const { clearImpersonation } = await import("@/app/actions/settings");
+      await clearImpersonation();
+      window.location.reload();
+    } catch (error: any) {
+      alert("เกิดข้อผิดพลาด: " + (error?.message || error));
+    }
+  };
+
   return (
-    <div className="flex min-h-screen bg-[#F4F7FB] dark:bg-slate-900 text-slate-900 dark:text-white font-sans selection:bg-purple-500/30">
-      
-      {/* Mobile Overlay */}
+    <div className="flex flex-col min-h-screen bg-[#F4F7FB] dark:bg-slate-900 text-slate-900 dark:text-white font-sans selection:bg-purple-500/30">
+      {isImpersonating && (
+        <div className="bg-gradient-to-r from-amber-500 to-orange-600 text-white px-4 py-3 flex items-center justify-between text-xs sm:text-sm font-bold shadow-md shrink-0 print:hidden z-[9999]">
+          <div className="flex items-center gap-2">
+            <span className="animate-pulse flex h-2.5 w-2.5 rounded-full bg-white shrink-0" />
+            <span>
+              ขณะนี้คุณกำลังจำลองมุมมองสิทธิ์เป็น: <span className="underline decoration-wavy decoration-2 decoration-white/70">{user.position || "ครู (สิทธิ์ทั่วไป)"}</span> (บทบาท: {user.role})
+            </span>
+          </div>
+          <button 
+            type="button"
+            onClick={handleClearImpersonation}
+            className="ml-4 px-3.5 py-1.5 bg-white text-orange-600 hover:bg-orange-50 font-bold rounded-xl shadow transition-colors shrink-0"
+          >
+            กลับเป็นแอดมิน
+          </button>
+        </div>
+      )}
+
+      <div className="flex flex-1 min-h-0">
+        
+        {/* Mobile Overlay */}
       <AnimatePresence>
         {sidebarOpen && (
           <motion.div
@@ -366,7 +402,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
       </AnimatePresence>
 
       {/* Sidebar Navigation */}
-      <aside className={`fixed lg:sticky top-0 left-0 z-50 h-screen w-[280px] bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-r border-slate-200/50 dark:border-slate-800/50 flex flex-col transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] shadow-[4px_0_24px_rgba(0,0,0,0.02)] print:hidden ${sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`}>
+      <aside className={`fixed top-0 bottom-0 left-0 z-50 w-[280px] bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-r border-slate-200/50 dark:border-slate-800/50 flex flex-col transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] shadow-[4px_0_24px_rgba(0,0,0,0.02)] print:hidden ${sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`}>
         
         {/* Brand */}
         <div className="h-24 px-8 flex items-center">
@@ -454,7 +490,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
       </aside>
 
       {/* Main Container */}
-      <main className="flex-1 flex flex-col min-w-0 min-h-screen">
+      <main className="flex-1 flex flex-col min-w-0 min-h-screen lg:pl-[280px]">
         
         {/* Top Header */}
         <header className="h-24 px-6 lg:px-10 flex items-center justify-between z-30 print:hidden">
@@ -488,6 +524,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
         </div>
       </main>
 
+      </div>
     </div>
   );
 }

@@ -6,6 +6,14 @@
 
 @custom-variant dark (&:is(.dark *));
 
+html {
+  font-size: 90%;
+}
+
+body {
+  zoom: 0.9;
+}
+
 :root {
   --color-primary: #4f46e5;
   --color-primary-light: #6366f1;

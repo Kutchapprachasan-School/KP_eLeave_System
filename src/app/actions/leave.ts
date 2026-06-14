@@ -1,6 +1,7 @@
 "use server";
 
 import { auth } from "@/lib/auth";
+import { getSession as getAuthSession } from "@/lib/auth-session";
 import { prisma } from "@/lib/db";
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
@@ -35,9 +36,7 @@ function calculateLeaveDays(startDate: Date, endDate: Date, type: string): numbe
 
 // ========= Helper: get session safely =========
 async function getSession() {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
+  const session = await getAuthSession();
   if (!session?.user) throw new Error("Unauthorized");
   return session;
 }
@@ -49,6 +48,60 @@ async function writeLog(actionType: string, description: string, userId: string)
   });
 }
 
+// ========= Helpers: Fiscal Year and Sequence Backfill =========
+function getFiscalYear(date: Date): number {
+  const year = date.getFullYear();
+  const month = date.getMonth(); // 0 = Jan, 9 = Oct
+  return (month >= 9 ? year + 1 : year) + 543;
+}
+
+export async function ensureSequencesPopulated() {
+  try {
+    const unsequenced = await prisma.leaveRequest.findMany({
+      where: {
+        OR: [
+          { fiscalYear: null },
+          { pendingSeq: null },
+          { status: "APPROVED", approvedSeq: null }
+        ]
+      },
+      orderBy: { createdAt: "asc" }
+    });
+
+    if (unsequenced.length === 0) return;
+
+    for (const req of unsequenced) {
+      const fy = req.fiscalYear || getFiscalYear(req.startDate);
+      let updateData: any = { fiscalYear: fy };
+
+      if (req.pendingSeq === null) {
+        const maxPending = await prisma.leaveRequest.aggregate({
+          where: { fiscalYear: fy },
+          _max: { pendingSeq: true }
+        });
+        const nextPending = (maxPending._max.pendingSeq || 0) + 1;
+        updateData.pendingSeq = nextPending;
+        req.pendingSeq = nextPending;
+      }
+
+      if (req.status === "APPROVED" && req.approvedSeq === null) {
+        const maxApproved = await prisma.leaveRequest.aggregate({
+          where: { fiscalYear: fy, status: "APPROVED" },
+          _max: { approvedSeq: true }
+        });
+        updateData.approvedSeq = (maxApproved._max.approvedSeq || 0) + 1;
+      }
+
+      await prisma.leaveRequest.update({
+        where: { id: req.id },
+        data: updateData
+      });
+    }
+  } catch (error) {
+    console.error("Error populating sequences:", error);
+  }
+}
+
 // ========= Submit Leave Request =========
 export async function submitLeaveRequest(data: {
   type: string;
@@ -56,6 +109,7 @@ export async function submitLeaveRequest(data: {
   endDate: string;
   reason: string;
   documentUrl?: string;
+  extraFields?: string;
 }) {
   const session = await getSession();
   const user = session.user as any;
@@ -69,6 +123,64 @@ export async function submitLeaveRequest(data: {
 
   // Calculate requested days
   const requestedDays = calculateLeaveDays(start, end, data.type);
+
+  // 1. Check if leave config exists and is active
+  const config = await prisma.leaveConfig.findUnique({
+    where: { type: data.type }
+  });
+  if (config && !config.isActive) {
+    throw new Error("ขออภัย ประเภทการลานี้ถูกปิดใช้งานชั่วคราว");
+  }
+
+  // 2. Advance personal leave validation
+  if (data.type === "PERSONAL") {
+    const settings = await prisma.systemSettings.findUnique({
+      where: { id: "default" },
+      select: { requirePersonalAdvance: true }
+    });
+    if (settings?.requirePersonalAdvance) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const startCopy = new Date(start);
+      startCopy.setHours(0, 0, 0, 0);
+      if (startCopy <= today) {
+        throw new Error("การลากิจส่วนตัวต้องยื่นคำขอล่วงหน้าอย่างน้อย 1 วันทำการ (ไม่สามารถลาในวันนี้หรือย้อนหลังได้)");
+      }
+    }
+  }
+
+  // 3. Accumulation validation for SICK and PERSONAL
+  if (data.type === "SICK" || data.type === "PERSONAL") {
+    const cycle = getCurrentLeaveCycle();
+    const pastRequests = await prisma.leaveRequest.findMany({
+      where: {
+        userId: session.user.id,
+        type: { in: ["SICK", "PERSONAL"] },
+        status: "APPROVED",
+        startDate: { gte: cycle.start, lte: cycle.end },
+      },
+    });
+
+    let totalTimes = pastRequests.length;
+    let totalDays = 0;
+    for (const r of pastRequests) {
+      const days = calculateLeaveDays(r.startDate, r.endDate, r.type);
+      totalDays += days;
+    }
+
+    const settings = await prisma.systemSettings.findUnique({
+      where: { id: "default" },
+      select: { memoThresholdTimes: true, memoThresholdDays: true }
+    });
+    const thresholdTimes = settings?.memoThresholdTimes ?? 6;
+    const thresholdDays = settings?.memoThresholdDays ?? 15;
+
+    if (totalTimes >= thresholdTimes || totalDays >= thresholdDays) {
+      if (!data.documentUrl || data.documentUrl.trim() === "") {
+        throw new Error(`เนื่องจากสถิติลารวมของท่านสะสมเกินเกณฑ์ (เกิน ${thresholdTimes} ครั้ง หรือ ${thresholdDays} วัน) จำเป็นต้องแนบเอกสารบันทึกข้อความเสนอผู้อำนวยการด้วย`);
+      }
+    }
+  }
 
   // Validate leave quota ONLY for non-sick and non-personal leave types
   if (data.type !== "SICK" && data.type !== "PERSONAL") {
@@ -107,6 +219,15 @@ export async function submitLeaveRequest(data: {
     initialStatus = "PENDING_EXEC";
   }
 
+  const startD = new Date(data.startDate);
+  const fy = getFiscalYear(startD);
+
+  const maxPending = await prisma.leaveRequest.aggregate({
+    where: { fiscalYear: fy },
+    _max: { pendingSeq: true }
+  });
+  const nextPendingSeq = (maxPending._max.pendingSeq || 0) + 1;
+
   const newRequest = await prisma.leaveRequest.create({
     data: {
       userId: session.user.id,
@@ -115,7 +236,10 @@ export async function submitLeaveRequest(data: {
       endDate: new Date(data.endDate),
       reason: data.reason,
       status: initialStatus,
+      fiscalYear: fy,
+      pendingSeq: nextPendingSeq,
       ...(data.documentUrl && { documentUrl: data.documentUrl }),
+      extraFields: data.extraFields,
     },
   });
 
@@ -127,6 +251,7 @@ export async function submitLeaveRequest(data: {
 
   const notifyMsg = formatLeaveMessage("CREATE", user.name, data.type, data.startDate, data.endDate, data.reason, {
     subjectGroup: initialStatus === "PENDING_HEAD" ? (user.subjectGroup || undefined) : undefined,
+    requestedDays,
   });
   await sendLineNotify(notifyMsg);
 
@@ -139,23 +264,32 @@ export async function submitLeaveRequest(data: {
 
 // ========= Get Leave History (own or by userId for admin/exec) =========
 export async function getMyLeaveHistory(cycleFilter: "current" | "cycle1" | "cycle2" | "year" | "all" = "all", targetUserId?: string) {
+  await ensureSequencesPopulated();
   const session = await getSession();
   const user = session.user as any;
 
-  // Determine which userId to query
-  let queryUserId = session.user.id;
-  if (targetUserId && targetUserId !== "me") {
-    // Only admins and executives can view other people's history
-    const isPrivileged = user.role === "ADMIN" || user.position === "แอดมิน" || user.position === "ผู้บริหาร";
+  const isPrivileged = user.role === "ADMIN" || ["แอดมิน", "ผู้บริหาร", "หัวหน้างานบุคคล", "เจ้าหน้าที่บุคคล"].includes(user.position);
+
+  const whereClause: any = {};
+  
+  if (targetUserId === "all") {
     if (!isPrivileged) {
       throw new Error("Unauthorized");
     }
-    queryUserId = targetUserId;
+    // Omit userId filter to fetch all users' requests
+  } else {
+    let queryUserId = session.user.id;
+    if (targetUserId && targetUserId !== "me") {
+      if (!isPrivileged) {
+        throw new Error("Unauthorized");
+      }
+      queryUserId = targetUserId;
+    }
+    whereClause.userId = queryUserId;
   }
 
   const filter = getLeaveCycleFilter(new Date(), cycleFilter);
 
-  const whereClause: any = { userId: queryUserId };
   if (filter) {
     whereClause.startDate = { gte: filter.start, lte: filter.end };
   }
@@ -181,7 +315,7 @@ export async function getMyLeaveHistory(cycleFilter: "current" | "cycle1" | "cyc
 export async function getStaffList() {
   const session = await getSession();
   const user = session.user as any;
-  const isPrivileged = user.role === "ADMIN" || user.position === "แอดมิน" || user.position === "ผู้บริหาร";
+  const isPrivileged = user.role === "ADMIN" || ["แอดมิน", "ผู้บริหาร", "หัวหน้างานบุคคล", "เจ้าหน้าที่บุคคล"].includes(user.position);
   if (!isPrivileged) {
     return [];
   }
@@ -323,6 +457,13 @@ export async function getDashboardStats(cycleFilter: "current" | "cycle1" | "cyc
       })
     : requests;
 
+  const settings = await prisma.systemSettings.findUnique({
+    where: { id: "default" },
+    select: { memoThresholdTimes: true, memoThresholdDays: true }
+  });
+  const limitTimes = settings?.memoThresholdTimes ?? 6;
+  const limitDays = settings?.memoThresholdDays ?? 15;
+
   for (const r of ownRequests) {
     if (r.type === "SICK" || r.type === "PERSONAL") {
       const days = calculateLeaveDays(r.startDate, r.endDate, r.type);
@@ -330,7 +471,7 @@ export async function getDashboardStats(cycleFilter: "current" | "cycle1" | "cyc
       userWatchlistStats.totalTimes += 1;
     }
   }
-  userWatchlistStats.isWarning = userWatchlistStats.totalTimes >= 4 || userWatchlistStats.totalDays >= 12;
+  userWatchlistStats.isWarning = userWatchlistStats.totalTimes >= limitTimes || userWatchlistStats.totalDays >= limitDays;
 
   if (isApprover) {
     const userStatsMap: Record<string, any> = {};
@@ -347,7 +488,7 @@ export async function getDashboardStats(cycleFilter: "current" | "cycle1" | "cyc
       }
     }
     leaveLeaderboard = Object.values(userStatsMap)
-      .map((stat: any) => ({ ...stat, isWarning: stat.totalTimes >= 4 || stat.totalDays >= 12 }))
+      .map((stat: any) => ({ ...stat, isWarning: stat.totalTimes >= limitTimes || stat.totalDays >= limitDays }))
       .filter((stat: any) => stat.totalTimes > 0)
       .sort((a: any, b: any) => b.totalTimes - a.totalTimes || b.totalDays - a.totalDays)
       .slice(0, 50); // increased slice to allow UI sorting
@@ -378,6 +519,7 @@ export async function getDashboardStats(cycleFilter: "current" | "cycle1" | "cyc
 
 // ========= Get Pending Approvals (role-based) =========
 export async function getPendingApprovals() {
+  await ensureSequencesPopulated();
   const session = await getSession();
   const user = session.user as any;
 
@@ -404,10 +546,10 @@ export async function getPendingApprovals() {
     where: whereClause,
     include: {
       user: {
-        select: { id: true, name: true, email: true, position: true, subjectGroup: true },
+        select: { id: true, name: true, email: true, position: true, subjectGroup: true, image: true },
       },
     },
-    orderBy: { createdAt: "desc" },
+    orderBy: { createdAt: "asc" },
   });
 
   return requests.map((r) => ({
@@ -444,7 +586,20 @@ export async function approveLeaveRequest(id: string) {
   ) {
     // Executive/Admin gives final approval
     newStatus = "APPROVED";
-    updateData = { status: newStatus, execApproverId: session.user.id };
+    
+    const fy = request.fiscalYear || getFiscalYear(request.startDate);
+    const maxApproved = await prisma.leaveRequest.aggregate({
+      where: { fiscalYear: fy, status: "APPROVED" },
+      _max: { approvedSeq: true }
+    });
+    const nextApprovedSeq = (maxApproved._max.approvedSeq || 0) + 1;
+
+    updateData = { 
+      status: newStatus, 
+      execApproverId: session.user.id,
+      approvedSeq: nextApprovedSeq,
+      fiscalYear: fy
+    };
   } else {
     throw new Error("Cannot approve this request with your role");
   }
@@ -488,9 +643,27 @@ export async function rejectLeaveRequest(id: string, rejectReason?: string) {
 
   if (!request) throw new Error("Request not found");
 
+  if (!rejectReason || !rejectReason.trim()) {
+    throw new Error("จำเป็นต้องระบุเหตุผลในการปฏิเสธการอนุมัติ");
+  }
+
+  let canReject = false;
+  if (user.position === "หัวหน้างานบุคคล" && request.status === "PENDING_HEAD") {
+    canReject = true;
+  } else if (
+    (user.position === "ผู้บริหาร" || user.role === "ADMIN" || user.position === "แอดมิน") &&
+    (request.status === "PENDING_EXEC" || request.status === "PENDING_HEAD")
+  ) {
+    canReject = true;
+  }
+
+  if (!canReject) {
+    throw new Error("ไม่มีสิทธิ์ปฏิเสธคำขอลาในสถานะนี้");
+  }
+
   await prisma.leaveRequest.update({
     where: { id },
-    data: { status: "REJECTED" },
+    data: { status: "REJECTED", rejectReason: rejectReason.trim() },
   });
 
   await writeLog(
@@ -591,8 +764,10 @@ export async function editLeaveRequest(id: string, data: { type: string; startDa
 export async function adminDeleteLeaveRequest(id: string) {
   const session = await getSession();
   const user = session.user as any;
-  if (user.role !== "ADMIN" && user.position !== "แอดมิน") {
-    throw new Error("Unauthorized: Admins only");
+  const isAdmin = user.role === "ADMIN" || user.position === "แอดมิน";
+  const isHR = user.position === "หัวหน้างานบุคคล";
+  if (!isAdmin && !isHR) {
+    throw new Error("Unauthorized: Admins or HR Head only");
   }
 
   const request = await prisma.leaveRequest.findUnique({ where: { id }, include: { user: true } });
@@ -606,6 +781,21 @@ export async function adminDeleteLeaveRequest(id: string) {
     session.user.id
   );
 
+  if (request.status === "APPROVED") {
+    const msg = formatLeaveMessage(
+      "DELETE",
+      request.user?.name || "ไม่ทราบชื่อ",
+      request.type,
+      request.startDate.toISOString().split("T")[0],
+      request.endDate.toISOString().split("T")[0],
+      request.reason || undefined,
+      {
+        actorName: user.name,
+      }
+    );
+    sendLineNotify(msg).catch(() => {});
+  }
+
   revalidatePath("/history");
   revalidatePath("/dashboard");
   revalidatePath("/approvals");
@@ -618,7 +808,8 @@ export async function adminDeleteLeaveRequest(id: string) {
 export async function adminClearAllLeaveData() {
   const session = await getSession();
   const user = session.user as any;
-  if (user.role !== "ADMIN" && user.position !== "แอดมิน") {
+  const isAdmin = user.role === "ADMIN" || user.position === "แอดมิน";
+  if (!isAdmin) {
     throw new Error("Unauthorized: Admins only");
   }
 
@@ -738,11 +929,34 @@ export async function getMyLeaveUsageForCurrentCycle() {
   let totalTimes = 0;
   let totalDays = 0;
 
+  // Per-type usage breakdown
+  const typeUsage: Record<string, number> = {};
+
   for (const r of requests) {
+    const days = calculateLeaveDays(r.startDate, r.endDate, r.type);
+    typeUsage[r.type] = (typeUsage[r.type] || 0) + days;
+
     if (r.type === "SICK" || r.type === "PERSONAL") {
-      const days = calculateLeaveDays(r.startDate, r.endDate, r.type);
       totalTimes += 1;
       totalDays += days;
+    }
+  }
+
+  const settings = await prisma.systemSettings.findUnique({
+    where: { id: "default" },
+    select: { memoThresholdTimes: true, memoThresholdDays: true }
+  });
+  const limitTimes = settings?.memoThresholdTimes ?? 6;
+  const limitDays = settings?.memoThresholdDays ?? 15;
+
+  // Fetch leave configs for quota info
+  const configs = await prisma.leaveConfig.findMany({
+    select: { type: true, maxDaysPerYear: true }
+  });
+  const typeQuotas: Record<string, number> = {};
+  for (const c of configs) {
+    if (c.maxDaysPerYear > 0) {
+      typeQuotas[c.type] = c.maxDaysPerYear;
     }
   }
 
@@ -750,6 +964,444 @@ export async function getMyLeaveUsageForCurrentCycle() {
     cycleLabel: cycle.label,
     totalTimes,
     totalDays,
-    isWarning: totalTimes >= 4 || totalDays >= 12,
+    limitTimes,
+    limitDays,
+    isWarning: totalTimes >= limitTimes || totalDays >= limitDays,
+    typeUsage,
+    typeQuotas,
   };
 }
+
+// ========= Get Leave Request Details for Print =========
+export async function getLeaveRequestForPrint(id: string) {
+  await ensureSequencesPopulated();
+  const session = await getSession();
+  const currentUser = session.user as any;
+
+  // 1. Fetch request with user details
+  const request = await prisma.leaveRequest.findUnique({
+    where: { id },
+    include: {
+      user: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          position: true,
+          subjectGroup: true,
+          signatureUrl: true,
+          level: true,
+          address: true,
+          phoneNumber: true,
+        }
+      }
+    }
+  });
+
+  if (!request) throw new Error("Request not found");
+
+  // Check permissions: Owner or Admin/HR/Exec
+  const isOwner = request.userId === session.user.id;
+  const isPrivileged = currentUser.role === "ADMIN" || ["แอดมิน", "ผู้บริหาร", "หัวหน้างานบุคคล"].includes(currentUser.position);
+  if (!isOwner && !isPrivileged) {
+    throw new Error("Unauthorized");
+  }
+
+  // 2. Fetch inspector and approver signatures
+  let headApprover = null;
+  let execApprover = null;
+  let inspector = null;
+
+  // Load default inspector settings
+  const sysSettings = await prisma.systemSettings.findUnique({
+    where: { id: "default" },
+    select: { defaultInspectorId: true }
+  });
+
+  if (sysSettings?.defaultInspectorId) {
+    inspector = await prisma.user.findUnique({
+      where: { id: sysSettings.defaultInspectorId },
+      select: { id: true, name: true, signatureUrl: true, position: true }
+    });
+  }
+
+  // Fallback to inspector first, then HR Head user
+  if (!inspector) {
+    inspector = await prisma.user.findFirst({
+      where: { position: "ผู้ตรวจสอบ", isApproved: true },
+      select: { id: true, name: true, signatureUrl: true, position: true }
+    });
+  }
+
+  if (!inspector) {
+    inspector = await prisma.user.findFirst({
+      where: { position: "หัวหน้างานบุคคล", isApproved: true },
+      select: { id: true, name: true, signatureUrl: true, position: true }
+    });
+  }
+
+  if (request.headApproverId) {
+    headApprover = await prisma.user.findUnique({
+      where: { id: request.headApproverId },
+      select: { name: true, signatureUrl: true, position: true }
+    });
+  }
+
+  // Fallback to default HR Head if headApprover is null
+  if (!headApprover) {
+    headApprover = await prisma.user.findFirst({
+      where: { position: "หัวหน้างานบุคคล", isApproved: true },
+      select: { name: true, signatureUrl: true, position: true }
+    });
+  }
+
+  // Hide head approver signature if request is still pending head approval
+  if (headApprover) {
+    const isPendingHead = request.status === "PENDING_HEAD";
+    headApprover = {
+      ...headApprover,
+      signatureUrl: isPendingHead ? null : headApprover.signatureUrl
+    };
+  }
+
+  if (request.execApproverId) {
+    execApprover = await prisma.user.findUnique({
+      where: { id: request.execApproverId },
+      select: { name: true, signatureUrl: true, position: true }
+    });
+  }
+
+  // Hide inspector signature if pending approval by head (PENDING_HEAD)
+  if (inspector) {
+    const isPendingHead = request.status === "PENDING_HEAD";
+    inspector = {
+      ...inspector,
+      signatureUrl: isPendingHead ? null : inspector.signatureUrl
+    };
+  }
+
+  // 3. Calculate Fiscal Year range for this request
+  const startDate = request.startDate;
+  const year = startDate.getFullYear();
+  const month = startDate.getMonth(); // 0-indexed, 9 = Oct
+  let fyStartYear = year;
+  if (month < 9) {
+    fyStartYear = year - 1;
+  }
+  const fyStart = new Date(fyStartYear, 9, 1);
+  const fyEnd = new Date(fyStartYear + 1, 8, 30, 23, 59, 59, 999);
+
+  // 4. Fetch approved requests in same fiscal year for stats
+  const approvedInYear = await prisma.leaveRequest.findMany({
+    where: {
+      userId: request.userId,
+      status: "APPROVED",
+      startDate: { gte: fyStart, lte: fyEnd }
+    }
+  });
+
+  // Fetch active leave configurations dynamically
+  const activeConfigs = await prisma.leaveConfig.findMany({
+    where: { isActive: true },
+    orderBy: { createdAt: "asc" }
+  });
+
+  // Calculate statistics for all active leave types
+  const stats: Record<string, { name: string, prev: number, current: number, total: number }> = {};
+  for (const config of activeConfigs) {
+    stats[config.type] = {
+      name: config.name,
+      prev: 0,
+      current: 0,
+      total: 0,
+    };
+  }
+
+  // Ensure current request type is initialized
+  if (!stats[request.type]) {
+    const reqConfig = await prisma.leaveConfig.findUnique({
+      where: { type: request.type }
+    });
+    stats[request.type] = {
+      name: reqConfig?.name || request.type,
+      prev: 0,
+      current: 0,
+      total: 0,
+    };
+  }
+
+  // Set current request days
+  const currentDays = calculateLeaveDays(request.startDate, request.endDate, request.type);
+  stats[request.type].current = currentDays;
+
+  // Calculate previously taken days in the fiscal year
+  for (const r of approvedInYear) {
+    if (r.id === request.id) continue; // skip current
+    const days = calculateLeaveDays(r.startDate, r.endDate, r.type);
+    
+    // If approved request started BEFORE current request
+    if (r.startDate < request.startDate) {
+      if (stats[r.type]) {
+        stats[r.type].prev += days;
+      }
+    }
+  }
+
+  // Sum up totals
+  for (const type of Object.keys(stats)) {
+    stats[type].total = stats[type].prev + stats[type].current;
+  }
+
+  // 5. Find the last approved request of the SAME type
+  const lastRequest = await prisma.leaveRequest.findFirst({
+    where: {
+      userId: request.userId,
+      type: request.type,
+      status: "APPROVED",
+      startDate: { lt: request.startDate }
+    },
+    orderBy: { startDate: "desc" }
+  });
+
+  let lastLeaveInfo = null;
+  if (lastRequest) {
+    lastLeaveInfo = {
+      startDate: lastRequest.startDate.toISOString(),
+      endDate: lastRequest.endDate.toISOString(),
+      days: calculateLeaveDays(lastRequest.startDate, lastRequest.endDate, lastRequest.type),
+    };
+  }
+
+  // 6. Return all needed data
+  return {
+    request: {
+      ...request,
+      startDate: request.startDate.toISOString(),
+      endDate: request.endDate.toISOString(),
+      createdAt: request.createdAt.toISOString(),
+      updatedAt: request.updatedAt.toISOString(),
+      days: currentDays,
+    },
+    stats,
+    lastLeaveInfo,
+    headApprover,
+    execApprover,
+    inspector,
+    fiscalYearLabel: `ปีงบประมาณ ${fyStartYear + 1 + 543}`,
+  };
+}
+
+// ========= Get Batch Leave Requests for Print =========
+export async function getBatchLeaveRequestsForPrint(year: number, start: number, end: number) {
+  await ensureSequencesPopulated();
+  const session = await getSession();
+  const currentUser = session.user as any;
+
+  // Check permissions: Admin/HR/Exec
+  const isPrivileged = currentUser.role === "ADMIN" || ["แอดมิน", "ผู้บริหาร", "หัวหน้างานบุคคล"].includes(currentUser.position);
+  if (!isPrivileged) {
+    throw new Error("Unauthorized");
+  }
+
+  const requests = await prisma.leaveRequest.findMany({
+    where: {
+      fiscalYear: year,
+      status: "APPROVED",
+      approvedSeq: {
+        gte: start,
+        lte: end
+      }
+    },
+    include: {
+      user: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          position: true,
+          subjectGroup: true,
+          signatureUrl: true,
+          level: true,
+          address: true,
+          phoneNumber: true,
+        }
+      }
+    },
+    orderBy: {
+      approvedSeq: "asc"
+    }
+  });
+
+  const results = [];
+  
+  const sysSettings = await prisma.systemSettings.findUnique({
+    where: { id: "default" },
+    select: { defaultInspectorId: true }
+  });
+
+  let defaultInspector = null;
+  if (sysSettings?.defaultInspectorId) {
+    defaultInspector = await prisma.user.findUnique({
+      where: { id: sysSettings.defaultInspectorId },
+      select: { id: true, name: true, signatureUrl: true, position: true }
+    });
+  }
+  if (!defaultInspector) {
+    defaultInspector = await prisma.user.findFirst({
+      where: { position: "ผู้ตรวจสอบ", isApproved: true },
+      select: { id: true, name: true, signatureUrl: true, position: true }
+    });
+  }
+  if (!defaultInspector) {
+    defaultInspector = await prisma.user.findFirst({
+      where: { position: "หัวหน้างานบุคคล", isApproved: true },
+      select: { id: true, name: true, signatureUrl: true, position: true }
+    });
+  }
+
+  const activeConfigs = await prisma.leaveConfig.findMany({
+    where: { isActive: true },
+    orderBy: { createdAt: "asc" }
+  });
+
+  for (const request of requests) {
+    let headApprover = null;
+    let execApprover = null;
+    let inspector = defaultInspector;
+
+    if (request.headApproverId) {
+      headApprover = await prisma.user.findUnique({
+        where: { id: request.headApproverId },
+        select: { name: true, signatureUrl: true, position: true }
+      });
+    }
+
+    // Fallback to default HR Head if headApprover is null
+    if (!headApprover) {
+      headApprover = await prisma.user.findFirst({
+        where: { position: "หัวหน้างานบุคคล", isApproved: true },
+        select: { name: true, signatureUrl: true, position: true }
+      });
+    }
+
+    // Hide head approver signature if request is still pending head approval
+    if (headApprover) {
+      const isPendingHead = request.status === "PENDING_HEAD";
+      headApprover = {
+        ...headApprover,
+        signatureUrl: isPendingHead ? null : headApprover.signatureUrl
+      };
+    }
+
+    if (request.execApproverId) {
+      execApprover = await prisma.user.findUnique({
+        where: { id: request.execApproverId },
+        select: { name: true, signatureUrl: true, position: true }
+      });
+    }
+
+    if (inspector) {
+      const isPendingHead = request.status === "PENDING_HEAD";
+      inspector = {
+        ...inspector,
+        signatureUrl: isPendingHead ? null : inspector.signatureUrl
+      };
+    }
+
+    const startDate = request.startDate;
+    const yearVal = startDate.getFullYear();
+    const month = startDate.getMonth();
+    let fyStartYear = yearVal;
+    if (month < 9) {
+      fyStartYear = yearVal - 1;
+    }
+    const fyStart = new Date(fyStartYear, 9, 1);
+    const fyEnd = new Date(fyStartYear + 1, 8, 30, 23, 59, 59, 999);
+
+    const approvedInYear = await prisma.leaveRequest.findMany({
+      where: {
+        userId: request.userId,
+        status: "APPROVED",
+        startDate: { gte: fyStart, lte: fyEnd }
+      }
+    });
+
+    const stats: Record<string, { name: string, prev: number, current: number, total: number }> = {};
+    for (const config of activeConfigs) {
+      stats[config.type] = {
+        name: config.name,
+        prev: 0,
+        current: 0,
+        total: 0,
+      };
+    }
+
+    if (!stats[request.type]) {
+      const reqConfig = await prisma.leaveConfig.findUnique({
+        where: { type: request.type }
+      });
+      stats[request.type] = {
+        name: reqConfig?.name || request.type,
+        prev: 0,
+        current: 0,
+        total: 0,
+      };
+    }
+
+    const currentDays = calculateLeaveDays(request.startDate, request.endDate, request.type);
+    stats[request.type].current = currentDays;
+
+    for (const r of approvedInYear) {
+      if (r.id === request.id) continue;
+      const days = calculateLeaveDays(r.startDate, r.endDate, r.type);
+      if (r.startDate < request.startDate) {
+        if (stats[r.type]) {
+          stats[r.type].prev += days;
+        }
+      }
+    }
+
+    for (const type of Object.keys(stats)) {
+      stats[type].total = stats[type].prev + stats[type].current;
+    }
+
+    const lastRequest = await prisma.leaveRequest.findFirst({
+      where: {
+        userId: request.userId,
+        type: request.type,
+        status: "APPROVED",
+        startDate: { lt: request.startDate }
+      },
+      orderBy: { startDate: "desc" }
+    });
+
+    let lastLeaveInfo = null;
+    if (lastRequest) {
+      lastLeaveInfo = {
+        startDate: lastRequest.startDate.toISOString(),
+        endDate: lastRequest.endDate.toISOString(),
+        days: calculateLeaveDays(lastRequest.startDate, lastRequest.endDate, lastRequest.type),
+      };
+    }
+
+    results.push({
+      request: {
+        ...request,
+        startDate: request.startDate.toISOString(),
+        endDate: request.endDate.toISOString(),
+        createdAt: request.createdAt.toISOString(),
+        updatedAt: request.updatedAt.toISOString(),
+        days: currentDays,
+      },
+      stats,
+      lastLeaveInfo,
+      headApprover,
+      execApprover,
+      inspector,
+      fiscalYearLabel: `ปีงบประมาณ ${fyStartYear + 1 + 543}`,
+    });
+  }
+
+  return results;
+}
+
