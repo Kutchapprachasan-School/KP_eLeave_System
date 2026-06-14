@@ -97,6 +97,8 @@ model SystemSettings {
   memoThresholdDays      Int      @default(15)
   defaultInspectorId     String?
   actingDirectorTitle    String   @default("รักษาการในตำแหน่งผู้อำนวยการโรงเรียน")
+  finalApproverUserIds   String   @default("") // Comma-separated user IDs allowed to give final approval (in addition to ผู้บริหาร)
+  showActingDirectorTitle Boolean @default(true) // Toggle display of acting director title on printed forms
   updatedAt              DateTime @updatedAt
 }
 

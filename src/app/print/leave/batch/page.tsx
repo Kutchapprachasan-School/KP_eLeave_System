@@ -716,7 +716,7 @@ function BatchPrintPageContent() {
                           return (
                             <>
                               <div className="text-[11px] text-slate-500 whitespace-nowrap">ตำแหน่ง {formattedPosition}</div>
-                              {execApprover && isDeputy && (
+                              {execApprover && isDeputy && settings?.showActingDirectorTitle !== false && (
                                 <div className="text-[11px] text-slate-500 whitespace-nowrap">
                                   {settings?.actingDirectorTitle || "รักษาการในตำแหน่งผู้อำนวยการโรงเรียน"}
                                 </div>

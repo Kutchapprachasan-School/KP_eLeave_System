@@ -26,6 +26,8 @@ export default function SettingsPage() {
   const [memoThresholdTimes, setMemoThresholdTimes] = useState(6);
   const [memoThresholdDays, setMemoThresholdDays] = useState(15);
   const [actingDirectorTitle, setActingDirectorTitle] = useState("");
+  const [finalApproverUserIds, setFinalApproverUserIds] = useState<string[]>([]);
+  const [showActingDirectorTitle, setShowActingDirectorTitle] = useState(true);
   const [isImpersonating, setIsImpersonating] = useState(false);
   
   const [leaveConfigs, setLeaveConfigs] = useState<any[]>([]);
@@ -63,6 +65,12 @@ export default function SettingsPage() {
       setMemoThresholdDays(data.memoThresholdDays ?? 15);
       setDefaultInspectorId(data.defaultInspectorId || "");
       setActingDirectorTitle(data.actingDirectorTitle || "รักษาการในตำแหน่งผู้อำนวยการโรงเรียน");
+      setFinalApproverUserIds(
+        data.finalApproverUserIds
+          ? data.finalApproverUserIds.split(",").map((s: string) => s.trim()).filter(Boolean)
+          : []
+      );
+      setShowActingDirectorTitle(data.showActingDirectorTitle !== false);
     });
 
     getEligibleInspectors().then(setEligibleInspectors);
@@ -85,7 +93,9 @@ export default function SettingsPage() {
         memoThresholdTimes,
         memoThresholdDays,
         defaultInspectorId: defaultInspectorId || null,
-        actingDirectorTitle
+        actingDirectorTitle,
+        finalApproverUserIds: finalApproverUserIds.join(","),
+        showActingDirectorTitle
       });
       alert("บันทึกการตั้งค่าทั่วไปสำเร็จ");
     } catch (error: any) {
@@ -609,17 +619,86 @@ export default function SettingsPage() {
                     ))}
                   </select>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    {lang === "en" ? "Acting Director Title (When not approved by Director)" : "ข้อความระบุกรณีไม่ใช่ ผอ. อนุมัติ (เช่น รักษาการฯ / รักษาราชการแทน)"}
-                  </label>
-                  <input
-                    type="text"
-                    value={actingDirectorTitle}
-                    onChange={(e) => setActingDirectorTitle(e.target.value)}
-                    className="w-full h-11 px-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm mb-4"
-                    placeholder="รักษาการในตำแหน่งผู้อำนวยการโรงเรียน"
-                  />
+                {/* Final Approver Configuration Section */}
+                <div className="border-t border-gray-100 dark:border-gray-800 pt-6 space-y-4">
+                  <h4 className="text-md font-semibold text-gray-900 dark:text-white mb-2 flex items-center gap-2">
+                    <ShieldAlert className="w-4 h-4 text-emerald-500" />
+                    {lang === "en" ? "Final Approval Configuration" : "การตั้งค่าผู้อนุมัติขั้นสุดท้าย"}
+                  </h4>
+                  <div className="p-3.5 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200/40 dark:border-emerald-900/40 rounded-xl text-xs text-emerald-700 dark:text-emerald-300 font-semibold flex items-start gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
+                    <span>{lang === "en"
+                      ? "The Director (position: ผู้บริหาร) and Admin can always give final approval. Use the list below to allow additional users."
+                      : "ผู้อำนวยการโรงเรียน (ตำแหน่ง: ผู้บริหาร) และแอดมิน สามารถอนุมัติขั้นสุดท้ายได้เสมอ ใช้รายการด้านล่างเพื่อเพิ่มผู้มีสิทธิ์อนุมัติ"
+                    }</span>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      {lang === "en" ? "Additional Final Approvers" : "ผู้มีสิทธิ์อนุมัติขั้นสุดท้ายเพิ่มเติม"}
+                    </label>
+                    <div className="max-h-48 overflow-y-auto rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-2 space-y-1">
+                      {eligibleInspectors
+                        .filter((u) => u.position !== "ผู้บริหาร") // Director is always included, don't show in list
+                        .map((u) => (
+                        <label key={u.id} className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer transition-colors">
+                          <input
+                            type="checkbox"
+                            checked={finalApproverUserIds.includes(u.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setFinalApproverUserIds(prev => [...prev, u.id]);
+                              } else {
+                                setFinalApproverUserIds(prev => prev.filter(id => id !== u.id));
+                              }
+                            }}
+                            className="w-4 h-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                          />
+                          <span className="text-sm text-gray-900 dark:text-white">{u.name}</span>
+                          {u.position && (
+                            <span className="text-xs text-gray-500 dark:text-gray-400">({u.position})</span>
+                          )}
+                        </label>
+                      ))}
+                      {eligibleInspectors.filter((u) => u.position !== "ผู้บริหาร").length === 0 && (
+                        <p className="text-xs text-gray-400 text-center py-3">{lang === "en" ? "No eligible users found" : "ไม่พบผู้ใช้ที่มีสิทธิ์"}</p>
+                      )}
+                    </div>
+                    {finalApproverUserIds.length > 0 && (
+                      <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-2 font-semibold">
+                        ✓ {lang === "en" ? `${finalApproverUserIds.length} additional approver(s) selected` : `เลือกแล้ว ${finalApproverUserIds.length} คน`}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Acting Director Title Toggle */}
+                  <div className="mt-4">
+                    <label className="flex items-center gap-2 cursor-pointer text-sm font-semibold text-gray-700 dark:text-gray-300">
+                      <input
+                        type="checkbox"
+                        checked={showActingDirectorTitle}
+                        onChange={(e) => setShowActingDirectorTitle(e.target.checked)}
+                        className="w-4 h-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                      />
+                      <span>{lang === "en" ? "Show 'Acting Director' title on printed leave forms" : "แสดงแถว \"รักษาการในตำแหน่ง ผอ.\" ในใบลา (กรณีไม่ใช่ ผอ. ลงนาม)"}</span>
+                    </label>
+                    <p className="text-xs text-gray-500 mt-1 pl-6">{lang === "en" ? "When enabled, an additional title line will appear below the approver's signature on printed forms when the final approver is not the Director." : "เมื่อเปิดใช้งาน จะแสดงข้อความระบุตำแหน่งรักษาการฯ ใต้ลายเซ็นต์ผู้อนุมัติในใบลาที่พิมพ์ กรณีผู้อนุมัติไม่ใช่ ผอ."}</p>
+                  </div>
+
+                  {showActingDirectorTitle && (
+                    <div className="mt-2 pl-6">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        {lang === "en" ? "Acting Director Title Text" : "ข้อความรักษาการฯ"}
+                      </label>
+                      <input
+                        type="text"
+                        value={actingDirectorTitle}
+                        onChange={(e) => setActingDirectorTitle(e.target.value)}
+                        className="w-full h-11 px-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm"
+                        placeholder="รักษาการในตำแหน่งผู้อำนวยการโรงเรียน"
+                      />
+                    </div>
+                  )}
                 </div>
                 <div className="border-t border-gray-100 dark:border-gray-800 pt-6 space-y-4">
                   <h4 className="text-md font-semibold text-gray-900 dark:text-white mb-2">{lang === "en" ? "General Restrictions" : "ข้อจำกัดทั่วไป"}</h4>

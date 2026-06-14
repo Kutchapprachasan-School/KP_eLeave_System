@@ -329,11 +329,32 @@ export async function getStaffList() {
   return users;
 }
 
+// ========= Helper: Check if user can give final approval =========
+async function canGiveFinalApproval(userId: string, userPosition: string | null, userRole: string): Promise<boolean> {
+  // Director (ผู้บริหาร) can always give final approval
+  if (userPosition === "ผู้บริหาร") return true;
+  // Admin can always give final approval
+  if (userRole === "ADMIN" || userPosition === "แอดมิน") return true;
+  // Check if user is in the configurable final approver list
+  const settings = await prisma.systemSettings.findUnique({
+    where: { id: "default" },
+    select: { finalApproverUserIds: true }
+  });
+  if (settings?.finalApproverUserIds) {
+    const allowedIds = settings.finalApproverUserIds.split(",").map(s => s.trim()).filter(Boolean);
+    if (allowedIds.includes(userId)) return true;
+  }
+  return false;
+}
+
 // ========= Get Dashboard Stats (Role-based) =========
 export async function getDashboardStats(cycleFilter: "current" | "cycle1" | "cycle2" | "year" | "all" = "current", lang: "th" | "en" = "th") {
   const session = await getSession();
   const user = session.user as any;
-  const isApprover = user.role === "ADMIN" || ["ผู้บริหาร", "หัวหน้างานบุคคล", "แอดมิน"].includes(user.position);
+  
+  // Check if user is a configured final approver
+  const isFinalApprover = await canGiveFinalApproval(session.user.id, user.position, user.role);
+  const isApprover = user.role === "ADMIN" || ["ผู้บริหาร", "หัวหน้างานบุคคล", "แอดมิน"].includes(user.position) || isFinalApprover;
 
   // Fetch Leave Configs dynamically
   const { getLeaveConfigs } = await import("./settings");
@@ -381,16 +402,14 @@ export async function getDashboardStats(cycleFilter: "current" | "cycle1" | "cyc
   }
 
   // Get pending count
-  const isDirectorOrDeputy = user.position === "ผู้บริหาร" || 
-                             user.position === "รองผู้อำนวยการ" || 
-                             (user.position && user.position.startsWith("รองผู้อำนวยการ"));
+  const isDirector = user.position === "ผู้บริหาร";
 
   let pendingWhere: any = { status: { in: ["PENDING_HEAD", "PENDING_EXEC"] } };
   if (!isApprover) {
     pendingWhere = { userId: session.user.id, status: { in: ["PENDING_HEAD", "PENDING_EXEC"] } };
   } else if (user.position === "หัวหน้างานบุคคล") {
     pendingWhere = { status: "PENDING_HEAD" };
-  } else if (isDirectorOrDeputy) {
+  } else if (isDirector || isFinalApprover) {
     pendingWhere = { status: "PENDING_EXEC" };
   }
 
@@ -529,17 +548,16 @@ export async function getPendingApprovals() {
 
   let whereClause: any = {};
 
-  const isDirectorOrDeputy = user.position === "ผู้บริหาร" || 
-                             user.position === "รองผู้อำนวยการ" || 
-                             (user.position && user.position.startsWith("รองผู้อำนวยการ"));
+  const isDirector = user.position === "ผู้บริหาร";
+  const isFinalApprover = await canGiveFinalApproval(session.user.id, user.position, user.role);
 
   if (user.position === "หัวหน้างานบุคคล") {
     // HR Head sees all PENDING_HEAD requests
     whereClause = {
       status: "PENDING_HEAD",
     };
-  } else if (isDirectorOrDeputy) {
-    // Executive/Deputy sees PENDING_EXEC requests
+  } else if (isDirector || isFinalApprover) {
+    // Director or configured final approver sees PENDING_EXEC requests
     whereClause = { status: "PENDING_EXEC" };
   } else if (user.role === "ADMIN" || user.position === "แอดมิน") {
     // Admin sees ALL pending requests
@@ -584,19 +602,17 @@ export async function approveLeaveRequest(id: string) {
   let newStatus = "";
   let updateData: any = {};
 
-  const isDirectorOrDeputy = user.position === "ผู้บริหาร" || 
-                             user.position === "รองผู้อำนวยการ" || 
-                             (user.position && user.position.startsWith("รองผู้อำนวยการ"));
+  const isFinalApprover = await canGiveFinalApproval(session.user.id, user.position, user.role);
 
   if (user.position === "หัวหน้างานบุคคล" && request.status === "PENDING_HEAD") {
     // Head approves -> move to Executive
     newStatus = "PENDING_EXEC";
     updateData = { status: newStatus, headApproverId: session.user.id };
   } else if (
-    (isDirectorOrDeputy || user.role === "ADMIN" || user.position === "แอดมิน") &&
+    isFinalApprover &&
     (request.status === "PENDING_EXEC" || request.status === "PENDING_HEAD")
   ) {
-    // Executive/Admin gives final approval
+    // Director / configured final approver gives final approval
     newStatus = "APPROVED";
     
     const fy = request.fiscalYear || getFiscalYear(request.startDate);
@@ -659,15 +675,13 @@ export async function rejectLeaveRequest(id: string, rejectReason?: string) {
     throw new Error("จำเป็นต้องระบุเหตุผลในการปฏิเสธการอนุมัติ");
   }
 
-  const isDirectorOrDeputy = user.position === "ผู้บริหาร" || 
-                             user.position === "รองผู้อำนวยการ" || 
-                             (user.position && user.position.startsWith("รองผู้อำนวยการ"));
+  const isFinalApprover = await canGiveFinalApproval(session.user.id, user.position, user.role);
 
   let canReject = false;
   if (user.position === "หัวหน้างานบุคคล" && request.status === "PENDING_HEAD") {
     canReject = true;
   } else if (
-    (isDirectorOrDeputy || user.role === "ADMIN" || user.position === "แอดมิน") &&
+    isFinalApprover &&
     (request.status === "PENDING_EXEC" || request.status === "PENDING_HEAD")
   ) {
     canReject = true;
@@ -678,9 +692,11 @@ export async function rejectLeaveRequest(id: string, rejectReason?: string) {
   }
 
   let updateData: any = { status: "REJECTED", rejectReason: rejectReason.trim() };
-  if (user.position === "หัวหน้างานบุคคล") {
+  if (user.position === "หัวหน้างานบุคคล" && !isFinalApprover) {
+    // HR Head rejecting at PENDING_HEAD stage
     updateData.headApproverId = session.user.id;
-  } else if (isDirectorOrDeputy || user.role === "ADMIN" || user.position === "แอดมิน") {
+  } else if (isFinalApprover) {
+    // Director / configured final approver rejecting
     updateData.execApproverId = session.user.id;
   }
 

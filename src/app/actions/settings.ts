@@ -118,6 +118,8 @@ export async function updateSystemSettings(data: {
   memoThresholdDays?: number;
   defaultInspectorId?: string | null;
   actingDirectorTitle?: string;
+  finalApproverUserIds?: string;
+  showActingDirectorTitle?: boolean;
 }) {
   await requireSuperAdmin();
 
@@ -136,6 +138,8 @@ export async function updateSystemSettings(data: {
       memoThresholdDays: data.memoThresholdDays !== undefined ? data.memoThresholdDays : undefined,
       defaultInspectorId: data.defaultInspectorId !== undefined ? data.defaultInspectorId : undefined,
       actingDirectorTitle: data.actingDirectorTitle !== undefined ? data.actingDirectorTitle : undefined,
+      finalApproverUserIds: data.finalApproverUserIds !== undefined ? data.finalApproverUserIds : undefined,
+      showActingDirectorTitle: data.showActingDirectorTitle !== undefined ? data.showActingDirectorTitle : undefined,
     },
     create: {
       id: "default",
@@ -151,6 +155,8 @@ export async function updateSystemSettings(data: {
       memoThresholdDays: data.memoThresholdDays !== undefined ? data.memoThresholdDays : 15,
       defaultInspectorId: data.defaultInspectorId !== undefined ? data.defaultInspectorId : null,
       actingDirectorTitle: data.actingDirectorTitle || "รักษาการในตำแหน่งผู้อำนวยการโรงเรียน",
+      finalApproverUserIds: data.finalApproverUserIds || "",
+      showActingDirectorTitle: data.showActingDirectorTitle !== undefined ? data.showActingDirectorTitle : true,
       footerText: "© 2006 Panchapon Getrat KP-school",
       developerSecret: "admin1234"
     }
