@@ -96,6 +96,7 @@ model SystemSettings {
   memoThresholdTimes     Int      @default(6)
   memoThresholdDays      Int      @default(15)
   defaultInspectorId     String?
+  actingDirectorTitle    String   @default("รักษาการในตำแหน่งผู้อำนวยการโรงเรียน")
   updatedAt              DateTime @updatedAt
 }
 

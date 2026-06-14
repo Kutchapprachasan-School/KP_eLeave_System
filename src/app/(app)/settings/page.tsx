@@ -25,6 +25,7 @@ export default function SettingsPage() {
   const [requirePersonalAdvance, setRequirePersonalAdvance] = useState(true);
   const [memoThresholdTimes, setMemoThresholdTimes] = useState(6);
   const [memoThresholdDays, setMemoThresholdDays] = useState(15);
+  const [actingDirectorTitle, setActingDirectorTitle] = useState("");
   const [isImpersonating, setIsImpersonating] = useState(false);
   
   const [leaveConfigs, setLeaveConfigs] = useState<any[]>([]);
@@ -61,6 +62,7 @@ export default function SettingsPage() {
       setMemoThresholdTimes(data.memoThresholdTimes ?? 6);
       setMemoThresholdDays(data.memoThresholdDays ?? 15);
       setDefaultInspectorId(data.defaultInspectorId || "");
+      setActingDirectorTitle(data.actingDirectorTitle || "รักษาการในตำแหน่งผู้อำนวยการโรงเรียน");
     });
 
     getEligibleInspectors().then(setEligibleInspectors);
@@ -82,7 +84,8 @@ export default function SettingsPage() {
         requirePersonalAdvance,
         memoThresholdTimes,
         memoThresholdDays,
-        defaultInspectorId: defaultInspectorId || null
+        defaultInspectorId: defaultInspectorId || null,
+        actingDirectorTitle
       });
       alert("บันทึกการตั้งค่าทั่วไปสำเร็จ");
     } catch (error: any) {
@@ -605,6 +608,18 @@ export default function SettingsPage() {
                       </option>
                     ))}
                   </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    {lang === "en" ? "Acting Director Title (When not approved by Director)" : "ข้อความระบุกรณีไม่ใช่ ผอ. อนุมัติ (เช่น รักษาการฯ / รักษาราชการแทน)"}
+                  </label>
+                  <input
+                    type="text"
+                    value={actingDirectorTitle}
+                    onChange={(e) => setActingDirectorTitle(e.target.value)}
+                    className="w-full h-11 px-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm mb-4"
+                    placeholder="รักษาการในตำแหน่งผู้อำนวยการโรงเรียน"
+                  />
                 </div>
                 <div className="border-t border-gray-100 dark:border-gray-800 pt-6 space-y-4">
                   <h4 className="text-md font-semibold text-gray-900 dark:text-white mb-2">{lang === "en" ? "General Restrictions" : "ข้อจำกัดทั่วไป"}</h4>

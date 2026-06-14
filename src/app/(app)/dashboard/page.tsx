@@ -312,7 +312,7 @@ export default function DashboardPage() {
                 } else if (req.status === "PENDING_HEAD") {
                   statusLabel = lang === "en" ? "Pending HR" : "รอหัวหน้างานบุคคล";
                 } else if (req.status === "PENDING_EXEC") {
-                  statusLabel = lang === "en" ? "Pending Executive" : "รอผู้บริหาร";
+                  statusLabel = lang === "en" ? "Pending Director" : "รอผู้อำนวยการ";
                 }
 
                 return (

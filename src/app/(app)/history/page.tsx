@@ -134,9 +134,24 @@ export default function HistoryPage() {
   const [loading, setLoading] = useState(true);
   const [staffList, setStaffList] = useState<any[]>([]);
   const [selectedUserId, setSelectedUserId] = useState<string>("me");
+  const [selectedStatus, setSelectedStatus] = useState<string>("all");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
   const printRef = useRef<HTMLDivElement>(null);
+
+  const filteredHistory = history.filter((item) => {
+    if (selectedStatus === "all") return true;
+    if (selectedStatus === "pending") {
+      return item.status === "PENDING_HEAD" || item.status === "PENDING_EXEC";
+    }
+    if (selectedStatus === "approved") {
+      return item.status === "APPROVED";
+    }
+    if (selectedStatus === "rejected") {
+      return item.status === "REJECTED" || item.status === "CANCELLED";
+    }
+    return true;
+  });
 
   const getCycleLabel = () => {
     if (cycleParam === "all") {
@@ -176,7 +191,9 @@ export default function HistoryPage() {
       case "CANCELLED":
         return <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-xs font-medium border border-slate-200 dark:border-slate-700"><FileX className="w-3.5 h-3.5" /> {t("cancelled")}</span>;
       case "PENDING_HEAD":
+        return <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-orange-50 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400 text-xs font-medium border border-orange-200 dark:border-orange-800"><Clock className="w-3.5 h-3.5" /> {lang === "en" ? "Pending HR Head" : "รอหัวหน้างานบุคคล"}</span>;
       case "PENDING_EXEC":
+        return <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-orange-50 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400 text-xs font-medium border border-orange-200 dark:border-orange-800"><Clock className="w-3.5 h-3.5" /> {lang === "en" ? "Pending Director" : "รอผู้อำนวยการ"}</span>;
       default:
         return <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-orange-50 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400 text-xs font-medium border border-orange-200 dark:border-orange-800"><Clock className="w-3.5 h-3.5" /> {t("pending")}</span>;
     }
@@ -187,6 +204,8 @@ export default function HistoryPage() {
       case "APPROVED": return t("approved");
       case "REJECTED": return t("rejected");
       case "CANCELLED": return t("cancelled");
+      case "PENDING_HEAD": return lang === "en" ? "Pending HR Head" : "รอหัวหน้างานบุคคล";
+      case "PENDING_EXEC": return lang === "en" ? "Pending Director" : "รอผู้อำนวยการ";
       default: return t("pending");
     }
   };
@@ -250,7 +269,7 @@ export default function HistoryPage() {
       </tr>
     `;
 
-    const rows = history.map((item, i) => `
+    const rows = filteredHistory.map((item, i) => `
       <tr>
         <td style="border:1px solid #ddd;padding:8px;text-align:center;">${i + 1}</td>
         <td style="border:1px solid #ddd;padding:8px;">
@@ -303,7 +322,7 @@ export default function HistoryPage() {
             ${rows}
           </tbody>
         </table>
-        <div class="footer">ทั้งหมด ${history.length} รายการ</div>
+        <div class="footer">ทั้งหมด ${filteredHistory.length} รายการ</div>
       </body>
       </html>
     `);
@@ -317,7 +336,7 @@ export default function HistoryPage() {
     const leaveTypeMap: Record<string, string> = {};
     leaveConfigs.forEach(c => { leaveTypeMap[c.type] = c.name; });
 
-    const formattedData = history.map((item) => {
+    const formattedData = filteredHistory.map((item) => {
       const row: any = {
         "เลขที่ใบลา": item.status === "APPROVED" 
           ? `อนุมัติที่ ${item.approvedSeq || "-"}/${item.fiscalYear || "-"}` 
@@ -376,7 +395,20 @@ export default function HistoryPage() {
             </select>
           )}
           <CycleSelect defaultValue="all" showAll={true} />
-          {history.length > 0 && (
+          <select
+            value={selectedStatus}
+            onChange={(e) => {
+              setSelectedStatus(e.target.value);
+              setCurrentPage(1);
+            }}
+            className="h-10 px-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all cursor-pointer"
+          >
+            <option value="all">{lang === "en" ? "Status: All" : "สถานะ: ทั้งหมด"}</option>
+            <option value="pending">{lang === "en" ? "Status: Pending" : "สถานะ: รอดำเนินการ"}</option>
+            <option value="approved">{lang === "en" ? "Status: Approved" : "สถานะ: อนุมัติแล้ว"}</option>
+            <option value="rejected">{lang === "en" ? "Status: Disapproved" : "สถานะ: ไม่อนุมัติ/ยกเลิก"}</option>
+          </select>
+          {filteredHistory.length > 0 && (
             <>
               <button
                 onClick={handlePrint}
@@ -407,8 +439,8 @@ export default function HistoryPage() {
             ))}
           </div>
         ) : (() => {
-          const totalPages = Math.ceil(history.length / itemsPerPage);
-          const paginatedHistory = history.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+          const totalPages = Math.ceil(filteredHistory.length / itemsPerPage);
+          const paginatedHistory = filteredHistory.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
           
           return (
             <div className="overflow-x-auto">
@@ -429,12 +461,18 @@ export default function HistoryPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {history.length === 0 ? (
+                  {filteredHistory.length === 0 ? (
                     <tr>
                       <td colSpan={10} className="px-6 py-12 text-center text-slate-400">
                         <div className="flex flex-col items-center gap-2">
                           <CalendarDays className="w-8 h-8 text-slate-300 dark:text-slate-600" />
-                          <p>{t("noLeaveHistory")}</p>
+                          <p>
+                            {history.length === 0
+                              ? t("noLeaveHistory")
+                              : lang === "en"
+                                ? "No leave records match the filter"
+                                : "ไม่พบข้อมูลการลาที่ตรงกับตัวกรอง"}
+                          </p>
                         </div>
                       </td>
                     </tr>
@@ -521,10 +559,10 @@ export default function HistoryPage() {
               </table>
 
               {/* Pagination Bar */}
-              {history.length > itemsPerPage && (
+              {filteredHistory.length > itemsPerPage && (
                 <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-6 py-5 border-t border-slate-100 dark:border-slate-800/80 mt-4 print:hidden">
                   <div className="text-xs font-semibold text-slate-400 dark:text-slate-500">
-                    {lang === "en" ? "Showing" : "แสดง"} {((currentPage - 1) * itemsPerPage) + 1} - {Math.min(currentPage * itemsPerPage, history.length)} {lang === "en" ? "of" : "จาก"} {history.length} {lang === "en" ? "records" : "รายการ"}
+                    {lang === "en" ? "Showing" : "แสดง"} {((currentPage - 1) * itemsPerPage) + 1} - {Math.min(currentPage * itemsPerPage, filteredHistory.length)} {lang === "en" ? "of" : "จาก"} {filteredHistory.length} {lang === "en" ? "records" : "รายการ"}
                   </div>
                   
                   <div className="flex items-center gap-1.5">

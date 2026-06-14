@@ -580,13 +580,16 @@ function BatchPrintPageContent() {
                 <div className="flex flex-col items-center justify-center mt-3 space-y-1 ml-auto w-[300px] text-center relative">
                   <div className="text-sm">ขอแสดงความนับถือ</div>
                   
-                  <div className="h-10 flex items-center justify-center relative w-full">
+                  <div className="relative w-full h-10 flex items-end justify-center">
+                    <div className="z-10">(ลงชื่อ) ........................................ ผู้ลา</div>
                     {request.user.signatureUrl && (
-                      <img src={request.user.signatureUrl} alt="Signature" className="max-h-10 max-w-full object-contain absolute bottom-0 dark:invert" />
+                      <img 
+                        src={request.user.signatureUrl} 
+                        alt="Signature" 
+                        className="max-h-12 max-w-[150px] object-contain absolute bottom-[2px] z-20 pointer-events-none dark:invert" 
+                      />
                     )}
                   </div>
-                  
-                  <div>(ลงชื่อ) ........................................ ผู้ลา</div>
                   <div className="font-semibold">( {request.user.name} )</div>
                 </div>
 
@@ -624,12 +627,16 @@ function BatchPrintPageContent() {
 
                     {/* Inspector Signature */}
                     <div className="text-center pt-1.5 space-y-1">
-                      <div className="h-8 flex items-center justify-center relative w-full">
+                      <div className="relative w-full h-8 flex items-end justify-center">
+                        <div className="z-10">(ลงชื่อ) ........................................ ผู้ตรวจสอบ</div>
                         {inspector?.signatureUrl && (
-                          <img src={inspector.signatureUrl} alt="Signature" className="max-h-8 max-w-full object-contain absolute dark:invert" />
+                          <img 
+                            src={inspector.signatureUrl} 
+                            alt="Signature" 
+                            className="max-h-10 max-w-[120px] object-contain absolute bottom-[2px] z-20 pointer-events-none dark:invert" 
+                          />
                         )}
                       </div>
-                      <div>(ลงชื่อ) ........................................ ผู้ตรวจสอบ</div>
                       <div>( {inspector ? inspector.name : "..................................................."} )</div>
                       <div className="text-[11px] text-slate-500">ตำแหน่ง {inspector?.position === "ผู้ตรวจสอบ" ? "ครู" : (inspector?.position || "หัวหน้างานบุคคล")}</div>
                       <div className="text-[11px] text-slate-500">วันที่ {request.createdAt ? toThaiDateString(request.createdAt) : "........./........../.........."}</div>
@@ -642,15 +649,27 @@ function BatchPrintPageContent() {
                     <div className="space-y-2">
                       <div className="font-bold text-xs underline">ความเห็นของผู้บังคับบัญชา</div>
                       <div className="text-sm text-slate-600 italic leading-relaxed min-h-[30px] border-b border-dashed border-slate-200">
-                        {request.status === "PENDING_EXEC" || request.status === "APPROVED" ? "✓ เห็นควรเสนอผู้อำนวยการเพื่อพิจารณาอนุญาต" : "..........................................................................."}
+                        {request.status === "REJECTED" && !request.execApproverId ? (
+                          <span className="text-rose-600 font-bold">❌ ไม่อนุมัติ เนื่องจาก {request.rejectReason}</span>
+                        ) : (
+                          request.status === "PENDING_EXEC" || request.status === "APPROVED" || (request.status === "REJECTED" && request.execApproverId) ? (
+                            "✓ เห็นควรเสนอผู้อำนวยการเพื่อพิจารณาอนุญาต"
+                          ) : (
+                            "..........................................................................."
+                          )
+                        )}
                       </div>
                       <div className="text-center pt-1.5 space-y-1">
-                        <div className="h-8 flex items-center justify-center relative w-full">
+                        <div className="relative w-full h-8 flex items-end justify-center">
+                          <div className="z-10">(ลงชื่อ) ........................................ ผู้ตรวจสอบ</div>
                           {headApprover?.signatureUrl && (
-                            <img src={headApprover.signatureUrl} alt="Signature" className="max-h-8 max-w-full object-contain absolute dark:invert" />
+                            <img 
+                              src={headApprover.signatureUrl} 
+                              alt="Signature" 
+                              className="max-h-10 max-w-[120px] object-contain absolute bottom-[2px] z-20 pointer-events-none dark:invert" 
+                            />
                           )}
                         </div>
-                        <div>(ลงชื่อ) ........................................</div>
                         <div>( {headApprover ? headApprover.name : "..................................................."} )</div>
                         <div className="text-[11px] text-slate-500">ตำแหน่ง {headApprover ? (headApprover.position || "หัวหน้างานบุคคล") : "หัวหน้างานบุคคล"}</div>
                       </div>
@@ -668,23 +687,43 @@ function BatchPrintPageContent() {
                         </div>
                         <div className="flex items-baseline flex-wrap">
                           <span className="form-checkbox shrink-0">
-                            {request.status === "REJECTED" ? "✓" : ""}
+                            {(request.status === "REJECTED" && request.execApproverId) ? "✓" : ""}
                           </span>
                           <span className="shrink-0">ไม่อนุญาต เนื่องจาก</span>
                           <span className="flex-1 form-line-dotted pl-2 min-w-[120px] text-center font-bold">
-                            {request.status === "REJECTED" ? (request.rejectReason || "ไม่อนุญาต") : ""}
+                            {(request.status === "REJECTED" && request.execApproverId) ? (request.rejectReason || "ไม่อนุญาต") : ""}
                           </span>
                         </div>
                       </div>
                       <div className="text-center pt-1.5 space-y-1">
-                        <div className="h-8 flex items-center justify-center relative w-full">
+                        <div className="relative w-full h-8 flex items-end justify-center">
+                          <div className="z-10">(ลงชื่อ) ........................................</div>
                           {execApprover?.signatureUrl && (
-                            <img src={execApprover.signatureUrl} alt="Signature" className="max-h-8 max-w-full object-contain absolute dark:invert" />
+                            <img 
+                              src={execApprover.signatureUrl} 
+                              alt="Signature" 
+                              className="max-h-10 max-w-[120px] object-contain absolute bottom-[2px] z-20 pointer-events-none dark:invert" 
+                            />
                           )}
                         </div>
-                        <div>(ลงชื่อ) ........................................</div>
                         <div>( {execApprover ? execApprover.name : "..................................................."} )</div>
-                        <div className="text-[11px] text-slate-500 whitespace-nowrap">ตำแหน่ง {execApprover ? (execApprover.position || "ผู้อำนวยการ" + (settings?.schoolName || "โรงเรียน")) : "ผู้อำนวยการ" + (settings?.schoolName || "โรงเรียน")}</div>
+                        {(() => {
+                          const isDeputy = execApprover?.position && (execApprover.position.includes("รองผู้อำนวยการ") || execApprover.position.startsWith("รอง"));
+                          const school = settings?.schoolName || "โรงเรียน";
+                          const formattedPosition = execApprover 
+                            ? (execApprover.position.includes("โรงเรียน") ? execApprover.position : `${execApprover.position}${school}`)
+                            : `ผู้อำนวยการ${school}`;
+                          return (
+                            <>
+                              <div className="text-[11px] text-slate-500 whitespace-nowrap">ตำแหน่ง {formattedPosition}</div>
+                              {execApprover && isDeputy && (
+                                <div className="text-[11px] text-slate-500 whitespace-nowrap">
+                                  {settings?.actingDirectorTitle || "รักษาการในตำแหน่งผู้อำนวยการโรงเรียน"}
+                                </div>
+                              )}
+                            </>
+                          );
+                        })()}
                         <div className="text-[11px] text-slate-500">วันที่ {request.execApproverId ? toThaiDateString(request.updatedAt) : "........./........../.........."}</div>
                       </div>
                     </div>

@@ -381,12 +381,16 @@ export async function getDashboardStats(cycleFilter: "current" | "cycle1" | "cyc
   }
 
   // Get pending count
+  const isDirectorOrDeputy = user.position === "ผู้บริหาร" || 
+                             user.position === "รองผู้อำนวยการ" || 
+                             (user.position && user.position.startsWith("รองผู้อำนวยการ"));
+
   let pendingWhere: any = { status: { in: ["PENDING_HEAD", "PENDING_EXEC"] } };
   if (!isApprover) {
     pendingWhere = { userId: session.user.id, status: { in: ["PENDING_HEAD", "PENDING_EXEC"] } };
   } else if (user.position === "หัวหน้างานบุคคล") {
     pendingWhere = { status: "PENDING_HEAD" };
-  } else if (user.position === "ผู้บริหาร") {
+  } else if (isDirectorOrDeputy) {
     pendingWhere = { status: "PENDING_EXEC" };
   }
 
@@ -525,13 +529,17 @@ export async function getPendingApprovals() {
 
   let whereClause: any = {};
 
+  const isDirectorOrDeputy = user.position === "ผู้บริหาร" || 
+                             user.position === "รองผู้อำนวยการ" || 
+                             (user.position && user.position.startsWith("รองผู้อำนวยการ"));
+
   if (user.position === "หัวหน้างานบุคคล") {
     // HR Head sees all PENDING_HEAD requests
     whereClause = {
       status: "PENDING_HEAD",
     };
-  } else if (user.position === "ผู้บริหาร") {
-    // Executive sees PENDING_EXEC requests (already approved by dept head)
+  } else if (isDirectorOrDeputy) {
+    // Executive/Deputy sees PENDING_EXEC requests
     whereClause = { status: "PENDING_EXEC" };
   } else if (user.role === "ADMIN" || user.position === "แอดมิน") {
     // Admin sees ALL pending requests
@@ -576,12 +584,16 @@ export async function approveLeaveRequest(id: string) {
   let newStatus = "";
   let updateData: any = {};
 
+  const isDirectorOrDeputy = user.position === "ผู้บริหาร" || 
+                             user.position === "รองผู้อำนวยการ" || 
+                             (user.position && user.position.startsWith("รองผู้อำนวยการ"));
+
   if (user.position === "หัวหน้างานบุคคล" && request.status === "PENDING_HEAD") {
     // Head approves -> move to Executive
     newStatus = "PENDING_EXEC";
     updateData = { status: newStatus, headApproverId: session.user.id };
   } else if (
-    (user.position === "ผู้บริหาร" || user.role === "ADMIN" || user.position === "แอดมิน") &&
+    (isDirectorOrDeputy || user.role === "ADMIN" || user.position === "แอดมิน") &&
     (request.status === "PENDING_EXEC" || request.status === "PENDING_HEAD")
   ) {
     // Executive/Admin gives final approval
@@ -647,11 +659,15 @@ export async function rejectLeaveRequest(id: string, rejectReason?: string) {
     throw new Error("จำเป็นต้องระบุเหตุผลในการปฏิเสธการอนุมัติ");
   }
 
+  const isDirectorOrDeputy = user.position === "ผู้บริหาร" || 
+                             user.position === "รองผู้อำนวยการ" || 
+                             (user.position && user.position.startsWith("รองผู้อำนวยการ"));
+
   let canReject = false;
   if (user.position === "หัวหน้างานบุคคล" && request.status === "PENDING_HEAD") {
     canReject = true;
   } else if (
-    (user.position === "ผู้บริหาร" || user.role === "ADMIN" || user.position === "แอดมิน") &&
+    (isDirectorOrDeputy || user.role === "ADMIN" || user.position === "แอดมิน") &&
     (request.status === "PENDING_EXEC" || request.status === "PENDING_HEAD")
   ) {
     canReject = true;
@@ -661,9 +677,16 @@ export async function rejectLeaveRequest(id: string, rejectReason?: string) {
     throw new Error("ไม่มีสิทธิ์ปฏิเสธคำขอลาในสถานะนี้");
   }
 
+  let updateData: any = { status: "REJECTED", rejectReason: rejectReason.trim() };
+  if (user.position === "หัวหน้างานบุคคล") {
+    updateData.headApproverId = session.user.id;
+  } else if (isDirectorOrDeputy || user.role === "ADMIN" || user.position === "แอดมิน") {
+    updateData.execApproverId = session.user.id;
+  }
+
   await prisma.leaveRequest.update({
     where: { id },
-    data: { status: "REJECTED", rejectReason: rejectReason.trim() },
+    data: updateData,
   });
 
   await writeLog(

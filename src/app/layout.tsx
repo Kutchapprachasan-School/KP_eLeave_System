@@ -1,12 +1,6 @@
 import type { Metadata } from "next";
-import { Noto_Sans_Thai } from "next/font/google";
 import { ThemeProvider } from "@/components/theme-provider";
 import "./globals.css";
-
-const notoSansThai = Noto_Sans_Thai({
-  variable: "--font-noto-sans-thai",
-  subsets: ["latin", "thai"],
-});
 
 export const metadata: Metadata = {
   title: "e-Leave System | ระบบลาออนไลน์",
@@ -19,8 +13,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="th" suppressHydrationWarning className={`${notoSansThai.variable} h-full antialiased`}>
-      <body className="min-h-full flex flex-col font-[var(--font-noto-sans-thai)]">
+    <html lang="th" suppressHydrationWarning className="h-full antialiased">
+      <body className="min-h-full flex flex-col">
         <ThemeProvider
           attribute="class"
           defaultTheme="light"

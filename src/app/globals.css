@@ -1,7 +1,8 @@
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@100..900&display=swap');
 @import "tailwindcss";
 
 @theme {
-  --font-sans: var(--font-noto-sans-thai), system-ui, -apple-system, sans-serif;
+  --font-sans: 'Noto Sans Thai', system-ui, -apple-system, sans-serif;
 }
 
 @custom-variant dark (&:is(.dark *));
@@ -36,7 +37,7 @@ body {
 }
 
 body, .font-sans, input, select, textarea, button {
-  font-family: var(--font-noto-sans-thai), system-ui, -apple-system, sans-serif !important;
+  font-family: 'Noto Sans Thai', system-ui, -apple-system, sans-serif !important;
 }
 
 /* Smooth transitions for theme changes */
