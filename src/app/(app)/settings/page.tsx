@@ -26,6 +26,8 @@ export default function SettingsPage() {
   const [memoThresholdTimes, setMemoThresholdTimes] = useState(6);
   const [memoThresholdDays, setMemoThresholdDays] = useState(15);
   const [actingDirectorTitle, setActingDirectorTitle] = useState("");
+  const [actingDirectorTitleType, setActingDirectorTitleType] = useState("รักษาการในตำแหน่งผู้อำนวยการโรงเรียน");
+  const [customActingDirectorTitle, setCustomActingDirectorTitle] = useState("");
   const [finalApproverUserIds, setFinalApproverUserIds] = useState<string[]>([]);
   const [showActingDirectorTitle, setShowActingDirectorTitle] = useState(true);
   const [isImpersonating, setIsImpersonating] = useState(false);
@@ -64,7 +66,18 @@ export default function SettingsPage() {
       setMemoThresholdTimes(data.memoThresholdTimes ?? 6);
       setMemoThresholdDays(data.memoThresholdDays ?? 15);
       setDefaultInspectorId(data.defaultInspectorId || "");
-      setActingDirectorTitle(data.actingDirectorTitle || "รักษาการในตำแหน่งผู้อำนวยการโรงเรียน");
+      const loadedTitle = data.actingDirectorTitle || "รักษาการในตำแหน่งผู้อำนวยการโรงเรียน";
+      setActingDirectorTitle(loadedTitle);
+      if ([
+        "ปฏิบัติราชการแทนผู้อำนวยการโรงเรียน",
+        "รักษาราชการแทนผู้อำนวยการโรงเรียน",
+        "รักษาการในตำแหน่งผู้อำนวยการโรงเรียน"
+      ].includes(loadedTitle)) {
+        setActingDirectorTitleType(loadedTitle);
+      } else {
+        setActingDirectorTitleType("custom");
+        setCustomActingDirectorTitle(loadedTitle);
+      }
       setFinalApproverUserIds(
         data.finalApproverUserIds
           ? data.finalApproverUserIds.split(",").map((s: string) => s.trim()).filter(Boolean)
@@ -93,7 +106,7 @@ export default function SettingsPage() {
         memoThresholdTimes,
         memoThresholdDays,
         defaultInspectorId: defaultInspectorId || null,
-        actingDirectorTitle,
+        actingDirectorTitle: actingDirectorTitleType === "custom" ? customActingDirectorTitle : actingDirectorTitleType,
         finalApproverUserIds: finalApproverUserIds.join(","),
         showActingDirectorTitle
       });
@@ -686,17 +699,45 @@ export default function SettingsPage() {
                   </div>
 
                   {showActingDirectorTitle && (
-                    <div className="mt-2 pl-6">
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        {lang === "en" ? "Acting Director Title Text" : "ข้อความรักษาการฯ"}
-                      </label>
-                      <input
-                        type="text"
-                        value={actingDirectorTitle}
-                        onChange={(e) => setActingDirectorTitle(e.target.value)}
-                        className="w-full h-11 px-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm"
-                        placeholder="รักษาการในตำแหน่งผู้อำนวยการโรงเรียน"
-                      />
+                    <div className="mt-4 pl-6 space-y-4">
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
+                          {lang === "en" ? "Acting Director Title Type" : "ข้อความระบุตำแหน่งรักษาการฯ"}
+                        </label>
+                        <select
+                          value={actingDirectorTitleType}
+                          onChange={(e) => setActingDirectorTitleType(e.target.value)}
+                          className="w-full h-11 px-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm appearance-none"
+                        >
+                          <option value="ปฏิบัติราชการแทนผู้อำนวยการโรงเรียน">ปฏิบัติราชการแทนผู้อำนวยการโรงเรียน</option>
+                          <option value="รักษาราชการแทนผู้อำนวยการโรงเรียน">รักษาราชการแทนผู้อำนวยการโรงเรียน</option>
+                          <option value="รักษาการในตำแหน่งผู้อำนวยการโรงเรียน">รักษาการในตำแหน่งผู้อำนวยการโรงเรียน</option>
+                          <option value="custom">อื่น ๆ (ระบุเอง)</option>
+                        </select>
+                      </div>
+
+                      {actingDirectorTitleType === "custom" && (
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            {lang === "en" ? "Custom Acting Title" : "ระบุข้อความตำแหน่งอื่น ๆ"}
+                          </label>
+                          <input
+                            type="text"
+                            value={customActingDirectorTitle}
+                            onChange={(e) => setCustomActingDirectorTitle(e.target.value)}
+                            className="w-full h-11 px-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm"
+                            placeholder="ระบุตำแหน่งรักษาการ เช่น รักษาราชการแทน..."
+                          />
+                        </div>
+                      )}
+
+                      {/* Explanation box */}
+                      <div className="p-4 bg-slate-50 dark:bg-slate-900/40 rounded-2xl border border-slate-100 dark:border-slate-800/80 text-xs text-gray-600 dark:text-gray-400 space-y-2">
+                        <div className="font-semibold text-gray-900 dark:text-white mb-1">💡 คำชี้แจงการใช้ข้อความตำแหน่งรักษาการ:</div>
+                        <p><strong>• ปฏิบัติราชการแทนผู้อำนวยการโรงเรียน:</strong> ใช้กรณี ผอ.โรงเรียน ดำรงตำแหน่งอยู่ แต่ไม่ได้อยู่ปฏิบัติหน้าที่ชั่วคราว หรือมอบหมายให้รองผู้อำนวยการมีอำนาจลงนามแทนเฉพาะคราวหรือเป็นลายลักษณ์อักษร</p>
+                        <p><strong>• รักษาราชการแทนผู้อำนวยการโรงเรียน:</strong> ใช้กรณีไม่มีผู้ดำรงตำแหน่ง ผอ. หรือมีแต่ไม่สามารถปฏิบัติหน้าที่ได้ชั่วคราว (เช่น ลาป่วยหนัก หรือไปราชการต่างประเทศ) โดยมีกฎหมายหรือคำสั่งแต่งตั้งให้ผู้มีตำแหน่งถัดไป (เช่น รอง ผอ.) รักษาราชการแทนตามระเบียบ</p>
+                        <p><strong>• รักษาการในตำแหน่งผู้อำนวยการโรงเรียน:</strong> ใช้กรณีตำแหน่ง ผอ.โรงเรียน ว่างลงอย่างเป็นทางการ (เช่น ย้าย เกษียณ หรือเสียชีวิต) และหน่วยงานต้นสังกัด (สพม./สพป.) มีคำสั่งแต่งตั้งบุคคลใดบุคคลหนึ่งมาปฏิบัติหน้าที่แทนชั่วคราว จนกว่าจะมี ผอ. คนใหม่เข้ามาดำรงตำแหน่ง</p>
+                      </div>
                     </div>
                   )}
                 </div>
