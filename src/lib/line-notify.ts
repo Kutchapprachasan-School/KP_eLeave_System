@@ -8,8 +8,13 @@ export async function sendLineNotify(message: string) {
   try {
     const settings = await prisma.systemSettings.findUnique({
       where: { id: "default" },
-      select: { lineChannelAccessToken: true, lineTargetGroupId: true },
+      select: { lineChannelAccessToken: true, lineTargetGroupId: true, enableLineNotify: true },
     });
+
+    if (settings?.enableLineNotify === false) {
+      // LINE Notify disabled by toggle — skip silently
+      return;
+    }
 
     const token = settings?.lineChannelAccessToken;
     const targetId = settings?.lineTargetGroupId;

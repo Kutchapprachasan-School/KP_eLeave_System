@@ -112,6 +112,7 @@ export async function updateSystemSettings(data: {
   logoUrl?: string;
   lineChannelAccessToken?: string;
   lineTargetGroupId?: string;
+  enableLineNotify?: boolean;
   leaveRules?: string;
   requirePersonalAdvance?: boolean;
   memoThresholdTimes?: number;
@@ -132,6 +133,7 @@ export async function updateSystemSettings(data: {
       logoUrl: data.logoUrl !== undefined ? (data.logoUrl === "" ? null : data.logoUrl) : undefined,
       lineChannelAccessToken: data.lineChannelAccessToken !== undefined ? data.lineChannelAccessToken : undefined,
       lineTargetGroupId: data.lineTargetGroupId !== undefined ? data.lineTargetGroupId : undefined,
+      enableLineNotify: data.enableLineNotify !== undefined ? data.enableLineNotify : undefined,
       leaveRules: data.leaveRules !== undefined ? data.leaveRules : undefined,
       requirePersonalAdvance: data.requirePersonalAdvance !== undefined ? data.requirePersonalAdvance : undefined,
       memoThresholdTimes: data.memoThresholdTimes !== undefined ? data.memoThresholdTimes : undefined,
@@ -149,6 +151,7 @@ export async function updateSystemSettings(data: {
       logoUrl: data.logoUrl === "" ? null : data.logoUrl,
       lineChannelAccessToken: data.lineChannelAccessToken,
       lineTargetGroupId: data.lineTargetGroupId,
+      enableLineNotify: data.enableLineNotify !== undefined ? data.enableLineNotify : true,
       leaveRules: data.leaveRules || "การลากิจต้องยื่นคำขอล่วงหน้าอย่างน้อย 3 วันทำการ\nการลาป่วยติดต่อกันเกิน 3 วัน ต้องแนบใบรับรองแพทย์\nระบบจะส่งแจ้งเตือนให้หัวหน้างานบุคคลของท่านพิจารณาเป็นลำดับแรก",
       requirePersonalAdvance: data.requirePersonalAdvance !== undefined ? data.requirePersonalAdvance : true,
       memoThresholdTimes: data.memoThresholdTimes !== undefined ? data.memoThresholdTimes : 6,

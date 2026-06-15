@@ -21,6 +21,7 @@ export default function SettingsPage() {
   const [developerSecret, setDeveloperSecret] = useState("");
   const [lineChannelAccessToken, setLineChannelAccessToken] = useState("");
   const [lineTargetGroupId, setLineTargetGroupId] = useState("");
+  const [enableLineNotify, setEnableLineNotify] = useState(true);
   const [leaveRules, setLeaveRules] = useState("");
   const [requirePersonalAdvance, setRequirePersonalAdvance] = useState(true);
   const [memoThresholdTimes, setMemoThresholdTimes] = useState(6);
@@ -61,6 +62,7 @@ export default function SettingsPage() {
       setFooterText(data.footerText);
       setLineChannelAccessToken(data.lineChannelAccessToken || "");
       setLineTargetGroupId(data.lineTargetGroupId || "");
+      setEnableLineNotify(data.enableLineNotify !== false);
       setLeaveRules(data.leaveRules || "");
       setRequirePersonalAdvance(data.requirePersonalAdvance !== false);
       setMemoThresholdTimes(data.memoThresholdTimes ?? 6);
@@ -101,6 +103,7 @@ export default function SettingsPage() {
         logoUrl, 
         lineChannelAccessToken, 
         lineTargetGroupId, 
+        enableLineNotify,
         leaveRules, 
         requirePersonalAdvance,
         memoThresholdTimes,
@@ -221,6 +224,7 @@ export default function SettingsPage() {
           logoUrl, 
           lineChannelAccessToken, 
           lineTargetGroupId, 
+          enableLineNotify,
           leaveRules 
         });
       }
@@ -944,6 +948,23 @@ export default function SettingsPage() {
                   <h4 className="text-md font-semibold text-gray-900 dark:text-white mb-4">{t("lineSettings")}</h4>
                   
                   <div className="space-y-4">
+                    <div>
+                      <label className="flex items-center gap-2 cursor-pointer text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                        <input
+                          type="checkbox"
+                          checked={enableLineNotify}
+                          onChange={(e) => setEnableLineNotify(e.target.checked)}
+                          className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                        />
+                        <span>{lang === "en" ? "Enable LINE Notifications" : "เปิดใช้งานการแจ้งเตือนผ่าน LINE"}</span>
+                      </label>
+                      <p className="text-xs text-gray-500 pl-6 mb-4">
+                        {lang === "en" 
+                          ? "Turn on/off all automatic LINE messages for leave requests, approvals, and cancellations."
+                          : "เปิด-ปิดการส่งข้อความแจ้งเตือนอัตโนมัติไปยัง LINE (ส่งใบลาใหม่, อนุมัติ, ยกเลิกใบลา ฯลฯ)"}
+                      </p>
+                    </div>
+
                     <div>
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Channel Access Token</label>
                       <input

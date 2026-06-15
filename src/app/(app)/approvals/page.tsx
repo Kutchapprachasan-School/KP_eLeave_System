@@ -139,6 +139,17 @@ export default function ApprovalsPage() {
 
   useEffect(() => { loadData(); }, []);
 
+  useEffect(() => {
+    // Force load Sarabun font in the parent window so html2canvas can render it properly
+    if (typeof window !== "undefined" && document.fonts) {
+      document.fonts.load("12px Sarabun").then(() => {
+        console.log("Sarabun font loaded in parent window");
+      }).catch((err) => {
+        console.warn("Failed to load Sarabun font in parent window:", err);
+      });
+    }
+  }, []);
+
   const getLeaveTypeName = (type: string) => {
     const map: Record<string, string> = { SICK: t("sickLeave"), PERSONAL: t("personalLeave"), VACATION: t("vacationLeave") };
     return map[type] || type;
@@ -180,6 +191,32 @@ export default function ApprovalsPage() {
                 await iframeWindow.document.fonts.ready;
               } catch (fErr) {
                 console.warn("Iframe fonts ready check failed:", fErr);
+              }
+
+              // Clean up styles to prevent html2canvas oklch/lab parsing error
+              try {
+                const doc = iframeWindow.document;
+                for (let i = 0; i < doc.styleSheets.length; i++) {
+                  try {
+                    const sheet = doc.styleSheets[i];
+                    if (!sheet || !sheet.cssRules) continue;
+                    for (let j = sheet.cssRules.length - 1; j >= 0; j--) {
+                      const rule = sheet.cssRules[j];
+                      if (rule && (
+                        rule.cssText.includes("oklch(") || 
+                        rule.cssText.includes("lab(") || 
+                        rule.cssText.includes("oklab(") || 
+                        rule.cssText.includes("lch(")
+                      )) {
+                        sheet.deleteRule(j);
+                      }
+                    }
+                  } catch (sheetErr) {
+                    // Ignore cross-origin stylesheet errors
+                  }
+                }
+              } catch (sanitizeErr) {
+                console.warn("Failed to sanitize stylesheets inside iframe:", sanitizeErr);
               }
 
               const canvas = await html2canvas(printContent, {
