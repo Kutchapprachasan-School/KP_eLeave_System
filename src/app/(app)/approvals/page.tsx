@@ -140,12 +140,12 @@ export default function ApprovalsPage() {
   useEffect(() => { loadData(); }, []);
 
   useEffect(() => {
-    // Force load Sarabun font with Thai character range in the parent window so html2canvas can render it properly
+    // Force load Prompt font with Thai character range in the parent window so html2canvas can render it properly
     if (typeof window !== "undefined" && document.fonts) {
-      document.fonts.load("12px Sarabun", "กขคไทยใบลาอนุมัติ").then(() => {
-        console.log("Sarabun Thai subset loaded in parent window");
+      document.fonts.load("12px Prompt", "กขคไทยใบลาอนุมัติ").then(() => {
+        console.log("Prompt Thai subset loaded in parent window");
       }).catch((err) => {
-        console.warn("Failed to load Sarabun font in parent window:", err);
+        console.warn("Failed to load Prompt font in parent window:", err);
       });
     }
   }, []);

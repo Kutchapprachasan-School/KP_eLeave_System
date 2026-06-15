@@ -223,6 +223,201 @@ export default function PrintLeavePage() {
   }
 
   if (error || !printData) {
+  if (isNaN(date.getTime())) return "";
+  
+  const months = [
+    "ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.",
+    "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."
+  ];
+  
+  const d = date.getDate();
+  const m = months[date.getMonth()];
+  const y = date.getFullYear() + 543;
+  
+  return `${d} ${m} ${y}`;
+}
+
+function getThaiDay(dateInput: string | Date | null | undefined) {
+  if (!dateInput) return "";
+  const date = new Date(dateInput);
+  if (isNaN(date.getTime())) return "";
+  return date.getDate().toString();
+}
+
+function getThaiMonth(dateInput: string | Date | null | undefined) {
+  if (!dateInput) return "";
+  const date = new Date(dateInput);
+  if (isNaN(date.getTime())) return "";
+  const months = [
+    "มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน",
+    "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"
+  ];
+  return months[date.getMonth()];
+}
+
+function getThaiYear(dateInput: string | Date | null | undefined) {
+  if (!dateInput) return "";
+  const date = new Date(dateInput);
+  if (isNaN(date.getTime())) return "";
+  return (date.getFullYear() + 543).toString();
+}
+
+
+export default function PrintLeavePage() {
+  const params = useParams();
+  const router = useRouter();
+  const id = params.id as string;
+
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [printData, setPrintData] = useState<any>(null);
+  const [settings, setSettings] = useState<any>(null);
+
+  // Editable fields for form
+  const [writtenAt, setWrittenAt] = useState("โรงเรียน");
+  const [salutation, setSalutation] = useState("ผู้อำนวยการโรงเรียน");
+  const [contactAddress, setContactAddress] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
+  
+  // Specific inputs for Paternity leave
+  const [wifeName, setWifeName] = useState("");
+  const [wifeBirthDate, setWifeBirthDate] = useState("");
+  const [hasMarriageCert, setHasMarriageCert] = useState(true);
+  const [hasBirthCert, setHasBirthCert] = useState(true);
+
+  // Specific inputs for Vacation leave
+  const [vacationAccumulated, setVacationAccumulated] = useState(10);
+  const [vacationThisYear, setVacationThisYear] = useState(10);
+
+  // Specific inputs for Ordination leave
+  const [isHajj, setIsHajj] = useState(false);
+  const [templeName, setTempleName] = useState("");
+  const [templeLocation, setTempleLocation] = useState("");
+  const [resideTempleName, setResideTempleName] = useState("");
+  const [resideTempleLocation, setResideTempleLocation] = useState("");
+  const [ordinationDate, setOrdinationDate] = useState("");
+
+  // Specific inputs for Military leave
+  const [militaryOrderSource, setMilitaryOrderSource] = useState("");
+  const [militaryOrderNo, setMilitaryOrderNo] = useState("");
+  const [militaryOrderDate, setMilitaryOrderDate] = useState("");
+  const [militaryDutyType, setMilitaryDutyType] = useState("เข้ารับการตรวจเลือก");
+  const [militaryLocation, setMilitaryLocation] = useState("");
+
+  // Specific inputs for Study leave
+  const [userSalary, setUserSalary] = useState("15,000");
+  const [scholarshipName, setScholarshipName] = useState("ทุนส่วนตัว");
+  const [studyCountry, setStudyCountry] = useState("ประเทศไทย");
+  const [studyDurationYears, setStudyDurationYears] = useState("1");
+  const [studyDurationMonths, setStudyDurationMonths] = useState("0");
+  const [studyDurationDays, setStudyDurationDays] = useState("0");
+
+  useEffect(() => {
+    if (!id) return;
+
+    Promise.all([
+      getLeaveRequestForPrint(id),
+      getSystemSettings()
+    ])
+      .then(([data, sysSettings]) => {
+        setPrintData(data);
+        setSettings(sysSettings);
+        
+        // Pre-fill fields
+        if (sysSettings?.schoolName) {
+          setWrittenAt(sysSettings.schoolName);
+          setSalutation(`ผู้อำนวยการ${sysSettings.schoolName}`);
+        }
+        
+        const { request } = data;
+        if (request?.user?.address) {
+          setContactAddress(request.user.address);
+        }
+        if (request?.user?.phoneNumber) {
+          setPhoneNumber(request.user.phoneNumber);
+        }
+
+        if (request?.extraFields) {
+          try {
+            const extra = JSON.parse(request.extraFields);
+            if (extra.wifeName) setWifeName(extra.wifeName);
+            if (extra.wifeBirthDate) setWifeBirthDate(extra.wifeBirthDate);
+            if (extra.hasMarriageCert !== undefined) setHasMarriageCert(extra.hasMarriageCert);
+            if (extra.hasBirthCert !== undefined) setHasBirthCert(extra.hasBirthCert);
+            if (extra.vacationAccumulated !== undefined) setVacationAccumulated(Number(extra.vacationAccumulated));
+            if (extra.vacationThisYear !== undefined) setVacationThisYear(Number(extra.vacationThisYear));
+            if (extra.isHajj !== undefined) setIsHajj(extra.isHajj);
+            if (extra.templeName) setTempleName(extra.templeName);
+            if (extra.templeLocation) setTempleLocation(extra.templeLocation);
+            if (extra.resideTempleName) setResideTempleName(extra.resideTempleName);
+            if (extra.resideTempleLocation) setResideTempleLocation(extra.resideTempleLocation);
+            if (extra.ordinationDate) setOrdinationDate(extra.ordinationDate);
+            if (extra.militaryOrderSource) setMilitaryOrderSource(extra.militaryOrderSource);
+            if (extra.militaryOrderNo) setMilitaryOrderNo(extra.militaryOrderNo);
+            if (extra.militaryOrderDate) setMilitaryOrderDate(extra.militaryOrderDate);
+            if (extra.militaryDutyType) setMilitaryDutyType(extra.militaryDutyType);
+            if (extra.militaryLocation) setMilitaryLocation(extra.militaryLocation);
+            if (extra.userSalary) setUserSalary(extra.userSalary);
+            if (extra.scholarshipName) setScholarshipName(extra.scholarshipName);
+            if (extra.studyCountry) setStudyCountry(extra.studyCountry);
+            if (extra.studyDurationYears) setStudyDurationYears(extra.studyDurationYears);
+            if (extra.studyDurationMonths) setStudyDurationMonths(extra.studyDurationMonths);
+            if (extra.studyDurationDays) setStudyDurationDays(extra.studyDurationDays);
+          } catch (e) {
+            console.error("Failed to parse extraFields:", e);
+          }
+        }
+        
+        setLoading(false);
+      })
+      .catch((err: any) => {
+        setError(err.message || "เกิดข้อผิดพลาดในการโหลดข้อมูล");
+        setLoading(false);
+      });
+  }, [id]);
+  
+  useEffect(() => {
+    if (!loading) {
+      if (typeof window !== "undefined" && window.parent && window.parent !== window) {
+        if (error || !printData) {
+          window.parent.postMessage({
+            type: "ELEAVE_PRINT_ERROR",
+            id,
+            error: error || "ไม่พบข้อมูลใบลาหรือไม่ได้รับอนุญาตให้เข้าถึง"
+          }, "*");
+        } else {
+          // Wait for fonts to be ready
+          document.fonts.ready.then(() => {
+            const timer = setTimeout(() => {
+              window.parent.postMessage({ type: "ELEAVE_PRINT_READY", id }, "*");
+            }, 1000);
+            return () => clearTimeout(timer);
+          }).catch((fontErr) => {
+            console.error("Failed to wait for fonts ready:", fontErr);
+            const timer = setTimeout(() => {
+              window.parent.postMessage({ type: "ELEAVE_PRINT_READY", id }, "*");
+            }, 1500);
+            return () => clearTimeout(timer);
+          });
+        }
+      }
+    }
+  }, [loading, printData, error, id]);
+
+  const handlePrint = () => {
+    window.print();
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col items-center justify-center p-6">
+        <div className="w-12 h-12 border-4 border-purple-500 border-t-transparent rounded-full animate-spin mb-4" />
+        <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">กำลังดาวน์โหลดข้อมูลใบลา...</p>
+      </div>
+    );
+  }
+
+  if (error || !printData) {
     return (
       <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col items-center justify-center p-6 space-y-4">
         <div className="w-16 h-16 bg-rose-50 dark:bg-rose-950/20 rounded-full flex items-center justify-center">
@@ -249,7 +444,7 @@ export default function PrintLeavePage() {
       {/* Explicitly load Google Fonts Link to make sure it loads inside the iframe immediately */}
       <link rel="preconnect" href="https://fonts.googleapis.com" />
       <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-      <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" crossOrigin="anonymous" />
+      <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" crossOrigin="anonymous" />
       {/* Control Panel (Hidden during Print) */}
       <div className="no-print sticky top-0 z-50 bg-white/95 dark:bg-slate-900/95 backdrop-blur border-b border-slate-200 dark:border-slate-800 py-4 px-6 shadow-sm">
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
@@ -286,12 +481,12 @@ export default function PrintLeavePage() {
         <div className="flex justify-center">
           <div id="print-content" className="print-container bg-white dark:bg-slate-950 text-black border border-slate-300 dark:border-slate-850 pt-[20mm] pb-[15mm] pl-[25mm] pr-[15mm] w-[210mm] min-h-[297mm] shadow-lg relative print:shadow-none print:border-none">
             
-            {/* Embedded styles for Sarabun font and exact A4 formatting */}
+            {/* Embedded styles for Prompt font and exact A4 formatting */}
             <style jsx global>{`
               .print-container {
-                font-family: 'Sarabun', sans-serif !important;
+                font-family: 'Prompt', sans-serif !important;
                 line-height: 1.5 !important;
-                font-size: 11.5pt !important; /* adjusted body font size down to 11.5pt */
+                font-size: 11.5pt !important;
                 color: #000 !important;
                 letter-spacing: normal !important;
                 font-feature-settings: "kern" on, "liga" on !important;
@@ -301,7 +496,7 @@ export default function PrintLeavePage() {
               .print-container h1, .print-container h2, .print-container h3,
               .print-container p, .print-container div, .print-container span,
               .print-container td, .print-container th {
-                font-family: 'Sarabun', sans-serif !important;
+                font-family: 'Prompt', sans-serif !important;
                 color: #000 !important;
                 letter-spacing: normal !important;
               }
