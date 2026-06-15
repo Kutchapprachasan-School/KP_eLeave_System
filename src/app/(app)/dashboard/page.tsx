@@ -58,19 +58,25 @@ export default function DashboardPage() {
 
   const [cycleFilter, setCycleFilter] = useState<"current" | "cycle1" | "cycle2" | "year">("current");
   const [leaderboardFilter, setLeaderboardFilter] = useState<"times" | "days">("times");
+  const [viewMode, setViewMode] = useState<"school" | "personal">("school");
 
   useEffect(() => { 
     setMounted(true); 
     setStats(null);
-    getDashboardStats(cycleFilter, lang, dashboardYear)
-      .then(setStats)
+    getDashboardStats(cycleFilter, lang, dashboardYear, viewMode)
+      .then((data: any) => {
+        setStats(data);
+        if (data && !data.canViewOverview && viewMode !== "personal") {
+          setViewMode("personal");
+        }
+      })
       .catch((err: any) => {
         console.error("Dashboard error:", err);
         if (err.message === "Unauthorized") {
           router.push("/login");
         }
       });
-  }, [cycleFilter, lang, dashboardYear, router]);
+  }, [cycleFilter, lang, dashboardYear, viewMode, router]);
 
   if (!mounted || !stats) {
     return (
@@ -112,6 +118,17 @@ export default function DashboardPage() {
         
         {/* Filters */}
         <div className="flex gap-2 w-full md:w-auto">
+          {/* View Mode Selector */}
+          {stats.canViewOverview && (
+            <select
+              value={viewMode}
+              onChange={(e: any) => setViewMode(e.target.value as "school" | "personal")}
+              className="h-10 px-4 rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50/50 dark:bg-indigo-950/20 text-indigo-700 dark:text-indigo-300 text-sm font-semibold focus:ring-2 focus:ring-indigo-500/20 cursor-pointer w-full md:w-auto shadow-sm"
+            >
+              <option value="school">ภาพรวมโรงเรียน</option>
+              <option value="personal">ข้อมูลของฉัน</option>
+            </select>
+          )}
           {/* Year Filter */}
           <select
             value={dashboardYear}

@@ -351,14 +351,28 @@ async function canGiveFinalApproval(userId: string, userPosition: string | null,
 export async function getDashboardStats(
   cycleFilter: "current" | "cycle1" | "cycle2" | "year" | "all" = "current",
   lang: "th" | "en" = "th",
-  targetYear?: number | null
+  targetYear?: number | null,
+  viewMode: "school" | "personal" = "school"
 ) {
   const session = await getSession();
   const user = session.user as any;
   
   // Check if user is a configured final approver
   const isFinalApprover = await canGiveFinalApproval(session.user.id, user.position, user.role);
-  const isApprover = user.role === "ADMIN" || ["ผู้อำนวยการ", "หัวหน้างานบุคคล", "แอดมิน"].includes(user.position) || isFinalApprover;
+  
+  // Whitelist of positions allowed to view the school overview
+  const allowedOverviewPositions = [
+    "ผู้อำนวยการ",
+    "รองผู้อำนวยการ",
+    "หัวหน้างานบุคคล",
+    "เจ้าหน้าที่บุคคล",
+    "ผู้ตรวจสอบ",
+    "แอดมิน"
+  ];
+  const canViewOverview = user.role === "ADMIN" || allowedOverviewPositions.includes(user.position) || isFinalApprover;
+
+  // We only show school overview if they are allowed AND they chose "school" mode
+  const showSchoolOverview = canViewOverview && viewMode === "school";
 
   // Fetch Leave Configs dynamically
   const { getLeaveConfigs } = await import("./settings");
@@ -368,14 +382,11 @@ export async function getDashboardStats(
   const filter = getLeaveCycleFilter(refDate, cycleFilter, lang);
   const cycle = filter || getCurrentLeaveCycle(refDate, lang); // fallback if all
 
-  const isHead = user.position === "หัวหน้างานบุคคล";
-
   let requests;
-  if (isApprover) {
+  if (showSchoolOverview) {
     requests = await prisma.leaveRequest.findMany({
       where: {
         status: "APPROVED",
-        ...(isHead ? { user: { subjectGroup: user.subjectGroup } } : {}),
         ...(filter ? { startDate: { gte: filter.start, lte: filter.end } } : {})
       },
       include: { user: { select: { name: true, position: true } } }
@@ -410,33 +421,35 @@ export async function getDashboardStats(
   const isDirector = user.position === "ผู้อำนวยการ";
 
   let pendingWhere: any = { status: { in: ["PENDING_HEAD", "PENDING_EXEC"] } };
-  if (!isApprover) {
+  if (!canViewOverview) {
     pendingWhere = { userId: session.user.id, status: { in: ["PENDING_HEAD", "PENDING_EXEC"] } };
   } else if (user.position === "หัวหน้างานบุคคล") {
     pendingWhere = { status: "PENDING_HEAD" };
   } else if (isDirector || isFinalApprover) {
     pendingWhere = { status: "PENDING_EXEC" };
+  } else {
+    // Other overview roles (รองผู้อำนวยการ, เจ้าหน้าที่บุคคล, ผู้ตรวจสอบ)
+    pendingWhere = { status: { in: ["PENDING_HEAD", "PENDING_EXEC"] } };
   }
 
   const pendingCount = await prisma.leaveRequest.count({ where: pendingWhere });
 
-  // Calculate total staff (for Admin/Head KPI)
+  // Calculate total staff (for Admin/HR/Management KPI)
   const totalStaff = await prisma.user.count({
     where: {
-      role: { not: "ADMIN" },
-      ...(isHead ? {} : {}) // For HR head, they see all staff. If needed, this can be removed.
+      role: { not: "ADMIN" }
     }
   });
 
   // Get total requests for approval rate
   const allRequestsCount = await prisma.leaveRequest.count({
-    where: isApprover
-      ? (isHead ? {} : {}) // HR head sees all
+    where: showSchoolOverview
+      ? {}
       : { userId: session.user.id }
   });
   const approvedRequestsCount = await prisma.leaveRequest.count({
-    where: isApprover
-      ? { status: "APPROVED", ...(isHead ? {} : {}) }
+    where: showSchoolOverview
+      ? { status: "APPROVED" }
       : { userId: session.user.id, status: "APPROVED" }
   });
   const approvalRate = allRequestsCount === 0 ? 100 : Math.round((approvedRequestsCount / allRequestsCount) * 100);
@@ -450,7 +463,7 @@ export async function getDashboardStats(
     monthlyData[mIndex].value += days;
   }
 
-  // Generate department stats for overview (Mock logic for presentation if data is small)
+  // Generate department stats for overview
   const deptStats = [
     { name: "Science", value: 35, fill: "#38BDF8" },
     { name: "Math", value: 25, fill: "#8B5CF6" },
@@ -460,8 +473,8 @@ export async function getDashboardStats(
   ];
 
   // Get recent requests (all statuses, last 5)
-  const recentWhere = isApprover
-    ? (isHead ? { user: { subjectGroup: user.subjectGroup } } : {})
+  const recentWhere = showSchoolOverview
+    ? {}
     : { userId: session.user.id };
   const recentRequests = await prisma.leaveRequest.findMany({
     where: recentWhere,
@@ -475,7 +488,7 @@ export async function getDashboardStats(
   let userWatchlistStats = { totalDays: 0, totalTimes: 0, isWarning: false };
 
   // Always calculate personal watchlist stats
-  const ownRequests = isApprover 
+  const ownRequests = showSchoolOverview
     ? await prisma.leaveRequest.findMany({
         where: {
           userId: session.user.id,
@@ -501,7 +514,7 @@ export async function getDashboardStats(
   }
   userWatchlistStats.isWarning = userWatchlistStats.totalTimes >= limitTimes || userWatchlistStats.totalDays >= limitDays;
 
-  if (isApprover) {
+  if (showSchoolOverview) {
     const userStatsMap: Record<string, any> = {};
     for (const r of requests) {
       if (!r.user) continue;
@@ -519,11 +532,12 @@ export async function getDashboardStats(
       .map((stat: any) => ({ ...stat, isWarning: stat.totalTimes >= limitTimes || stat.totalDays >= limitDays }))
       .filter((stat: any) => stat.totalTimes > 0)
       .sort((a: any, b: any) => b.totalTimes - a.totalTimes || b.totalDays - a.totalDays)
-      .slice(0, 50); // increased slice to allow UI sorting
+      .slice(0, 50);
   }
 
   return {
-    isOverview: isApprover,
+    isOverview: showSchoolOverview,
+    canViewOverview,
     usedDaysMap,
     leaveConfigs,
     pendingCount,

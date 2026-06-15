@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useSession } from "@/lib/auth-client";
 import { getPendingApprovals, approveLeaveRequest, rejectLeaveRequest, uploadLeavePdf } from "@/app/actions/leave";
 import html2canvas from "html2canvas-pro";
 import { jsPDF } from "jspdf";
@@ -118,6 +119,10 @@ const renderDocumentLinks = (documentUrl: string) => {
 };
 
 export default function ApprovalsPage() {
+  const { data: session } = useSession();
+  const user = session?.user as any;
+  const isAdmin = user?.role === "ADMIN" || user?.position === "แอดมิน";
+
   const [pendingRequests, setPendingRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const { t, lang } = useI18n();
@@ -335,7 +340,12 @@ export default function ApprovalsPage() {
               {/* Leave Info */}
               <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-4 border-y md:border-y-0 md:border-x border-slate-100 dark:border-slate-800 py-4 md:py-0 md:px-6">
                 <div>
-                  <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">{t("typeAndDate")} • คำขอที่ {item.pendingSeq}/{item.fiscalYear}</p>
+                  <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">
+                    {t("typeAndDate")} • คำขอที่ {item.pendingSeq}/{item.fiscalYear}
+                    <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200/50 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-800">
+                      {item.status === "PENDING_HEAD" ? "รอหัวหน้างานบุคคล" : item.status === "PENDING_EXEC" ? "รอผู้อำนวยการ" : item.status}
+                    </span>
+                  </p>
                   <p className="text-sm font-medium text-slate-900 dark:text-white flex items-center gap-1.5">
                     <span className="w-2 h-2 rounded-full bg-purple-500"></span>
                     {getLeaveTypeName(item.type)}
@@ -378,21 +388,29 @@ export default function ApprovalsPage() {
               </div>
 
               {/* Actions */}
-              <div className="flex gap-2 w-full md:w-auto md:min-w-[200px] justify-end">
-                <button
-                  onClick={() => handleReject(item.id)}
-                  className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 text-rose-600 font-medium hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-colors border border-transparent hover:border-rose-200 dark:hover:border-rose-900"
-                >
-                  <X className="w-4 h-4" />
-                  {t("reject")}
-                </button>
-                <button
-                  onClick={() => handleApprove(item.id)}
-                  className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-emerald-500 text-white font-medium hover:bg-emerald-600 shadow-lg shadow-emerald-500/20 transition-all"
-                >
-                  <Check className="w-4 h-4" />
-                  {t("approve")}
-                </button>
+              <div className="flex gap-2 w-full md:w-auto md:min-w-[200px] justify-end items-center">
+                {isAdmin ? (
+                  <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                    แอดมิน (ดูเท่านั้น)
+                  </span>
+                ) : (
+                  <>
+                    <button
+                      onClick={() => handleReject(item.id)}
+                      className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 text-rose-600 font-medium hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-colors border border-transparent hover:border-rose-200 dark:hover:border-rose-900 cursor-pointer"
+                    >
+                      <X className="w-4 h-4" />
+                      {t("reject")}
+                    </button>
+                    <button
+                      onClick={() => handleApprove(item.id)}
+                      className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-emerald-500 text-white font-medium hover:bg-emerald-600 shadow-lg shadow-emerald-500/20 transition-all cursor-pointer"
+                    >
+                      <Check className="w-4 h-4" />
+                      {t("approve")}
+                    </button>
+                  </>
+                )}
               </div>
             </div>
           ))
