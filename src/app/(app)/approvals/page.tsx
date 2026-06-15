@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { getPendingApprovals, approveLeaveRequest, rejectLeaveRequest, uploadLeavePdf } from "@/app/actions/leave";
-import html2canvas from "html2canvas";
+import html2canvas from "html2canvas-pro";
 import { jsPDF } from "jspdf";
 import { format } from "date-fns";
 import { UserCircle, Calendar, FileText, Check, X, AlertCircle, Printer, Paperclip } from "lucide-react";
