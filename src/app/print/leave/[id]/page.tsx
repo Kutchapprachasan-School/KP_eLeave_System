@@ -468,7 +468,7 @@ export default function PrintLeavePage() {
               };
 
               return (
-                <div className="space-y-2 text-justify relative">
+                <div className="space-y-2 text-left relative">
                   {/* Absolute Top-Right Request Number */}
                   <div className="absolute top-[-10mm] right-0 text-[9pt] text-neutral-700 font-normal no-print:text-neutral-500">
                     {request.status === "APPROVED" ? (
@@ -512,7 +512,7 @@ export default function PrintLeavePage() {
                   </div>
 
                   {/* Body */}
-                  <div className="w-full mt-2 text-justify leading-relaxed indent-12">
+                  <div className="w-full mt-2 text-left leading-relaxed indent-12">
                     <span>ข้าพเจ้า </span>
                     <span className="form-line-dotted-inline px-2 font-bold">{request.user.name}</span>
                     <span> ตำแหน่ง </span>
@@ -545,11 +545,11 @@ export default function PrintLeavePage() {
                   {/* Paternity Info Sub-block */}
                   {leaveType === "PATERNITY" && (
                     <div className="space-y-1.5 my-1 text-sm">
-                      <div className="w-full text-justify leading-relaxed">
+                      <div className="w-full text-left leading-relaxed">
                         <span>ไปช่วยเหลือภริยาโดยชอบด้วยกฎหมายชื่อ </span>
                         <span className={wifeName ? "form-line-dotted-inline px-2 font-semibold" : "form-line-dotted px-2 min-w-[200px]"}>{wifeName || "-"}</span>
                       </div>
-                      <div className="w-full text-justify leading-relaxed">
+                      <div className="w-full text-left leading-relaxed">
                         <span>ซึ่งคลอดบุตรเมื่อวันที่ </span>
                         <span className="form-line-dotted w-36 text-center">{wifeBirthDate ? toThaiDateString(wifeBirthDate) : "-"}</span>
                         <span> โดยแนบหลักฐาน: </span>
@@ -566,13 +566,13 @@ export default function PrintLeavePage() {
                     <div className="space-y-1.5 my-1 text-sm">
                       {!isHajj ? (
                           <>
-                            <div className="w-full text-justify leading-relaxed">
+                            <div className="w-full text-left leading-relaxed">
                               <span>อุปสมบท ณ วัด </span>
                               <span className={templeName ? "form-line-dotted-inline px-2" : "form-line-dotted px-2 min-w-[200px]"}>{templeName || "-"}</span>
                               <span> ตั้งอยู่ ณ </span>
                               <span className={templeLocation ? "form-line-dotted-inline px-2" : "form-line-dotted px-2 min-w-[200px]"}>{templeLocation || "-"}</span>
                             </div>
-                            <div className="w-full text-justify leading-relaxed">
+                            <div className="w-full text-left leading-relaxed">
                               <span>จะจำพรรษาอยู่วัด </span>
                               <span className={resideTempleName ? "form-line-dotted-inline px-2" : "form-line-dotted px-2 min-w-[200px]"}>{resideTempleName || "-"}</span>
                               <span> ตั้งอยู่ ณ </span>
@@ -580,7 +580,7 @@ export default function PrintLeavePage() {
                             </div>
                           </>
                         ) : (
-                          <div className="w-full text-justify leading-relaxed">
+                          <div className="w-full text-left leading-relaxed">
                             <span>เดินทางไปประกอบพิธีฮัจญ์/อุปสมบท กำหนดเดินทางวันที่ </span>
                             <span className="form-line-dotted w-36 text-center">{ordinationDate ? toThaiDateString(ordinationDate) : "-"}</span>
                           </div>
@@ -591,7 +591,7 @@ export default function PrintLeavePage() {
                   {/* Military Info Sub-block */}
                   {leaveType === "MILITARY" && (
                     <div className="space-y-1.5 my-1 text-sm">
-                      <div className="w-full text-justify leading-relaxed">
+                      <div className="w-full text-left leading-relaxed">
                         <span>ได้รับหมายเรียกของ </span>
                         <span className={militaryOrderSource ? "form-line-dotted-inline px-2" : "form-line-dotted px-2 min-w-[150px]"}>{militaryOrderSource || "-"}</span>
                         <span> ที่ </span>
@@ -599,7 +599,7 @@ export default function PrintLeavePage() {
                         <span> ลงวันที่ </span>
                         <span className={militaryOrderDate ? "form-line-dotted-inline px-2" : "form-line-dotted px-2 min-w-[120px]"}>{militaryOrderDate ? toThaiDateStringShort(militaryOrderDate) : "-"}</span>
                       </div>
-                      <div className="w-full text-justify leading-relaxed">
+                      <div className="w-full text-left leading-relaxed">
                         <span>ให้เข้ารับการ </span>
                         <span className={militaryDutyType ? "form-line-dotted-inline px-2" : "form-line-dotted px-2 min-w-[150px]"}>{militaryDutyType || "-"}</span>
                         <span> ณ สถานที่ </span>
@@ -611,13 +611,13 @@ export default function PrintLeavePage() {
                   {/* Study Info Sub-block */}
                   {leaveType === "STUDY" && (
                     <div className="space-y-1.5 my-1 text-sm">
-                      <div className="w-full text-justify leading-relaxed">
+                      <div className="w-full text-left leading-relaxed">
                         <span>ได้รับเงินเดือนเดือนละ </span>
                         <span className="form-line-dotted w-24 text-center">{userSalary}</span>
                         <span> บาท ไปศึกษาต่อ/ฝึกอบรม ณ ประเทศ </span>
                         <span className={studyCountry ? "form-line-dotted-inline px-2" : "form-line-dotted px-2 min-w-[150px]"}>{studyCountry || "-"}</span>
                       </div>
-                      <div className="w-full text-justify leading-relaxed">
+                      <div className="w-full text-left leading-relaxed">
                         <span>ด้วยทุน </span>
                         <span className={scholarshipName ? "form-line-dotted-inline px-2" : "form-line-dotted px-2 min-w-[150px]"}>{scholarshipName || "-"}</span>
                         <span> มีกำหนดเวลา </span>
@@ -632,7 +632,7 @@ export default function PrintLeavePage() {
                   )}
 
                   {/* Leave Dates */}
-                  <div className="w-full text-justify leading-relaxed mt-1.5">
+                  <div className="w-full text-left leading-relaxed mt-1.5">
                     <span>ตั้งแต่วันที่&nbsp;</span>
                     <span className="form-line-dotted w-10 text-center">{getThaiDay(request.startDate)}</span>
                     <span>&nbsp;เดือน&nbsp;</span>
@@ -651,7 +651,7 @@ export default function PrintLeavePage() {
                   </div>
 
                   {/* Last Leave History */}
-                  <div className="w-full text-justify leading-relaxed mt-1.5">
+                  <div className="w-full text-left leading-relaxed mt-1.5">
                     <span>ข้าพเจ้าได้ลา&nbsp;</span>
                     <span className="form-line-dotted text-center font-bold min-w-[120px]">
                       {lastLeaveInfo ? getLeaveTypeName(lastLeaveInfo.type) : "-"}
@@ -664,7 +664,7 @@ export default function PrintLeavePage() {
                     <span className="form-line-dotted w-14 text-center">{lastLeaveInfo ? getThaiYear(lastLeaveInfo.startDate) : "-"}</span>
                   </div>
 
-                  <div className="w-full text-justify leading-relaxed mt-1.5">
+                  <div className="w-full text-left leading-relaxed mt-1.5">
                     <span>ถึงวันที่&nbsp;</span>
                     <span className="form-line-dotted w-10 text-center">{lastLeaveInfo ? getThaiDay(lastLeaveInfo.endDate) : "-"}</span>
                     <span>&nbsp;เดือน&nbsp;</span>
@@ -677,7 +677,7 @@ export default function PrintLeavePage() {
                   </div>
 
                   {/* Contact Info */}
-                  <div className="w-full mt-1.5 text-justify leading-relaxed">
+                  <div className="w-full mt-1.5 text-left leading-relaxed">
                     <span>ในระหว่างลาจะติดต่อข้าพเจ้าได้ที่ </span>
                     <span className={contactAddress ? "form-line-dotted-inline px-2 font-bold" : "form-line-dotted px-2 min-w-[280px]"}>
                       {contactAddress || "-"}
