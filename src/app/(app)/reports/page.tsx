@@ -14,7 +14,7 @@ export default function ReportsPage() {
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [fetched, setFetched] = useState(false);
-  const { t, tLeaveType } = useI18n();
+  const { t, lang, tLeaveType, tPosition } = useI18n();
 
   // Helper to dynamically get current BE Fiscal Year
   const getCurrentFiscalYear = () => {
@@ -39,7 +39,7 @@ export default function ReportsPage() {
   const handleBatchPdfDownload = () => {
     if (batchFilterType === "sequence") {
       if (batchStart > batchEnd) {
-        alert("ลำดับเริ่มต้นต้องไม่เกินลำดับสิ้นสุด");
+        alert(t("batchPdfStartEndExceed"));
         return;
       }
       window.open(`/print/leave/batch?year=${batchYear}&start=${batchStart}&end=${batchEnd}&filterType=sequence`, "_blank");
@@ -51,6 +51,15 @@ export default function ReportsPage() {
   };
 
   const getCycleLabel = () => {
+    switch (cycle) {
+      case "cycle1": return `${t("cycleLabel1")} ${fiscalYear}`;
+      case "cycle2": return `${t("cycleLabel2")} ${fiscalYear}`;
+      case "year": return `${t("cycleLabelFull")} ${fiscalYear}`;
+      default: return `${t("cycleLabelCurrent")} ${fiscalYear}`;
+    }
+  };
+
+  const getCycleLabelTh = () => {
     switch (cycle) {
       case "cycle1": return `รอบที่ 1 (ต.ค. - มี.ค.) ปีงบประมาณ ${fiscalYear}`;
       case "cycle2": return `รอบที่ 2 (เม.ย. - ก.ย.) ปีงบประมาณ ${fiscalYear}`;
@@ -66,7 +75,38 @@ export default function ReportsPage() {
     return acc;
   }, {} as Record<string, string>);
 
-  const statusMap: Record<string, string> = { APPROVED: t("approvedStatus"), REJECTED: t("rejectedStatus"), CANCELLED: t("cancelledStatus"), PENDING_HEAD: t("pendingHead"), PENDING_EXEC: t("pendingExec") };
+  const statusMap: Record<string, string> = { 
+    APPROVED: t("approvedStatus"), 
+    REJECTED: t("rejectedStatus"), 
+    CANCELLED: t("cancelledStatus"), 
+    PENDING_HEAD: t("pendingHead"), 
+    PENDING_EXEC: t("pendingExec") 
+  };
+
+  const statusMapTh: Record<string, string> = {
+    APPROVED: "อนุมัติแล้ว",
+    REJECTED: "ถูกปฏิเสธ",
+    CANCELLED: "ยกเลิก",
+    PENDING_HEAD: "รอหัวหน้างานบุคคล",
+    PENDING_EXEC: "รอผู้อำนวยการ"
+  };
+
+  const getLeaveTypeNameTh = (type: string, dbName?: string) => {
+    const thMap: Record<string, string> = {
+      SICK: "ลาป่วย",
+      PERSONAL: "ลากิจส่วนตัว",
+      VACATION: "ลาพักผ่อน",
+      ORDINATION: "ลาอุปสมบท/ฮัจญ์",
+      MATERNITY: "ลาคลอดบุตร",
+      PATERNITY: "ลาช่วยเหลือภริยาคลอดบุตร",
+      INTERNATIONAL: "ลาไปปฏิบัติงานในองค์การระหว่างประเทศ",
+      SPOUSE: "ลาติดตามคู่สมรส",
+      REHABILITATION: "ลาฟื้นฟูสมรรถภาพด้านอาชีพ",
+      MILITARY: "ลาเข้ารับการตรวจเลือกหรือเตรียมพล",
+      STUDY: "ลาศึกษาต่อ/ฝึกอบรม",
+    };
+    return thMap[type] || dbName || type;
+  };
 
   useEffect(() => {
     getLeaveConfigs().then(setLeaveConfigs).catch(console.error);
@@ -80,7 +120,7 @@ export default function ReportsPage() {
       setData(result);
       setFetched(true);
     } catch {
-      alert("เกิดข้อผิดพลาดในการดึงข้อมูล");
+      alert(t("fetchReportError"));
     } finally {
       setLoading(false);
     }
@@ -101,53 +141,57 @@ export default function ReportsPage() {
   }, {}));
 
   const handleExportExcel = () => {
-    if (viewMode === "overview") {
-      const formatted = data.map(item => ({
-        "เลขที่ใบลา": item.status === "APPROVED" 
-          ? `อนุมัติที่ ${item.approvedSeq || "-"}/${item.fiscalYear || "-"}` 
-          : `คำขอที่ ${item.pendingSeq || "-"}/${item.fiscalYear || "-"}`,
-        "ชื่อ-นามสกุล": item.userName,
-        "ตำแหน่ง": item.position,
-        "กลุ่มสาระ": item.subjectGroup,
-        "ประเภท": leaveTypeMap[item.type] || item.type,
-        "วันที่เริ่ม": new Date(item.startDate).toLocaleDateString("th-TH"),
-        "ถึงวันที่": new Date(item.endDate).toLocaleDateString("th-TH"),
-        "จำนวนวัน": Math.ceil((new Date(item.endDate).getTime() - new Date(item.startDate).getTime()) / (1000*60*60*24)) + 1,
-        "เหตุผล": item.reason,
-        "สถานะ": statusMap[item.status] || item.status,
-        "วันที่ยื่น": new Date(item.createdAt).toLocaleDateString("th-TH"),
-      }));
-
-      const ws = XLSX.utils.json_to_sheet(formatted);
-      ws["!cols"] = [{ wch: 18 },{ wch: 25 },{ wch: 15 },{ wch: 20 },{ wch: 12 },{ wch: 14 },{ wch: 14 },{ wch: 10 },{ wch: 40 },{ wch: 15 },{ wch: 14 }];
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "รายงานการลา_ภาพรวม");
-      XLSX.writeFile(wb, `รายงานการลา_${cycle}.xlsx`);
-    } else {
-      const formatted = individualData.map((item: any) => {
-        const row: any = {
+    try {
+      if (viewMode === "overview") {
+        const formatted = data.map(item => ({
+          "เลขที่ใบลา": item.status === "APPROVED" 
+            ? `อนุมัติที่ ${item.approvedSeq || "-"}/${item.fiscalYear || "-"}` 
+            : `คำขอที่ ${item.pendingSeq || "-"}/${item.fiscalYear || "-"}`,
           "ชื่อ-นามสกุล": item.userName,
           "ตำแหน่ง": item.position,
-          "ลาทั้งหมด (ครั้ง)": item.totalTimes,
-          "ลาทั้งหมด (วัน)": item.totalDays,
-        };
-        leaveConfigs.forEach(c => {
-          row[c.name] = item.leaves[c.name] || 0;
-        });
-        return row;
-      });
+          "กลุ่มสาระ": item.subjectGroup,
+          "ประเภท": leaveTypeMap[item.type] || item.type,
+          "วันที่เริ่ม": new Date(item.startDate).toLocaleDateString("th-TH"),
+          "ถึงวันที่": new Date(item.endDate).toLocaleDateString("th-TH"),
+          "จำนวนวัน": Math.ceil((new Date(item.endDate).getTime() - new Date(item.startDate).getTime()) / (1000*60*60*24)) + 1,
+          "เหตุผล": item.reason,
+          "สถานะ": statusMap[item.status] || item.status,
+          "วันที่ยื่น": new Date(item.createdAt).toLocaleDateString("th-TH"),
+        }));
 
-      const ws = XLSX.utils.json_to_sheet(formatted);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "รายงานการลา_รายบุคคล");
-      XLSX.writeFile(wb, `รายงานการลา_รายบุคคล_${cycle}.xlsx`);
+        const ws = XLSX.utils.json_to_sheet(formatted);
+        ws["!cols"] = [{ wch: 18 },{ wch: 25 },{ wch: 15 },{ wch: 20 },{ wch: 12 },{ wch: 14 },{ wch: 14 },{ wch: 10 },{ wch: 40 },{ wch: 15 },{ wch: 14 }];
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "รายงานการลา_ภาพรวม");
+        XLSX.writeFile(wb, `รายงานการลา_${cycle}.xlsx`);
+      } else {
+        const formatted = individualData.map((item: any) => {
+          const row: any = {
+            "ชื่อ-นามสกุล": item.userName,
+            "ตำแหน่ง": item.position,
+            "ลาทั้งหมด (ครั้ง)": item.totalTimes,
+            "ลาทั้งหมด (วัน)": item.totalDays,
+          };
+          leaveConfigs.forEach(c => {
+            row[c.name] = item.leaves[c.name] || 0;
+          });
+          return row;
+        });
+
+        const ws = XLSX.utils.json_to_sheet(formatted);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "รายงานการลา_รายบุคคล");
+        XLSX.writeFile(wb, `รายงานการลา_รายบุคคล_${cycle}.xlsx`);
+      }
+    } catch (err: any) {
+      alert(t("exportExcelError") + (err?.message || err));
     }
   };
 
   const handlePrint = () => {
     const printWindow = window.open("", "_blank");
     if (!printWindow) {
-      alert("กรุณาอนุญาต Pop-up เพื่อพิมพ์เอกสาร");
+      alert(t("popupBlockedAlert"));
       return;
     }
 
@@ -180,6 +224,7 @@ export default function ReportsPage() {
 
       const rows = data.map((item, i) => {
         const days = Math.ceil((new Date(item.endDate).getTime() - new Date(item.startDate).getTime()) / (1000*60*60*24)) + 1;
+        const leaveTh = getLeaveTypeNameTh(item.type, leaveTypeMap[item.type]);
         return `
           <tr>
             <td style="border:1px solid #ddd;padding:8px;text-align:center;">${i + 1}</td>
@@ -190,13 +235,13 @@ export default function ReportsPage() {
             </td>
             <td style="border:1px solid #ddd;padding:8px;font-weight:bold;">${item.userName}</td>
             <td style="border:1px solid #ddd;padding:8px;">${item.position}</td>
-            <td style="border:1px solid #ddd;padding:8px;">${leaveTypeMap[item.type] || item.type}</td>
+            <td style="border:1px solid #ddd;padding:8px;">${leaveTh}</td>
             <td style="border:1px solid #ddd;padding:8px;text-align:center;font-size:11px;">
               ${new Date(item.startDate).toLocaleDateString("th-TH")} - ${new Date(item.endDate).toLocaleDateString("th-TH")}
             </td>
             <td style="border:1px solid #ddd;padding:8px;text-align:center;font-weight:bold;">${days}</td>
             <td style="border:1px solid #ddd;padding:8px;font-size:11px;word-break:break-all;">${item.reason || "-"}</td>
-            <td style="border:1px solid #ddd;padding:8px;text-align:center;">${statusMap[item.status] || item.status}</td>
+            <td style="border:1px solid #ddd;padding:8px;text-align:center;">${statusMapTh[item.status] || item.status}</td>
           </tr>
         `;
       }).join("");
@@ -229,7 +274,7 @@ export default function ReportsPage() {
       // Individual mode
       const headers = leaveConfigs.map(c => `
         <th style="text-align:center;font-size:10px;padding:6px 4px;">
-          ${c.name}
+          ${getLeaveTypeNameTh(c.type, c.name)}
         </th>
       `).join("");
 
@@ -299,7 +344,7 @@ export default function ReportsPage() {
       </head>
       <body>
         <h1>${titleText}</h1>
-        <p class="subtitle">ประจำ${getCycleLabel()} | ${dateText}</p>
+        <p class="subtitle">ประจำ${getCycleLabelTh()} | ${dateText}</p>
         ${contentHtml}
       </body>
       </html>
@@ -321,6 +366,21 @@ export default function ReportsPage() {
   const approvedCount = data.filter(d => d.status === "APPROVED").length;
   const rejectedCount = data.filter(d => d.status === "REJECTED").length;
   const totalDays = data.filter(d => d.status === "APPROVED").reduce((sum, d) => sum + Math.ceil((new Date(d.endDate).getTime() - new Date(d.startDate).getTime()) / (1000*60*60*24)) + 1, 0);
+
+  const months = [
+    { val: 10, th: "ตุลาคม", en: "October" },
+    { val: 11, th: "พฤศจิกายน", en: "November" },
+    { val: 12, th: "ธันวาคม", en: "December" },
+    { val: 1, th: "มกราคม", en: "January" },
+    { val: 2, th: "กุมภาพันธ์", en: "February" },
+    { val: 3, th: "มีนาคม", en: "March" },
+    { val: 4, th: "เมษายน", en: "April" },
+    { val: 5, th: "พฤษภาคม", en: "May" },
+    { val: 6, th: "มิถุนายน", en: "June" },
+    { val: 7, th: "กรกฎาคม", en: "July" },
+    { val: 8, th: "สิงหาคม", en: "August" },
+    { val: 9, th: "กันยายน", en: "September" }
+  ];
 
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="max-w-6xl mx-auto space-y-6">
@@ -382,8 +442,8 @@ export default function ReportsPage() {
       )}
 
       <div className="hidden print:block text-center mb-4">
-        <h2 className="text-lg font-bold">รายงานสรุปการลา ({viewMode === "overview" ? "ภาพรวม" : "รายบุคคล"})</h2>
-        <p className="text-sm text-gray-600 mt-1">ประจำ{getCycleLabel()}</p>
+        <h2 className="text-lg font-bold">{lang === "en" ? `Leave Summary Report (${viewMode === "overview" ? "Overview" : "Individual"})` : `รายงานสรุปการลา (${viewMode === "overview" ? "ภาพรวม" : "รายบุคคล"})`}</h2>
+        <p className="text-sm text-gray-600 mt-1">{lang === "en" ? "For " : "ประจำ"}{getCycleLabel()}</p>
       </div>
 
       {fetched && viewMode === "overview" && (
@@ -397,7 +457,7 @@ export default function ReportsPage() {
                   <tr className="border-b border-slate-100 dark:border-slate-800 print:border-slate-400">
                     <th className="px-4 py-3 font-semibold text-slate-500 dark:text-slate-400 print:text-gray-700">#</th>
                     <th className="px-4 py-3 font-semibold text-slate-500 dark:text-slate-400 print:text-gray-700">เลขที่ใบลา</th>
-                    <th className="px-4 py-3 font-semibold text-slate-500 dark:text-slate-400 print:text-gray-700">{t("fullName")}</th>
+                    <th className="px-4 py-3 font-semibold text-slate-500 dark:text-slate-400 print:text-gray-700 print:w-40">{t("fullName")}</th>
                     <th className="px-4 py-3 font-semibold text-slate-500 dark:text-slate-400 print:text-gray-700">{t("position")}</th>
                     <th className="px-4 py-3 font-semibold text-slate-500 dark:text-slate-400 print:text-gray-700">{t("type")}</th>
                     <th className="px-4 py-3 font-semibold text-slate-500 dark:text-slate-400 print:text-gray-700">{t("leaveDate")}</th>
@@ -415,18 +475,18 @@ export default function ReportsPage() {
                         <td className="px-4 py-3 text-slate-700 dark:text-slate-300 print:text-black print:border print:border-gray-300 text-xs">
                           {item.status === "APPROVED" ? (
                             <span className="text-emerald-600 dark:text-emerald-400 font-bold">
-                              อนุมัติที่ {item.approvedSeq}/{item.fiscalYear}
+                              {lang === "en" ? `Approved No. ${item.approvedSeq}/${item.fiscalYear}` : `อนุมัติที่ ${item.approvedSeq}/${item.fiscalYear}`}
                             </span>
                           ) : (
                             <span className="text-slate-500 dark:text-slate-400">
-                              คำขอที่ {item.pendingSeq}/{item.fiscalYear}
+                              {lang === "en" ? `Request No. ${item.pendingSeq}/${item.fiscalYear}` : `คำขอที่ ${item.pendingSeq}/${item.fiscalYear}`}
                             </span>
                           )}
                         </td>
                         <td className="px-4 py-3 font-medium text-slate-900 dark:text-white print:text-black print:border print:border-gray-300">{item.userName}</td>
-                        <td className="px-4 py-3 text-slate-500 dark:text-slate-400 text-xs print:text-black print:border print:border-gray-300">{item.position}</td>
+                        <td className="px-4 py-3 text-slate-500 dark:text-slate-400 text-xs print:text-black print:border print:border-gray-300">{tPosition(item.position)}</td>
                         <td className="px-4 py-3 text-slate-700 dark:text-slate-300 print:text-black print:border print:border-gray-300">{tLeaveType(item.type, leaveTypeMap[item.type])}</td>
-                        <td className="px-4 py-3 text-slate-600 dark:text-slate-300 text-xs print:text-black print:border print:border-gray-300">{new Date(item.startDate).toLocaleDateString("th-TH")} - {new Date(item.endDate).toLocaleDateString("th-TH")}</td>
+                        <td className="px-4 py-3 text-slate-600 dark:text-slate-300 text-xs print:text-black print:border print:border-gray-300">{new Date(item.startDate).toLocaleDateString(lang === "th" ? "th-TH" : "en-US")} - {new Date(item.endDate).toLocaleDateString(lang === "th" ? "th-TH" : "en-US")}</td>
                         <td className="px-4 py-3 font-semibold text-slate-900 dark:text-white print:text-black text-center print:border print:border-gray-300">{days}</td>
                         <td className="px-4 py-3 text-slate-600 dark:text-slate-300 max-w-[200px] truncate text-xs print:max-w-none print:whitespace-normal print:text-black print:border print:border-gray-300">{item.reason}</td>
                         <td className="px-4 py-3 text-xs font-medium print:border print:border-gray-300 print:text-black">{statusMap[item.status] || item.status}</td>
@@ -469,7 +529,7 @@ export default function ReportsPage() {
                     <tr key={item.userName} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors print:hover:bg-transparent print:break-inside-avoid">
                       <td className="px-4 py-3 text-slate-400 print:text-black print:border print:border-gray-300 print:text-xs">{i + 1}</td>
                       <td className="px-4 py-3 font-medium text-slate-900 dark:text-white print:text-black print:border print:border-gray-300 print:text-xs print:whitespace-nowrap overflow-hidden text-ellipsis">{item.userName}</td>
-                      <td className="px-4 py-3 text-slate-500 dark:text-slate-400 text-xs print:text-black print:border print:border-gray-300 print:text-[10px] print:whitespace-nowrap overflow-hidden text-ellipsis">{item.position}</td>
+                      <td className="px-4 py-3 text-slate-500 dark:text-slate-400 text-xs print:text-black print:border print:border-gray-300 print:text-[10px] print:whitespace-nowrap overflow-hidden text-ellipsis">{tPosition(item.position)}</td>
                       <td className="px-4 py-3 font-semibold text-slate-900 dark:text-white print:text-black text-center print:border print:border-gray-300 print:text-xs">{item.totalTimes}</td>
                       <td className="px-4 py-3 font-semibold text-blue-600 dark:text-blue-400 text-center print:text-black print:border print:border-gray-300 print:text-xs">{item.totalDays}</td>
                       {leaveConfigs.map(c => (
@@ -488,45 +548,45 @@ export default function ReportsPage() {
       <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white/60 dark:border-slate-800 rounded-3xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] print:hidden mt-6">
         <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2 mb-2">
           <Download className="w-5 h-5 text-purple-500" />
-          ดาวน์โหลดใบลาแบบกลุ่ม (PDF)
+          {lang === "en" ? "Download Batch Leaves (PDF)" : "ดาวน์โหลดใบลาแบบกลุ่ม (PDF)"}
         </h2>
         <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
-          ระบุเงื่อนไข ปีงบประมาณ หรือช่วงเวลาที่ต้องการดึงข้อมูลใบลาที่ได้รับการอนุมัติแล้วเพื่อพิมพ์ออกเป็น PDF ทั้งหมดพร้อมกัน
+          {lang === "en" ? "Specify fiscal year, range, or month to retrieve approved leaves for batch printing." : "ระบุเงื่อนไข ปีงบประมาณ หรือช่วงเวลาที่ต้องการดึงข้อมูลใบลาที่ได้รับการอนุมัติแล้วเพื่อพิมพ์ออกเป็น PDF ทั้งหมดพร้อมกัน"}
         </p>
         
         <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
           <div className="md:col-span-3">
-            <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">ปีงบประมาณ</label>
+            <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">{t("fiscalYearLabel")}</label>
             <select 
               value={batchYear} 
               onChange={(e) => setBatchYear(Number(e.target.value))}
               className="h-10 px-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all w-full cursor-pointer"
             >
               {availableYears.map(yr => (
-                <option key={yr} value={yr}>ปีงบประมาณ {yr}</option>
+                <option key={yr} value={yr}>{t("fiscalYearPrefix")} {yr}</option>
               ))}
             </select>
           </div>
 
           <div className="md:col-span-3">
-            <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">เงื่อนไขการดึงข้อมูล</label>
+            <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">{lang === "en" ? "Batch Print Option" : "เงื่อนไขการดึงข้อมูล"}</label>
             <select 
               value={batchFilterType} 
               onChange={(e) => setBatchFilterType(e.target.value as any)}
               className="h-10 px-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all w-full cursor-pointer"
             >
-              <option value="sequence">ตามช่วงลำดับเลขอ้างอิง</option>
-              <option value="year">ทั้งหมดของปีงบประมาณ</option>
-              <option value="cycle1">รอบที่ 1 (ต.ค. - มี.ค.)</option>
-              <option value="cycle2">รอบที่ 2 (เม.ย. - ก.ย.)</option>
-              <option value="month">รอบเดือน (ระบุเดือน)</option>
+              <option value="sequence">{lang === "en" ? "By Ref Sequence Range" : "ตามช่วงลำดับเลขอ้างอิง"}</option>
+              <option value="year">{lang === "en" ? "All of Fiscal Year" : "ทั้งหมดของปีงบประมาณ"}</option>
+              <option value="cycle1">{t("cycle1Label")}</option>
+              <option value="cycle2">{t("cycle2Label")}</option>
+              <option value="month">{lang === "en" ? "By Month" : "รอบเดือน (ระบุเดือน)"}</option>
             </select>
           </div>
 
           {batchFilterType === "sequence" && (
             <>
               <div className="md:col-span-2">
-                <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">จากลำดับอนุมัติที่</label>
+                <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">{lang === "en" ? "From Approved No." : "จากลำดับอนุมัติที่"}</label>
                 <input 
                   type="number" 
                   min={1}
@@ -536,7 +596,7 @@ export default function ReportsPage() {
                 />
               </div>
               <div className="md:col-span-2">
-                <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">ถึงลำดับอนุมัติที่</label>
+                <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">{lang === "en" ? "To Approved No." : "ถึงลำดับอนุมัติที่"}</label>
                 <input 
                   type="number" 
                   min={1}
@@ -550,24 +610,15 @@ export default function ReportsPage() {
 
           {batchFilterType === "month" && (
             <div className="md:col-span-4">
-              <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">เลือกเดือน</label>
+              <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">{lang === "en" ? "Select Month" : "เลือกเดือน"}</label>
               <select 
                 value={batchMonth} 
                 onChange={(e) => setBatchMonth(Number(e.target.value))}
                 className="h-10 px-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all w-full cursor-pointer"
               >
-                <option value={10}>ตุลาคม</option>
-                <option value={11}>พฤศจิกายน</option>
-                <option value={12}>ธันวาคม</option>
-                <option value={1}>มกราคม</option>
-                <option value={2}>กุมภาพันธ์</option>
-                <option value={3}>มีนาคม</option>
-                <option value={4}>เมษายน</option>
-                <option value={5}>พฤษภาคม</option>
-                <option value={6}>มิถุนายน</option>
-                <option value={7}>กรกฎาคม</option>
-                <option value={8}>สิงหาคม</option>
-                <option value={9}>กันยายน</option>
+                {months.map(m => (
+                  <option key={m.val} value={m.val}>{lang === "en" ? m.en : m.th}</option>
+                ))}
               </select>
             </div>
           )}
@@ -578,7 +629,7 @@ export default function ReportsPage() {
               className="h-10 px-6 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-sm shadow-md shadow-purple-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer w-full"
             >
               <Printer className="w-4.5 h-4.5" />
-              ดาวน์โหลด PDF
+              {lang === "en" ? "Download PDF" : "ดาวน์โหลด PDF"}
             </button>
           </div>
         </div>

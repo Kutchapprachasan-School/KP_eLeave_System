@@ -125,8 +125,8 @@ export default function DashboardPage() {
               onChange={(e: any) => setViewMode(e.target.value as "school" | "personal")}
               className="h-10 px-4 rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50/50 dark:bg-indigo-950/20 text-indigo-700 dark:text-indigo-300 text-sm font-semibold focus:ring-2 focus:ring-indigo-500/20 cursor-pointer w-full md:w-auto shadow-sm"
             >
-              <option value="school">ภาพรวมโรงเรียน</option>
-              <option value="personal">ข้อมูลของฉัน</option>
+              <option value="school">{t("schoolOverview")}</option>
+              <option value="personal">{t("myData")}</option>
             </select>
           )}
           {/* Year Filter */}
@@ -136,7 +136,7 @@ export default function DashboardPage() {
             className="h-10 px-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-medium focus:ring-2 focus:ring-purple-500/20 cursor-pointer w-full md:w-auto"
           >
             {availableYears.map(yr => (
-              <option key={yr} value={yr}>ปีงบประมาณ {yr}</option>
+              <option key={yr} value={yr}>{t("fiscalYearPrefix")} {yr}</option>
             ))}
           </select>
 
@@ -197,13 +197,13 @@ export default function DashboardPage() {
         
         {/* Global Quota Progress */}
         <motion.div variants={itemVariants} className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white/60 dark:border-slate-800 rounded-3xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] lg:col-span-1 flex flex-col justify-center">
-          <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-6">ภาพรวมการลา (ลากิจและลาป่วย)</h3>
+          <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-6">{t("leaveOverviewSickPersonal")}</h3>
           <div className="space-y-6">
             {/* Times Progress */}
             <div>
               <div className="flex justify-between text-sm font-semibold mb-2">
-                <span className="text-slate-700 dark:text-slate-300">จำนวนครั้งที่ใช้สิทธิ์ไปแล้ว</span>
-                <span className="text-slate-900 dark:text-white">{stats.userWatchlistStats?.totalTimes || 0} / 6 ครั้ง</span>
+                <span className="text-slate-700 dark:text-slate-300">{t("usedQuotaTimes")}</span>
+                <span className="text-slate-900 dark:text-white">{stats.userWatchlistStats?.totalTimes || 0} / 6 {t("timesUnit")}</span>
               </div>
               <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-3.5 overflow-hidden">
                 <motion.div 
@@ -218,8 +218,8 @@ export default function DashboardPage() {
             {/* Days Progress */}
             <div>
               <div className="flex justify-between text-sm font-semibold mb-2">
-                <span className="text-slate-700 dark:text-slate-300">จำนวนวันที่ใช้สิทธิ์ไปแล้ว</span>
-                <span className="text-slate-900 dark:text-white">{stats.userWatchlistStats?.totalDays || 0} / 15 วัน</span>
+                <span className="text-slate-700 dark:text-slate-300">{t("usedQuotaDays")}</span>
+                <span className="text-slate-900 dark:text-white">{stats.userWatchlistStats?.totalDays || 0} / 15 {t("days")}</span>
               </div>
               <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-3.5 overflow-hidden">
                 <motion.div 
@@ -233,7 +233,7 @@ export default function DashboardPage() {
 
             <div className="pt-4 border-t border-slate-100 dark:border-slate-800">
               <p className="text-xs text-slate-500 dark:text-slate-400 text-center leading-relaxed">
-                * โควตาการลาเป็นเพียงการบอกสิทธิ์เบื้องต้น การลาเกินโควตายังสามารถยื่นคำขอได้ตามปกติ
+                {t("quotaWarningNote")}
               </p>
             </div>
           </div>
@@ -291,11 +291,11 @@ export default function DashboardPage() {
                   onChange={(e) => setLeaderboardFilter(e.target.value as "times" | "days")}
                   className="h-8 px-2 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800"
                 >
-                  <option value="times">เรียงตามจำนวนครั้ง</option>
-                  <option value="days">เรียงตามจำนวนวัน</option>
+                  <option value="times">{t("sortByTimes")}</option>
+                  <option value="days">{t("sortByDays")}</option>
                 </select>
               </div>
-              <p className="text-xs text-slate-500 dark:text-slate-400">แสดงรายชื่อผู้ที่มีการลา (ลากิจและลาป่วย)</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">{t("watchlistDescExtra")}</p>
             </div>
             <div className="space-y-3 overflow-y-auto custom-scrollbar flex-1 pr-2">
               {stats.leaveLeaderboard?.length === 0 ? (
@@ -309,7 +309,7 @@ export default function DashboardPage() {
                       <p className={`text-sm font-bold leading-snug ${item.isWarning ? 'text-rose-700 dark:text-rose-400' : 'text-slate-900 dark:text-white'}`}>
                         <span className="text-xs text-slate-400 mr-2">#{i + 1}</span>{item.name}
                       </p>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">{item.position}</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">{tPosition(item.position)}</p>
                     </div>
                     <div className="text-right ml-4 shrink-0">
                       <p className={`text-sm font-bold ${leaderboardFilter === 'times' ? (item.isWarning ? 'text-rose-600 dark:text-rose-400' : 'text-slate-700 dark:text-slate-300') : 'text-slate-500 dark:text-slate-400'}`}>
@@ -352,9 +352,9 @@ export default function DashboardPage() {
                   statusLabel = t("rejectedStatus") || "ปฏิเสธแล้ว";
                   statusColor = "text-rose-500 dark:text-rose-400";
                 } else if (req.status === "PENDING_HEAD") {
-                  statusLabel = lang === "en" ? "Pending HR" : "รอหัวหน้างานบุคคล";
+                  statusLabel = t("pendingHrHead");
                 } else if (req.status === "PENDING_EXEC") {
-                  statusLabel = lang === "en" ? "Pending Director" : "รอผู้อำนวยการ";
+                  statusLabel = t("pendingDirector");
                 }
 
                 return (
@@ -372,7 +372,7 @@ export default function DashboardPage() {
                           <span className="text-purple-600 dark:text-purple-400 font-bold mr-1.5">{req.userName}</span>
                         ) : null}
                         <span className="text-slate-700 dark:text-slate-200 font-medium">
-                          ขอ{config ? config.name : req.type}
+                          {t("requested")}{tLeaveType(req.type, config?.name)}
                         </span>
                       </div>
                       

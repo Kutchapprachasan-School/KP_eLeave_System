@@ -40,68 +40,6 @@ const handleViewAttachment = (preview: string, fileName?: string) => {
   }
 };
 
-const renderDocumentLinks = (documentUrl: string) => {
-  if (!documentUrl) {
-    return (
-      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-400 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded border border-slate-200/10 dark:border-slate-800/10">
-        ไม่มีเอกสารแนบ
-      </span>
-    );
-  }
-
-  let files: { name?: string; preview: string }[] = [];
-
-  if (documentUrl.trim().startsWith("[")) {
-    try {
-      const parsed = JSON.parse(documentUrl);
-      if (Array.isArray(parsed)) {
-        files = parsed.map((file: any) => {
-          if (typeof file === "string") {
-            return { preview: file };
-          }
-          return { name: file.name, preview: file.preview };
-        });
-      }
-    } catch (e) {
-      console.error("Failed to parse documentUrl JSON", e);
-    }
-  }
-
-  if (files.length > 0) {
-    return (
-      <div className="flex flex-col gap-1 sm:flex-row sm:gap-2">
-        {files.map((file, idx) => (
-          <button
-            key={idx}
-            onClick={() => handleViewAttachment(file.preview, file.name)}
-            className="inline-flex items-center gap-1 text-[11px] font-bold text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300 bg-purple-50 hover:bg-purple-100 dark:bg-purple-950/30 px-2 py-0.5 rounded border border-purple-200/40 dark:border-purple-800/40 transition-colors cursor-pointer"
-          >
-            <Paperclip className="w-3 h-3" />
-            เอกสาร {idx + 1}
-          </button>
-        ))}
-      </div>
-    );
-  }
-
-  // Fallback for single/comma-separated strings
-  const urls = documentUrl.split(",");
-  return (
-    <div className="flex flex-col gap-1 sm:flex-row sm:gap-2">
-      {urls.map((url, idx) => (
-        <button
-          key={idx}
-          onClick={() => handleViewAttachment(url.trim())}
-          className="inline-flex items-center gap-1 text-[11px] font-bold text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300 bg-purple-50 hover:bg-purple-100 dark:bg-purple-950/30 px-2 py-0.5 rounded border border-purple-200/40 dark:border-purple-800/40 transition-colors cursor-pointer"
-        >
-          <Paperclip className="w-3 h-3" />
-          {urls.length > 1 ? `เอกสาร ${idx + 1}` : "เปิดดูเอกสาร"}
-        </button>
-      ))}
-    </div>
-  );
-};
-
 export default function HistoryPage() {
   const { data: session } = useSession();
   const isAdmin = (session?.user as any)?.role === "ADMIN" || (session?.user as any)?.position === "แอดมิน";
@@ -162,6 +100,14 @@ export default function HistoryPage() {
     return filter ? filter.label : t("currentCycle");
   };
 
+  const getCycleLabelTh = () => {
+    if (cycleParam === "all") {
+      return "ทั้งหมดทุกปีงบประมาณ";
+    }
+    const filter = getLeaveCycleFilter(new Date(), cycleParam as any, "th");
+    return filter ? filter.label : "รอบปัจจุบัน";
+  };
+
   useEffect(() => {
     getStaffList().then(setStaffList).catch(console.error);
   }, []);
@@ -183,6 +129,23 @@ export default function HistoryPage() {
     return tLeaveType(type, config?.name);
   };
 
+  const getLeaveTypeNameTh = (type: string, dbName?: string) => {
+    const thMap: Record<string, string> = {
+      SICK: "ลาป่วย",
+      PERSONAL: "ลากิจส่วนตัว",
+      VACATION: "ลาพักผ่อน",
+      ORDINATION: "ลาอุปสมบท/ฮัจญ์",
+      MATERNITY: "ลาคลอดบุตร",
+      PATERNITY: "ลาช่วยเหลือภริยาคลอดบุตร",
+      INTERNATIONAL: "ลาไปปฏิบัติงานในองค์การระหว่างประเทศ",
+      SPOUSE: "ลาติดตามคู่สมรส",
+      REHABILITATION: "ลาฟื้นฟูสมรรถภาพด้านอาชีพ",
+      MILITARY: "ลาเข้ารับการตรวจเลือกหรือเตรียมพล",
+      STUDY: "ลาศึกษาต่อ/ฝึกอบรม",
+    };
+    return thMap[type] || dbName || type;
+  };
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "APPROVED":
@@ -192,9 +155,9 @@ export default function HistoryPage() {
       case "CANCELLED":
         return <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-xs font-medium border border-slate-200 dark:border-slate-700"><FileX className="w-3.5 h-3.5" /> {t("cancelled")}</span>;
       case "PENDING_HEAD":
-        return <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-orange-50 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400 text-xs font-medium border border-orange-200 dark:border-orange-800"><Clock className="w-3.5 h-3.5" /> {lang === "en" ? "Pending HR Head" : "รอหัวหน้างานบุคคล"}</span>;
+        return <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-orange-50 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400 text-xs font-medium border border-orange-200 dark:border-orange-800"><Clock className="w-3.5 h-3.5" /> {t("pendingHrHead")}</span>;
       case "PENDING_EXEC":
-        return <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-orange-50 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400 text-xs font-medium border border-orange-200 dark:border-orange-800"><Clock className="w-3.5 h-3.5" /> {lang === "en" ? "Pending Director" : "รอผู้อำนวยการ"}</span>;
+        return <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-orange-50 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400 text-xs font-medium border border-orange-200 dark:border-orange-800"><Clock className="w-3.5 h-3.5" /> {t("pendingDirector")}</span>;
       default:
         return <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-orange-50 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400 text-xs font-medium border border-orange-200 dark:border-orange-800"><Clock className="w-3.5 h-3.5" /> {t("pending")}</span>;
     }
@@ -205,42 +168,53 @@ export default function HistoryPage() {
       case "APPROVED": return t("approved");
       case "REJECTED": return t("rejected");
       case "CANCELLED": return t("cancelled");
-      case "PENDING_HEAD": return lang === "en" ? "Pending HR Head" : "รอหัวหน้างานบุคคล";
-      case "PENDING_EXEC": return lang === "en" ? "Pending Director" : "รอผู้อำนวยการ";
+      case "PENDING_HEAD": return t("pendingHrHead");
+      case "PENDING_EXEC": return t("pendingDirector");
       default: return t("pending");
     }
   };
 
+  const getStatusTextTh = (status: string) => {
+    switch (status) {
+      case "APPROVED": return "อนุมัติแล้ว";
+      case "REJECTED": return "ปฏิเสธ";
+      case "CANCELLED": return "ยกเลิก";
+      case "PENDING_HEAD": return "รอหัวหน้างานบุคคล";
+      case "PENDING_EXEC": return "รอผู้อำนวยการ";
+      default: return "รอดำเนินการ";
+    }
+  };
+
   const handleCancel = async (id: string) => {
-    if (!confirm("ยืนยันการยกเลิกคำขอลานี้?")) return;
+    if (!confirm(t("confirmCancelLeave"))) return;
     try {
       await cancelLeaveRequest(id);
       setHistory((prev) => prev.map((h) => h.id === id ? { ...h, status: "CANCELLED" } : h));
     } catch (err) {
-      alert("เกิดข้อผิดพลาดในการยกเลิก");
+      alert(t("cancelLeaveError"));
     }
   };
 
   const handleDelete = async (id: string, typeName: string, userName: string) => {
     const confirmKeyword = "CONFIRM";
-    const input = prompt(
-      `⚠️ คำเตือนที่เป็นอันตราย: คุณกำลังจะลบประวัติการลาแบบถาวร!\n` +
-      `ประเภทการลา: ${typeName}\n` +
-      `ชื่อผู้ลา: ${userName}\n\n` +
-      `หากต้องการดำเนินการต่ออย่างแน่วแน่ กรุณาพิมพ์ "${confirmKeyword}" เพื่อยืนยัน:`
-    );
+    const title = t("confirmDeleteTitle");
+    const labelType = lang === "en" ? "Leave Type" : "ประเภทการลา";
+    const labelUser = lang === "en" ? "Staff Name" : "ชื่อผู้ลา";
+    const confirmMsg = `${title}\n${labelType}: ${typeName}\n${labelUser}: ${userName}\n\n${t("confirmDeleteInput")}`;
+    
+    const input = prompt(confirmMsg);
     if (input !== confirmKeyword) {
       if (input !== null) {
-        alert("การยืนยันไม่ถูกต้อง ยกเลิกการลบประวัติ");
+        alert(t("deleteCancelledAlert"));
       }
       return;
     }
     try {
       await adminDeleteLeaveRequest(id);
       setHistory((prev) => prev.filter((h) => h.id !== id));
-      alert("ลบข้อมูลการลาสำเร็จเรียบร้อย");
+      alert(t("deleteSuccessAlert"));
     } catch (err: any) {
-      alert("เกิดข้อผิดพลาดในการลบ: " + (err.message || ""));
+      alert(t("deleteErrorAlert") + (err.message || ""));
     }
   };
 
@@ -251,7 +225,7 @@ export default function HistoryPage() {
 
     const printWindow = window.open("", "_blank");
     if (!printWindow) {
-      alert("กรุณาอนุญาต Pop-up เพื่อพิมพ์เอกสาร");
+      alert(t("popupBlockedAlert"));
       return;
     }
 
@@ -270,23 +244,27 @@ export default function HistoryPage() {
       </tr>
     `;
 
-    const rows = filteredHistory.map((item, i) => `
-      <tr>
-        <td style="border:1px solid #ddd;padding:8px;text-align:center;">${i + 1}</td>
-        <td style="border:1px solid #ddd;padding:8px;">
-          ${item.status === "APPROVED" 
-            ? `<span style="color:#059669;font-weight:bold;">อนุมัติที่ ${item.approvedSeq}/${item.fiscalYear}</span>` 
-            : `<span style="color:#64748b;">คำขอที่ ${item.pendingSeq}/${item.fiscalYear}</span>`}
-        </td>
-        ${showUserColumn ? `<td style="border:1px solid #ddd;padding:8px;font-weight:bold;">${item.userName}</td>` : ''}
-        <td style="border:1px solid #ddd;padding:8px;">${getLeaveTypeName(item.type)}</td>
-        <td style="border:1px solid #ddd;padding:8px;text-align:center;">${format(new Date(item.startDate), "dd/MM/yyyy")}</td>
-        <td style="border:1px solid #ddd;padding:8px;text-align:center;">${format(new Date(item.endDate), "dd/MM/yyyy")}</td>
-        <td style="border:1px solid #ddd;padding:8px;text-align:center;">${Math.ceil((new Date(item.endDate).getTime() - new Date(item.startDate).getTime()) / (1000*60*60*24)) + 1}</td>
-        <td style="border:1px solid #ddd;padding:8px;">${item.reason}</td>
-        <td style="border:1px solid #ddd;padding:8px;text-align:center;">${getStatusText(item.status)}</td>
-      </tr>
-    `).join("");
+    const rows = filteredHistory.map((item, i) => {
+      const config = leaveConfigs.find((c) => c.type === item.type);
+      const leaveTh = getLeaveTypeNameTh(item.type, config?.name);
+      return `
+        <tr>
+          <td style="border:1px solid #ddd;padding:8px;text-align:center;">${i + 1}</td>
+          <td style="border:1px solid #ddd;padding:8px;">
+            ${item.status === "APPROVED" 
+              ? `<span style="color:#059669;font-weight:bold;">อนุมัติที่ ${item.approvedSeq}/${item.fiscalYear}</span>` 
+              : `<span style="color:#64748b;">คำขอที่ ${item.pendingSeq}/${item.fiscalYear}</span>`}
+          </td>
+          ${showUserColumn ? `<td style="border:1px solid #ddd;padding:8px;font-weight:bold;">${item.userName}</td>` : ''}
+          <td style="border:1px solid #ddd;padding:8px;">${leaveTh}</td>
+          <td style="border:1px solid #ddd;padding:8px;text-align:center;">${format(new Date(item.startDate), "dd/MM/yyyy")}</td>
+          <td style="border:1px solid #ddd;padding:8px;text-align:center;">${format(new Date(item.endDate), "dd/MM/yyyy")}</td>
+          <td style="border:1px solid #ddd;padding:8px;text-align:center;">${Math.ceil((new Date(item.endDate).getTime() - new Date(item.startDate).getTime()) / (1000*60*60*24)) + 1}</td>
+          <td style="border:1px solid #ddd;padding:8px;">${item.reason}</td>
+          <td style="border:1px solid #ddd;padding:8px;text-align:center;">${getStatusTextTh(item.status)}</td>
+        </tr>
+      `;
+    }).join("");
 
     printWindow.document.write(`
       <!DOCTYPE html>
@@ -314,7 +292,7 @@ export default function HistoryPage() {
       </head>
       <body>
         <h1>ประวัติการลา</h1>
-        <p class="subtitle">ชื่อ-นามสกุล: ${selectedUserId === "me" ? (history[0]?.userName || "ผู้ยื่นคำขอ") : selectedUserId === "all" ? "บุคลากรทุกคน (ประวัติรวม)" : (staffList.find(s => s.id === selectedUserId)?.name || "ผู้ยื่นคำขอ")} | ประจำ${getCycleLabel()} | พิมพ์เมื่อ ${format(new Date(), "dd/MM/yyyy HH:mm")} น.</p>
+        <p class="subtitle">ชื่อ-นามสกุล: ${selectedUserId === "me" ? (history[0]?.userName || "ผู้ยื่นคำขอ") : selectedUserId === "all" ? "บุคลากรทุกคน (ประวัติรวม)" : (staffList.find(s => s.id === selectedUserId)?.name || "ผู้ยื่นคำขอ")} | ประจำ${getCycleLabelTh()} | พิมพ์เมื่อ ${format(new Date(), "dd/MM/yyyy HH:mm")} น.</p>
         <table>
           <thead>
             ${headerHtml}
@@ -366,6 +344,68 @@ export default function HistoryPage() {
     XLSX.writeFile(wb, `ประวัติการลา_${format(new Date(), "yyyy-MM-dd")}.xlsx`);
   };
 
+  const renderDocumentLinks = (documentUrl: string) => {
+    if (!documentUrl) {
+      return (
+        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-400 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded border border-slate-200/10 dark:border-slate-800/10">
+          {t("noAttachment")}
+        </span>
+      );
+    }
+
+    let files: { name?: string; preview: string }[] = [];
+
+    if (documentUrl.trim().startsWith("[")) {
+      try {
+        const parsed = JSON.parse(documentUrl);
+        if (Array.isArray(parsed)) {
+          files = parsed.map((file: any) => {
+            if (typeof file === "string") {
+              return { preview: file };
+            }
+            return { name: file.name, preview: file.preview };
+          });
+        }
+      } catch (e) {
+        console.error("Failed to parse documentUrl JSON", e);
+      }
+    }
+
+    if (files.length > 0) {
+      return (
+        <div className="flex flex-col gap-1 sm:flex-row sm:gap-2">
+          {files.map((file, idx) => (
+            <button
+              key={idx}
+              onClick={() => handleViewAttachment(file.preview, file.name)}
+              className="inline-flex items-center gap-1 text-[11px] font-bold text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300 bg-purple-50 hover:bg-purple-100 dark:bg-purple-950/30 px-2 py-0.5 rounded border border-purple-200/40 dark:border-purple-800/40 transition-colors cursor-pointer"
+            >
+              <Paperclip className="w-3 h-3" />
+              {t("attachmentIndex")} {idx + 1}
+            </button>
+          ))}
+        </div>
+      );
+    }
+
+    // Fallback for single/comma-separated strings
+    const urls = documentUrl.split(",");
+    return (
+      <div className="flex flex-col gap-1 sm:flex-row sm:gap-2">
+        {urls.map((url, idx) => (
+          <button
+            key={idx}
+            onClick={() => handleViewAttachment(url.trim())}
+            className="inline-flex items-center gap-1 text-[11px] font-bold text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300 bg-purple-50 hover:bg-purple-100 dark:bg-purple-950/30 px-2 py-0.5 rounded border border-purple-200/40 dark:border-purple-800/40 transition-colors cursor-pointer"
+          >
+            <Paperclip className="w-3 h-3" />
+            {urls.length > 1 ? `${t("attachmentIndex")} ${idx + 1}` : t("viewAttachment")}
+          </button>
+        ))}
+      </div>
+    );
+  };
+
   return (
     <div className="max-w-6xl mx-auto space-y-6" ref={printRef}>
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4">
@@ -375,7 +415,7 @@ export default function HistoryPage() {
             {selectedUserId === "me" 
               ? t("leaveHistorySubtitle") 
               : selectedUserId === "all"
-                ? "ประวัติการลาของบุคลากรทุกคนในระบบ"
+                ? t("allStaffHistory")
                 : `${t("leaveHistory")}: ${staffList.find(s => s.id === selectedUserId)?.name || ""}`}
           </p>
         </div>
@@ -387,7 +427,7 @@ export default function HistoryPage() {
               className="h-10 px-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all cursor-pointer"
             >
               <option value="me">{t("myHistory")}</option>
-              <option value="all">ทุกคน (ประวัติรวม)</option>
+              <option value="all">{t("allStaffOption")}</option>
               {staffList.map((staff) => (
                 <option key={staff.id} value={staff.id}>
                   {staff.name} ({tPosition(staff.position) || t("staffMember")})
@@ -404,10 +444,10 @@ export default function HistoryPage() {
             }}
             className="h-10 px-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all cursor-pointer"
           >
-            <option value="all">{lang === "en" ? "Status: All" : "สถานะ: ทั้งหมด"}</option>
-            <option value="pending">{lang === "en" ? "Status: Pending" : "สถานะ: รอดำเนินการ"}</option>
-            <option value="approved">{lang === "en" ? "Status: Approved" : "สถานะ: อนุมัติแล้ว"}</option>
-            <option value="rejected">{lang === "en" ? "Status: Disapproved" : "สถานะ: ไม่อนุมัติ/ยกเลิก"}</option>
+            <option value="all">{t("status")}: {t("allOptions")}</option>
+            <option value="pending">{t("status")}: {t("pending")}</option>
+            <option value="approved">{t("status")}: {t("approved")}</option>
+            <option value="rejected">{t("status")}: {lang === "en" ? "Rejected/Cancelled" : "ไม่อนุมัติ/ยกเลิก"}</option>
           </select>
           {filteredHistory.length > 0 && (
             <>
@@ -482,11 +522,11 @@ export default function HistoryPage() {
                       <td className="px-6 py-4">
                         {item.status === "APPROVED" ? (
                           <span className="text-emerald-600 dark:text-emerald-400 font-bold text-xs bg-emerald-50 dark:bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-200/40 dark:border-emerald-800/40">
-                            อนุมัติที่ {item.approvedSeq}/{item.fiscalYear}
+                            {lang === "en" ? `Approved No. ${item.approvedSeq}/${item.fiscalYear}` : `อนุมัติที่ ${item.approvedSeq}/${item.fiscalYear}`}
                           </span>
                         ) : (
                           <span className="text-slate-500 dark:text-slate-400 text-xs bg-slate-50 dark:bg-slate-800 px-2.5 py-1 rounded-lg border border-slate-200/40 dark:border-slate-700/40">
-                            คำขอที่ {item.pendingSeq}/{item.fiscalYear}
+                            {lang === "en" ? `Request No. ${item.pendingSeq}/${item.fiscalYear}` : `คำขอที่ ${item.pendingSeq}/${item.fiscalYear}`}
                           </span>
                         )}
                       </td>
@@ -506,11 +546,11 @@ export default function HistoryPage() {
                       <td className="px-6 py-4 text-slate-600 dark:text-slate-300 font-semibold">
                         {calculateDays(item.startDate, item.endDate, item.type) === 0 && item.type !== "MATERNITY" ? (
                           <span className="px-2 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 text-xs" title="วันที่เลือกตรงกับวันเสาร์-อาทิตย์ทั้งหมด">
-                            0 วัน (ตรงกับวันหยุด)
+                            {t("weekendZeroDays")}
                           </span>
                         ) : (
                           <span className="px-2 py-0.5 rounded bg-purple-500/10 text-purple-600 dark:text-purple-400 text-xs">
-                            {calculateDays(item.startDate, item.endDate, item.type)} วัน
+                            {calculateDays(item.startDate, item.endDate, item.type)} {t("days")}
                           </span>
                         )}
                       </td>
@@ -533,7 +573,7 @@ export default function HistoryPage() {
                             title="พิมพ์ใบลาทางการ / บันทึก PDF"
                           >
                             <Printer className="w-3.5 h-3.5" />
-                            <span>พิมพ์ใบลา</span>
+                            <span>{t("print")}</span>
                           </a>
                           {selectedUserId === "me" && (item.status === "PENDING_HEAD" || item.status === "PENDING_EXEC") && (
                             <button
@@ -563,7 +603,7 @@ export default function HistoryPage() {
               {filteredHistory.length > itemsPerPage && (
                 <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-6 py-5 border-t border-slate-100 dark:border-slate-800/80 mt-4 print:hidden">
                   <div className="text-xs font-semibold text-slate-400 dark:text-slate-500">
-                    {lang === "en" ? "Showing" : "แสดง"} {((currentPage - 1) * itemsPerPage) + 1} - {Math.min(currentPage * itemsPerPage, filteredHistory.length)} {lang === "en" ? "of" : "จาก"} {filteredHistory.length} {lang === "en" ? "records" : "รายการ"}
+                    {t("showingText")} {((currentPage - 1) * itemsPerPage) + 1} - {Math.min(currentPage * itemsPerPage, filteredHistory.length)} {t("ofText")} {filteredHistory.length} {t("recordsText")}
                   </div>
                   
                   <div className="flex items-center gap-1.5">
@@ -572,7 +612,7 @@ export default function HistoryPage() {
                       disabled={currentPage === 1}
                       className="px-3.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-850 text-xs font-bold text-slate-700 dark:text-slate-300 disabled:opacity-40 disabled:pointer-events-none transition-all shadow-sm"
                     >
-                      {lang === "en" ? "Previous" : "ก่อนหน้า"}
+                      {t("previousText")}
                     </button>
                     
                     {[...Array(totalPages)].map((_, index) => {
@@ -603,7 +643,7 @@ export default function HistoryPage() {
                       disabled={currentPage === totalPages}
                       className="px-3.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-850 text-xs font-bold text-slate-700 dark:text-slate-300 disabled:opacity-40 disabled:pointer-events-none transition-all shadow-sm"
                     >
-                      {lang === "en" ? "Next" : "ถัดไป"}
+                      {t("nextText")}
                     </button>
                   </div>
                 </div>

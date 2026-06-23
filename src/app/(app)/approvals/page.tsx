@@ -57,68 +57,6 @@ const handleViewAttachment = (preview: string, fileName?: string) => {
   }
 };
 
-const renderDocumentLinks = (documentUrl: string) => {
-  if (!documentUrl) {
-    return (
-      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-400 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded border border-slate-200/10 dark:border-slate-800/10">
-        ไม่มีเอกสารแนบ
-      </span>
-    );
-  }
-
-  let files: { name?: string; preview: string }[] = [];
-
-  if (documentUrl.trim().startsWith("[")) {
-    try {
-      const parsed = JSON.parse(documentUrl);
-      if (Array.isArray(parsed)) {
-        files = parsed.map((file: any) => {
-          if (typeof file === "string") {
-            return { preview: file };
-          }
-          return { name: file.name, preview: file.preview };
-        });
-      }
-    } catch (e) {
-      console.error("Failed to parse documentUrl JSON", e);
-    }
-  }
-
-  if (files.length > 0) {
-    return (
-      <div className="flex flex-col gap-1 sm:flex-row sm:gap-2">
-        {files.map((file, idx) => (
-          <button
-            key={idx}
-            onClick={() => handleViewAttachment(file.preview, file.name)}
-            className="inline-flex items-center gap-1 text-[11px] font-bold text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300 bg-purple-50 hover:bg-purple-100 dark:bg-purple-950/30 px-2 py-0.5 rounded border border-purple-200/40 dark:border-purple-800/40 transition-colors cursor-pointer"
-          >
-            <Paperclip className="w-3 h-3" />
-            เอกสาร {idx + 1}
-          </button>
-        ))}
-      </div>
-    );
-  }
-
-  // Fallback for single/comma-separated strings
-  const urls = documentUrl.split(",");
-  return (
-    <div className="flex flex-col gap-1 sm:flex-row sm:gap-2">
-      {urls.map((url, idx) => (
-        <button
-          key={idx}
-          onClick={() => handleViewAttachment(url.trim())}
-          className="inline-flex items-center gap-1 text-[11px] font-bold text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300 bg-purple-50 hover:bg-purple-100 dark:bg-purple-950/30 px-2 py-0.5 rounded border border-purple-200/40 dark:border-purple-800/40 transition-colors cursor-pointer"
-        >
-          <Paperclip className="w-3 h-3" />
-          {urls.length > 1 ? `เอกสาร ${idx + 1}` : "เปิดดูเอกสาร"}
-        </button>
-      ))}
-    </div>
-  );
-};
-
 export default function ApprovalsPage() {
   const { data: session } = useSession();
   const user = session?.user as any;
@@ -126,7 +64,7 @@ export default function ApprovalsPage() {
 
   const [pendingRequests, setPendingRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const { t, lang } = useI18n();
+  const { t, lang, tLeaveType } = useI18n();
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [processingStatus, setProcessingStatus] = useState<string | null>(null);
   const [settings, setSettings] = useState<any>(null);
@@ -157,8 +95,7 @@ export default function ApprovalsPage() {
   }, [settings?.pdfFont]);
 
   const getLeaveTypeName = (type: string) => {
-    const map: Record<string, string> = { SICK: t("sickLeave"), PERSONAL: t("personalLeave"), VACATION: t("vacationLeave") };
-    return map[type] || type;
+    return tLeaveType(type);
   };
 
   const generatePdfForRequest = (id: string): Promise<{ base64: string; mimeType: string }> => {
@@ -303,7 +240,7 @@ export default function ApprovalsPage() {
           result = await generatePdfForRequest(id);
         } catch (pdfErr: any) {
           console.error("Failed to generate PDF client-side:", pdfErr);
-          alert(`คำเตือน: อนุมัติสำเร็จแล้ว แต่ไม่สามารถสร้างไฟล์ PDF บนคลาวด์ได้เนื่องจากปัญหาทางเทคนิค\n\nรายละเอียด: ${pdfErr?.message || pdfErr}`);
+          alert(t("approveSuccessPdfError") + `\n\n${lang === "en" ? "Details" : "รายละเอียด"}: ${pdfErr?.message || pdfErr}`);
         }
 
         if (result) {
@@ -315,7 +252,7 @@ export default function ApprovalsPage() {
       window.dispatchEvent(new Event("noti-refresh"));
       loadData();
     } catch (error: any) {
-      alert("เกิดข้อผิดพลาด: " + (error?.message || error));
+      alert((lang === "en" ? "Error: " : "เกิดข้อผิดพลาด: ") + (error?.message || error));
     } finally {
       setProcessingId(null);
       setProcessingStatus(null);
@@ -323,11 +260,11 @@ export default function ApprovalsPage() {
   };
 
   const handleReject = async (id: string) => {
-    const reason = window.prompt("กรุณากรอกความเห็น/เหตุผลในการไม้อนุมัติ:");
+    const reason = window.prompt(t("enterRejectReason"));
     if (reason === null) return;
     const trimmedReason = reason.trim();
     if (!trimmedReason) {
-      alert(lang === "en" ? "Rejection reason is required." : "จำเป็นต้องระบุเหตุผลในการปฏิเสธการอนุมัติ");
+      alert(t("rejectReasonRequired"));
       return;
     }
 
@@ -342,7 +279,7 @@ export default function ApprovalsPage() {
         result = await generatePdfForRequest(id);
       } catch (pdfErr: any) {
         console.error("Failed to generate PDF client-side:", pdfErr);
-        alert(`คำเตือน: ปฏิเสธการลาสำเร็จแล้ว แต่ไม่สามารถสร้างไฟล์ PDF บนคลาวด์ได้เนื่องจากปัญหาทางเทคนิค\n\nรายละเอียด: ${pdfErr?.message || pdfErr}`);
+        alert(t("rejectSuccessPdfError") + `\n\n${lang === "en" ? "Details" : "รายละเอียด"}: ${pdfErr?.message || pdfErr}`);
       }
 
       if (result) {
@@ -353,11 +290,73 @@ export default function ApprovalsPage() {
       window.dispatchEvent(new Event("noti-refresh"));
       loadData();
     } catch (err: any) {
-      alert(err.message || "เกิดข้อผิดพลาด");
+      alert(err.message || t("operationFailed"));
     } finally {
       setProcessingId(null);
       setProcessingStatus(null);
     }
+  };
+
+  const renderDocumentLinks = (documentUrl: string) => {
+    if (!documentUrl) {
+      return (
+        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-400 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded border border-slate-200/10 dark:border-slate-800/10">
+          {t("noAttachment")}
+        </span>
+      );
+    }
+
+    let files: { name?: string; preview: string }[] = [];
+
+    if (documentUrl.trim().startsWith("[")) {
+      try {
+        const parsed = JSON.parse(documentUrl);
+        if (Array.isArray(parsed)) {
+          files = parsed.map((file: any) => {
+            if (typeof file === "string") {
+              return { preview: file };
+            }
+            return { name: file.name, preview: file.preview };
+          });
+        }
+      } catch (e) {
+        console.error("Failed to parse documentUrl JSON", e);
+      }
+    }
+
+    if (files.length > 0) {
+      return (
+        <div className="flex flex-col gap-1 sm:flex-row sm:gap-2">
+          {files.map((file, idx) => (
+            <button
+              key={idx}
+              onClick={() => handleViewAttachment(file.preview, file.name)}
+              className="inline-flex items-center gap-1 text-[11px] font-bold text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300 bg-purple-50 hover:bg-purple-100 dark:bg-purple-950/30 px-2 py-0.5 rounded border border-purple-200/40 dark:border-purple-800/40 transition-colors cursor-pointer"
+            >
+              <Paperclip className="w-3 h-3" />
+              {t("attachmentIndex")} {idx + 1}
+            </button>
+          ))}
+        </div>
+      );
+    }
+
+    // Fallback for single/comma-separated strings
+    const urls = documentUrl.split(",");
+    return (
+      <div className="flex flex-col gap-1 sm:flex-row sm:gap-2">
+        {urls.map((url, idx) => (
+          <button
+            key={idx}
+            onClick={() => handleViewAttachment(url.trim())}
+            className="inline-flex items-center gap-1 text-[11px] font-bold text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300 bg-purple-50 hover:bg-purple-100 dark:bg-purple-950/30 px-2 py-0.5 rounded border border-purple-200/40 dark:border-purple-800/40 transition-colors cursor-pointer"
+          >
+            <Paperclip className="w-3 h-3" />
+            {urls.length > 1 ? `${t("attachmentIndex")} ${idx + 1}` : t("viewAttachment")}
+          </button>
+        ))}
+      </div>
+    );
   };
 
   if (loading) {
@@ -403,7 +402,7 @@ export default function ApprovalsPage() {
                 )}
                 <div>
                   <p className="font-bold text-slate-900 dark:text-white">{item.user?.name}</p>
-                  <p className="text-xs text-slate-500">{item.user?.position || t("staffMember")} • {item.user?.subjectGroup}</p>
+                  <p className="text-xs text-slate-500">{tPosition(item.user?.position) || t("staffMember")} • {item.user?.subjectGroup}</p>
                 </div>
               </div>
 
@@ -411,9 +410,9 @@ export default function ApprovalsPage() {
               <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-4 border-y md:border-y-0 md:border-x border-slate-100 dark:border-slate-800 py-4 md:py-0 md:px-6">
                 <div>
                   <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">
-                    {t("typeAndDate")} • คำขอที่ {item.pendingSeq}/{item.fiscalYear}
+                    {t("typeAndDate")} • {lang === "en" ? `Request No. ${item.pendingSeq}/${item.fiscalYear}` : `คำขอที่ ${item.pendingSeq}/${item.fiscalYear}`}
                     <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200/50 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-800">
-                      {item.status === "PENDING_HEAD" ? "รอหัวหน้างานบุคคล" : item.status === "PENDING_EXEC" ? "รอผู้อำนวยการ" : item.status}
+                      {item.status === "PENDING_HEAD" ? t("pendingHrHead") : item.status === "PENDING_EXEC" ? t("pendingDirector") : item.status}
                     </span>
                   </p>
                   <p className="text-sm font-medium text-slate-900 dark:text-white flex items-center gap-1.5">
@@ -425,11 +424,11 @@ export default function ApprovalsPage() {
                     <span>{format(new Date(item.startDate), "dd MMM")} - {format(new Date(item.endDate), "dd MMM")}</span>
                     {calculateDays(item.startDate, item.endDate, item.type) === 0 && item.type !== "MATERNITY" ? (
                       <span className="ml-1 px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 font-bold text-[10px]" title="วันที่เลือกตรงกับวันเสาร์-อาทิตย์ทั้งหมด">
-                        (0 วัน - ตรงกับวันหยุดราชการ)
+                        {t("weekendDaysNote")}
                       </span>
                     ) : (
                       <span className="ml-1 px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-600 dark:text-purple-400 font-bold text-[10px]">
-                        ({calculateDays(item.startDate, item.endDate, item.type)} วัน)
+                        ({calculateDays(item.startDate, item.endDate, item.type)} {t("days")})
                       </span>
                     )}
                   </p>
@@ -445,7 +444,7 @@ export default function ApprovalsPage() {
                       className="inline-flex items-center gap-1 text-[11px] font-bold text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-500/10 dark:text-indigo-400 dark:hover:bg-indigo-500/20 px-2 py-0.5 rounded border border-indigo-200/40 dark:border-indigo-800/40 transition-colors"
                     >
                       <Printer className="w-3 h-3" />
-                      พิมพ์ใบลา
+                      {t("print")}
                     </a>
                   </div>
                 </div>
@@ -461,7 +460,7 @@ export default function ApprovalsPage() {
               <div className="flex gap-2 w-full md:w-auto md:min-w-[200px] justify-end items-center">
                 {isAdmin ? (
                   <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
-                    แอดมิน (ดูเท่านั้น)
+                    {t("viewOnlyAdmin")}
                   </span>
                 ) : (
                   <>
@@ -493,13 +492,13 @@ export default function ApprovalsPage() {
             <div className="w-16 h-16 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
             <div>
               <h3 className="font-bold text-lg text-slate-900 dark:text-white">
-                {processingStatus === "updating_db" && "กำลังอัปเดตสถานะในระบบ..."}
-                {processingStatus === "loading_iframe" && "กำลังโหลดแบบฟอร์มเอกสาร..."}
-                {processingStatus === "capturing" && "กำลังแคปภาพและสร้างไฟล์ PDF..."}
-                {processingStatus === "uploading" && "กำลังนำส่งเอกสารลง Google Drive..."}
+                {processingStatus === "updating_db" && t("updatingDb")}
+                {processingStatus === "loading_iframe" && t("loadingIframe")}
+                {processingStatus === "capturing" && t("capturing")}
+                {processingStatus === "uploading" && t("uploadingDrive")}
               </h3>
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
-                กรุณาอย่าปิดหน้าต่างนี้ ระบบกำลังดำเนินการอัปเดตสถานะและจัดเก็บเอกสารอย่างปลอดภัย
+                {t("modalWaitDesc")}
               </p>
             </div>
           </div>

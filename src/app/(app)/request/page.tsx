@@ -428,12 +428,12 @@ export default function RequestLeavePage() {
                      <div className="space-y-1">
                        <p className="text-sm font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
                          <Calendar className="w-4.5 h-4.5 text-purple-600 dark:text-purple-400" />
-                         จำนวนวันลาที่คำนวณในคำขอนี้
+                         {t("calculatedDays")}
                        </p>
                        <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
                          {selectedType === "MATERNITY" 
-                           ? "✓ คำนวณเป็นวันปฏิทิน (รวมวันหยุดเสาร์-อาทิตย์)" 
-                           : "✓ ไม่รวมวันหยุดเสาร์-อาทิตย์ (นับเฉพาะวันทำการปกติ)"
+                           ? t("calcCalendarDaysNote")
+                           : t("calcWorkingDaysNote")
                          }
                        </p>
                      </div>
@@ -441,7 +441,7 @@ export default function RequestLeavePage() {
                        <span className="text-3xl font-black bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent">
                          {calculatedCount}
                        </span>
-                       <span className="text-xs font-bold text-slate-600 dark:text-slate-400">วัน</span>
+                       <span className="text-xs font-bold text-slate-600 dark:text-slate-400">{t("days")}</span>
                      </div>
                    </div>
 
@@ -453,9 +453,9 @@ export default function RequestLeavePage() {
                      >
                        <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
                        <div className="text-xs space-y-1">
-                         <p className="font-bold">⚠️ แจ้งเตือน: วันที่เลือกตรงกับวันหยุดเสาร์-อาทิตย์</p>
+                         <p className="font-bold">{t("weekendWarningTitle")}</p>
                          <p className="opacity-90 font-medium leading-relaxed">
-                           เนื่องจากระบบไม่นับวันหยุดราชการปกติเข้ารวมกับจำนวนวันลาสะสมสำหรับประเภทการลานี้ ({tLeaveType(selectedType, selectedType)}) จึงทำให้ยอดวันลาที่คำนวณได้มีค่าเป็น <span className="font-bold">0 วัน</span>
+                           {t("weekendWarningDesc")}
                          </p>
                        </div>
                      </motion.div>
@@ -469,9 +469,9 @@ export default function RequestLeavePage() {
                       >
                         <AlertCircle className="w-5 h-5 text-rose-500 shrink-0 mt-0.5" />
                         <div className="text-xs space-y-1">
-                          <p className="font-bold">คำเตือน: ไม่สามารถส่งคำขอลาได้ ลากิจส่วนตัวต้องล่วงหน้าอย่างน้อย 1 วัน</p>
+                          <p className="font-bold">{t("personalLeaveAdvanceWarningTitle")}</p>
                           <p className="opacity-90 font-medium leading-relaxed">
-                            เนื่องจากข้อกำหนดของสถาบัน กำหนดให้การลากิจส่วนตัวต้องทำรายการล่วงหน้าอย่างน้อย 1 วันทำการ (ไม่สามารถส่งคำขอสำหรับวันนี้หรือย้อนหลังได้)
+                            {t("personalLeaveAdvanceWarningDesc")}
                           </p>
                         </div>
                       </motion.div>
@@ -486,11 +486,17 @@ export default function RequestLeavePage() {
                         <div className="flex items-start gap-2.5">
                           <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
                           <div className="text-xs space-y-1">
-                            <p className="font-bold">แจ้งเตือน: สถิติลารวมสะสมของท่านเกินเกณฑ์ที่กำหนด</p>
+                            <p className="font-bold">{t("excessLeaveWarningTitle")}</p>
                             <p className="opacity-90 font-medium leading-relaxed">
-                              เนื่องจากท่านมีประวัติการลากิจส่วนตัวและลาป่วยสะสมในรอบปีงบประมาณนี้ เกิน {limitTimes} ครั้ง หรือ {limitDays} วันทำการ
-                              <br />
-                              <strong>กรุณาจัดทำบันทึกข้อความเสนอผู้อำนวยการก่อนการลา และแนบไฟล์เอกสารบันทึกข้อความดังกล่าวในช่องแนบเอกสารด้านล่าง</strong>
+                              {t("excessLeaveWarningDesc")
+                                .replace("{limitTimes}", String(limitTimes))
+                                .replace("{limitDays}", String(limitDays))
+                                .split("\n").map((line, i) => (
+                                  <span key={i} className={i === 1 ? "font-bold mt-1 block" : ""}>
+                                    {line}
+                                  </span>
+                                ))
+                              }
                             </p>
                           </div>
                         </div>
@@ -503,7 +509,7 @@ export default function RequestLeavePage() {
                               onChange={(e) => setMemoConfirmed(e.target.checked)}
                               className="w-4 h-4 rounded border-slate-300 text-amber-600 focus:ring-amber-500"
                             />
-                            <span>ข้าพเจ้ายืนยันว่าได้จัดทำบันทึกข้อความเสนอผู้อำนวยการเรียบร้อยแล้ว</span>
+                            <span>{t("confirmMemoCheckbox")}</span>
                           </label>
                         </div>
                       </motion.div>
@@ -546,14 +552,23 @@ export default function RequestLeavePage() {
                         >
                           <AlertTriangle className="w-5 h-5 text-orange-500 shrink-0 mt-0.5" />
                           <div className="text-xs space-y-1">
-                            <p className="font-bold">⚠️ แจ้งเตือน: จำนวนวันลาเกินโควตาที่กำหนด</p>
-                            <p className="opacity-90 font-medium leading-relaxed">
-                              ประเภทนี้มีโควตาสูงสุด <span className="font-bold">{quota} วัน/ปี</span> — คุณใช้ไปแล้ว <span className="font-bold">{used} วัน</span> เหลืออีก <span className="font-bold">{remaining} วัน</span>
-                              <br />คำขอลาครั้งนี้ ({reqDays} วัน) จะทำให้ยอดสะสมเกินโควตา
-                            </p>
+                            <p className="font-bold">{t("quotaExceedWarningTitle")}</p>
+                            <div className="opacity-90 font-medium leading-relaxed">
+                              {t("quotaExceedWarningDesc")
+                                .replace("{quota}", String(quota))
+                                .replace("{used}", String(used))
+                                .replace("{remaining}", String(remaining))
+                                .replace("{reqDays}", String(reqDays))
+                                .split("\n").map((line, i) => (
+                                  <span key={i} className="block mt-0.5">
+                                    {line}
+                                  </span>
+                                ))
+                              }
+                            </div>
                             <p className="font-bold text-orange-700 dark:text-orange-200 mt-1.5 flex items-center gap-1.5">
                               <CheckCircle2 className="w-4 h-4" />
-                              ระบบจะแจ้งผู้อำนวยการโดยอัตโนมัติเมื่อส่งคำขอ
+                              {t("directorAutoNotify")}
                             </p>
                           </div>
                         </motion.div>
@@ -566,25 +581,25 @@ export default function RequestLeavePage() {
             {/* Conditional input fields for special leave types */}
             {selectedType === "PATERNITY" && (
               <div className="p-6 bg-purple-50/40 dark:bg-purple-950/10 border border-purple-200/50 dark:border-purple-900/40 rounded-2xl space-y-4">
-                <h4 className="font-bold text-sm text-purple-600 dark:text-purple-400">ข้อมูลสำหรับลาไปช่วยเหลือภริยาที่คลอดบุตร</h4>
+                <h4 className="font-bold text-sm text-purple-600 dark:text-purple-400">{t("paternityInfoTitle")}</h4>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">ชื่อภริยาโดยชอบด้วยกฎหมาย</label>
+                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">{t("wifeNameLabel")}</label>
                     <input type="text" value={extraWifeName} onChange={(e) => setExtraWifeName(e.target.value)} required className="w-full h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white" />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">คลอดบุตรเมื่อวันที่</label>
+                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">{t("wifeBirthDateLabel")}</label>
                     <input type="date" value={extraWifeBirthDate} onChange={(e) => setExtraWifeBirthDate(e.target.value)} required className="w-full h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white" />
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-4 pt-2">
                   <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-700 dark:text-slate-300">
                     <input type="checkbox" checked={extraHasMarriageCert} onChange={(e) => setExtraHasMarriageCert(e.target.checked)} className="w-4 h-4 rounded border-slate-300 text-purple-600 focus:ring-purple-500" />
-                    <span>แนบสำเนาใบสำคัญการสมรส</span>
+                    <span>{t("attachMarriageCert")}</span>
                   </label>
                   <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-700 dark:text-slate-300">
                     <input type="checkbox" checked={extraHasBirthCert} onChange={(e) => setExtraHasBirthCert(e.target.checked)} className="w-4 h-4 rounded border-slate-300 text-purple-600 focus:ring-purple-500" />
-                    <span>แนบสำเนาสูติบัตร</span>
+                    <span>{t("attachBirthCert")}</span>
                   </label>
                 </div>
               </div>
@@ -592,14 +607,14 @@ export default function RequestLeavePage() {
 
             {selectedType === "VACATION" && (
               <div className="p-6 bg-purple-50/40 dark:bg-purple-950/10 border border-purple-200/50 dark:border-purple-900/40 rounded-2xl space-y-4">
-                <h4 className="font-bold text-sm text-purple-600 dark:text-purple-400">ข้อมูลสำหรับลาพักผ่อน</h4>
+                <h4 className="font-bold text-sm text-purple-600 dark:text-purple-400">{t("vacationInfoTitle")}</h4>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">วันลาสะสมจากปีก่อน (วัน)</label>
+                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">{t("accumulatedVacationLabel")}</label>
                     <input type="number" min={0} value={extraVacationAccumulated} onChange={(e) => setExtraVacationAccumulated(Number(e.target.value))} required className="w-full h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white" />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">สิทธิลาพักผ่อนประจำปีนี้ (วัน)</label>
+                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">{t("yearlyVacationLabel")}</label>
                     <input type="number" min={0} value={extraVacationThisYear} onChange={(e) => setExtraVacationThisYear(Number(e.target.value))} required className="w-full h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white" />
                   </div>
                 </div>
@@ -608,36 +623,36 @@ export default function RequestLeavePage() {
 
             {selectedType === "ORDINATION" && (
               <div className="p-6 bg-purple-50/40 dark:bg-purple-950/10 border border-purple-200/50 dark:border-purple-900/40 rounded-2xl space-y-4">
-                <h4 className="font-bold text-sm text-purple-600 dark:text-purple-400">ข้อมูลสำหรับลาอุปสมบท หรือไปประกอบพิธีฮัจญ์</h4>
+                <h4 className="font-bold text-sm text-purple-600 dark:text-purple-400">{t("ordinationInfoTitle")}</h4>
                 <div className="flex items-center gap-2 mb-2">
                   <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-700 dark:text-slate-300">
                     <input type="checkbox" checked={extraIsHajj} onChange={(e) => setExtraIsHajj(e.target.checked)} className="w-4 h-4 rounded border-slate-300 text-purple-600 focus:ring-purple-500" />
-                    <span>ลาไปประกอบพิธีฮัจญ์ (ไม่ใช่การอุปสมบท)</span>
+                    <span>{t("isHajjCheckbox")}</span>
                   </label>
                 </div>
                 
                 {!extraIsHajj ? (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">วัดที่จะอุปสมบท</label>
+                      <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">{t("templeNameLabel")}</label>
                       <input type="text" value={extraTempleName} onChange={(e) => setExtraTempleName(e.target.value)} required={!extraIsHajj} className="w-full h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white" placeholder="ชื่อวัด..." />
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">ตั้งอยู่ ณ (ที่ตั้งวัด)</label>
+                      <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">{t("templeLocationLabel")}</label>
                       <input type="text" value={extraTempleLocation} onChange={(e) => setExtraTempleLocation(e.target.value)} required={!extraIsHajj} className="w-full h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white" placeholder="ตำบล อำเภอ จังหวัด..." />
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">จะจำพรรษาอยู่วัด</label>
+                      <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">{t("resideTempleNameLabel")}</label>
                       <input type="text" value={extraResideTempleName} onChange={(e) => setExtraResideTempleName(e.target.value)} required={!extraIsHajj} className="w-full h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white" placeholder="ชื่อวัดจำพรรษา..." />
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">ตั้งอยู่ ณ (ที่ตั้งวัดจำพรรษา)</label>
+                      <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">{t("resideTempleLocationLabel")}</label>
                       <input type="text" value={extraResideTempleLocation} onChange={(e) => setExtraResideTempleLocation(e.target.value)} required={!extraIsHajj} className="w-full h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white" placeholder="ตำบล อำเภอ จังหวัด..." />
                     </div>
                   </div>
                 ) : (
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">กำหนดเดินทางอุปสมบท/พิธี</label>
+                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">{t("ordinationDateLabel")}</label>
                     <input type="date" value={extraOrdinationDate} onChange={(e) => setExtraOrdinationDate(e.target.value)} required={extraIsHajj} className="w-full h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white" />
                   </div>
                 )}
@@ -646,26 +661,26 @@ export default function RequestLeavePage() {
 
             {selectedType === "MILITARY" && (
               <div className="p-6 bg-purple-50/40 dark:bg-purple-950/10 border border-purple-200/50 dark:border-purple-900/40 rounded-2xl space-y-4">
-                <h4 className="font-bold text-sm text-purple-600 dark:text-purple-400">ข้อมูลสำหรับลาเข้ารับการตรวจเลือกหรือเตรียมพล</h4>
+                <h4 className="font-bold text-sm text-purple-600 dark:purple-400">{t("militaryInfoTitle")}</h4>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">ได้รับหมายเรียกของ (หน่วยงาน/ผู้สั่ง)</label>
+                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">{t("militaryOrderSourceLabel")}</label>
                     <input type="text" value={extraMilitaryOrderSource} onChange={(e) => setExtraMilitaryOrderSource(e.target.value)} required className="w-full h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white" placeholder="เช่น กองทัพบก / นายอำเภอ..." />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">ที่ (หมายเรียกเลขที่)</label>
+                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">{t("militaryOrderNoLabel")}</label>
                     <input type="text" value={extraMilitaryOrderNo} onChange={(e) => setExtraMilitaryOrderNo(e.target.value)} required className="w-full h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white" placeholder="เลขที่หมายเรียก..." />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">ลงวันที่ในหมายเรียก</label>
+                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">{t("militaryOrderDateLabel")}</label>
                     <input type="date" value={extraMilitaryOrderDate} onChange={(e) => setExtraMilitaryOrderDate(e.target.value)} required className="w-full h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white" />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">ให้เข้ารับการ (ประเภทราชการทหาร)</label>
+                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">{t("militaryDutyTypeLabel")}</label>
                     <input type="text" value={extraMilitaryDutyType} onChange={(e) => setExtraMilitaryDutyType(e.target.value)} required className="w-full h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white" placeholder="เช่น เข้ารับการตรวจเลือก / เตรียมพล..." />
                   </div>
                   <div className="sm:col-span-2">
-                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">ณ (สถานที่นัดหมาย)</label>
+                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">{t("militaryLocationLabel")}</label>
                     <input type="text" value={extraMilitaryLocation} onChange={(e) => setExtraMilitaryLocation(e.target.value)} required className="w-full h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white" placeholder="สถานที่รายงานตัว..." />
                   </div>
                 </div>
@@ -674,32 +689,32 @@ export default function RequestLeavePage() {
 
             {selectedType === "STUDY" && (
               <div className="p-6 bg-purple-50/40 dark:bg-purple-950/10 border border-purple-200/50 dark:border-purple-900/40 rounded-2xl space-y-4">
-                <h4 className="font-bold text-sm text-purple-600 dark:text-purple-400">ข้อมูลสำหรับลาศึกษาต่อ / ฝึกอบรม / ดูงาน</h4>
+                <h4 className="font-bold text-sm text-purple-600 dark:text-purple-400">{t("studyInfoTitle")}</h4>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">เงินเดือนปัจจุบัน (บาท)</label>
+                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">{t("userSalaryLabel")}</label>
                     <input type="text" value={extraUserSalary} onChange={(e) => setExtraUserSalary(e.target.value)} required className="w-full h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white" />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">ด้วยทุน (ประเภททุน)</label>
+                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">{t("scholarshipNameLabel")}</label>
                     <input type="text" value={extraScholarshipName} onChange={(e) => setExtraScholarshipName(e.target.value)} required className="w-full h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white" placeholder="เช่น ทุนส่วนตัว / ทุนรัฐบาล..." />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">ณ ประเทศ</label>
+                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">{t("studyCountryLabel")}</label>
                     <input type="text" value={extraStudyCountry} onChange={(e) => setExtraStudyCountry(e.target.value)} required className="w-full h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white" />
                   </div>
                 </div>
                 <div className="grid grid-cols-3 gap-4">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">ระยะเวลา (ปี)</label>
+                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">{t("durationYearsLabel")}</label>
                     <input type="number" min={0} value={extraStudyDurationYears} onChange={(e) => setExtraStudyDurationYears(e.target.value)} required className="w-full h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white" />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">ระยะเวลา (เดือน)</label>
+                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">{t("durationMonthsLabel")}</label>
                     <input type="number" min={0} max={11} value={extraStudyDurationMonths} onChange={(e) => setExtraStudyDurationMonths(e.target.value)} required className="w-full h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white" />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">ระยะเวลา (วัน)</label>
+                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">{t("durationDaysLabel")}</label>
                     <input type="number" min={0} max={30} value={extraStudyDurationDays} onChange={(e) => setExtraStudyDurationDays(e.target.value)} required className="w-full h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white" />
                   </div>
                 </div>
@@ -720,7 +735,7 @@ export default function RequestLeavePage() {
             {/* Document Attachment */}
             <div>
               <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
-                {t("attachDocument")} {isAccumulationRuleActive ? <span className="text-rose-500 font-bold">({lang === "en" ? "Required" : "จำเป็นต้องแนบเอกสารบันทึกข้อความ"})</span> : <span className="text-slate-400 font-normal">{t("optionalLabel")}</span>}
+                {t("attachDocument")} {isAccumulationRuleActive ? <span className="text-rose-500 font-bold">({t("attachDocRequired")})</span> : <span className="text-slate-400 font-normal">{t("optionalLabel")}</span>}
               </label>
 
               {attachedFiles.length > 0 && (
@@ -755,7 +770,7 @@ export default function RequestLeavePage() {
                   <input ref={fileInputRef} type="file" accept="image/*,.pdf" multiple onChange={handleFileChange} className="hidden" />
                   <Paperclip className="w-8 h-8 text-slate-300 dark:text-slate-600 group-hover:text-purple-400 transition-colors mb-2" />
                   <span className="text-sm text-slate-400 group-hover:text-purple-500 transition-colors">
-                    {attachedFiles.length === 1 ? "คลิกเพื่อแนบไฟล์ที่ 2" : t("clickToAttach")}
+                    {attachedFiles.length === 1 ? t("attachFile2") : t("clickToAttach")}
                   </span>
                   <span className="text-xs text-slate-300 dark:text-slate-600 mt-1">{t("maxFileSize")}</span>
                 </label>
@@ -819,8 +834,8 @@ export default function RequestLeavePage() {
                   {/* Global Times Progress */}
                   <div>
                     <div className="flex justify-between text-xs font-semibold mb-1.5">
-                      <span className="text-slate-700 dark:text-slate-300">จำนวนครั้งที่ใช้สิทธิ์ไปแล้ว</span>
-                      <span className="text-slate-900 dark:text-white">{leaveUsage.totalTimes} / {limitTimes} ครั้ง</span>
+                      <span className="text-slate-700 dark:text-slate-300">{t("usedQuotaTimes")}</span>
+                      <span className="text-slate-900 dark:text-white">{leaveUsage.totalTimes} / {limitTimes} {t("timesUnit")}</span>
                     </div>
                     <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2 overflow-hidden flex">
                       <motion.div 

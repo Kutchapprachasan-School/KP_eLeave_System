@@ -18,7 +18,7 @@ export default function UsersPage() {
   const [newPassword, setNewPassword] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
-  const { t, lang, tPosition } = useI18n();
+  const { t, lang, tPosition, tSubjectGroup } = useI18n();
   const [importResult, setImportResult] = useState<{
     created: number;
     updated: number;
@@ -37,30 +37,30 @@ export default function UsersPage() {
   const handleExportExcel = () => {
     try {
       const dataToExport = users.map((u: any) => ({
-        "ไอดีเข้าใช้งาน": u.username || "",
-        "อีเมล": u.email || "",
-        "ชื่อ-นามสกุล": u.name || "",
-        "ตำแหน่ง": u.position || "",
-        "กลุ่มสาระ": u.subjectGroup || "",
+        [lang === "en" ? "Login ID" : "ไอดีเข้าใช้งาน"]: u.username || "",
+        [lang === "en" ? "Email" : "อีเมล"]: u.email || "",
+        [lang === "en" ? "Full Name" : "ชื่อ-นามสกุล"]: u.name || "",
+        [lang === "en" ? "Position" : "ตำแหน่ง"]: tPosition(u.position) || "",
+        [lang === "en" ? "Subject Group" : "กลุ่มสาระ"]: tSubjectGroup(u.subjectGroup) || "",
       }));
 
       const worksheet = XLSX.utils.json_to_sheet(dataToExport);
-      const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, "รายชื่อครู");
+      const workbook = XLSX.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, lang === "en" ? "Teacher List" : "รายชื่อครู");
       XLSX.writeFile(workbook, "teacher_list.xlsx");
     } catch (err: any) {
-      alert("เกิดข้อผิดพลาดในการส่งออกข้อมูล: " + (err.message || err));
+      alert(t("exportExcelError") + (err.message || err));
     }
   };
 
   const handleExportCSV = () => {
     try {
       const dataToExport = users.map((u: any) => ({
-        "ไอดีเข้าใช้งาน": u.username || "",
-        "อีเมล": u.email || "",
-        "ชื่อ-นามสกุล": u.name || "",
-        "ตำแหน่ง": u.position || "",
-        "กลุ่มสาระ": u.subjectGroup || "",
+        [lang === "en" ? "Login ID" : "ไอดีเข้าใช้งาน"]: u.username || "",
+        [lang === "en" ? "Email" : "อีเมล"]: u.email || "",
+        [lang === "en" ? "Full Name" : "ชื่อ-นามสกุล"]: u.name || "",
+        [lang === "en" ? "Position" : "ตำแหน่ง"]: tPosition(u.position) || "",
+        [lang === "en" ? "Subject Group" : "กลุ่มสาระ"]: tSubjectGroup(u.subjectGroup) || "",
       }));
 
       const worksheet = XLSX.utils.json_to_sheet(dataToExport);
@@ -76,7 +76,7 @@ export default function UsersPage() {
       link.click();
       document.body.removeChild(link);
     } catch (err: any) {
-      alert("เกิดข้อผิดพลาดในการส่งออก CSV: " + (err.message || err));
+      alert(t("exportCsvError") + (err.message || err));
     }
   };
 
@@ -96,7 +96,7 @@ export default function UsersPage() {
         const rawData = XLSX.utils.sheet_to_json<any>(worksheet);
 
         if (rawData.length === 0) {
-          alert("ไม่พบข้อมูลในไฟล์");
+          alert(t("noDataInFile"));
           return;
         }
 
@@ -106,12 +106,14 @@ export default function UsersPage() {
             row["username"] || 
             row["ID"] || 
             row["รหัสผู้ใช้"] || 
+            row["Login ID"] ||
             ""
           ).trim();
 
           let emailVal = String(
             row["อีเมล"] || 
             row["email"] || 
+            row["Email"] ||
             ""
           ).trim();
 
@@ -128,17 +130,17 @@ export default function UsersPage() {
           }
 
           return {
-            name: String(row["ชื่อ-นามสกุล"] || row["ชื่อ"] || row["name"] || "").trim(),
+            name: String(row["ชื่อ-นามสกุล"] || row["ชื่อ"] || row["name"] || row["Full Name"] || "").trim(),
             email: emailVal,
             username: usernameVal || undefined,
-            position: row["ตำแหน่ง"] || row["position"] ? String(row["ตำแหน่ง"] || row["position"]).trim() : undefined,
-            subjectGroup: row["กลุ่มสาระ"] || row["กลุ่มสาระฯ"] || row["subjectGroup"] ? String(row["กลุ่มสาระ"] || row["กลุ่มสาระฯ"] || row["subjectGroup"]).trim() : undefined,
+            position: row["ตำแหน่ง"] || row["position"] || row["Position"] ? String(row["ตำแหน่ง"] || row["position"] || row["Position"]).trim() : undefined,
+            subjectGroup: row["กลุ่มสาระ"] || row["กลุ่มสาระฯ"] || row["subjectGroup"] || row["Subject Group"] ? String(row["กลุ่มสาระ"] || row["กลุ่มสาระฯ"] || row["subjectGroup"] || row["Subject Group"]).trim() : undefined,
           };
         });
 
         const validUsers = mappedUsers.filter(u => u.name && u.email);
         if (validUsers.length === 0) {
-          alert("ข้อมูลในไฟล์ไม่ถูกต้องตามรูปแบบ (จำเป็นต้องมีชื่อและอีเมล/ไอดี)");
+          alert(t("invalidImportFormat"));
           return;
         }
 
@@ -146,7 +148,7 @@ export default function UsersPage() {
         setImportResult(result);
         loadUsers();
       } catch (err: any) {
-        alert("เกิดข้อผิดพลาดในการอ่านไฟล์: " + (err.message || err));
+        alert(t("readImportFileError") + (err.message || err));
       }
     };
     reader.readAsArrayBuffer(file);
@@ -188,7 +190,7 @@ export default function UsersPage() {
       setAddingData(null);
       loadUsers();
     } catch (err: any) {
-      alert(err.message || "เกิดข้อผิดพลาดในการสร้างบัญชี");
+      alert(err.message || t("createUserError"));
     }
   };
 
@@ -198,45 +200,45 @@ export default function UsersPage() {
       loadUsers();
       window.dispatchEvent(new Event("noti-refresh"));
     } catch (err: any) {
-      alert("เกิดข้อผิดพลาดในการอนุมัติผู้ใช้");
+      alert(t("approveUserError"));
     }
   };
 
   const handleDelete = async (userId: string, name: string) => {
-    const input = prompt(`⚠️ อันตราย: การลบผู้ใช้จะลบประวัติการลาทั้งหมดด้วย!\nหากต้องการลบ กรุณาพิมพ์ชื่อผู้ใช้ให้ตรงกัน: "${name}"`);
+    const input = prompt(`${t("confirmDeleteUser")} "${name}"`);
     if (input !== name) {
-      if (input !== null) alert("ยกเลิกการลบ (พิมพ์ชื่อไม่ถูกต้อง)");
+      if (input !== null) alert(t("deleteUserCancelled"));
       return;
     }
     try {
       await deleteUser(userId);
       loadUsers();
       window.dispatchEvent(new Event("noti-refresh"));
-      alert("ลบผู้ใช้สำเร็จ");
+      alert(t("deleteUserSuccess"));
     } catch (err: any) {
-      alert(err.message || "เกิดข้อผิดพลาด");
+      alert(err.message || (lang === "en" ? "An error occurred" : "เกิดข้อผิดพลาด"));
     }
   };
 
   const handleReject = async (userId: string, name: string) => {
-    if (!confirm(`คุณต้องการปฏิเสธคำขอและลบบัญชี "${name}" ออกจากระบบใช่หรือไม่?`)) return;
+    if (!confirm(t("confirmRejectUser").replace("{name}", name))) return;
     try {
       await deleteUser(userId);
       loadUsers();
       window.dispatchEvent(new Event("noti-refresh"));
     } catch (err: any) {
-      alert(err.message || "เกิดข้อผิดพลาด");
+      alert(err.message || (lang === "en" ? "An error occurred" : "เกิดข้อผิดพลาด"));
     }
   };
 
   const handleSuspend = async (userId: string, name: string) => {
-    if (!confirm(`คุณต้องการระงับการใช้งานบัญชี "${name}" ใช่หรือไม่?\nผู้ใช้นี้จะไม่สามารถเข้าสู่ระบบได้อีกจนกว่าจะได้รับการอนุมัติใหม่`)) return;
+    if (!confirm(t("confirmSuspendUser").replace("{name}", name))) return;
     try {
       await suspendUser(userId);
       loadUsers();
       window.dispatchEvent(new Event("noti-refresh"));
     } catch (err: any) {
-      alert(err.message || "เกิดข้อผิดพลาด");
+      alert(err.message || (lang === "en" ? "An error occurred" : "เกิดข้อผิดพลาด"));
     }
   };
 
@@ -262,14 +264,14 @@ export default function UsersPage() {
   ];
 
   const getPositionBadge = (position: string, role: string) => {
-    if (role === "ADMIN" || position === "แอดมิน") return { text: "แอดมิน", cls: "bg-purple-50 text-purple-600 border-purple-200 dark:bg-purple-500/10 dark:text-purple-400 dark:border-purple-800" };
-    if (position === "ผู้อำนวยการ") return { text: "ผู้อำนวยการ", cls: "bg-blue-50 text-blue-600 border-blue-200 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-800" };
-    if (position === "รองผู้อำนวยการ") return { text: "รองผู้อำนวยการ", cls: "bg-sky-50 text-sky-600 border-sky-200 dark:bg-sky-500/10 dark:text-sky-400 dark:border-sky-800" };
-    if (position === "หัวหน้างานบุคคล") return { text: "หัวหน้างานบุคคล", cls: "bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-800" };
-    if (position === "เจ้าหน้าที่บุคคล") return { text: "เจ้าหน้าที่บุคคล", cls: "bg-teal-50 text-teal-600 border-teal-200 dark:bg-teal-500/10 dark:text-teal-400 dark:border-teal-800" };
-    if (position === "ผู้ตรวจสอบ") return { text: "ผู้ตรวจสอบ", cls: "bg-amber-50 text-amber-600 border-amber-200 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-800" };
-    if (position === "นักศึกษาฝึกประสบการณ์") return { text: "นักศึกษาฝึกประสบการณ์", cls: "bg-pink-50 text-pink-600 border-pink-200 dark:bg-pink-500/10 dark:text-pink-400 dark:border-pink-800" };
-    return { text: position || "ครู", cls: "bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700" };
+    if (role === "ADMIN" || position === "แอดมิน") return { text: tPosition("แอดมิน"), cls: "bg-purple-50 text-purple-600 border-purple-200 dark:bg-purple-500/10 dark:text-purple-400 dark:border-purple-800" };
+    if (position === "ผู้อำนวยการ") return { text: tPosition("ผู้อำนวยการ"), cls: "bg-blue-50 text-blue-600 border-blue-200 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-800" };
+    if (position === "รองผู้อำนวยการ") return { text: tPosition("รองผู้อำนวยการ"), cls: "bg-sky-50 text-sky-600 border-sky-200 dark:bg-sky-500/10 dark:text-sky-400 dark:border-sky-800" };
+    if (position === "หัวหน้างานบุคคล") return { text: tPosition("หัวหน้างานบุคคล"), cls: "bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-800" };
+    if (position === "เจ้าหน้าที่บุคคล") return { text: tPosition("เจ้าหน้าที่บุคคล"), cls: "bg-teal-50 text-teal-600 border-teal-200 dark:bg-teal-500/10 dark:text-teal-400 dark:border-teal-800" };
+    if (position === "ผู้ตรวจสอบ") return { text: tPosition("ผู้ตรวจสอบ"), cls: "bg-amber-50 text-amber-600 border-amber-200 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-800" };
+    if (position === "นักศึกษาฝึกประสบการณ์") return { text: tPosition("นักศึกษาฝึกประสบการณ์"), cls: "bg-pink-50 text-pink-600 border-pink-200 dark:bg-pink-500/10 dark:text-pink-400 dark:border-pink-800" };
+    return { text: tPosition(position || "ครู"), cls: "bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700" };
   };
 
   return (
@@ -289,7 +291,7 @@ export default function UsersPage() {
             className="px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-750 text-slate-700 dark:text-slate-200 text-xs font-semibold rounded-xl shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
           >
             <Download className="w-4 h-4" />
-            ส่งออกเป็น Excel
+            {lang === "en" ? "Export to Excel" : "ส่งออกเป็น Excel"}
           </button>
 
           <button
@@ -297,7 +299,7 @@ export default function UsersPage() {
             className="px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-750 text-slate-700 dark:text-slate-200 text-xs font-semibold rounded-xl shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
           >
             <Download className="w-4 h-4" />
-            ส่งออกเป็น CSV
+            {t("exportCsvBtn")}
           </button>
           
           <button
@@ -308,7 +310,7 @@ export default function UsersPage() {
             className="px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-750 text-slate-700 dark:text-slate-200 text-xs font-semibold rounded-xl shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
           >
             <Upload className="w-4 h-4" />
-            นำเข้าข้อมูลครู (CSV/Excel)
+            {t("importTeacherDataTitle")}
           </button>
           <input
             id="import-file-input"
@@ -355,11 +357,11 @@ export default function UsersPage() {
               <thead>
                 <tr className="border-b border-slate-100 dark:border-slate-800">
                   <th className="px-6 py-4 font-semibold text-slate-500 dark:text-slate-400">{t("user")}</th>
-                  <th className="px-6 py-4 font-semibold text-slate-500 dark:text-slate-400">ไอดีเข้าใช้งาน</th>
+                  <th className="px-6 py-4 font-semibold text-slate-500 dark:text-slate-400">{t("loginIdCol")}</th>
                   <th className="px-6 py-4 font-semibold text-slate-500 dark:text-slate-400">{t("email")}</th>
                   <th className="px-6 py-4 font-semibold text-slate-500 dark:text-slate-400">{t("position")}</th>
                   <th className="px-6 py-4 font-semibold text-slate-500 dark:text-slate-400">{t("subjectGroup")}</th>
-                  <th className="px-6 py-4 font-semibold text-slate-500 dark:text-slate-400">{t("registeredDate")}</th>
+                  <th className="px-6 py-4 font-semibold text-slate-500 dark:text-slate-400">{t("registeredDateCol")}</th>
                   <th className="px-6 py-4 font-semibold text-slate-500 dark:text-slate-400 text-right">{t("manage")}</th>
                 </tr>
               </thead>
@@ -389,39 +391,39 @@ export default function UsersPage() {
                             {badge.text}
                           </span>
                         </td>
-                        <td className="px-6 py-4 text-slate-500 dark:text-slate-400 text-xs">{user.subjectGroup || "-"}</td>
+                        <td className="px-6 py-4 text-slate-500 dark:text-slate-400 text-xs">{tSubjectGroup(user.subjectGroup) || "-"}</td>
                         <td className="px-6 py-4 text-slate-400 text-xs">
-                          {new Date(user.createdAt).toLocaleDateString("th-TH")}
+                          {new Date(user.createdAt).toLocaleDateString(lang === "th" ? "th-TH" : "en-US")}
                         </td>
                         <td className="px-6 py-4 text-right space-x-2 flex items-center justify-end">
                           {!user.isApproved ? (
                             <>
                               <button
                                 onClick={() => handleApprove(user.id)}
-                                className="px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-100 text-xs font-semibold transition-colors flex items-center gap-1"
+                                className="px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-100 text-xs font-semibold transition-colors flex items-center gap-1 cursor-pointer"
                               >
-                                <CheckCircle className="w-3.5 h-3.5" /> อนุมัติ
+                                <CheckCircle className="w-3.5 h-3.5" /> {t("approve")}
                               </button>
                               <button
                                 onClick={() => handleReject(user.id, user.name)}
-                                className="px-3 py-1.5 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100 text-xs font-semibold transition-colors flex items-center gap-1"
+                                className="px-3 py-1.5 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100 text-xs font-semibold transition-colors flex items-center gap-1 cursor-pointer"
                               >
-                                <UserX className="w-3.5 h-3.5" /> ปฏิเสธ
+                                <UserX className="w-3.5 h-3.5" /> {t("reject")}
                               </button>
                             </>
                           ) : (
                             <>
                               <button
                                 onClick={() => handleSuspend(user.id, user.name)}
-                                className="p-2 rounded-lg text-slate-400 hover:text-orange-500 hover:bg-orange-50 dark:hover:bg-orange-500/10 transition-colors"
-                                title="ระงับการใช้งาน"
+                                className="p-2 rounded-lg text-slate-400 hover:text-orange-500 hover:bg-orange-50 dark:hover:bg-orange-500/10 transition-colors cursor-pointer"
+                                title={t("suspendUser")}
                               >
                                 <Ban className="w-4 h-4" />
                               </button>
                               <button
                                 onClick={() => setEditingData(user)}
-                                className="p-2 rounded-lg text-slate-400 hover:text-purple-500 hover:bg-purple-50 dark:hover:bg-purple-500/10 transition-colors"
-                                title="แก้ไขผู้ใช้"
+                                className="p-2 rounded-lg text-slate-400 hover:text-purple-500 hover:bg-purple-50 dark:hover:bg-purple-500/10 transition-colors cursor-pointer"
+                                title={t("editUser")}
                               >
                                 <UserCog className="w-4 h-4" />
                               </button>
@@ -430,15 +432,15 @@ export default function UsersPage() {
                                   setResettingId(user.id);
                                   setNewPassword("");
                                 }}
-                                className="p-2 rounded-lg text-slate-400 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-500/10 transition-colors"
-                                title="รีเซ็ตรหัสผ่าน"
+                                className="p-2 rounded-lg text-slate-400 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-500/10 transition-colors cursor-pointer"
+                                title={t("resetPassword")}
                               >
                                 <Key className="w-4 h-4" />
                               </button>
                               <button
                                 onClick={() => handleDelete(user.id, user.name)}
-                                className="p-2 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-colors"
-                                title="ลบผู้ใช้ (อันตราย)"
+                                className="p-2 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-colors cursor-pointer"
+                                title={t("deleteUser")}
                               >
                                 <Trash2 className="w-4 h-4" />
                               </button>
@@ -466,7 +468,7 @@ export default function UsersPage() {
             <button
               onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
               disabled={currentPage === 1}
-              className="px-3.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-850 text-xs font-bold text-slate-700 dark:text-slate-300 disabled:opacity-40 disabled:pointer-events-none transition-all shadow-sm"
+              className="px-3.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-855 text-xs font-bold text-slate-700 dark:text-slate-300 disabled:opacity-40 disabled:pointer-events-none transition-all shadow-sm cursor-pointer"
             >
               {lang === "en" ? "Previous" : "ก่อนหน้า"}
             </button>
@@ -485,9 +487,9 @@ export default function UsersPage() {
                   <button
                     key={pageNum}
                     onClick={() => setCurrentPage(pageNum)}
-                    className={`w-8 h-8 rounded-xl text-xs font-bold transition-all ${currentPage === pageNum
+                    className={`w-8 h-8 rounded-xl text-xs font-bold transition-all cursor-pointer ${currentPage === pageNum
                       ? "bg-purple-600 text-white shadow-md shadow-purple-500/20"
-                      : "border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-850 text-slate-700 dark:text-slate-300 shadow-sm"
+                      : "border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-855 text-slate-700 dark:text-slate-300 shadow-sm"
                       }`}
                   >
                     {pageNum}
@@ -502,7 +504,7 @@ export default function UsersPage() {
                 setCurrentPage(prev => Math.min(prev + 1, totalPages));
               }}
               disabled={currentPage === Math.ceil(filteredUsers.length / itemsPerPage)}
-              className="px-3.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-850 text-xs font-bold text-slate-700 dark:text-slate-300 disabled:opacity-40 disabled:pointer-events-none transition-all shadow-sm"
+              className="px-3.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-855 text-xs font-bold text-slate-700 dark:text-slate-300 disabled:opacity-40 disabled:pointer-events-none transition-all shadow-sm cursor-pointer"
             >
               {lang === "en" ? "Next" : "ถัดไป"}
             </button>
@@ -520,15 +522,15 @@ export default function UsersPage() {
           >
             <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
               <Key className="w-5 h-5 text-amber-500" />
-              รีเซ็ตรหัสผ่านผู้ใช้งาน
+              {t("resetPasswordTitle")}
             </h3>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-              ระบุรหัสผ่านใหม่สำหรับผู้ใช้คนนี้ (ขั้นต่ำ 6 ตัวอักษร)
+              {t("resetPasswordDesc")}
             </p>
 
             <input
               type="text"
-              placeholder="รหัสผ่านใหม่"
+              placeholder={t("newPassword")}
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
               className="w-full h-11 px-4 mt-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-850 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500 outline-none transition-all"
@@ -542,30 +544,30 @@ export default function UsersPage() {
                   setResettingId(null);
                   setNewPassword("");
                 }}
-                className="px-4 py-2 rounded-xl text-xs font-semibold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors"
+                className="px-4 py-2 rounded-xl text-xs font-semibold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors cursor-pointer"
               >
-                ยกเลิก
+                {t("cancel")}
               </button>
               <button
                 type="button"
                 onClick={() => {
                   const targetUser = users.find(u => u.id === resettingId);
                   if (targetUser) {
-                    if (!confirm(`คุณแน่ใจว่าต้องการตั้งรหัสผ่านใหม่ให้กับ "${targetUser.name}" ใช่หรือไม่?`)) return;
+                    if (!confirm(t("confirmResetPasswordByAdmin").replace("{name}", targetUser.name))) return;
                     resetUserPasswordByAdmin(resettingId, newPassword)
                       .then(() => {
-                        alert("รีเซ็ตรหัสผ่านสำเร็จ!");
+                        alert(t("resetPasswordSuccessAlert"));
                         setResettingId(null);
                         setNewPassword("");
                       })
                       .catch((err) => {
-                        alert(err.message || "เกิดข้อผิดพลาด");
+                        alert(err.message || (lang === "en" ? "An error occurred" : "เกิดข้อผิดพลาด"));
                       });
                   }
                 }}
-                className="px-4 py-2 rounded-xl text-xs font-semibold bg-gradient-to-r from-amber-500 to-orange-600 hover:opacity-95 text-white shadow-md shadow-amber-500/20 transition-all"
+                className="px-4 py-2 rounded-xl text-xs font-semibold bg-gradient-to-r from-amber-500 to-orange-600 hover:opacity-95 text-white shadow-md shadow-amber-500/20 transition-all cursor-pointer"
               >
-                บันทึกรหัสผ่านใหม่
+                {t("saveNewPassword")}
               </button>
             </div>
           </motion.div>
@@ -582,11 +584,11 @@ export default function UsersPage() {
           >
             <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
               <UserCog className="w-5 h-5 text-purple-500" />
-              แก้ไขข้อมูลผู้ใช้
+              {t("editUserModalTitle")}
             </h3>
             <div className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-500 mb-1">ชื่อ - นามสกุล</label>
+                <label className="block text-xs font-semibold text-slate-500 mb-1">{t("fullNameLabel")}</label>
                 <input
                   type="text"
                   value={editingData.name || ""}
@@ -595,17 +597,17 @@ export default function UsersPage() {
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-500 mb-1">ไอดีเข้าใช้งาน (ID / Username)</label>
+                <label className="block text-xs font-semibold text-slate-500 mb-1">{t("usernameLabel")}</label>
                 <input
                   type="text"
                   value={editingData.username || ""}
                   onChange={e => setEditingData({ ...editingData, username: e.target.value })}
-                  placeholder="เว้นว่างไว้เพื่อไม่ใช้ไอดีล็อกอิน"
+                  placeholder={t("usernameEditPlaceholder")}
                   className="w-full h-10 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-850 text-sm focus:ring-2 focus:ring-purple-500/30 outline-none"
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-500 mb-1">อีเมล</label>
+                <label className="block text-xs font-semibold text-slate-500 mb-1">{t("email")}</label>
                 <input
                   type="text"
                   value={editingData.email || ""}
@@ -614,39 +616,39 @@ export default function UsersPage() {
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-500 mb-1">ตำแหน่ง/หน้าที่</label>
+                <label className="block text-xs font-semibold text-slate-500 mb-1">{t("positionLabel")}</label>
                 <select
                   value={editingData.position || "ครู"}
                   onChange={e => setEditingData({ ...editingData, position: e.target.value })}
                   className="w-full h-10 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-850 text-sm focus:ring-2 focus:ring-purple-500/30"
                 >
-                  {positionOptions.map(p => <option key={p} value={p}>{p}</option>)}
+                  {positionOptions.map(p => <option key={p} value={p}>{tPosition(p)}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-500 mb-1">กลุ่มสาระฯ (หมวด)</label>
+                <label className="block text-xs font-semibold text-slate-500 mb-1">{t("departmentLabel")}</label>
                 <select
                   value={editingData.subjectGroup || ""}
                   onChange={e => setEditingData({ ...editingData, subjectGroup: e.target.value })}
                   className="w-full h-10 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-850 text-sm focus:ring-2 focus:ring-purple-500/30 outline-none"
                 >
-                  <option value="">-- ไม่ระบุ --</option>
-                  {subjectGroupOptions.map(sg => <option key={sg} value={sg}>{sg}</option>)}
+                  <option value="">{t("selectDepartmentPlaceholder")}</option>
+                  {subjectGroupOptions.map(sg => <option key={sg} value={sg}>{tSubjectGroup(sg)}</option>)}
                 </select>
               </div>
             </div>
             <div className="flex justify-end gap-2 mt-6">
               <button
                 onClick={() => setEditingData(null)}
-                className="px-4 py-2 rounded-xl text-xs font-semibold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors"
+                className="px-4 py-2 rounded-xl text-xs font-semibold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors cursor-pointer"
               >
-                ยกเลิก
+                {t("cancel")}
               </button>
               <button
                 onClick={handleSaveEdit}
-                className="px-4 py-2 rounded-xl text-xs font-semibold bg-purple-600 hover:bg-purple-700 text-white shadow-md shadow-purple-500/20 transition-all"
+                className="px-4 py-2 rounded-xl text-xs font-semibold bg-purple-600 hover:bg-purple-700 text-white shadow-md shadow-purple-500/20 transition-all cursor-pointer"
               >
-                บันทึกข้อมูล
+                {t("saveData")}
               </button>
             </div>
           </motion.div>
@@ -663,41 +665,41 @@ export default function UsersPage() {
           >
             <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
               <Users className="w-5 h-5 text-purple-500" />
-              เพิ่มบัญชีผู้ใช้ใหม่
+              {t("addUserModalTitle")}
             </h3>
             <div className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-500 mb-1">ชื่อ - นามสกุล</label>
+                <label className="block text-xs font-semibold text-slate-500 mb-1">{t("fullNameLabel")}</label>
                 <input
                   type="text"
                   value={addingData.name || ""}
                   onChange={e => setAddingData({ ...addingData, name: e.target.value })}
-                  placeholder="เช่น นายสมชาย ใจดี"
+                  placeholder={t("fullNamePlaceholder")}
                   className="w-full h-10 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-850 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-purple-500/30 outline-none"
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-500 mb-1">ไอดีเข้าใช้งาน (ID / Username)</label>
+                <label className="block text-xs font-semibold text-slate-500 mb-1">{t("usernameLabel")}</label>
                 <input
                   type="text"
                   value={addingData.username || ""}
                   onChange={e => setAddingData({ ...addingData, username: e.target.value })}
-                  placeholder="เช่น 1002"
+                  placeholder={t("usernamePlaceholderText")}
                   className="w-full h-10 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-850 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-purple-500/30 outline-none"
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-500 mb-1">อีเมล</label>
+                <label className="block text-xs font-semibold text-slate-500 mb-1">{t("email")}</label>
                 <input
                   type="text"
                   value={addingData.email || ""}
                   onChange={e => setAddingData({ ...addingData, email: e.target.value })}
-                  placeholder="เช่น somchai@gmail.com"
+                  placeholder={t("emailPlaceholder")}
                   className="w-full h-10 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-850 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-purple-500/30 outline-none"
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-500 mb-1">รหัสผ่าน (เว้นว่างไว้สำหรับค่าเริ่มต้น: 12345678)</label>
+                <label className="block text-xs font-semibold text-slate-500 mb-1">{t("passwordAddPlaceholder")}</label>
                 <input
                   type="password"
                   value={addingData.password || ""}
@@ -707,24 +709,24 @@ export default function UsersPage() {
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-500 mb-1">ตำแหน่ง/หน้าที่</label>
+                <label className="block text-xs font-semibold text-slate-500 mb-1">{t("positionLabel")}</label>
                 <select
                   value={addingData.position || "ครู"}
                   onChange={e => setAddingData({ ...addingData, position: e.target.value })}
-                  className="w-full h-10 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-850 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-purple-500/30 outline-none"
+                  className="w-full h-10 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-855 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-purple-500/30 outline-none"
                 >
-                  {positionOptions.map(p => <option key={p} value={p}>{p}</option>)}
+                  {positionOptions.map(p => <option key={p} value={p}>{tPosition(p)}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-500 mb-1">กลุ่มสาระฯ (หมวด)</label>
+                <label className="block text-xs font-semibold text-slate-500 mb-1">{t("departmentLabel")}</label>
                 <select
                   value={addingData.subjectGroup || ""}
                   onChange={e => setAddingData({ ...addingData, subjectGroup: e.target.value })}
-                  className="w-full h-10 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-850 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-purple-500/30 outline-none"
+                  className="w-full h-10 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-855 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-purple-500/30 outline-none"
                 >
-                  <option value="">-- ไม่ระบุ --</option>
-                  {subjectGroupOptions.map(sg => <option key={sg} value={sg}>{sg}</option>)}
+                  <option value="">{t("selectDepartmentPlaceholder")}</option>
+                  {subjectGroupOptions.map(sg => <option key={sg} value={sg}>{tSubjectGroup(sg)}</option>)}
                 </select>
               </div>
             </div>
@@ -734,15 +736,15 @@ export default function UsersPage() {
                   setIsAddingUser(false);
                   setAddingData(null);
                 }}
-                className="px-4 py-2 rounded-xl text-xs font-semibold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors"
+                className="px-4 py-2 rounded-xl text-xs font-semibold bg-slate-100 hover:bg-slate-200 dark:bg-slate-850 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors cursor-pointer"
               >
-                ยกเลิก
+                {t("cancel")}
               </button>
               <button
                 onClick={handleSaveAdd}
-                className="px-4 py-2 rounded-xl text-xs font-semibold bg-purple-600 hover:bg-purple-700 text-white shadow-md shadow-purple-500/20 transition-all"
+                className="px-4 py-2 rounded-xl text-xs font-semibold bg-purple-600 hover:bg-purple-700 text-white shadow-md shadow-purple-500/20 transition-all cursor-pointer"
               >
-                เพิ่มผู้ใช้
+                {t("addUserBtn")}
               </button>
             </div>
           </motion.div>
@@ -759,27 +761,27 @@ export default function UsersPage() {
           >
             <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2 flex items-center gap-2">
               <CheckCircle className="w-5 h-5 text-emerald-500" />
-              ผลการนำเข้าข้อมูลครู
+              {t("importTeacherResultTitle")}
             </h3>
             
             <div className="grid grid-cols-3 gap-3 my-4">
               <div className="p-3 bg-emerald-50 dark:bg-emerald-500/10 rounded-2xl text-center border border-emerald-100 dark:border-emerald-950">
-                <span className="block text-xs font-semibold text-emerald-600 dark:text-emerald-400">สร้างใหม่</span>
+                <span className="block text-xs font-semibold text-emerald-600 dark:text-emerald-400">{t("importResultCreated")}</span>
                 <span className="text-xl font-bold text-emerald-700 dark:text-emerald-300">{importResult.created}</span>
               </div>
               <div className="p-3 bg-blue-50 dark:bg-blue-500/10 rounded-2xl text-center border border-blue-100 dark:border-blue-950">
-                <span className="block text-xs font-semibold text-blue-600 dark:text-blue-400">อัปเดต</span>
+                <span className="block text-xs font-semibold text-blue-600 dark:text-blue-400">{t("importResultUpdated")}</span>
                 <span className="text-xl font-bold text-blue-700 dark:text-blue-300">{importResult.updated}</span>
               </div>
               <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-2xl text-center border border-slate-200 dark:border-slate-700">
-                <span className="block text-xs font-semibold text-slate-500 dark:text-slate-400">ข้าม/ผิดพลาด</span>
+                <span className="block text-xs font-semibold text-slate-500 dark:text-slate-400">{t("importResultSkipped")}</span>
                 <span className="text-xl font-bold text-slate-700 dark:text-slate-300">{importResult.skipped}</span>
               </div>
             </div>
 
             {importResult.errors.length > 0 && (
               <div className="mt-4">
-                <span className="block text-xs font-semibold text-rose-500 mb-1">รายละเอียดข้อผิดพลาด/ข้าม:</span>
+                <span className="block text-xs font-semibold text-rose-500 mb-1">{t("importResultErrorsHeader")}</span>
                 <div className="max-h-40 overflow-y-auto space-y-1.5 p-3 rounded-2xl bg-rose-50/50 dark:bg-rose-950/20 border border-rose-100 dark:border-rose-950 text-xs text-rose-600 dark:text-rose-400">
                   {importResult.errors.map((err, idx) => (
                     <div key={idx} className="flex gap-1.5">
@@ -796,7 +798,7 @@ export default function UsersPage() {
                 onClick={() => setImportResult(null)}
                 className="px-5 py-2.5 rounded-xl text-xs font-semibold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors cursor-pointer"
               >
-                ปิดหน้าต่าง
+                {t("closeModalBtn")}
               </button>
             </div>
           </motion.div>

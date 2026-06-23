@@ -6,8 +6,10 @@ import { useRouter } from "next/navigation";
 import { Lock, User, Eye, EyeOff, Briefcase, BookOpen } from "lucide-react";
 import { getSystemSettings } from "@/app/actions/settings";
 import { resolveEmailForLogin } from "@/app/actions/auth_actions";
+import { useI18n } from "@/lib/i18n";
 
 export default function LoginPage() {
+  const { t, lang, setLang } = useI18n();
   const [isRegister, setIsRegister] = useState(false);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -28,12 +30,12 @@ export default function LoginPage() {
 
   useEffect(() => {
     getSystemSettings().then((s) => {
-      setSchoolName(s.schoolName || "ระบบจัดการการลา");
-      setSubheader(s.subheader || "ระบบจัดการการลา");
+      setSchoolName(s.schoolName || (lang === "en" ? "Leave Management System" : "ระบบจัดการการลา"));
+      setSubheader(s.subheader || (lang === "en" ? "Leave Management System" : "ระบบจัดการการลา"));
       setLogoUrl(s.logoUrl || null);
       setFooterText(s.footerText || "© 2006 Panchapon Getrat KP-school");
     }).catch(() => { });
-  }, []);
+  }, [lang]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,7 +48,7 @@ export default function LoginPage() {
 
     if (isRegister) {
       if (["ครู", "นักศึกษาฝึกประสบการณ์", "หัวหน้างานบุคคล"].includes(position) && !subjectGroup) {
-        alert("กรุณาเลือกกลุ่มสาระการเรียนรู้");
+        alert(t("requiredSubjectGroup"));
         setLoading(false);
         return;
       }
@@ -61,7 +63,7 @@ export default function LoginPage() {
         subjectGroup: ["ครู", "นักศึกษาฝึกประสบการณ์", "หัวหน้างานบุคคล"].includes(position) ? subjectGroup : "",
         fetchOptions: {
           onSuccess: () => {
-            alert("สมัครสมาชิกสำเร็จ! กรุณาเข้าสู่ระบบ");
+            alert(t("registerSuccess"));
             setIsRegister(false);
             setLoading(false);
             setPassword("");
@@ -89,7 +91,7 @@ export default function LoginPage() {
           },
         });
       } catch (err: any) {
-        alert(err.message || "เกิดข้อผิดพลาดในการเข้าสู่ระบบ");
+        alert(err.message || (lang === "en" ? "An error occurred during login." : "เกิดข้อผิดพลาดในการเข้าสู่ระบบ"));
         setLoading(false);
       }
     }
@@ -105,16 +107,16 @@ export default function LoginPage() {
         redirectTo: "/reset-password",
         fetchOptions: {
           onSuccess: () => {
-            alert("ระบบได้ส่งลิงก์สำหรับรีเซ็ตรหัสผ่านไปยังอีเมลของคุณแล้ว (หากมีในระบบ)");
+            alert(lang === "en" ? "A reset password link has been sent to your email (if it exists)." : "ระบบได้ส่งลิงก์สำหรับรีเซ็ตรหัสผ่านไปยังอีเมลของคุณแล้ว (หากมีในระบบ)");
             setIsForgotPassword(false);
           },
           onError: (ctx: any) => {
-            alert(ctx.error.message || "เกิดข้อผิดพลาด");
+            alert(ctx.error.message || t("operationFailed"));
           }
         }
       });
     } catch (err) {
-      alert("ไม่สามารถดำเนินการได้ กรุณาลองใหม่อีกครั้ง");
+      alert(t("operationFailed"));
     } finally {
       setLoading(false);
     }
@@ -123,12 +125,22 @@ export default function LoginPage() {
   const handleSocialLogin = (provider: "google" | "facebook" | "line") => {
     signIn.social({ provider, callbackURL: "/dashboard" }).catch((e) => {
       console.error(e);
-      alert("ระบบล็อกอินด้วยโซเชียลยังไม่ถูกตั้งค่า API Keys ใน Better Auth ครับ");
+      alert(lang === "en" ? "Social login is not configured yet." : "ระบบล็อกอินด้วยโซเชียลยังไม่ถูกตั้งค่า API Keys ใน Better Auth ครับ");
     });
   };
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-[#F4F7FB] dark:bg-slate-900 relative overflow-hidden p-4">
+      {/* Language Switcher */}
+      <div className="absolute top-6 right-6 z-50">
+        <button
+          onClick={() => setLang(lang === "th" ? "en" : "th")}
+          className="flex items-center justify-center px-4 py-2 rounded-xl bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-355 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all duration-300 font-bold text-xs shadow-sm cursor-pointer"
+        >
+          {lang === "th" ? "TH / EN" : "EN / TH"}
+        </button>
+      </div>
+
       {/* Decorative Background */}
       <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-purple-200/40 dark:bg-purple-800/20 blur-[80px]" />
@@ -157,22 +169,22 @@ export default function LoginPage() {
             onClick={() => setIsRegister(false)}
             className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all ${!isRegister ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm" : "text-slate-500 dark:text-slate-400"}`}
           >
-            เข้าสู่ระบบ
+            {t("loginButton")}
           </button>
           <button
             type="button"
             onClick={() => setIsRegister(true)}
             className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all ${isRegister ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm" : "text-slate-500 dark:text-slate-400"}`}
           >
-            สมัครสมาชิก
+            {t("registerButton")}
           </button>
         </div>
 
         {isForgotPassword ? (
           <form onSubmit={handleForgotPassword} className="space-y-4">
             <div className="text-center mb-4">
-              <h2 className="text-lg font-bold text-slate-900 dark:text-white">ลืมรหัสผ่าน?</h2>
-              <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">กรอกอีเมลของคุณเพื่อรับลิงก์รีเซ็ตรหัสผ่าน</p>
+              <h2 className="text-lg font-bold text-slate-900 dark:text-white">{t("forgotPasswordTitle")}</h2>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">{t("forgotPasswordSubtitle")}</p>
             </div>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
@@ -182,7 +194,7 @@ export default function LoginPage() {
                 type="text"
                 required
                 className="w-full h-[50px] pl-[44px] pr-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500/30 focus:border-purple-500 transition-all"
-                placeholder="ชื่อผู้ใช้ หรือ อีเมล"
+                placeholder={t("usernameOrEmailPlaceholder")}
                 value={resetEmail}
                 onChange={(e) => setResetEmail(e.target.value)}
               />
@@ -192,11 +204,11 @@ export default function LoginPage() {
               disabled={loading}
               className="w-full h-[50px] rounded-xl bg-gradient-to-r from-purple-500 to-indigo-600 text-white text-[15px] font-semibold hover:opacity-95 focus:outline-none focus:ring-2 focus:ring-purple-500/50 disabled:opacity-50 shadow-lg shadow-purple-500/20 transition-all duration-200 mt-2"
             >
-              {loading ? "กำลังส่งลิงก์..." : "ส่งลิงก์รีเซ็ตรหัสผ่าน"}
+              {loading ? t("sendingLink") : t("resetPasswordButton")}
             </button>
             <div className="flex justify-center pt-2">
               <button type="button" onClick={() => setIsForgotPassword(false)} className="text-[13px] font-medium text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors">
-                กลับไปหน้าเข้าสู่ระบบ
+                {t("backToLogin")}
               </button>
             </div>
           </form>
@@ -212,7 +224,7 @@ export default function LoginPage() {
                     type="text"
                     required
                     className="w-full h-[50px] pl-[44px] pr-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500/30 focus:border-purple-500 transition-all"
-                    placeholder="ชื่อ - นามสกุล"
+                    placeholder={t("name")}
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                   />
@@ -228,15 +240,15 @@ export default function LoginPage() {
                     value={position}
                     onChange={(e) => setPosition(e.target.value)}
                   >
-                    <option value="" disabled>เลือกตำแหน่ง</option>
-                    <option value="ครู">ครู (Teacher)</option>
-                    <option value="นักศึกษาฝึกประสบการณ์">นักศึกษาฝึกประสบการณ์ (Trainee)</option>
-                    <option value="หัวหน้างานบุคคล">หัวหน้างานบุคคล (HR Head)</option>
-                    <option value="เจ้าหน้าที่บุคคล">เจ้าหน้าที่บุคคล (HR Staff)</option>
-                    <option value="ผู้ตรวจสอบ">ผู้ตรวจสอบ (Inspector)</option>
-                    <option value="รองผู้อำนวยการ">รองผู้อำนวยการ (Deputy Director)</option>
-                    <option value="ผู้อำนวยการ">ผู้อำนวยการ (Director)</option>
-                    <option value="แอดมิน">แอดมิน (Admin)</option>
+                    <option value="" disabled>{t("selectPositionPlaceholder")}</option>
+                    <option value="ครู">{lang === "en" ? "Teacher" : "ครู"}</option>
+                    <option value="นักศึกษาฝึกประสบการณ์">{lang === "en" ? "Trainee" : "นักศึกษาฝึกประสบการณ์"}</option>
+                    <option value="หัวหน้างานบุคคล">{lang === "en" ? "Head of HR" : "หัวหน้างานบุคคล"}</option>
+                    <option value="เจ้าหน้าที่บุคคล">{lang === "en" ? "HR Staff" : "เจ้าหน้าที่บุคคล"}</option>
+                    <option value="ผู้ตรวจสอบ">{lang === "en" ? "Inspector" : "ผู้ตรวจสอบ"}</option>
+                    <option value="รองผู้อำนวยการ">{lang === "en" ? "Deputy Director" : "รองผู้อำนวยการ"}</option>
+                    <option value="ผู้อำนวยการ">{lang === "en" ? "Director" : "ผู้อำนวยการ"}</option>
+                    <option value="แอดมิน">{lang === "en" ? "Admin" : "แอดมิน"}</option>
                   </select>
                 </div>
 
@@ -251,18 +263,18 @@ export default function LoginPage() {
                       value={subjectGroup}
                       onChange={(e) => setSubjectGroup(e.target.value)}
                     >
-                      <option value="" disabled>เลือกกลุ่มสาระการเรียนรู้</option>
-                      <option value="คณิตศาสตร์">การเรียนรู้คณิตศาสตร์</option>
-                      <option value="วิทยาศาสตร์และเทคโนโลยี">การเรียนรู้วิทยาศาสตร์และเทคโนโลยี</option>
-                      <option value="ภาษาไทย">การเรียนรู้ภาษาไทย</option>
-                      <option value="ภาษาต่างประเทศ">การเรียนรู้ภาษาต่างประเทศ</option>
-                      <option value="สังคมศึกษา ศาสนาและวัฒนธรรม">การเรียนรู้สังคมศึกษา ศาสนาและวัฒนธรรม</option>
-                      <option value="สุขศึกษา พลศึกษา">การเรียนรู้สุขศึกษา พลศึกษา</option>
-                      <option value="ศิลปศึกษา">การเรียนรู้ศิลปศึกษา</option>
-                      <option value="การงานอาชีพ">การเรียนรู้การงานอาชีพ</option>
-                      <option value="กิจกรรมพัฒนาผู้เรียน">กิจกรรมพัฒนาผู้เรียน</option>
-                      <option value="งานแนะแนว">งานแนะแนว</option>
-                      <option value="นักพัฒนาโรงเรียนและบุคลากรอื่นๆ">นักพัฒนาโรงเรียนและบุคลากรอื่นๆ</option>
+                      <option value="" disabled>{t("selectSubjectGroupPlaceholder")}</option>
+                      <option value="คณิตศาสตร์">{lang === "en" ? "Mathematics" : "กลุ่มสาระการเรียนรู้คณิตศาสตร์"}</option>
+                      <option value="วิทยาศาสตร์และเทคโนโลยี">{lang === "en" ? "Science & Tech" : "กลุ่มสาระการเรียนรู้วิทยาศาสตร์และเทคโนโลยี"}</option>
+                      <option value="ภาษาไทย">{lang === "en" ? "Thai Language" : "กลุ่มสาระการเรียนรู้ภาษาไทย"}</option>
+                      <option value="ภาษาต่างประเทศ">{lang === "en" ? "Foreign Languages" : "กลุ่มสาระการเรียนรู้ภาษาต่างประเทศ"}</option>
+                      <option value="สังคมศึกษา ศาสนาและวัฒนธรรม">{lang === "en" ? "Social Studies" : "กลุ่มสาระการเรียนรู้สังคมศึกษา ศาสนาและวัฒนธรรม"}</option>
+                      <option value="สุขศึกษา พลศึกษา">{lang === "en" ? "Health & PE" : "กลุ่มสาระการเรียนรู้สุขศึกษา พลศึกษา"}</option>
+                      <option value="ศิลปศึกษา">{lang === "en" ? "Arts" : "กลุ่มสาระการเรียนรู้ศิลปศึกษา"}</option>
+                      <option value="การงานอาชีพ">{lang === "en" ? "Occupations & Tech" : "กลุ่มสาระการเรียนรู้การงานอาชีพ"}</option>
+                      <option value="กิจกรรมพัฒนาผู้เรียน">{lang === "en" ? "Student Development" : "กิจกรรมพัฒนาผู้เรียน"}</option>
+                      <option value="งานแนะแนว">{lang === "en" ? "Guidance" : "งานแนะแนว"}</option>
+                      <option value="นักพัฒนาโรงเรียนและบุคลากรอื่นๆ">{lang === "en" ? "School Dev & Others" : "นักพัฒนาโรงเรียนและบุคลากรอื่นๆ"}</option>
                     </select>
                   </div>
                 )}
@@ -277,7 +289,7 @@ export default function LoginPage() {
                 type="text"
                 required
                 className="w-full h-[50px] pl-[44px] pr-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500/30 focus:border-purple-500 transition-all"
-                placeholder="ชื่อผู้ใช้ หรือ อีเมล"
+                placeholder={t("usernameOrEmailPlaceholder")}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
               />
@@ -291,7 +303,7 @@ export default function LoginPage() {
                 type={showPassword ? "text" : "password"}
                 required
                 className="w-full h-[50px] pl-[44px] pr-12 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500/30 focus:border-purple-500 transition-all"
-                placeholder="รหัสผ่าน"
+                placeholder={t("passwordPlaceholder")}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />
@@ -311,7 +323,7 @@ export default function LoginPage() {
                   onClick={() => setIsForgotPassword(true)}
                   className="text-[13px] font-medium text-purple-500 hover:text-purple-700 dark:hover:text-purple-400 transition-colors"
                 >
-                  ลืมรหัสผ่าน?
+                  {t("forgotPasswordLink")}
                 </button>
               </div>
             )}
@@ -321,7 +333,7 @@ export default function LoginPage() {
               disabled={loading}
               className="w-full h-[50px] rounded-xl bg-gradient-to-r from-purple-500 to-indigo-600 text-white text-[15px] font-semibold hover:opacity-95 focus:outline-none focus:ring-2 focus:ring-purple-500/50 disabled:opacity-50 shadow-lg shadow-purple-500/20 transition-all duration-200 mt-2"
             >
-              {loading ? (isRegister ? "กำลังลงทะเบียน..." : "กำลังเข้าสู่ระบบ...") : (isRegister ? "สมัครสมาชิก" : "เข้าสู่ระบบ")}
+              {loading ? (isRegister ? t("registering") : t("signingIn")) : (isRegister ? t("registerButton") : t("loginButton"))}
             </button>
           </form>
         )}
@@ -333,7 +345,7 @@ export default function LoginPage() {
                 <span className="w-full border-t border-slate-200 dark:border-slate-700" />
               </div>
               <div className="relative flex justify-center text-[13px]">
-                <span className="bg-white/80 dark:bg-slate-900/80 px-4 text-slate-400">หรือเข้าสู่ระบบด้วย</span>
+                <span className="bg-white/80 dark:bg-slate-900/80 px-4 text-slate-400">{t("orLoginWith")}</span>
               </div>
             </div>
 

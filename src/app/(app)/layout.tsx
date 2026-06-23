@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useSession, signOut } from "@/lib/auth-client";
 import { useTheme } from "next-themes";
-import { useI18n, I18nProvider } from "@/lib/i18n";
+import { useI18n } from "@/lib/i18n";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
@@ -536,8 +536,6 @@ function AppContent({ children }: { children: React.ReactNode }) {
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
-    <I18nProvider>
-      <AppContent>{children}</AppContent>
-    </I18nProvider>
+    <AppContent>{children}</AppContent>
   );
 }

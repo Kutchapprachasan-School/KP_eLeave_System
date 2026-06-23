@@ -42,25 +42,26 @@ export default function LogsPage() {
   const handlePrune = async (days: number) => {
     const confirmKeyword = "PRUNE";
     const input = prompt(
-      `⚠️ การแจ้งเตือนความปลอดภัย: คุณกำลังจะลบประวัติบันทึกระบบที่เก่ากว่า ${days} วัน แบบถาวร!\n` +
-      `หากต้องการยืนยันการดำเนินการ กรุณาพิมพ์ "${confirmKeyword}":`
+      t("confirmPruneWarning")
+        .replace("{days}", String(days))
+        .replace("{keyword}", confirmKeyword)
     );
     if (input !== confirmKeyword) {
       if (input !== null) {
-        alert("คำค้นหายืนยันไม่ถูกต้อง ยกเลิกการล้างประวัติระบบ");
+        alert(t("pruneIncorrectKeyword"));
       }
       return;
     }
     try {
       await pruneSystemLogs(days);
-      alert("ล้างประวัติที่เก่ากว่ากำหนดเรียบร้อยแล้ว");
+      alert(t("pruneSuccess"));
       setLoading(true);
       getSystemLogs(filterType ? { actionType: filterType } : undefined)
         .then(setLogs)
         .catch(() => {})
         .finally(() => setLoading(false));
     } catch {
-      alert("เกิดข้อผิดพลาดในการล้างประวัติ");
+      alert(t("pruneError"));
     }
   };
 
@@ -71,7 +72,7 @@ export default function LogsPage() {
         log.id,
         log.actionType,
         `"${log.description.replace(/"/g, '""')}"`,
-        new Date(log.createdAt).toLocaleString("th-TH"),
+        new Date(log.createdAt).toLocaleString(lang === "th" ? "th-TH" : "en-US"),
         log.userId
       ]);
 
@@ -88,7 +89,7 @@ export default function LogsPage() {
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
     } catch (error) {
-      alert("เกิดข้อผิดพลาดในการส่งออกข้อมูล");
+      alert(t("exportLogsError"));
     }
   };
 
@@ -143,10 +144,10 @@ export default function LogsPage() {
         </select>
         <button
           onClick={handleExportCSV}
-          className="h-11 px-5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-sm font-bold shadow-md shadow-purple-500/10 focus:ring-4 focus:ring-purple-500/20 transition-all flex items-center justify-center gap-2 shrink-0"
+          className="h-11 px-5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-sm font-bold shadow-md shadow-purple-500/10 focus:ring-4 focus:ring-purple-500/20 transition-all flex items-center justify-center gap-2 shrink-0 cursor-pointer"
         >
           <DownloadCloud className="w-4.5 h-4.5" />
-          <span>{lang === "en" ? "Export CSV" : "ส่งออก CSV"}</span>
+          <span>{t("exportCsvBtn")}</span>
         </button>
       </div>
 
@@ -187,7 +188,7 @@ export default function LogsPage() {
                         <p className="text-xs text-slate-400 mt-0.5">{log.actionType}</p>
                       </div>
                       <div className="text-xs text-slate-400 shrink-0">
-                        {new Date(log.createdAt).toLocaleString("th-TH", { dateStyle: "short", timeStyle: "short" })}
+                        {new Date(log.createdAt).toLocaleString(lang === "th" ? "th-TH" : "en-US", { dateStyle: "short", timeStyle: "short" })}
                       </div>
                     </motion.div>
                   );
@@ -205,7 +206,7 @@ export default function LogsPage() {
                     <button
                       onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
                       disabled={currentPage === 1}
-                      className="px-3.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-850 text-xs font-bold text-slate-700 dark:text-slate-300 disabled:opacity-40 disabled:pointer-events-none transition-all shadow-sm"
+                      className="px-3.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-855 text-xs font-bold text-slate-700 dark:text-slate-300 disabled:opacity-40 disabled:pointer-events-none transition-all shadow-sm cursor-pointer"
                     >
                       {lang === "en" ? "Previous" : "ก่อนหน้า"}
                     </button>
@@ -222,10 +223,10 @@ export default function LogsPage() {
                         <button
                           key={pageNum}
                           onClick={() => setCurrentPage(pageNum)}
-                          className={`w-8 h-8 rounded-xl text-xs font-bold transition-all ${
+                          className={`w-8 h-8 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                             currentPage === pageNum
                               ? "bg-purple-600 text-white shadow-md shadow-purple-500/20"
-                              : "border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-850 text-slate-700 dark:text-slate-300 shadow-sm"
+                              : "border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-855 text-slate-700 dark:text-slate-300 shadow-sm"
                           }`}
                         >
                           {pageNum}
@@ -236,7 +237,7 @@ export default function LogsPage() {
                     <button
                       onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
                       disabled={currentPage === totalPages}
-                      className="px-3.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-850 text-xs font-bold text-slate-700 dark:text-slate-300 disabled:opacity-40 disabled:pointer-events-none transition-all shadow-sm"
+                      className="px-3.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-855 text-xs font-bold text-slate-700 dark:text-slate-300 disabled:opacity-40 disabled:pointer-events-none transition-all shadow-sm cursor-pointer"
                     >
                       {lang === "en" ? "Next" : "ถัดไป"}
                     </button>

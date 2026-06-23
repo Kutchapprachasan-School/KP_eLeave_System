@@ -10,7 +10,7 @@ import { useI18n } from "@/lib/i18n";
 export default function ProfilePage() {
   const { data: session, isPending, refetch } = useSession();
   const user = session?.user as any;
-  const { t, lang, tPosition } = useI18n();
+  const { t, lang, tPosition, tSubjectGroup, tLevel } = useI18n();
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -72,9 +72,9 @@ export default function ProfilePage() {
     try {
       await updateProfile({ name, email, subjectGroup, address, phoneNumber, level });
       await refetch();
-      alert(lang === "en" ? "Profile updated successfully!" : "อัปเดตข้อมูลส่วนตัวสำเร็จ");
+      alert(t("profileUpdateSuccess"));
     } catch (error) {
-      alert(lang === "en" ? "Failed to update profile" : "เกิดข้อผิดพลาดในการอัปเดตข้อมูล");
+      alert(t("profileUpdateError"));
     } finally {
       setSavingProfile(false);
     }
@@ -85,7 +85,7 @@ export default function ProfilePage() {
     if (!file) return;
 
     if (file.size > 2 * 1024 * 1024) {
-      alert(lang === "en" ? "Image size should be less than 2MB" : "ขนาดรูปภาพต้องไม่เกิน 2MB");
+      alert(t("imageSizeWarning"));
       return;
     }
 
@@ -108,7 +108,7 @@ export default function ProfilePage() {
     if (!file) return;
 
     if (file.size > 1 * 1024 * 1024) {
-      alert(lang === "en" ? "Signature size should be less than 1MB" : "ขนาดไฟล์ลายเซ็นต้องไม่เกิน 1MB");
+      alert(t("sigSizeWarning"));
       return;
     }
 
@@ -182,7 +182,7 @@ export default function ProfilePage() {
     const isEmpty = !buffer.some(color => color !== 0);
 
     if (isEmpty) {
-      alert(lang === "en" ? "Please draw your signature first" : "กรุณาเซ็นชื่อก่อนกดบันทึก");
+      alert(t("drawSigWarning"));
       return;
     }
 
@@ -197,24 +197,24 @@ export default function ProfilePage() {
     try {
       await updateProfile({ name, subjectGroup, address, phoneNumber, level, signatureUrl: signaturePreview });
       await refetch();
-      alert(lang === "en" ? "Signature saved successfully!" : "บันทึกลายเซ็นต์สำเร็จเรียบร้อยแล้ว");
+      alert(t("sigSaveSuccess"));
     } catch (err) {
-      alert(lang === "en" ? "Failed to save signature" : "เกิดข้อผิดพลาดในการบันทึกลายเซ็น");
+      alert(t("sigSaveError"));
     } finally {
       setSavingSignature(false);
     }
   };
 
   const handleDeleteSignature = async () => {
-    if (!confirm(lang === "en" ? "Are you sure you want to delete your signature?" : "คุณแน่ใจหรือไม่ว่าต้องการลบลายเซ็นต์นี้?")) return;
+    if (!confirm(t("confirmDeleteSig"))) return;
     setSavingSignature(true);
     try {
       await updateProfile({ name, subjectGroup, address, phoneNumber, level, signatureUrl: "" });
       await refetch();
       setSignaturePreview("");
-      alert(lang === "en" ? "Signature deleted successfully!" : "ลบลายเซ็นต์เรียบร้อยแล้ว");
+      alert(t("sigDeleteSuccess"));
     } catch (err) {
-      alert(lang === "en" ? "Failed to delete signature" : "เกิดข้อผิดพลาดในการลบลายเซ็น");
+      alert(t("sigDeleteError"));
     } finally {
       setSavingSignature(false);
     }
@@ -226,11 +226,11 @@ export default function ProfilePage() {
     setPasswordSuccess("");
 
     if (newPassword !== confirmPassword) {
-      setPasswordError(lang === "en" ? "New passwords do not match" : "รหัสผ่านใหม่ไม่ตรงกัน");
+      setPasswordError(t("passwordsDoNotMatch"));
       return;
     }
     if (newPassword.length < 8) {
-      setPasswordError(lang === "en" ? "Password must be at least 8 characters" : "รหัสผ่านต้องมีความยาวอย่างน้อย 8 ตัวอักษร");
+      setPasswordError(t("passwordMinLength"));
       return;
     }
 
@@ -243,15 +243,15 @@ export default function ProfilePage() {
       });
 
       if (res.error) {
-        setPasswordError(res.error.message || (lang === "en" ? "Current password is incorrect" : "รหัสผ่านปัจจุบันไม่ถูกต้อง"));
+        setPasswordError(res.error.message || t("currentPasswordIncorrect"));
       } else {
-        setPasswordSuccess(lang === "en" ? "Password changed successfully!" : "เปลี่ยนรหัสผ่านสำเร็จ!");
+        setPasswordSuccess(t("changePasswordSuccess"));
         setCurrentPassword("");
         setNewPassword("");
         setConfirmPassword("");
       }
     } catch (error: any) {
-      setPasswordError(lang === "en" ? "An error occurred" : "เกิดข้อผิดพลาด");
+      setPasswordError(t("changePasswordError"));
     } finally {
       setSavingPassword(false);
     }
@@ -270,10 +270,10 @@ export default function ProfilePage() {
           </div>
           <div>
             <h1 className="text-2xl md:text-3xl font-extrabold text-white tracking-tight">
-              {lang === "en" ? "My Profile" : "โปรไฟล์ของฉัน"}
+              {t("profile")}
             </h1>
             <p className="text-slate-300 text-xs md:text-sm mt-1">
-              {lang === "en" ? "Manage your personal information and account security settings" : "จัดการข้อมูลส่วนตัวและการตั้งค่าบัญชีของคุณ"}
+              {t("manageProfileDesc")}
             </p>
           </div>
         </div>
@@ -286,7 +286,7 @@ export default function ProfilePage() {
           <div className="h-32 bg-gradient-to-br from-purple-500 to-indigo-600 relative">
             <div className="absolute inset-0 bg-black/10 mix-blend-overlay" />
             <div className="absolute bottom-0 right-4 translate-y-1/2 flex items-center justify-center p-1 rounded-full bg-white dark:bg-slate-900 shadow-md">
-              <span className="px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold border border-emerald-100 dark:border-emerald-950 flex items-center gap-1">
+              <span className="px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold border border-emerald-100 dark:border-emerald-955 flex items-center gap-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></span>
                 Active
               </span>
@@ -306,7 +306,7 @@ export default function ProfilePage() {
               )}
               <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white gap-1 text-[10px] font-bold">
                 <Camera className="w-5 h-5 text-white" />
-                <span>เปลี่ยนรูป</span>
+                <span>{t("changeAvatarText")}</span>
               </div>
             </div>
             <input
@@ -327,17 +327,17 @@ export default function ProfilePage() {
             {/* Quick Badge */}
             <div className="mt-5 w-full flex flex-col gap-2.5 p-4 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-100 dark:border-slate-800/80">
               <div className="flex items-center justify-between text-xs font-bold text-slate-400 dark:text-slate-500">
-                <span>{lang === "en" ? "ROLE" : "ตำแหน่ง"}</span>
-                <span>{lang === "en" ? "DEPARTMENT" : "สังกัด"}</span>
+                <span>{t("roleLabel")}</span>
+                <span>{t("departmentLabelShort")}</span>
               </div>
               <div className="flex items-center justify-between gap-4">
                 <span className="inline-flex items-center gap-1 px-3 py-1 rounded-xl bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400 text-xs font-bold border border-purple-100 dark:border-purple-900/50">
                   <ShieldCheck className="w-3.5 h-3.5" />
-                  {tPosition(user?.position) || user?.position || (lang === "en" ? "Staff Member" : "บุคลากร")}
+                  {tPosition(user?.position) || user?.position || t("staffMember")}
                 </span>
                 <span className="inline-flex items-center gap-1 px-3 py-1 rounded-xl bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 text-xs font-bold border border-indigo-100 dark:border-indigo-900/50 max-w-[140px] truncate" title={user?.subjectGroup}>
                   <BookOpen className="w-3.5 h-3.5" />
-                  {user?.subjectGroup || (lang === "en" ? "Not Set" : "ไม่ระบุ")}
+                  {tSubjectGroup(user?.subjectGroup)}
                 </span>
               </div>
             </div>
@@ -349,7 +349,7 @@ export default function ProfilePage() {
                 UID: {user?.id ? user.id.substring(0, 8).toUpperCase() : "N/A"}
               </span>
               <span>
-                Joined: {user?.createdAt ? new Date(user.createdAt).toLocaleDateString(lang === "th" ? "th-TH" : "en-US", { month: "short", year: "numeric" }) : "N/A"}
+                {lang === "en" ? "Joined:" : "เริ่มใช้งานเมื่อ:"} {user?.createdAt ? new Date(user.createdAt).toLocaleDateString(lang === "th" ? "th-TH" : "en-US", { month: "short", year: "numeric" }) : "N/A"}
               </span>
             </div>
           </div>
@@ -369,7 +369,7 @@ export default function ProfilePage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div>
                   <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1.5 uppercase tracking-wider">
-                    {lang === "en" ? "Full Name" : "ชื่อ - นามสกุล"}
+                    {t("fullNameLabel")}
                   </label>
                   <div className="relative">
                     <input
@@ -385,7 +385,7 @@ export default function ProfilePage() {
 
                 <div>
                   <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1.5 uppercase tracking-wider">
-                    {lang === "en" ? "Email" : "อีเมล"}
+                    {t("email")}
                   </label>
                   <div className="relative">
                     <input
@@ -402,7 +402,7 @@ export default function ProfilePage() {
                 {["ครู", "นักศึกษาฝึกประสบการณ์", "หัวหน้างานบุคคล", "TEACHER", "HEAD"].includes(user?.position || "") && (
                   <div>
                     <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1.5 uppercase tracking-wider">
-                      {lang === "en" ? "Subject Group" : "กลุ่มสาระการเรียนรู้"}
+                      {t("departmentLabel")}
                     </label>
                     <div className="relative">
                       <select
@@ -411,19 +411,22 @@ export default function ProfilePage() {
                         className="w-full h-11 px-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-medium focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all text-sm appearance-none cursor-pointer"
                       >
                         <option value="" disabled>
-                          {lang === "en" ? "Select Subject Group" : "เลือกกลุ่มสาระการเรียนรู้"}
+                          {t("selectSubjectGroup")}
                         </option>
-                        <option value="คณิตศาสตร์">{lang === "en" ? "Mathematics" : "กลุ่มสาระการเรียนรู้คณิตศาสตร์"}</option>
-                        <option value="วิทยาศาสตร์และเทคโนโลยี">{lang === "en" ? "Science & Tech" : "กลุ่มสาระการเรียนรู้วิทยาศาสตร์และเทคโนโลยี"}</option>
-                        <option value="ภาษาไทย">{lang === "en" ? "Thai Language" : "กลุ่มสาระการเรียนรู้ภาษาไทย"}</option>
-                        <option value="ภาษาต่างประเทศ">{lang === "en" ? "Foreign Languages" : "กลุ่มสาระการเรียนรู้ภาษาต่างประเทศ"}</option>
-                        <option value="สังคมศึกษา ศาสนาและวัฒนธรรม">{lang === "en" ? "Social Studies" : "กลุ่มสาระการเรียนรู้สังคมศึกษา ศาสนาและวัฒนธรรม"}</option>
-                        <option value="สุขศึกษา พลศึกษา">{lang === "en" ? "Health & PE" : "กลุ่มสาระการเรียนรู้สุขศึกษา พลศึกษา"}</option>
-                        <option value="ศิลปศึกษา">{lang === "en" ? "Arts" : "กลุ่มสาระการเรียนรู้ศิลปศึกษา"}</option>
-                        <option value="การงานอาชีพ">{lang === "en" ? "Occupations & Tech" : "กลุ่มสาระการเรียนรู้การงานอาชีพ"}</option>
-                        <option value="กิจกรรมพัฒนาผู้เรียน">{lang === "en" ? "Student Development" : "กิจกรรมพัฒนาผู้เรียน"}</option>
-                        <option value="งานแนะแนว">{lang === "en" ? "Guidance" : "งานแนะแนว"}</option>
-                        <option value="นักพัฒนาโรงเรียนและบุคลากรอื่นๆ">{lang === "en" ? "School Dev & Others" : "นักพัฒนาโรงเรียนและบุคลากรอื่นๆ"}</option>
+                        <option value="คณิตศาสตร์">{tSubjectGroup("คณิตศาสตร์")}</option>
+                        <option value="วิทยาศาสตร์และเทคโนโลยี">{tSubjectGroup("วิทยาศาสตร์และเทคโนโลยี")}</option>
+                        <option value="ภาษาไทย">{tSubjectGroup("ภาษาไทย")}</option>
+                        <option value="ภาษาต่างประเทศ">{tSubjectGroup("ภาษาต่างประเทศ")}</option>
+                        <option value="สังคมศึกษา ศาสนา และวัฒนธรรม">{tSubjectGroup("สังคมศึกษา ศาสนา และวัฒนธรรม")}</option>
+                        <option value="สังคมศึกษา ศาสนาและวัฒนธรรม">{tSubjectGroup("สังคมศึกษา ศาสนาและวัฒนธรรม")}</option>
+                        <option value="สุขศึกษาและพลศึกษา">{tSubjectGroup("สุขศึกษาและพลศึกษา")}</option>
+                        <option value="สุขศึกษา พลศึกษา">{tSubjectGroup("สุขศึกษา พลศึกษา")}</option>
+                        <option value="ศิลปะ">{tSubjectGroup("ศิลปะ")}</option>
+                        <option value="ศิลปศึกษา">{tSubjectGroup("ศิลปศึกษา")}</option>
+                        <option value="การงานอาชีพ">{tSubjectGroup("การงานอาชีพ")}</option>
+                        <option value="กิจกรรมพัฒนาผู้เรียน">{tSubjectGroup("กิจกรรมพัฒนาผู้เรียน")}</option>
+                        <option value="งานแนะแนว">{tSubjectGroup("งานแนะแนว")}</option>
+                        <option value="นักพัฒนาโรงเรียนและบุคลากรอื่นๆ">{tSubjectGroup("นักพัฒนาโรงเรียนและบุคลากรอื่นๆ")}</option>
                       </select>
                       <BookOpen className="w-4 h-4 text-slate-400 absolute right-4 top-3.5 pointer-events-none" />
                     </div>
@@ -442,13 +445,13 @@ export default function ProfilePage() {
                       onChange={(e) => setLevel(e.target.value)}
                       className="w-full h-11 px-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-medium focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all text-sm appearance-none cursor-pointer"
                     >
-                      <option value="">{lang === "en" ? "No Level / Unspecified" : "ไม่มีระดับ / ไม่ระบุ"}</option>
-                      <option value="ครูผู้ช่วย">ครูผู้ช่วย</option>
-                      <option value="ครู">ครู</option>
-                      <option value="ครูชำนาญการ">ครูชำนาญการ</option>
-                      <option value="ครูชำนาญการพิเศษ">ครูชำนาญการพิเศษ</option>
-                      <option value="ครูเชี่ยวชาญ">ครูเชี่ยวชาญ</option>
-                      <option value="ครูเชี่ยวชาญพิเศษ">ครูเชี่ยวชาญพิเศษ</option>
+                      <option value="">{tLevel("")}</option>
+                      <option value="ครูผู้ช่วย">{tLevel("ครูผู้ช่วย")}</option>
+                      <option value="ครู">{tLevel("ครู")}</option>
+                      <option value="ครูชำนาญการ">{tLevel("ครูชำนาญการ")}</option>
+                      <option value="ครูชำนาญการพิเศษ">{tLevel("ครูชำนาญการพิเศษ")}</option>
+                      <option value="ครูเชี่ยวชาญ">{tLevel("ครูเชี่ยวชาญ")}</option>
+                      <option value="ครูเชี่ยวชาญพิเศษ">{tLevel("ครูเชี่ยวชาญพิเศษ")}</option>
                     </select>
                     <Award className="w-4 h-4 text-slate-400 absolute right-4 top-3.5 pointer-events-none" />
                   </div>
@@ -493,10 +496,10 @@ export default function ProfilePage() {
                 <button
                   type="submit"
                   disabled={savingProfile}
-                  className="flex items-center gap-2 px-6 h-10 rounded-xl bg-purple-600 text-white font-bold hover:bg-purple-700 shadow-md shadow-purple-500/10 focus:ring-4 focus:ring-purple-500/20 transition-all text-sm disabled:opacity-50"
+                  className="flex items-center gap-2 px-6 h-10 rounded-xl bg-purple-600 text-white font-bold hover:bg-purple-700 shadow-md shadow-purple-500/10 focus:ring-4 focus:ring-purple-500/20 transition-all text-sm disabled:opacity-50 cursor-pointer"
                 >
                   <Save className="w-4 h-4" />
-                  {savingProfile ? (lang === "en" ? "Saving..." : "กำลังบันทึก...") : (lang === "en" ? "Save Changes" : "บันทึกข้อมูล")}
+                  {savingProfile ? t("saving") : t("saveData")}
                 </button>
               </div>
             </form>
@@ -506,14 +509,14 @@ export default function ProfilePage() {
           <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white/60 dark:border-slate-800 rounded-3xl p-6 md:p-8 shadow-[0_8px_30px_rgb(0,0,0,0.02)] space-y-6">
             <h3 className="text-lg font-bold flex items-center gap-2 text-slate-900 dark:text-white pb-4 border-b border-slate-100 dark:border-slate-800/80">
               <Fingerprint className="w-5 h-5 text-indigo-500" />
-              {lang === "en" ? "Leave Form Signature" : "ลายมือชื่อสำหรับใบลา (ลายเซ็นต์อิเล็กทรอนิกส์)"}
+              {t("signatureTitle")}
             </h3>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Preview Container */}
               <div className="space-y-3">
                 <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                  {lang === "en" ? "Current Signature" : "ลายเซ็นต์ปัจจุบันของคุณ"}
+                  {t("currentSignature")}
                 </label>
                 <div className="h-44 rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/20 flex flex-col items-center justify-center overflow-hidden p-4 relative group">
                   {signaturePreview ? (
@@ -521,7 +524,7 @@ export default function ProfilePage() {
                       <img src={signaturePreview} alt="Signature Preview" className="max-h-full max-w-full object-contain dark:invert" />
                       <button
                         onClick={handleDeleteSignature}
-                        className="absolute bottom-3 right-3 w-8 h-8 rounded-xl bg-rose-50 dark:bg-rose-950 hover:bg-rose-100 dark:hover:bg-rose-900 flex items-center justify-center text-rose-600 transition-colors shadow-sm"
+                        className="absolute bottom-3 right-3 w-8 h-8 rounded-xl bg-rose-50 dark:bg-rose-955 hover:bg-rose-100 dark:hover:bg-rose-900 flex items-center justify-center text-rose-600 transition-colors shadow-sm cursor-pointer"
                         title={lang === "en" ? "Delete Signature" : "ลบลายเซ็นต์"}
                       >
                         <Trash2 className="w-4 h-4" />
@@ -530,8 +533,8 @@ export default function ProfilePage() {
                   ) : (
                     <div className="text-center text-slate-400 dark:text-slate-600">
                       <Fingerprint className="w-10 h-10 mx-auto mb-2 text-slate-300 dark:text-slate-700" />
-                      <p className="text-xs font-semibold">{lang === "en" ? "No signature uploaded" : "ยังไม่ได้ตั้งค่าลายเซ็นต์"}</p>
-                      <p className="text-[10px] mt-1 text-slate-400 max-w-[180px]">{lang === "en" ? "Needed for generating leave forms automatically" : "จำเป็นต้องใช้สำหรับออกเอกสารใบลาโดยอัตโนมัติ"}</p>
+                      <p className="text-xs font-semibold">{t("noSignature")}</p>
+                      <p className="text-[10px] mt-1 text-slate-400 max-w-[180px]">{t("sigRequiredDesc")}</p>
                     </div>
                   )}
                 </div>
@@ -540,10 +543,10 @@ export default function ProfilePage() {
                     <button
                       onClick={handleSaveSignatureToDb}
                       disabled={savingSignature}
-                      className="flex items-center gap-2 px-5 h-9 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold shadow-md shadow-purple-500/10 transition-all disabled:opacity-50"
+                      className="flex items-center gap-2 px-5 h-9 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold shadow-md shadow-purple-500/10 transition-all disabled:opacity-50 cursor-pointer"
                     >
                       <Save className="w-3.5 h-3.5" />
-                      {savingSignature ? (lang === "en" ? "Saving..." : "กำลังบันทึก...") : (lang === "en" ? "Save Signature" : "ยืนยันและบันทึกลายเซ็นต์")}
+                      {savingSignature ? t("saving") : t("confirmSaveSig")}
                     </button>
                   </div>
                 )}
@@ -552,7 +555,7 @@ export default function ProfilePage() {
               {/* Upload/Draw Input Container */}
               <div className="space-y-4">
                 <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                  {lang === "en" ? "Upload or Draw New Signature" : "เพิ่มลายเซ็นต์ใหม่ (อัปโหลด หรือ วาดบนจอ)"}
+                  {t("uploadOrDrawSig")}
                 </label>
 
                 {/* Method selector tab */}
@@ -576,7 +579,7 @@ export default function ProfilePage() {
                     className="flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-bold text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-900 shadow-sm border border-slate-200/40 dark:border-slate-800/40 cursor-pointer transition-all"
                   >
                     <Paperclip className="w-3.5 h-3.5" />
-                    <span>{lang === "en" ? "Upload Image" : "อัปโหลดภาพแสกน"}</span>
+                    <span>{t("uploadImageTab")}</span>
                   </label>
                   <label
                     onClick={() => {
@@ -610,7 +613,7 @@ export default function ProfilePage() {
                     className="flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-bold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 cursor-pointer transition-all"
                   >
                     <Pencil className="w-3.5 h-3.5" />
-                    <span>{lang === "en" ? "Draw Signature" : "วาดบนหน้าจอ"}</span>
+                    <span>{t("drawSigTab")}</span>
                   </label>
                 </div>
 
@@ -625,14 +628,14 @@ export default function ProfilePage() {
                       className="hidden"
                     />
                     <Paperclip className="w-7 h-7 text-slate-300 dark:text-slate-700 group-hover:text-purple-400 transition-colors mb-1.5" />
-                    <span className="text-xs text-slate-400 group-hover:text-purple-500 transition-colors">{lang === "en" ? "Click to upload signature file" : "คลิกเพื่อเลือกไฟล์รูปภาพลายเซ็นต์"}</span>
-                    <span className="text-[10px] text-slate-300 dark:text-slate-700 mt-1">{lang === "en" ? "PNG transparent background recommended" : "แนะนำเป็นไฟล์ PNG พื้นหลังโปร่งใส"}</span>
+                    <span className="text-xs text-slate-400 group-hover:text-purple-500 transition-colors">{t("clickUploadSig")}</span>
+                    <span className="text-[10px] text-slate-300 dark:text-slate-700 mt-1">{t("sigTransparentDesc")}</span>
                   </label>
                 </div>
 
                 {/* Draw Section */}
                 <div id="sig-draw-section" className="hidden">
-                  <div className="relative rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950/20 overflow-hidden">
+                  <div className="relative rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-955/20 overflow-hidden">
                     <canvas
                       ref={canvasRef}
                       onMouseDown={startDrawing}
@@ -648,17 +651,17 @@ export default function ProfilePage() {
                       <button
                         type="button"
                         onClick={clearCanvas}
-                        className="flex items-center justify-center p-1.5 rounded-lg bg-white/90 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-rose-600 transition-colors hover:border-rose-100 shadow-sm"
-                        title={lang === "en" ? "Clear" : "ล้างหน้าจอ"}
+                        className="flex items-center justify-center p-1.5 rounded-lg bg-white/90 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-rose-600 transition-colors hover:border-rose-100 shadow-sm cursor-pointer"
+                        title={t("clearCanvas")}
                       >
                         <RefreshCw className="w-3.5 h-3.5" />
                       </button>
                       <button
                         type="button"
                         onClick={saveDrawnSignature}
-                        className="flex items-center justify-center px-2 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-[10px] font-bold shadow-sm transition-colors"
+                        className="flex items-center justify-center px-2 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-[10px] font-bold shadow-sm transition-colors cursor-pointer"
                       >
-                        {lang === "en" ? "Apply" : "นำไปใช้"}
+                        {t("applySig")}
                       </button>
                     </div>
                   </div>
@@ -672,7 +675,7 @@ export default function ProfilePage() {
           <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white/60 dark:border-slate-800 rounded-3xl p-6 md:p-8 shadow-[0_8px_30px_rgb(0,0,0,0.02)]">
             <h3 className="text-lg font-bold mb-6 flex items-center gap-2 text-slate-900 dark:text-white pb-4 border-b border-slate-100 dark:border-slate-800/80">
               <KeyRound className="w-5 h-5 text-purple-500" />
-              {lang === "en" ? "Change Password" : "เปลี่ยนรหัสผ่าน"}
+              {t("changePassword")}
             </h3>
 
             <form onSubmit={handleChangePassword} className="space-y-5">
@@ -690,7 +693,7 @@ export default function ProfilePage() {
 
               <div>
                 <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1.5 uppercase tracking-wider">
-                  {lang === "en" ? "Current Password" : "รหัสผ่านปัจจุบัน"}
+                  {t("currentPasswordLabel")}
                 </label>
                 <div className="relative">
                   <input
@@ -707,7 +710,7 @@ export default function ProfilePage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div>
                   <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1.5 uppercase tracking-wider">
-                    {lang === "en" ? "New Password" : "รหัสผ่านใหม่"}
+                    {t("newPasswordLabel")}
                   </label>
                   <div className="relative">
                     <input
@@ -722,7 +725,7 @@ export default function ProfilePage() {
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1.5 uppercase tracking-wider">
-                    {lang === "en" ? "Confirm New Password" : "ยืนยันรหัสผ่านใหม่"}
+                    {t("confirmNewPasswordLabel")}
                   </label>
                   <div className="relative">
                     <input
@@ -741,10 +744,10 @@ export default function ProfilePage() {
                 <button
                   type="submit"
                   disabled={savingPassword}
-                  className="flex items-center gap-2 px-6 h-10 rounded-xl bg-purple-600 text-white font-bold hover:bg-purple-700 shadow-md shadow-purple-500/10 focus:ring-4 focus:ring-purple-500/20 transition-all text-sm disabled:opacity-50"
+                  className="flex items-center gap-2 px-6 h-10 rounded-xl bg-purple-600 text-white font-bold hover:bg-purple-700 shadow-md shadow-purple-500/10 focus:ring-4 focus:ring-purple-500/20 transition-all text-sm disabled:opacity-50 cursor-pointer"
                 >
                   <Lock className="w-4 h-4" />
-                  {savingPassword ? (lang === "en" ? "Updating..." : "กำลังเปลี่ยนรหัสผ่าน...") : (lang === "en" ? "Update Password" : "เปลี่ยนรหัสผ่าน")}
+                  {savingPassword ? t("updatingPasswordBtn") : t("updatePasswordBtn")}
                 </button>
               </div>
             </form>
