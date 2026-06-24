@@ -43,7 +43,7 @@ export default function DashboardPage() {
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
   const [stats, setStats] = useState<any>(null);
-  const { t, lang } = useI18n();
+  const { t, lang, tPosition, tLeaveType } = useI18n();
 
   const getCurrentFiscalYear = () => {
     const now = new Date();

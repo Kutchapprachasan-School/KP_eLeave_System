@@ -64,7 +64,7 @@ export default function ApprovalsPage() {
 
   const [pendingRequests, setPendingRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const { t, lang, tLeaveType } = useI18n();
+  const { t, lang, tLeaveType, tPosition, tSubjectGroup } = useI18n();
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [processingStatus, setProcessingStatus] = useState<string | null>(null);
   const [settings, setSettings] = useState<any>(null);
@@ -402,7 +402,7 @@ export default function ApprovalsPage() {
                 )}
                 <div>
                   <p className="font-bold text-slate-900 dark:text-white">{item.user?.name}</p>
-                  <p className="text-xs text-slate-500">{tPosition(item.user?.position) || t("staffMember")} • {item.user?.subjectGroup}</p>
+                  <p className="text-xs text-slate-500">{tPosition(item.user?.position) || t("staffMember")} • {tSubjectGroup(item.user?.subjectGroup)}</p>
                 </div>
               </div>
 
