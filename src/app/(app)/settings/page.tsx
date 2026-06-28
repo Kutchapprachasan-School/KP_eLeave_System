@@ -1090,7 +1090,6 @@ export default function SettingsPage() {
       )}
     </form>
   );
-  );
 
   const renderLeaveRulesSection = () => (
     <div className="space-y-6">
