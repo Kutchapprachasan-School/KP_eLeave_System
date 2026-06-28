@@ -1,4 +1,4 @@
-﻿"use server";
+"use server";
 
 import { auth } from "@/lib/auth";
 import { getSession } from "@/lib/auth-session";
@@ -691,15 +691,28 @@ export async function getImportHistory() {
       orderBy: {
         createdAt: "desc"
       },
-      take: 10,
-      include: {
-        user: {
-          select: { name: true }
-        }
-      }
+      take: 10
     });
 
-    return logs;
+    const userIds = Array.from(new Set(logs.map(l => l.userId).filter(Boolean)));
+    const users = await prisma.user.findMany({
+      where: { id: { in: userIds } },
+      select: { id: true, name: true }
+    });
+
+    const userMap: Record<string, string> = {};
+    users.forEach(u => {
+      userMap[u.id] = u.name;
+    });
+
+    const logsWithUser = logs.map(l => ({
+      ...l,
+      user: {
+        name: userMap[l.userId] || l.userId || "System"
+      }
+    }));
+
+    return logsWithUser;
   } catch (err: any) {
     console.error("Failed to get import history:", err);
     return [];
