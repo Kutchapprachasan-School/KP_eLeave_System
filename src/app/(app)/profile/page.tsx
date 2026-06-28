@@ -972,13 +972,9 @@ export default function ProfilePage() {
                       }
                       const compressedBase64 = await compressImage(file, 400, 400);
                       setAvatarPreview(compressedBase64);
-                      const res = await updateProfile({ name, subjectGroup, address, phoneNumber, level, image: compressedBase64 });
-                      if (res.success) {
-                        showToast("success", lang === "en" ? "Avatar saved successfully" : "บันทึกรูปโปรไฟล์สำเร็จ");
-                        refetch();
-                      } else {
-                        throw new Error(res.error);
-                      }
+                      await updateProfile({ name, subjectGroup, address, phoneNumber, level, image: compressedBase64 });
+                      showToast("success", lang === "en" ? "Avatar saved successfully" : "บันทึกรูปโปรไฟล์สำเร็จ");
+                      refetch();
                     } catch (err: any) {
                       console.error("Failed to save avatar", err);
                       showToast("error", lang === "en" ? "Failed to save avatar" : "เกิดข้อผิดพลาดในการบันทึกรูปประจำตัว");
@@ -998,13 +994,9 @@ export default function ProfilePage() {
                     try {
                       setAvatarPreview("");
                       setAvatarActionSheetOpen(false);
-                      const res = await updateProfile({ name, subjectGroup, address, phoneNumber, level, image: "" });
-                      if (res.success) {
-                        showToast("success", lang === "en" ? "Profile image removed successfully" : "ลบรูปโปรไฟล์สำเร็จ");
-                        refetch();
-                      } else {
-                        throw new Error(res.error);
-                      }
+                      await updateProfile({ name, subjectGroup, address, phoneNumber, level, image: "" });
+                      showToast("success", lang === "en" ? "Profile image removed successfully" : "ลบรูปโปรไฟล์สำเร็จ");
+                      refetch();
                     } catch (err: any) {
                       showToast("error", lang === "en" ? "Failed to remove avatar" : "เกิดข้อผิดพลาดในการลบรูปประจำตัว");
                     }
