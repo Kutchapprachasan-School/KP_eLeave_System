@@ -972,7 +972,7 @@ export default function ProfilePage() {
                       }
                       const compressedBase64 = await compressImage(file, 400, 400);
                       setAvatarPreview(compressedBase64);
-                      const res = await updateProfile({ image: compressedBase64 });
+                      const res = await updateProfile({ name, subjectGroup, address, phoneNumber, level, image: compressedBase64 });
                       if (res.success) {
                         showToast("success", lang === "en" ? "Avatar saved successfully" : "บันทึกรูปโปรไฟล์สำเร็จ");
                         refetch();
@@ -998,7 +998,7 @@ export default function ProfilePage() {
                     try {
                       setAvatarPreview("");
                       setAvatarActionSheetOpen(false);
-                      const res = await updateProfile({ image: "" });
+                      const res = await updateProfile({ name, subjectGroup, address, phoneNumber, level, image: "" });
                       if (res.success) {
                         showToast("success", lang === "en" ? "Profile image removed successfully" : "ลบรูปโปรไฟล์สำเร็จ");
                         refetch();
