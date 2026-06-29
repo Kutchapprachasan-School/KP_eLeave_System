@@ -798,19 +798,16 @@ export default function DashboardPage() {
                                 <span className={`w-1.5 h-1.5 rounded-full ${style.dot}`} />
                                 <span className="font-semibold">{tLeaveType(l.type)}</span>
                               </div>
-                          }`}
-                          title={hasLeaves ? `${leaves.length} คนลา` : undefined}
-                        >
-                          {cell.date.getDate()}
-                        </div>
-                      );
-                    })}
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
+                );
+              })}
+            </div>
+          )}
       </motion.div>
 
       {/* Calendar Day Details Modal */}

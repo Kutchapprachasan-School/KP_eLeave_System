@@ -510,7 +510,30 @@ export default function HistoryPage() {
             <Clock className="w-5 h-5 animate-pulse" />
           </div>
           <div>
-           const totalPages = Math.ceil(filteredHistory.length / itemsPerPage);
+            <span className="block text-2xl font-bold text-slate-900 dark:text-white">{stats.pending}</span>
+            <span className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider">{t("pending")}</span>
+          </div>
+        </div>
+        <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/80 shadow-sm flex items-center gap-3">
+          <div className="p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400">
+            <FileX className="w-5 h-5" />
+          </div>
+          <div>
+            <span className="block text-2xl font-bold text-slate-900 dark:text-white">{stats.rejected}</span>
+            <span className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider">{lang === "en" ? "Rejected/Cancelled" : "ไม่อนุมัติ/ยกเลิก"}</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white/60 dark:border-slate-800 rounded-3xl p-2 md:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+        {loading ? (
+          <div className="animate-pulse space-y-3 p-6">
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className="h-12 bg-slate-100 dark:bg-slate-800 rounded-xl" />
+            ))}
+          </div>
+        ) : (() => {
+          const totalPages = Math.ceil(filteredHistory.length / itemsPerPage);
           const paginatedHistory = filteredHistory.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
           
           return (
