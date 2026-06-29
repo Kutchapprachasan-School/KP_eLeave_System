@@ -210,6 +210,34 @@ export default function DashboardPage() {
     setIsDayDetailModalOpen(true);
   };
 
+  const handlePrev = () => {
+    setCalendarDate(prev => {
+      const d = new Date(prev);
+      if (calendarView === "month") {
+        d.setMonth(prev.getMonth() - 1);
+      } else if (calendarView === "week") {
+        d.setDate(prev.getDate() - 7);
+      } else if (calendarView === "year") {
+        d.setFullYear(prev.getFullYear() - 1);
+      }
+      return d;
+    });
+  };
+
+  const handleNext = () => {
+    setCalendarDate(prev => {
+      const d = new Date(prev);
+      if (calendarView === "month") {
+        d.setMonth(prev.getMonth() + 1);
+      } else if (calendarView === "week") {
+        d.setDate(prev.getDate() + 7);
+      } else if (calendarView === "year") {
+        d.setFullYear(prev.getFullYear() + 1);
+      }
+      return d;
+    });
+  };
+
   if (!mounted || !stats) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center">
