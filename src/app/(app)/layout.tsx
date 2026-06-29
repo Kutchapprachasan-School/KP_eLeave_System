@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
 import { ToastProvider, useToast } from "@/components/toast-provider";
@@ -266,6 +266,24 @@ function ToolbarButtons({ isAdmin, isApprover }: { isAdmin: boolean; isApprover:
   );
 }
 
+function getUserRoleKey(user: any, isFinalApprover: boolean = false) {
+  if (user?.role === "ADMIN" || user?.position === "แอดมิน") return "ADMIN";
+  if (user?.position === "ผู้อำนวยการ" || isFinalApprover) return "DIRECTOR";
+  if (user?.position === "หัวหน้างานบุคคล" || user?.position === "เจ้าหน้าที่บุคคล") return "HR";
+  if (user?.position === "ผู้ตรวจสอบ" || user?.position === "หัวหน้าหมวด" || user?.position === "หัวหน้ากลุ่มสาระ") return "INSPECTOR";
+  return "TEACHER";
+}
+
+const DEFAULT_PERMISSIONS = {
+  calendar: ["ADMIN", "DIRECTOR", "HR", "INSPECTOR", "TEACHER"],
+  reports: ["ADMIN", "DIRECTOR", "HR", "INSPECTOR"],
+  approvals: ["ADMIN", "DIRECTOR", "HR", "INSPECTOR"],
+  logs: ["ADMIN"],
+  backups: ["ADMIN"],
+  users: ["ADMIN"],
+  settings: ["ADMIN"]
+};
+
 function AppContent({ children }: { children: React.ReactNode }) {
   const { showToast } = useToast();
   const pathname = usePathname();
@@ -276,6 +294,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
   const [brandName, setBrandName] = useState("ระบบการลา");
   const [brandLogo, setBrandLogo] = useState<string | null>(null);
   const [isFinalApprover, setIsFinalApprover] = useState(false);
+  const [rolePermissions, setRolePermissions] = useState<any>(null);
 
   useEffect(() => {
     if (!isPending && !session) {
@@ -291,6 +310,13 @@ function AppContent({ children }: { children: React.ReactNode }) {
         if (s.finalApproverUserIds && session?.user?.id) {
           const allowedIds = s.finalApproverUserIds.split(",").map((id: string) => id.trim()).filter(Boolean);
           setIsFinalApprover(allowedIds.includes(session.user.id));
+        }
+        if (s.rolePermissions) {
+          try {
+            setRolePermissions(JSON.parse(s.rolePermissions));
+          } catch (e) {
+            console.error("Failed to parse rolePermissions", e);
+          }
         }
       }).catch(() => {});
     });
@@ -338,31 +364,45 @@ function AppContent({ children }: { children: React.ReactNode }) {
     );
   }
 
+  const userRole = getUserRoleKey(user, isFinalApprover);
+  const activePermissions = rolePermissions || DEFAULT_PERMISSIONS;
+
   const navItems = [
     { href: "/dashboard", label: t("dashboard"), icon: LayoutDashboard },
     { href: "/request", label: t("requestLeave"), icon: FileText },
     { href: "/history", label: t("history"), icon: History },
   ];
 
-  if (isApprover) {
+  if (activePermissions.approvals?.includes(userRole)) {
     navItems.push({ href: "/approvals", label: t("approvals"), icon: CheckSquare });
   }
-  
-  if (isAdmin || user.position === "ผู้ตรวจสอบ" || user.position === "หัวหน้างานบุคคล" || user.position === "เจ้าหน้าที่บุคคล") {
+  if (activePermissions.reports?.includes(userRole)) {
     navItems.push({ href: "/reports", label: t("reports"), icon: FileSpreadsheet });
   }
-  if (isAdmin) {
-    navItems.push(
-      { href: "/users", label: t("users"), icon: Users },
-      { href: "/logs", label: t("logs"), icon: Activity }
-    );
+  if (activePermissions.users?.includes(userRole)) {
+    navItems.push({ href: "/users", label: t("users"), icon: Users });
   }
-
-  if (isAdmin || user.position === "หัวหน้างานบุคคล" || user.position === "เจ้าหน้าที่บุคคล" || user.position === "ผู้ตรวจสอบ") {
+  if (activePermissions.logs?.includes(userRole)) {
+    navItems.push({ href: "/logs", label: t("logs"), icon: Activity });
+  }
+  if (activePermissions.settings?.includes(userRole)) {
     navItems.push({ href: "/settings", label: t("settings"), icon: Settings });
   }
 
   navItems.push({ href: "/manual", label: t("userManual"), icon: BookOpen });
+
+  const checkPermission = (path: string): boolean => {
+    const key = getUserRoleKey(user, isFinalApprover);
+    const activePerms = rolePermissions || DEFAULT_PERMISSIONS;
+    if (path.startsWith("/reports") && !activePerms.reports?.includes(key)) return false;
+    if (path.startsWith("/approvals") && !activePerms.approvals?.includes(key)) return false;
+    if (path.startsWith("/logs") && !activePerms.logs?.includes(key)) return false;
+    if (path.startsWith("/users") && !activePerms.users?.includes(key)) return false;
+    if (path.startsWith("/settings") && !activePerms.settings?.includes(key)) return false;
+    return true;
+  };
+
+  const hasAccess = checkPermission(pathname);
 
   const isImpersonating = user.isActualAdmin === true && (user.role !== "ADMIN" && user.position !== "แอดมิน");
 
@@ -530,7 +570,22 @@ function AppContent({ children }: { children: React.ReactNode }) {
 
         {/* Page Content */}
         <div className="flex-1 px-6 lg:px-10 pb-24 lg:pb-12 w-full max-w-[1600px] mx-auto">
-          {children}
+          {hasAccess ? children : (
+            <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-6 bg-white/40 dark:bg-slate-900/40 backdrop-blur-md border border-white/60 dark:border-slate-800 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] max-w-lg mx-auto mt-12">
+              <div className="w-16 h-16 bg-rose-50 dark:bg-rose-500/10 text-rose-500 rounded-2xl flex items-center justify-center mb-6 shadow-sm">
+                <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-2">ไม่มีสิทธิ์เข้าถึงหน้านี้ (Access Denied)</h2>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mb-6 leading-relaxed max-w-xs">
+                บัญชีผู้ใช้ของคุณไม่ได้รับอนุญาตให้เข้าถึงเนื้อหาในส่วนนี้ หากเป็นข้อผิดพลาด กรุณาติดต่อแอดมินหรือหัวหน้างานบุคคล
+              </p>
+              <Link href="/dashboard" className="px-5 py-2.5 bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white font-semibold text-xs rounded-xl shadow-md transition-all active:scale-95">
+                กลับสู่แดชบอร์ด
+              </Link>
+            </div>
+          )}
         </div>
       </main>
 

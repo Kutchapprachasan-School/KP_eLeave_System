@@ -5,7 +5,7 @@ import { archiveCurrentCycle, importBackupFromJson, exportLeaveBackup, importLea
 import { adminClearAllLeaveData } from "@/app/actions/leave";
 import { uploadLogo } from "@/app/actions/upload";
 import { useSession } from "@/lib/auth-client";
-import { Save, Image as ImageIcon, ShieldAlert, DownloadCloud, Code, Settings2, Archive, UploadCloud, Database, FileJson, AlertTriangle, CheckCircle2, ChevronRight, ArrowLeft, Bell, Type, Users, BookOpen, HardDrive, UserCog, FileSpreadsheet, X, CalendarDays, FileX, Plus } from "lucide-react";
+import { Save, Image as ImageIcon, ShieldAlert, DownloadCloud, Lock, Code, Settings2, Archive, UploadCloud, Database, FileJson, AlertTriangle, CheckCircle2, ChevronRight, ArrowLeft, Bell, Type, Users, BookOpen, HardDrive, UserCog, FileSpreadsheet, X, CalendarDays, FileX, Plus } from "lucide-react";
 import { useToast } from "@/components/toast-provider";
 import { useI18n } from "@/lib/i18n";
 import * as XLSX from "xlsx";
@@ -42,6 +42,16 @@ export default function SettingsPage() {
   const [leaveConfigs, setLeaveConfigs] = useState<any[]>([]);
   const [defaultInspectorId, setDefaultInspectorId] = useState("");
   const [eligibleInspectors, setEligibleInspectors] = useState<any[]>([]);
+  const [rolePermissions, setRolePermissions] = useState<any>({
+    calendar: ["ADMIN", "DIRECTOR", "HR", "INSPECTOR", "TEACHER"],
+    reports: ["ADMIN", "DIRECTOR", "HR", "INSPECTOR"],
+    approvals: ["ADMIN", "DIRECTOR", "HR", "INSPECTOR"],
+    logs: ["ADMIN"],
+    backups: ["ADMIN"],
+    users: ["ADMIN"],
+    settings: ["ADMIN"]
+  });
+  const [isSavingPermissions, setIsSavingPermissions] = useState(false);
   
   const [isSavingGeneral, setIsSavingGeneral] = useState(false);
   const [isSavingFooter, setIsSavingFooter] = useState(false);
@@ -139,6 +149,13 @@ export default function SettingsPage() {
       setGoogleDriveFormat(data.googleDriveFormat || "PDF");
       setLastLeaveMode(data.lastLeaveMode || "SAME");
       setQuotaExceededAction(data.quotaExceededAction || "ALLOW_WITH_MEMO");
+      if (data.rolePermissions) {
+        try {
+          setRolePermissions(JSON.parse(data.rolePermissions));
+        } catch (e) {
+          console.error("Failed to parse loaded permissions map", e);
+        }
+      }
     });
 
     getEligibleInspectors().then(setEligibleInspectors);
@@ -884,6 +901,9 @@ export default function SettingsPage() {
     { id: "leave-rules", icon: <ShieldAlert className="w-5 h-5 text-amber-500" />, title: lang === "en" ? "Leave Rules & Quotas" : "ระเบียบการลา & โควตา", description: lang === "en" ? "Rules, quotas, restrictions" : "กฎระเบียบ, โควตาวันลา, ข้อจำกัด" },
     { id: "line", icon: <Bell className="w-5 h-5 text-green-500" />, title: lang === "en" ? "LINE Notification" : "แจ้งเตือน LINE", description: lang === "en" ? "Enable/disable, Token, Group ID" : "เปิด/ปิดการแจ้งเตือน, Token, Group ID" },
     { id: "font", icon: <Type className="w-5 h-5 text-indigo-500" />, title: lang === "en" ? "Font & File Format" : "ฟอนต์ & รูปแบบไฟล์", description: lang === "en" ? "Leave form font, Google Drive format" : "ฟอนต์ใบลา, รูปแบบอัปโหลด Google Drive" },
+    ...(isAdmin ? [
+      { id: "permissions", icon: <Lock className="w-5 h-5 text-rose-500" />, title: lang === "en" ? "Access Permissions" : "กำหนดสิทธิ์ผู้เข้าใช้งาน", description: lang === "en" ? "Access rights per role" : "กำหนดสิทธิ์เข้าใช้งานตาม Role บุคลากร" }
+    ] : []),
   ];
 
   const dataManagementItems: MenuItem[] = [
@@ -914,6 +934,7 @@ export default function SettingsPage() {
     "leave-rules": lang === "en" ? "Leave Rules & Quotas" : "ระเบียบการลา & โควตา",
     line: lang === "en" ? "LINE Notification" : "แจ้งเตือน LINE",
     font: lang === "en" ? "Font & File Format" : "ฟอนต์ & รูปแบบไฟล์",
+    permissions: lang === "en" ? "Access Permissions" : "กำหนดสิทธิ์ผู้เข้าใช้งาน",
     backup: lang === "en" ? "Backup & Data" : "สำรองข้อมูล",
     impersonate: lang === "en" ? "Role Impersonation" : "จำลองบทบาท",
     footer: lang === "en" ? "Footer Settings" : "ท้ายกระดาษ",
@@ -2247,6 +2268,114 @@ export default function SettingsPage() {
     </div>
   );
 
+  const renderPermissionsSection = () => {
+    const modules = [
+      { id: "calendar", nameTh: "ปฏิทินการลาของครู/บุคลากร", nameEn: "Staff Calendar" },
+      { id: "reports", nameTh: "รายงานผลและสถิติการลา", nameEn: "Reports & Statistics" },
+      { id: "approvals", nameTh: "สิทธิ์การพิจารณา/อนุมัติใบลา", nameEn: "Approve Leaves" },
+      { id: "logs", nameTh: "ประวัติกิจกรรมระบบ (Activity Logs)", nameEn: "System Logs" },
+      { id: "backups", nameTh: "สำรองข้อมูลและล้างระบบ", nameEn: "Backups & Data" },
+      { id: "users", nameTh: "จัดการบัญชีผู้ใช้งาน", nameEn: "User Management" },
+      { id: "settings", nameTh: "ตั้งค่าระบบทั่วไป", nameEn: "General Settings" },
+    ];
+
+    const roles = [
+      { id: "ADMIN", nameTh: "แอดมิน", nameEn: "Admin" },
+      { id: "DIRECTOR", nameTh: "ผู้อำนวยการ", nameEn: "Director" },
+      { id: "HR", nameTh: "หัวหน้างานบุคคล", nameEn: "HR Head" },
+      { id: "INSPECTOR", nameTh: "ผู้ตรวจสอบ/หัวหน้าหมวด", nameEn: "Inspector" },
+      { id: "TEACHER", nameTh: "ครู/บุคลากรทั่วไป", nameEn: "Teacher" },
+    ];
+
+    const handleCheckboxChange = (moduleId: string, roleId: string, checked: boolean) => {
+      setRolePermissions((prev: any) => {
+        const currentList = prev[moduleId] || [];
+        let newList = [];
+        if (checked) {
+          newList = [...currentList, roleId];
+        } else {
+          newList = currentList.filter((r: string) => r !== roleId);
+        }
+        return {
+          ...prev,
+          [moduleId]: newList
+        };
+      });
+    };
+
+    const handleSavePermissions = async (e: React.FormEvent) => {
+      e.preventDefault();
+      setIsSavingPermissions(true);
+      try {
+        const res = await updateSystemSettings({
+          schoolName,
+          subheader,
+          rolePermissions: JSON.stringify(rolePermissions)
+        });
+        if (res.success) {
+          showToast("success", lang === "en" ? "Permissions updated successfully" : "บันทึกสิทธิ์การเข้าใช้งานเรียบร้อยแล้ว");
+        } else {
+          showToast("error", "บันทึกไม่สำเร็จ");
+        }
+      } catch (err: any) {
+        showToast("error", err.message || "เกิดข้อผิดพลาด");
+      } finally {
+        setIsSavingPermissions(false);
+      }
+    };
+
+    return (
+      <form onSubmit={handleSavePermissions} className="space-y-6">
+        <div className="bg-white dark:bg-gray-900 rounded-2xl p-6 md:p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-150 dark:border-gray-800 relative overflow-hidden">
+          <SectionHeader title={sectionTitles.permissions} />
+          <p className="text-xs text-gray-500 mb-6 leading-relaxed">
+            {lang === "en" 
+              ? "Configure which user levels can view or modify specific modules/features of the system." 
+              : "กำหนดสิทธิ์ให้แต่ละระดับบทบาทของบุคลากรในการเข้าใช้งาน แสดงผล หรือจัดการในส่วนต่างๆ ของระบบ"}
+          </p>
+
+          <div className="overflow-x-auto rounded-xl border border-gray-100 dark:border-gray-800">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="bg-slate-50 dark:bg-slate-800/50 text-slate-500 border-b border-gray-100 dark:border-gray-800">
+                  <th className="px-4 py-3 font-bold min-w-[200px]">{lang === "en" ? "Module / Feature" : "ฟังก์ชัน / ระบบงาน"}</th>
+                  {roles.map((role) => (
+                    <th key={role.id} className="px-3 py-3 font-bold text-center">
+                      {lang === "en" ? role.nameEn : role.nameTh}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                {modules.map((mod) => (
+                  <tr key={mod.id} className="hover:bg-slate-50/20 dark:hover:bg-slate-800/10">
+                    <td className="px-4 py-3.5 font-semibold text-slate-900 dark:text-white">
+                      {lang === "en" ? mod.nameEn : mod.nameTh}
+                    </td>
+                    {roles.map((role) => {
+                      const isChecked = (rolePermissions[mod.id] || []).includes(role.id);
+                      return (
+                        <td key={role.id} className="px-3 py-3.5 text-center">
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={(e) => handleCheckboxChange(mod.id, role.id, e.target.checked)}
+                            className="w-4 h-4 rounded border-gray-300 dark:border-gray-700 text-indigo-600 focus:ring-indigo-500/20 cursor-pointer"
+                          />
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <StickySaveBar isSaving={isSavingPermissions} label={isSavingPermissions ? t("saving") : t("saveSettings")} color="indigo" />
+      </form>
+    );
+  };
+
   // --- Section renderer map ---
   const renderActiveSection = () => {
     switch (activeSection) {
@@ -2255,6 +2384,7 @@ export default function SettingsPage() {
       case "leave-rules": return renderLeaveRulesSection();
       case "line": return renderLineSection();
       case "font": return renderFontSection();
+      case "permissions": return renderPermissionsSection();
       case "backup": return renderBackupSection();
       case "impersonate": return renderImpersonateSection();
       case "footer": return renderFooterSection();
