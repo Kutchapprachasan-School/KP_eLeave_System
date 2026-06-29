@@ -80,6 +80,23 @@ export default function SettingsPage() {
   const [importHistory, setImportHistory] = useState<any[]>([]);
   const [isDragOver, setIsDragOver] = useState(false);
 
+  // Danger Zone custom modal states
+  const [isClearDataModalOpen, setIsClearDataModalOpen] = useState(false);
+  const [confirmTextInput, setConfirmTextInput] = useState("");
+
+  // Manual import form states
+  const [isManualFillModalOpen, setIsManualFillModalOpen] = useState(false);
+  const [manualTeacherSearch, setManualTeacherSearch] = useState("");
+  const [showManualTeacherDropdown, setShowManualTeacherDropdown] = useState(false);
+  const [manualSelectedTeacher, setManualSelectedTeacher] = useState<any>(null);
+  const [manualLeaveType, setManualLeaveType] = useState("SICK");
+  const [manualStartDate, setManualStartDate] = useState("");
+  const [manualEndDate, setManualEndDate] = useState("");
+  const [manualLeaveStatus, setManualLeaveStatus] = useState("APPROVED");
+  const [manualFinalApproverId, setManualFinalApproverId] = useState("");
+  const [manualHeadApproverId, setManualHeadApproverId] = useState("");
+  const [manualReason, setManualReason] = useState("");
+
   // Drill-down navigation state
   const [activeSection, setActiveSection] = useState<string | null>(null);
 
@@ -126,6 +143,20 @@ export default function SettingsPage() {
     getEligibleInspectors().then(setEligibleInspectors);
     getLeaveConfigs().then(setLeaveConfigs);
   }, []);
+
+  useEffect(() => {
+    if (isManualFillModalOpen) {
+      const eligibleFinals = eligibleInspectors.filter(u => 
+        u.position === "ผู้อำนวยการ" || finalApproverUserIds.includes(u.id)
+      );
+      if (eligibleFinals.length > 0) {
+        setManualFinalApproverId(eligibleFinals[0].id);
+      } else if (eligibleInspectors.length > 0) {
+        setManualFinalApproverId(eligibleInspectors[0].id);
+      }
+      setManualHeadApproverId(defaultInspectorId || "");
+    }
+  }, [isManualFillModalOpen, eligibleInspectors, finalApproverUserIds, defaultInspectorId]);
   useEffect(() => {
     if (activeSection === "backup") {
       getImportHistory().then(setImportHistory);
@@ -337,23 +368,22 @@ export default function SettingsPage() {
     }
   };
 
-  const handleClearData = async () => {
-    if (!confirm("⚠️ คำเตือนร้ายแรง: คุณกำลังจะลบ 'ข้อมูลประวัติการลาทั้งหมด' ออกจากระบบ!\nข้อมูลที่ถูกลบจะไม่สามารถกู้คืนได้ (ยกเว้นจะมี Backup)\n\nคุณแน่ใจหรือไม่ว่าต้องการดำเนินการต่อ?")) {
-      return;
-    }
-    const confirmText = prompt("พิมพ์คำว่า 'CONFIRM' เพื่อยืนยันการลบข้อมูลการลาทั้งหมด:");
-    if (confirmText !== 'CONFIRM') {
-      alert("ยกเลิกการลบข้อมูล (พิมพ์ไม่ถูกต้อง)");
-      return;
-    }
+  const handleClearData = () => {
+    setConfirmTextInput("");
+    setIsClearDataModalOpen(true);
+  };
 
+  const handleExecuteClearData = async () => {
+    if (confirmTextInput !== 'CONFIRM') return;
+
+    setIsClearDataModalOpen(false);
     setIsClearing(true);
     try {
       await adminClearAllLeaveData();
-      alert("ล้างข้อมูลการลาทั้งหมดเรียบร้อยแล้ว");
+      showToast("success", lang === "en" ? "Cleared all leave data successfully" : "ล้างข้อมูลการลาทั้งหมดเรียบร้อยแล้ว");
       window.location.reload();
     } catch (error: any) {
-      alert("เกิดข้อผิดพลาด" + (error.message || "ไม่สามารถลบข้อมูลได้"));
+      showToast("error", (lang === "en" ? "Error: " : "เกิดข้อผิดพลาด: ") + (error.message || "ไม่สามารถลบข้อมูลได้"));
     } finally {
       setIsClearing(false);
     }
@@ -526,6 +556,72 @@ export default function SettingsPage() {
     }
   };
 
+  const handleAddManualLeave = () => {
+    if (!manualSelectedTeacher) {
+      showToast("error", lang === "en" ? "Please select a teacher" : "กรุณาเลือกครู/บุคลากร");
+      return;
+    }
+    if (!manualStartDate || !manualEndDate) {
+      showToast("error", lang === "en" ? "Please select start and end dates" : "กรุณาเลือกวันที่เริ่มต้นและสิ้นสุด");
+      return;
+    }
+
+    const typeMap: Record<string, string> = {};
+    leaveConfigs.forEach((c: any) => {
+      typeMap[c.name.trim()] = c.type;
+    });
+
+    const finalApprover = eligibleInspectors.find(u => u.id === manualFinalApproverId);
+    const headApprover = eligibleInspectors.find(u => u.id === manualHeadApproverId);
+
+    const newRecord: any = {
+      rowNum: validRecords.length + invalidRecords.length + 2,
+      username: manualSelectedTeacher.username,
+      startDate: new Date(manualStartDate).toISOString(),
+      endDate: new Date(manualEndDate).toISOString(),
+      type: manualLeaveType,
+      status: manualLeaveStatus,
+      finalApproverUsername: finalApprover?.username || "",
+      headApproverUsername: headApprover?.username || "",
+      reason: manualReason
+    };
+
+    const errorList: string[] = [];
+    if (new Date(manualStartDate) > new Date(manualEndDate)) {
+      errorList.push("วันที่เริ่มต้นมากกว่าวันที่สิ้นสุด");
+    }
+
+    let mappedType = manualLeaveType;
+    if (typeMap[mappedType]) {
+      mappedType = typeMap[mappedType];
+    }
+
+    const enqueuedRecord = {
+      ...newRecord,
+      mappedType,
+      matchedUserName: manualSelectedTeacher.name,
+      userId: manualSelectedTeacher.id
+    };
+
+    if (errorList.length > 0) {
+      setInvalidRecords(prev => [...prev, { ...enqueuedRecord, errors: errorList }]);
+    } else {
+      setValidRecords(prev => [...prev, enqueuedRecord]);
+    }
+
+    setParsedRecords(prev => [...prev, newRecord]);
+    setImportStage("preview");
+    setIsManualFillModalOpen(false);
+
+    // Clear form
+    setManualTeacherSearch("");
+    setManualSelectedTeacher(null);
+    setManualStartDate("");
+    setManualEndDate("");
+    setManualReason("");
+    showToast("success", lang === "en" ? "Added manual leave enqueued successfully" : "เพิ่มข้อมูลใบลาแบบกรอกข้อมูลสำเร็จ");
+  };
+
   const handleImportLeave = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -621,7 +717,7 @@ export default function SettingsPage() {
             let reason = "";
 
             Object.entries(row).forEach(([key, val]) => {
-              const k = key.trim().toLowerCase();
+              const k = key.replace(/\uFEFF/g, "").trim().toLowerCase();
               const v = val !== undefined && val !== null ? String(val).trim() : "";
               if (!v) return;
 
@@ -1613,6 +1709,21 @@ export default function SettingsPage() {
                     <BookOpen className="w-3 h-3" />
                     {lang === "en" ? "Reference Codes" : "รหัสอ้างอิงข้อมูล"}
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setManualTeacherSearch("");
+                      setManualSelectedTeacher(null);
+                      setManualStartDate("");
+                      setManualEndDate("");
+                      setManualReason("");
+                      setIsManualFillModalOpen(true);
+                    }}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 bg-teal-50 hover:bg-teal-100 dark:bg-teal-500/10 text-teal-600 dark:text-teal-400 border border-teal-100/50 text-[10px] font-bold rounded-lg transition-all"
+                  >
+                    <Plus className="w-3 h-3" />
+                    {lang === "en" ? "Fill Manually" : "กรอกข้อมูลด้วยตนเอง"}
+                  </button>
                 </div>
               </div>
               
@@ -2481,6 +2592,296 @@ export default function SettingsPage() {
                 className="w-full py-3 px-4 rounded-xl text-sm font-bold text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-850 text-center transition-colors"
               >
                 {lang === "en" ? "Cancel" : "ยกเลิก"}
+              </button>
+            </div>
+            <div className="p-2 border-t border-gray-100 dark:border-gray-850">
+              <button
+                type="button"
+                onClick={() => setLogoActionSheetOpen(false)}
+                className="w-full py-3 px-4 rounded-xl text-sm font-bold text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-850 text-center transition-colors"
+              >
+                {lang === "en" ? "Cancel" : "ยกเลิก"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Clear Data Modal */}
+      {isClearDataModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md bg-white dark:bg-gray-900 rounded-3xl shadow-xl overflow-hidden border border-red-100 dark:border-red-950/40">
+            <div className="p-6 text-center">
+              <div className="w-12 h-12 bg-red-50 dark:bg-red-950/20 text-red-600 dark:text-red-400 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <ShieldAlert className="w-6 h-6" />
+              </div>
+              <h3 className="text-lg font-bold text-gray-950 dark:text-white mb-2">
+                {lang === "en" ? "Clear All Leave Data" : "ยืนยันการล้างข้อมูลการลาทั้งหมด"}
+              </h3>
+              <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed mb-6">
+                {lang === "en"
+                  ? "Warning: This action will permanently delete all leave history records from the database. This cannot be undone."
+                  : "คำเตือนร้ายแรง: ข้อมูลประวัติการลาทั้งหมดในฐานข้อมูลจะถูกลบถาวรและไม่สามารถกู้คืนกลับมาได้"}
+              </p>
+              
+              <div className="space-y-4">
+                <div className="text-left">
+                  <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5">
+                    {lang === "en" ? "Type CONFIRM to proceed" : "กรุณาพิมพ์ CONFIRM เพื่อยืนยันการลบ"}
+                  </label>
+                  <input
+                    type="text"
+                    value={confirmTextInput}
+                    onChange={(e) => setConfirmTextInput(e.target.value)}
+                    placeholder="CONFIRM"
+                    className="w-full h-11 px-4 rounded-xl border border-red-200 focus:border-red-500 focus:ring-red-500/20 dark:border-red-900/50 bg-white dark:bg-gray-800 text-sm font-mono tracking-widest text-center transition-all outline-none"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsClearDataModalOpen(false)}
+                    className="h-11 rounded-xl bg-gray-50 hover:bg-gray-100 dark:bg-gray-800 dark:hover:bg-gray-700/80 text-gray-600 dark:text-gray-300 font-semibold text-sm transition-all border border-gray-100 dark:border-gray-800"
+                  >
+                    {lang === "en" ? "Cancel" : "ยกเลิก"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleExecuteClearData}
+                    disabled={confirmTextInput !== "CONFIRM" || isClearing}
+                    className="h-11 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-sm transition-all shadow-md shadow-red-500/10 disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    {isClearing ? (lang === "en" ? "Clearing..." : "กำลังลบ...") : (lang === "en" ? "Delete Permanently" : "ลบข้อมูลถาวร")}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Manual Leave Import Form Modal */}
+      {isManualFillModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className="w-full max-w-lg bg-white dark:bg-gray-900 rounded-3xl shadow-xl overflow-hidden border border-gray-150 dark:border-gray-800 max-h-[90vh] flex flex-col">
+            {/* Modal Header */}
+            <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between shrink-0">
+              <span className="text-md font-bold text-gray-950 dark:text-white">
+                {lang === "en" ? "Manually Fill Leave Data" : "กรอกข้อมูลใบลาด้วยตนเอง"}
+              </span>
+              <button 
+                type="button"
+                onClick={() => setIsManualFillModalOpen(false)}
+                className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-400" />
+              </button>
+            </div>
+
+            {/* Modal Scroll Content */}
+            <div className="flex-1 p-6 overflow-y-auto space-y-4">
+              {/* Teacher Search select */}
+              <div className="relative">
+                <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5">
+                  {lang === "en" ? "Select Teacher / Staff *" : "เลือกครู / บุคลากร *"}
+                </label>
+                {manualSelectedTeacher ? (
+                  <div className="flex items-center justify-between p-3 bg-purple-50 dark:bg-purple-950/20 text-purple-700 dark:text-purple-300 rounded-xl border border-purple-100 dark:border-purple-900/50">
+                    <div className="text-sm font-semibold">
+                      {manualSelectedTeacher.name} {manualSelectedTeacher.position ? `(${manualSelectedTeacher.position})` : ""}
+                    </div>
+                    <button 
+                      type="button" 
+                      onClick={() => setManualSelectedTeacher(null)}
+                      className="p-1 hover:bg-purple-100 dark:hover:bg-purple-900 rounded-full"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <div>
+                    <input
+                      type="text"
+                      value={manualTeacherSearch}
+                      onChange={(e) => {
+                        setManualTeacherSearch(e.target.value);
+                        setShowManualTeacherDropdown(true);
+                      }}
+                      onFocus={() => setShowManualTeacherDropdown(true)}
+                      placeholder={lang === "en" ? "Type to search teacher name..." : "พิมพ์ค้นหาชื่อหรือตำแหน่งครู..."}
+                      className="w-full h-11 px-4 rounded-xl border border-gray-250 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                    />
+                    {showManualTeacherDropdown && (
+                      <>
+                        <div className="fixed inset-0 z-10" onClick={() => setShowManualTeacherDropdown(false)} />
+                        <div className="absolute z-20 w-full mt-1.5 max-h-48 overflow-y-auto rounded-xl border border-gray-150 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-lg p-1.5 divide-y divide-gray-50 dark:divide-gray-800">
+                          {(() => {
+                            const filtered = eligibleInspectors.filter(u => 
+                              u.name.toLowerCase().includes(manualTeacherSearch.toLowerCase()) ||
+                              (u.position && u.position.toLowerCase().includes(manualTeacherSearch.toLowerCase()))
+                            );
+                            if (filtered.length === 0) {
+                              return (
+                                <p className="text-xs text-gray-400 text-center py-3">
+                                  {lang === "en" ? "No matches found" : "ไม่พบรายชื่อผู้ใช้"}
+                                </p>
+                              );
+                            }
+                            return filtered.map((u) => (
+                              <div
+                                key={u.id}
+                                onClick={() => {
+                                  setManualSelectedTeacher(u);
+                                  setManualTeacherSearch("");
+                                  setShowManualTeacherDropdown(false);
+                                }}
+                                className="p-2.5 hover:bg-slate-50 dark:hover:bg-slate-800/80 rounded-lg text-xs cursor-pointer flex items-center justify-between text-gray-900 dark:text-gray-200"
+                              >
+                                <span className="font-semibold">{u.name}</span>
+                                <span className="text-[10px] text-gray-400">{u.position || "-"}</span>
+                              </div>
+                            ));
+                          })()}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Leave Type and Status Row */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5">
+                    {lang === "en" ? "Leave Type *" : "ประเภทการลา *"}
+                  </label>
+                  <select
+                    value={manualLeaveType}
+                    onChange={(e) => setManualLeaveType(e.target.value)}
+                    className="w-full h-11 px-3 rounded-xl border border-gray-250 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 cursor-pointer"
+                  >
+                    {leaveConfigs.map((c) => (
+                      <option key={c.type} value={c.name}>{c.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5">
+                    {lang === "en" ? "Leave Status *" : "สถานะการลา *"}
+                  </label>
+                  <select
+                    value={manualLeaveStatus}
+                    onChange={(e) => setManualLeaveStatus(e.target.value)}
+                    className="w-full h-11 px-3 rounded-xl border border-gray-250 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 cursor-pointer"
+                  >
+                    <option value="APPROVED">{lang === "en" ? "Approved" : "อนุมัติแล้ว"}</option>
+                    <option value="PENDING_HEAD">{lang === "en" ? "Pending Head" : "รอหัวหน้างาน/ผู้ตรวจสอบ"}</option>
+                    <option value="PENDING_EXEC">{lang === "en" ? "Pending Exec" : "รอผู้อนุมัติ"}</option>
+                    <option value="REJECTED">{lang === "en" ? "Rejected" : "ปฏิเสธแล้ว"}</option>
+                    <option value="CANCELLED">{lang === "en" ? "Cancelled" : "ยกเลิกแล้ว"}</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Start Date and End Date Row */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5">
+                    {lang === "en" ? "Start Date *" : "วันที่เริ่มลา *"}
+                  </label>
+                  <input
+                    type="date"
+                    value={manualStartDate}
+                    onChange={(e) => setManualStartDate(e.target.value)}
+                    className="w-full h-11 px-4 rounded-xl border border-gray-250 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm outline-none focus:ring-2 focus:ring-indigo-500/20"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5">
+                    {lang === "en" ? "End Date *" : "วันที่สิ้นสุด *"}
+                  </label>
+                  <input
+                    type="date"
+                    value={manualEndDate}
+                    onChange={(e) => setManualEndDate(e.target.value)}
+                    className="w-full h-11 px-4 rounded-xl border border-gray-250 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm outline-none focus:ring-2 focus:ring-indigo-500/20"
+                  />
+                </div>
+              </div>
+
+              {/* Final and Head Approver Row */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5">
+                    {lang === "en" ? "Final Approver" : "ผู้อนุมัติขั้นสุดท้าย"}
+                  </label>
+                  <select
+                    value={manualFinalApproverId}
+                    onChange={(e) => setManualFinalApproverId(e.target.value)}
+                    className="w-full h-11 px-3 rounded-xl border border-gray-250 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 cursor-pointer"
+                  >
+                    {(() => {
+                      const eligibleFinals = eligibleInspectors.filter(u => 
+                        u.position === "ผู้อำนวยการ" || finalApproverUserIds.includes(u.id)
+                      );
+                      if (eligibleFinals.length === 0) {
+                        return eligibleInspectors.map((u) => (
+                          <option key={u.id} value={u.id}>{u.name} {u.position ? `(${u.position})` : ""}</option>
+                        ));
+                      }
+                      return eligibleFinals.map((u) => (
+                        <option key={u.id} value={u.id}>{u.name} {u.position ? `(${u.position})` : ""}</option>
+                      ));
+                    })()}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5">
+                    {lang === "en" ? "Head Approver / Inspector" : "ผู้ตรวจสอบ / หัวหน้ากลุ่มสาระ"}
+                  </label>
+                  <select
+                    value={manualHeadApproverId}
+                    onChange={(e) => setManualHeadApproverId(e.target.value)}
+                    className="w-full h-11 px-3 rounded-xl border border-gray-250 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 cursor-pointer"
+                  >
+                    <option value="">{lang === "en" ? "None (Direct to Exec)" : "ไม่มี (ข้ามไปผู้อนุมัติ)"}</option>
+                    {eligibleInspectors.map((u) => (
+                      <option key={u.id} value={u.id}>{u.name} {u.position ? `(${u.position})` : ""}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Reason */}
+              <div>
+                <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5">
+                  {lang === "en" ? "Reason (Optional)" : "เหตุผลการลา (ไม่บังคับ)"}
+                </label>
+                <textarea
+                  value={manualReason}
+                  onChange={(e) => setManualReason(e.target.value)}
+                  placeholder={lang === "en" ? "Details or reasons..." : "ใส่เหตุผลการลา..."}
+                  className="w-full p-3 rounded-xl border border-gray-250 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 resize-none h-16"
+                />
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 bg-gray-50 dark:bg-gray-950/40 border-t border-gray-100 dark:border-gray-800 grid grid-cols-2 gap-3 shrink-0">
+              <button
+                type="button"
+                onClick={() => setIsManualFillModalOpen(false)}
+                className="h-11 rounded-xl bg-white hover:bg-gray-50 dark:bg-gray-800 dark:hover:bg-gray-700/80 text-gray-600 dark:text-gray-300 font-semibold text-sm transition-all border border-gray-100 dark:border-gray-850"
+              >
+                {lang === "en" ? "Cancel" : "ยกเลิก"}
+              </button>
+              <button
+                type="button"
+                onClick={handleAddManualLeave}
+                className="h-11 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-sm transition-all shadow-md shadow-teal-500/10"
+              >
+                {lang === "en" ? "Add to Queue" : "เพิ่มลงในคิวนำเข้า"}
               </button>
             </div>
           </div>

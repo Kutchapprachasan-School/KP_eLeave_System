@@ -9,10 +9,10 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, 
   AreaChart, Area, PieChart, Pie, Cell, RadialBarChart, RadialBar
 } from "recharts";
-import { getDashboardStats } from "@/app/actions/leave";
+import { getDashboardStats, getCalendarLeaves } from "@/app/actions/leave";
 import { 
   CheckCircle2, AlertCircle, Briefcase, 
-  Users, Activity, Clock
+  Users, Activity, Clock, Calendar, ChevronLeft, ChevronRight, X
 } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 
@@ -60,6 +60,31 @@ export default function DashboardPage() {
   const [leaderboardFilter, setLeaderboardFilter] = useState<"times" | "days">("times");
   const [viewMode, setViewMode] = useState<"school" | "personal">("school");
 
+  // Calendar states
+  const [calendarView, setCalendarView] = useState<"week" | "month" | "year">("month");
+  const [calendarDate, setCalendarDate] = useState<Date>(new Date());
+  const [calendarLeaves, setCalendarLeaves] = useState<any[]>([]);
+  const [selectedDayLeaves, setSelectedDayLeaves] = useState<any[]>([]);
+  const [isDayDetailModalOpen, setIsDayDetailModalOpen] = useState(false);
+  const [selectedCalendarDate, setSelectedCalendarDate] = useState<Date | null>(null);
+
+  useEffect(() => {
+    if (mounted) {
+      getCalendarLeaves(dashboardYear)
+        .then(setCalendarLeaves)
+        .catch(console.error);
+    }
+  }, [dashboardYear, mounted]);
+
+  useEffect(() => {
+    const ceYear = dashboardYear - 543;
+    setCalendarDate(prev => {
+      const d = new Date(prev);
+      d.setFullYear(ceYear);
+      return d;
+    });
+  }, [dashboardYear]);
+
   useEffect(() => { 
     setMounted(true); 
     setStats(null);
@@ -77,6 +102,102 @@ export default function DashboardPage() {
         }
       });
   }, [cycleFilter, lang, dashboardYear, viewMode, router]);
+
+  // Calendar Helper functions
+  const getLeaveColorClass = (type: string) => {
+    const t = type.toUpperCase();
+    if (t === "SICK" || t.includes("ป่วย")) {
+      return { 
+        dot: "bg-rose-500", 
+        text: "text-rose-600 dark:text-rose-400 font-bold", 
+        bg: "bg-rose-50 dark:bg-rose-950/20 border border-rose-150 dark:border-rose-900/30 hover:bg-rose-100/70" 
+      };
+    }
+    if (t === "PERSONAL" || t.includes("กิจ")) {
+      return { 
+        dot: "bg-purple-500", 
+        text: "text-purple-600 dark:text-purple-400 font-bold", 
+        bg: "bg-purple-50 dark:bg-purple-950/20 border border-purple-150 dark:border-purple-900/30 hover:bg-purple-100/70" 
+      };
+    }
+    if (t === "VACATION" || t.includes("พัก")) {
+      return { 
+        dot: "bg-amber-500", 
+        text: "text-amber-600 dark:text-amber-400 font-bold", 
+        bg: "bg-amber-50 dark:bg-amber-950/20 border border-amber-150 dark:border-amber-900/30 hover:bg-amber-100/70" 
+      };
+    }
+    return { 
+      dot: "bg-blue-500", 
+      text: "text-blue-600 dark:text-blue-400 font-bold", 
+      bg: "bg-blue-50 dark:bg-blue-950/20 border border-blue-150 dark:border-blue-900/30 hover:bg-blue-100/70" 
+    };
+  };
+
+  const getLeavesForDay = (day: Date) => {
+    const target = new Date(day);
+    target.setHours(0, 0, 0, 0);
+
+    return calendarLeaves.filter(r => {
+      const start = new Date(r.startDate);
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(r.endDate);
+      end.setHours(0, 0, 0, 0);
+      return target >= start && target <= end;
+    });
+  };
+
+  const getDaysInMonth = (date: Date) => {
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    const firstDay = new Date(year, month, 1).getDay();
+    const daysCount = new Date(year, month + 1, 0).getDate();
+    const prevDaysCount = new Date(year, month, 0).getDate();
+    
+    const grid = [];
+    for (let i = firstDay - 1; i >= 0; i--) {
+      grid.push({
+        date: new Date(year, month - 1, prevDaysCount - i),
+        isCurrentMonth: false
+      });
+    }
+    for (let i = 1; i <= daysCount; i++) {
+      grid.push({
+        date: new Date(year, month, i),
+        isCurrentMonth: true
+      });
+    }
+    const totalCells = grid.length > 35 ? 42 : 35;
+    const nextDaysNeed = totalCells - grid.length;
+    for (let i = 1; i <= nextDaysNeed; i++) {
+      grid.push({
+        date: new Date(year, month + 1, i),
+        isCurrentMonth: false
+      });
+    }
+    return grid;
+  };
+
+  const getDaysInWeek = (date: Date) => {
+    const currentDay = date.getDay();
+    const sun = new Date(date);
+    sun.setDate(date.getDate() - currentDay);
+    
+    const week = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(sun);
+      d.setDate(sun.getDate() + i);
+      week.push(d);
+    }
+    return week;
+  };
+
+  const handleDayClick = (day: Date) => {
+    const dayLeaves = getLeavesForDay(day);
+    setSelectedDayLeaves(dayLeaves);
+    setSelectedCalendarDate(day);
+    setIsDayDetailModalOpen(true);
+  };
 
   if (!mounted || !stats) {
     return (
@@ -175,8 +296,20 @@ export default function DashboardPage() {
       {/* KPI Cards Layer */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {[
-          { title: isOverview ? t("allStaff") : t("quotaRemaining"), value: isOverview ? `${totalStaff} ${t("persons")}` : `${limitDays} ${t("days")}`, icon: isOverview ? Users : CheckCircle2, color: "text-blue-500 dark:text-blue-400", bg: "bg-blue-50 dark:bg-blue-500/10" },
-          { title: t("usedQuota"), value: `${totalUsed} ${t("days")}`, icon: Activity, color: "text-orange-500 dark:text-orange-400", bg: "bg-orange-50 dark:bg-orange-500/10" },
+          { 
+            title: isOverview ? t("allStaff") : (lang === "en" ? "Total Leave Days (All Types)" : "จำนวนวันที่ลา (รวมทุกประเภท)"), 
+            value: isOverview ? `${totalStaff} ${t("persons")}` : `${totalUsed} ${t("days")}`, 
+            icon: isOverview ? Users : Activity, 
+            color: "text-blue-500 dark:text-blue-400", 
+            bg: "bg-blue-50 dark:bg-blue-500/10" 
+          },
+          { 
+            title: isOverview ? t("usedQuota") : (lang === "en" ? "Quota Remaining" : "โควตาคงเหลือ"), 
+            value: isOverview ? `${totalUsed} ${t("days")}` : `${totalRemaining} ${t("days")}`, 
+            icon: isOverview ? Activity : CheckCircle2, 
+            color: isOverview ? "text-orange-500 dark:text-orange-400" : "text-emerald-500 dark:text-emerald-400", 
+            bg: isOverview ? "bg-orange-50 dark:bg-orange-500/10" : "bg-emerald-50 dark:bg-emerald-500/10" 
+          },
           { title: t("pendingItems"), value: `${pendingCount} ${t("requestsCount")}`, icon: AlertCircle, color: "text-purple-500 dark:text-purple-400", bg: "bg-purple-50 dark:bg-purple-500/10" },
           { title: t("approvalRate"), value: `${approvalRate}%`, icon: Briefcase, color: "text-green-500 dark:text-green-400", bg: "bg-green-50 dark:bg-green-500/10" }
         ].map((kpi, i) => (
@@ -398,6 +531,328 @@ export default function DashboardPage() {
         </motion.div>
 
       </div>
-    </motion.div>
-  );
+
+      {/* Teacher Leave Calendar */}
+      <motion.div 
+        variants={itemVariants} 
+        className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white/60 dark:border-slate-800 rounded-3xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] mt-6 flex flex-col"
+      >
+        {/* Calendar Toolbar */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 border-b border-slate-100 dark:border-slate-850 pb-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-purple-50 dark:bg-purple-500/10 flex items-center justify-center text-purple-600 dark:text-purple-400 shrink-0">
+              <Calendar className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white">
+                {lang === "en" ? "Staff Leave Calendar" : "ปฏิทินการลาของบุคลากร"}
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                {calendarView === "month" ? (lang === "en" ? `${monthNamesEn[calendarDate.getMonth()]} ${calendarDate.getFullYear()}` : `${monthNamesTh[calendarDate.getMonth()]} ${calendarDate.getFullYear() + 543}`) : 
+                 calendarView === "week" ? (lang === "en" ? `Week of ${calendarDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : `สัปดาห์วันที่ ${calendarDate.toLocaleDateString('th-TH', { month: 'short', day: 'numeric' })}`) :
+                 (lang === "en" ? `Year ${calendarDate.getFullYear()}` : `ปี พ.ศ. ${calendarDate.getFullYear() + 543}`)}
+              </p>
+            </div>
+          </div>
+
+          {/* Navigation and Segmented Control */}
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
+              <button 
+                onClick={handlePrev}
+                className="p-1.5 hover:bg-white dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg transition-all"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <button 
+                onClick={() => setCalendarDate(new Date())}
+                className="px-2.5 py-1 hover:bg-white dark:hover:bg-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 rounded-lg transition-all"
+              >
+                {lang === "en" ? "Today" : "วันนี้"}
+              </button>
+              <button 
+                onClick={handleNext}
+                className="p-1.5 hover:bg-white dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg transition-all"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
+              {(["week", "month", "year"] as const).map(view => (
+                <button
+                  key={view}
+                  onClick={() => setCalendarView(view)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                    calendarView === view
+                      ? "bg-white dark:bg-slate-700 text-purple-600 dark:text-purple-400 shadow-sm"
+                      : "text-slate-500 hover:text-slate-850 dark:hover:text-slate-200"
+                  }`}
+                >
+                  {view === "week" ? (lang === "en" ? "Week" : "สัปดาห์") :
+                   view === "month" ? (lang === "en" ? "Month" : "เดือน") :
+                   (lang === "en" ? "Year" : "ปี")}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* View Content */}
+        {calendarView === "month" && (
+          <div className="space-y-2">
+            {/* Week Headers */}
+            <div className="grid grid-cols-7 gap-1 text-center text-xs font-bold text-slate-500 dark:text-slate-400 py-1">
+              {(lang === "en" ? ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] : ["อา.", "จ.", "อ.", "พ.", "พฤ.", "ศ.", "ส."]).map(day => (
+                <div key={day}>{day}</div>
+              ))}
+            </div>
+            {/* Grid */}
+            <div className="grid grid-cols-7 gap-1.5">
+              {getDaysInMonth(calendarDate).map((cell, idx) => {
+                const leaves = getLeavesForDay(cell.date);
+                const isToday = cell.date.toDateString() === new Date().toDateString();
+                return (
+                  <div 
+                    key={idx}
+                    onClick={() => handleDayClick(cell.date)}
+                    className={`min-h-[90px] p-1.5 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between ${
+                      cell.isCurrentMonth 
+                        ? 'bg-slate-50/50 hover:bg-slate-100/50 dark:bg-slate-900/40 dark:hover:bg-slate-800/40 border-slate-100 dark:border-slate-800/80' 
+                        : 'bg-white/10 dark:bg-slate-950/5 opacity-40 border-transparent pointer-events-none'
+                    } ${isToday ? 'ring-2 ring-purple-500 dark:ring-purple-400 ring-offset-2 dark:ring-offset-slate-950 bg-purple-50/20 dark:bg-purple-950/10' : ''}`}
+                  >
+                    <span className={`text-[11px] font-bold self-start ${isToday ? 'text-purple-600 dark:text-purple-400' : 'text-slate-400 dark:text-slate-500'}`}>
+                      {cell.date.getDate()}
+                    </span>
+                    <div className="flex-1 w-full space-y-1 mt-1">
+                      {leaves.slice(0, 3).map((l, i) => {
+                        const style = getLeaveColorClass(l.type);
+                        return (
+                          <div 
+                            key={i} 
+                            className={`px-1.5 py-0.5 rounded-lg border text-[9px] truncate flex items-center gap-1 ${style.bg} ${style.text}`}
+                            title={`${l.user?.name || 'ครู'}: ${l.type}`}
+                          >
+                            <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${style.dot}`} />
+                            <span>{l.user?.name || l.type}</span>
+                          </div>
+                        );
+                      })}
+                      {leaves.length > 3 && (
+                        <div className="text-[8px] text-slate-400 font-semibold pl-1.5">
+                          + {leaves.length - 3} {lang === "en" ? "more" : "คน"}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {calendarView === "week" && (
+          <div className="grid grid-cols-1 md:grid-cols-7 gap-4">
+            {getDaysInWeek(calendarDate).map((day, idx) => {
+              const leaves = getLeavesForDay(day);
+              const isToday = day.toDateString() === new Date().toDateString();
+              const weekDaysTh = ["อา.", "จ.", "อ.", "พ.", "พฤ.", "ศ.", "ส."];
+              const weekDaysEn = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+              return (
+                <div 
+                  key={idx}
+                  className={`p-4 rounded-2xl border flex flex-col gap-3 min-h-[300px] ${
+                    isToday 
+                      ? 'bg-purple-50/20 dark:bg-purple-950/10 border-purple-200 dark:border-purple-900/50 shadow-sm'
+                      : 'bg-slate-50/50 dark:bg-slate-900/40 border-slate-100 dark:border-slate-800'
+                  }`}
+                >
+                  <div className="border-b border-slate-100 dark:border-slate-850 pb-2 flex flex-col items-center">
+                    <span className="text-xs font-bold text-slate-400 dark:text-slate-500">
+                      {lang === "en" ? weekDaysEn[day.getDay()] : weekDaysTh[day.getDay()]}
+                    </span>
+                    <span className={`text-2xl font-bold mt-0.5 ${isToday ? 'text-purple-600 dark:text-purple-400' : 'text-slate-800 dark:text-slate-200'}`}>
+                      {day.getDate()}
+                    </span>
+                  </div>
+                  <div className="flex-1 space-y-2 overflow-y-auto max-h-[220px] pr-1.5 custom-scrollbar">
+                    {leaves.length === 0 ? (
+                      <p className="text-[10px] text-gray-400 text-center py-6 italic">{lang === "en" ? "No leaves" : "ไม่มีการลา"}</p>
+                    ) : (
+                      leaves.map((l, i) => {
+                        const style = getLeaveColorClass(l.type);
+                        return (
+                          <div 
+                            key={i} 
+                            onClick={() => handleDayClick(day)}
+                            className={`p-2 rounded-xl border text-[10px] space-y-1 cursor-pointer transition-all ${style.bg}`}
+                          >
+                            <div className="font-bold truncate text-slate-900 dark:text-white">{l.user?.name || "ครู"}</div>
+                            <div className="flex items-center gap-1">
+                              <span className={`w-1.5 h-1.5 rounded-full ${style.dot}`} />
+                              <span className="font-semibold">{tLeaveType(l.type)}</span>
+                            </div>
+                            {l.reason && (
+                              <div className="text-[9px] text-slate-400 dark:text-slate-500 italic truncate" title={l.reason}>
+                                "{l.reason}"
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {calendarView === "year" && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+            {Array.from({ length: 12 }, (_, monthIdx) => {
+              const miniMonthDate = new Date(calendarDate.getFullYear(), monthIdx, 1);
+              const days = getDaysInMonth(miniMonthDate);
+              const monthNamesTh = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"];
+              const monthNamesEn = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+              const weekDaysTh = ["อา.", "จ.", "อ.", "พ.", "พฤ.", "ศ.", "ส."];
+              const weekDaysEn = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+              return (
+                <div key={monthIdx} className="p-3 bg-slate-50/50 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800/80 rounded-2xl flex flex-col gap-2">
+                  <h4 className="text-xs font-bold text-center text-slate-800 dark:text-slate-200">
+                    {lang === "en" ? monthNamesEn[monthIdx] : monthNamesTh[monthIdx]}
+                  </h4>
+                  <div className="grid grid-cols-7 gap-1 text-[8px] font-bold text-slate-400 text-center">
+                    {(lang === "en" ? weekDaysEn : weekDaysTh).map(day => (
+                      <div key={day}>{day[0]}</div>
+                    ))}
+                  </div>
+                  <div className="grid grid-cols-7 gap-1">
+                    {days.map((cell, idx) => {
+                      const leaves = getLeavesForDay(cell.date);
+                      const isToday = cell.date.toDateString() === new Date().toDateString();
+                      const hasLeaves = leaves.length > 0;
+                      return (
+                        <div 
+                          key={idx}
+                          onClick={() => cell.isCurrentMonth && handleDayClick(cell.date)}
+                          className={`aspect-square flex items-center justify-center rounded-lg text-[9px] font-medium transition-all ${
+                            !cell.isCurrentMonth ? 'opacity-0 pointer-events-none' : 'cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800'
+                          } ${isToday ? 'bg-purple-500 text-white font-bold' : ''} ${
+                            hasLeaves && !isToday 
+                              ? (getLeaveColorClass(leaves[0].type).dot + " text-white font-bold")
+                              : 'text-slate-600 dark:text-slate-300'
+                          }`}
+                          title={hasLeaves ? `${leaves.length} คนลา` : undefined}
+                        >
+                          {cell.date.getDate()}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </motion.div>
+
+      {/* Calendar Day Details Modal */}
+      {isDayDetailModalOpen && selectedCalendarDate && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md bg-white dark:bg-gray-900 rounded-3xl shadow-xl overflow-hidden border border-gray-150 dark:border-gray-800 max-h-[85vh] flex flex-col">
+            {/* Modal Header */}
+            <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-850 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2 text-purple-600 dark:text-purple-400">
+                <Calendar className="w-5 h-5" />
+                <span className="text-md font-bold text-gray-950 dark:text-white">
+                  {lang === "en" ? "Leave Details" : "รายชื่อผู้ลากิจ/ลาป่วย"}
+                </span>
+              </div>
+              <button 
+                type="button"
+                onClick={() => setIsDayDetailModalOpen(false)}
+                className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-400" />
+              </button>
+            </div>
+
+            {/* Content list */}
+            <div className="flex-1 p-6 overflow-y-auto space-y-4">
+              <div className="text-center bg-slate-50 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800 p-3 rounded-2xl">
+                <span className="text-xs text-slate-400 dark:text-slate-500 font-semibold block">{lang === "en" ? "DATE" : "วันที่เลือก"}</span>
+                <span className="text-sm font-bold text-slate-800 dark:text-slate-200 mt-0.5 block">
+                  {selectedCalendarDate.toLocaleDateString(lang === "th" ? "th-TH" : "en-US", {
+                    weekday: 'long',
+                    day: 'numeric',
+                    month: 'long',
+                    year: 'numeric'
+                  })}
+                </span>
+              </div>
+
+              <div className="space-y-3">
+                {selectedDayLeaves.length === 0 ? (
+                  <div className="text-center py-8 text-gray-400 dark:text-gray-500">
+                    <CheckCircle2 className="w-10 h-10 text-emerald-500 mx-auto mb-2 opacity-60" />
+                    <p className="text-xs font-semibold">{lang === "en" ? "All staff present - no one on leave!" : "ทุกคนอยู่ครบ - ไม่มีบุคลากรลาในวันนี้"}</p>
+                  </div>
+                ) : (
+                  selectedDayLeaves.map((l, i) => {
+                    const style = getLeaveColorClass(l.type);
+                    return (
+                      <div 
+                        key={i} 
+                        className="p-4 bg-slate-50/50 dark:bg-slate-900/30 border border-slate-100 dark:border-slate-800 rounded-2xl flex flex-col gap-2"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <span className="font-bold text-sm text-slate-900 dark:text-white block">{l.user?.name || "ครู"}</span>
+                            <span className="text-[10px] text-slate-400 block mt-0.5">{tPosition(l.user?.position) || "-"}</span>
+                          </div>
+                          <span className={`px-2.5 py-1 rounded-xl border text-[10px] font-bold flex items-center gap-1.5 ${style.bg} ${style.text}`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${style.dot}`} />
+                            {tLeaveType(l.type)}
+                          </span>
+                        </div>
+                        
+                        <div className="bg-white/40 dark:bg-slate-950/20 p-2.5 rounded-xl border border-slate-100/50 dark:border-slate-850 space-y-1.5 text-xs">
+                          <div className="flex justify-between">
+                            <span className="text-slate-400 font-semibold">{lang === "en" ? "Duration" : "ระยะเวลาลา"}</span>
+                            <span className="text-slate-700 dark:text-slate-300 font-bold">
+                              {new Date(l.startDate).toLocaleDateString(lang === "th" ? "th-TH" : "en-US", { day: 'numeric', month: 'short' })} - {new Date(l.endDate).toLocaleDateString(lang === "th" ? "th-TH" : "en-US", { day: 'numeric', month: 'short' })}
+                            </span>
+                          </div>
+                          {l.reason && (
+                            <div className="flex flex-col gap-1 border-t border-slate-100/40 dark:border-slate-850/50 pt-1.5">
+                              <span className="text-slate-400 font-semibold">{lang === "en" ? "Reason" : "เหตุผลการลา"}</span>
+                              <span className="text-slate-700 dark:text-slate-300 font-medium italic">"{l.reason}"</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 bg-gray-50 dark:bg-gray-950/40 border-t border-gray-100 dark:border-gray-800 text-center shrink-0">
+              <button
+                type="button"
+                onClick={() => setIsDayDetailModalOpen(false)}
+                className="px-6 py-2 rounded-xl bg-gray-900 hover:bg-gray-800 dark:bg-gray-800 dark:hover:bg-gray-700 text-white font-bold text-xs transition-all shadow-md"
+              >
+                {lang === "en" ? "Close" : "ปิด"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  </motion.div>
+);
 }

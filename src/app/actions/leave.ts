@@ -1721,4 +1721,37 @@ export async function uploadLeavePdf(id: string, pdfBase64: string, isRejected: 
   }
 }
 
+export async function getCalendarLeaves(year: number) {
+  const session = await getSession();
+  if (!session?.user) throw new Error("Unauthorized");
+
+  const startOfYear = new Date(year - 543, 0, 1);
+  const endOfYear = new Date(year - 543, 11, 31, 23, 59, 59);
+
+  const requests = await prisma.leaveRequest.findMany({
+    where: {
+      status: "APPROVED",
+      OR: [
+        { startDate: { gte: startOfYear, lte: endOfYear } },
+        { endDate: { gte: startOfYear, lte: endOfYear } },
+        { AND: [ { startDate: { lte: startOfYear } }, { endDate: { gte: endOfYear } } ] }
+      ]
+    },
+    include: {
+      user: {
+        select: { name: true, position: true, id: true, username: true }
+      }
+    },
+    orderBy: { startDate: "asc" }
+  });
+
+  return requests.map(r => ({
+    ...r,
+    startDate: r.startDate.toISOString(),
+    endDate: r.endDate.toISOString(),
+    createdAt: r.createdAt.toISOString(),
+    updatedAt: r.updatedAt.toISOString()
+  }));
+}
+
 
