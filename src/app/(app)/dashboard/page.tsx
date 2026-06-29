@@ -808,7 +808,8 @@ export default function DashboardPage() {
               })}
             </div>
           )}
-      </motion.div>
+        </motion.div>
+      )}
 
       {/* Calendar Day Details Modal */}
       {isDayDetailModalOpen && selectedCalendarDate && (
