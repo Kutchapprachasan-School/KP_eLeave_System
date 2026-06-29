@@ -70,6 +70,7 @@ export async function getSystemSettings() {
       googleDriveFormat: (safeSettings as any).googleDriveFormat || "PDF",
       lastLeaveMode: (safeSettings as any).lastLeaveMode || "SAME",
       quotaExceededAction: (safeSettings as any).quotaExceededAction || "ALLOW_WITH_MEMO",
+      rolePermissions: (safeSettings as any).rolePermissions || "{\"calendar\":[\"ADMIN\",\"DIRECTOR\",\"HR\",\"INSPECTOR\",\"TEACHER\"],\"reports\":[\"ADMIN\",\"DIRECTOR\",\"HR\",\"INSPECTOR\"],\"approvals\":[\"ADMIN\",\"DIRECTOR\",\"HR\",\"INSPECTOR\"],\"logs\":[\"ADMIN\"],\"backups\":[\"ADMIN\"],\"users\":[\"ADMIN\"],\"settings\":[\"ADMIN\"]}",
     };
   } catch (err: any) {
     // Fallback: if query fails due to missing columns, try raw query
@@ -85,6 +86,7 @@ export async function getSystemSettings() {
           googleDriveFormat: row.googleDriveFormat || "PDF",
           lastLeaveMode: row.lastLeaveMode || "SAME",
           quotaExceededAction: row.quotaExceededAction || "ALLOW_WITH_MEMO",
+          rolePermissions: row.rolePermissions || "{\"calendar\":[\"ADMIN\",\"DIRECTOR\",\"HR\",\"INSPECTOR\",\"TEACHER\"],\"reports\":[\"ADMIN\",\"DIRECTOR\",\"HR\",\"INSPECTOR\"],\"approvals\":[\"ADMIN\",\"DIRECTOR\",\"HR\",\"INSPECTOR\"],\"logs\":[\"ADMIN\"],\"backups\":[\"ADMIN\"],\"users\":[\"ADMIN\"],\"settings\":[\"ADMIN\"]}",
         };
       }
     } catch (rawErr) {
@@ -113,6 +115,7 @@ export async function getSystemSettings() {
       googleDriveFormat: "PDF",
       lastLeaveMode: "SAME",
       quotaExceededAction: "ALLOW_WITH_MEMO",
+      rolePermissions: "{\"calendar\":[\"ADMIN\",\"DIRECTOR\",\"HR\",\"INSPECTOR\",\"TEACHER\"],\"reports\":[\"ADMIN\",\"DIRECTOR\",\"HR\",\"INSPECTOR\"],\"approvals\":[\"ADMIN\",\"DIRECTOR\",\"HR\",\"INSPECTOR\"],\"logs\":[\"ADMIN\"],\"backups\":[\"ADMIN\"],\"users\":[\"ADMIN\"],\"settings\":[\"ADMIN\"]}",
       updatedAt: new Date(),
     };
   }
@@ -127,7 +130,9 @@ export async function getEligibleInspectors() {
     select: {
       id: true,
       name: true,
-      position: true
+      position: true,
+      username: true,
+      email: true
     },
     orderBy: { name: "asc" }
   });
@@ -178,6 +183,7 @@ export async function updateSystemSettings(data: {
   googleDriveFormat?: string;
   lastLeaveMode?: string;
   quotaExceededAction?: string;
+  rolePermissions?: string;
 }) {
   await requireHROrAdmin();
 
@@ -203,6 +209,7 @@ export async function updateSystemSettings(data: {
       googleDriveFormat: data.googleDriveFormat !== undefined ? data.googleDriveFormat : undefined,
       lastLeaveMode: data.lastLeaveMode !== undefined ? data.lastLeaveMode : undefined,
       quotaExceededAction: data.quotaExceededAction !== undefined ? data.quotaExceededAction : undefined,
+      rolePermissions: data.rolePermissions !== undefined ? data.rolePermissions : undefined,
     },
     create: {
       id: "default",
@@ -225,6 +232,7 @@ export async function updateSystemSettings(data: {
       googleDriveFormat: data.googleDriveFormat || "PDF",
       lastLeaveMode: data.lastLeaveMode || "SAME",
       quotaExceededAction: data.quotaExceededAction || "ALLOW_WITH_MEMO",
+      rolePermissions: data.rolePermissions || "{\"calendar\":[\"ADMIN\",\"DIRECTOR\",\"HR\",\"INSPECTOR\",\"TEACHER\"],\"reports\":[\"ADMIN\",\"DIRECTOR\",\"HR\",\"INSPECTOR\"],\"approvals\":[\"ADMIN\",\"DIRECTOR\",\"HR\",\"INSPECTOR\"],\"logs\":[\"ADMIN\"],\"backups\":[\"ADMIN\"],\"users\":[\"ADMIN\"],\"settings\":[\"ADMIN\"]}",
       footerText: "© 2006 Panchapon Getrat KP-school",
       developerSecret: "admin1234"
     }
@@ -380,7 +388,7 @@ export async function getSimpleUsersList() {
   await requireHROrAdmin();
   return prisma.user.findMany({
     where: { isApproved: true },
-    select: { username: true, name: true, position: true },
+    select: { id: true, username: true, name: true, position: true, email: true },
     orderBy: { username: "asc" }
   });
 }

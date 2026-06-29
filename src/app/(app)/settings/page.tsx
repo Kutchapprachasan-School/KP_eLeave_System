@@ -584,13 +584,13 @@ export default function SettingsPage() {
 
     const newRecord: any = {
       rowNum: validRecords.length + invalidRecords.length + 2,
-      username: manualSelectedTeacher.username,
+      username: manualSelectedTeacher.username || manualSelectedTeacher.email || manualSelectedTeacher.id,
       startDate: localStart.toISOString(),
       endDate: localEnd.toISOString(),
       type: manualLeaveType,
       status: manualLeaveStatus,
-      finalApproverUsername: finalApprover?.username || "",
-      headApproverUsername: headApprover?.username || "",
+      finalApproverUsername: finalApprover?.username || finalApprover?.email || finalApprover?.id || "",
+      headApproverUsername: headApprover?.username || headApprover?.email || headApprover?.id || "",
       reason: manualReason
     };
 
@@ -796,7 +796,7 @@ export default function SettingsPage() {
             if (req.username) {
               matchedUser = currentUsers.find(u => 
                 u.username?.toLowerCase() === String(req.username).trim().toLowerCase() ||
-                u.email.toLowerCase() === String(req.username).trim().toLowerCase() ||
+                u.email?.toLowerCase() === String(req.username).trim().toLowerCase() ||
                 u.id === String(req.username).trim()
               );
               if (!matchedUser) {

@@ -106,6 +106,7 @@ model SystemSettings {
   googleDriveFormat      String   @default("PDF") // Upload format to Google Drive: PDF, JPG
   lastLeaveMode          String   @default("SAME")
   quotaExceededAction    String   @default("ALLOW_WITH_MEMO")
+  rolePermissions        String   @default("{\"calendar\":[\"ADMIN\",\"DIRECTOR\",\"HR\",\"INSPECTOR\",\"TEACHER\"],\"reports\":[\"ADMIN\",\"DIRECTOR\",\"HR\",\"INSPECTOR\"],\"approvals\":[\"ADMIN\",\"DIRECTOR\",\"HR\",\"INSPECTOR\"],\"logs\":[\"ADMIN\"],\"backups\":[\"ADMIN\"],\"users\":[\"ADMIN\"],\"settings\":[\"ADMIN\"]}")
   updatedAt              DateTime @updatedAt
 }
 
