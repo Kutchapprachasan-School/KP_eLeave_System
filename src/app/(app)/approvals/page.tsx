@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState, useEffect } from "react";
 import { useSession } from "@/lib/auth-client";
@@ -495,24 +495,46 @@ export default function ApprovalsPage() {
         )}
       </div>
 
-      {processingId && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl p-8 max-w-sm w-full text-center shadow-2xl border border-slate-100 dark:border-slate-800 flex flex-col items-center gap-4 animate-in fade-in zoom-in duration-200">
-            <div className="w-16 h-16 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
-            <div>
-              <h3 className="font-bold text-lg text-slate-900 dark:text-white">
-                {processingStatus === "updating_db" && t("updatingDb")}
-                {processingStatus === "loading_iframe" && t("loadingIframe")}
-                {processingStatus === "capturing" && t("capturing")}
-                {processingStatus === "uploading" && t("uploadingDrive")}
-              </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
-                {t("modalWaitDesc")}
-              </p>
+      {(() => {
+        let progressPercent = 0;
+        if (processingStatus === "updating_db") progressPercent = 25;
+        else if (processingStatus === "loading_iframe") progressPercent = 60;
+        else if (processingStatus === "capturing") progressPercent = 80;
+        else if (processingStatus === "uploading") progressPercent = 95;
+
+        return processingId ? (
+          <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4">
+            <div className="bg-white dark:bg-slate-900 rounded-3xl p-8 max-w-sm w-full text-center shadow-2xl border border-slate-100 dark:border-slate-800 flex flex-col items-center gap-4 animate-in fade-in zoom-in duration-200">
+              <div className="w-16 h-16 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+              <div className="w-full">
+                <h3 className="font-bold text-lg text-slate-900 dark:text-white">
+                  {processingStatus === "updating_db" && t("updatingDb")}
+                  {processingStatus === "loading_iframe" && t("loadingIframe")}
+                  {processingStatus === "capturing" && t("capturing")}
+                  {processingStatus === "uploading" && t("uploadingDrive")}
+                </h3>
+                
+                {/* Progress Bar */}
+                <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2.5 overflow-hidden mt-4 relative">
+                  <motion.div
+                    initial={{ width: 0 }}
+                    animate={{ width: `${progressPercent}%` }}
+                    transition={{ duration: 0.4, ease: "easeOut" }}
+                    className="h-full bg-gradient-to-r from-indigo-500 to-purple-600 rounded-full"
+                  />
+                </div>
+                <div className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 mt-1">
+                  {progressPercent}%
+                </div>
+
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
+                  {t("modalWaitDesc")}
+                </p>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        ) : null;
+      })()}
 
       {/* Zoomed Image Modal */}
       <AnimatePresence>

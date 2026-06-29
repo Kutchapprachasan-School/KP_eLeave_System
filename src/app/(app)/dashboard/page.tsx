@@ -218,8 +218,14 @@ export default function DashboardPage() {
     ?.filter((c: any) => c.isActive !== false && c.maxDaysPerYear > 0)
     .reduce((sum: number, c: any) => sum + c.maxDaysPerYear, 0) || 15;
   const totalRemaining = Math.max(totalQuota - totalUsed, 0);
-
-
+  const user = session?.user as any;
+  const missingFields: string[] = [];
+  if (user) {
+    if (!user.address) missingFields.push(lang === "en" ? "Address" : "ที่อยู่");
+    if (!user.phoneNumber) missingFields.push(lang === "en" ? "Phone Number" : "เบอร์โทรศัพท์");
+    if (!user.signatureUrl) missingFields.push(lang === "en" ? "Signature" : "ลายเซ็นดิจิทัล");
+  }
+  const isProfileIncomplete = missingFields.length > 0;
 
   return (
     <motion.div 
@@ -276,6 +282,37 @@ export default function DashboardPage() {
           </select>
         </div>
       </div>
+
+      {/* Profile Incomplete Warning CTA */}
+      {isProfileIncomplete && (
+        <motion.div 
+          variants={itemVariants}
+          className="relative overflow-hidden bg-gradient-to-r from-amber-500/10 via-orange-500/5 to-transparent dark:from-amber-500/5 dark:via-orange-500/2 dark:to-transparent border border-amber-200/60 dark:border-amber-900/30 rounded-3xl p-5 md:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.02)] flex flex-col md:flex-row items-start md:items-center justify-between gap-4"
+        >
+          <div className="flex items-start gap-4">
+            <div className="w-12 h-12 rounded-2xl bg-amber-500/10 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 mt-0.5">
+              <AlertCircle className="w-6 h-6 animate-pulse" />
+            </div>
+            <div>
+              <h4 className="text-sm font-bold text-slate-800 dark:text-white">
+                {lang === "en" ? "Please complete your profile information" : "กรุณาอัปเดตข้อมูลส่วนตัวให้ครบถ้วน"}
+              </h4>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+                {lang === "en" 
+                  ? `You have not set your ${missingFields.join(", ")}. Complete this information to ensure your printed leave forms are fully valid.` 
+                  : `คุณยังไม่ได้อัปเดต ${missingFields.join(", ")} ในระบบ กรุณากรอกข้อมูลเพื่อใช้ในการพิมพ์ใบสมัครขอลาที่ถูกต้อง`}
+              </p>
+            </div>
+          </div>
+          
+          <Link
+            href="/profile"
+            className="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 dark:bg-amber-600 dark:hover:bg-amber-700 text-white font-bold text-xs transition-all shadow-md shadow-amber-500/10 hover:scale-[1.02] active:scale-95 whitespace-nowrap"
+          >
+            {lang === "en" ? "Update Profile →" : "ไปอัปเดตข้อมูลส่วนตัว →"}
+          </Link>
+        </motion.div>
+      )}
 
       <div className="hidden md:flex flex-col mb-6 space-y-3">
         <p className="text-sm font-medium text-slate-500">
@@ -850,9 +887,7 @@ export default function DashboardPage() {
               </button>
             </div>
           </div>
-        </div>
       )}
-    </div>
   </motion.div>
 );
 }
