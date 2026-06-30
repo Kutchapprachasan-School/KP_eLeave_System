@@ -285,6 +285,7 @@ export default function DashboardPage() {
     ?.filter((c: any) => c.isActive !== false && c.maxDaysPerYear > 0)
     .reduce((sum: number, c: any) => sum + c.maxDaysPerYear, 0) || 15;
   const totalRemaining = Math.max(totalQuota - totalUsed, 0);
+  const watchlistRemaining = Math.max(limitDays - (stats.userWatchlistStats?.totalDays ?? 0), 0);
   const user = session?.user as any;
   const missingFields: string[] = [];
   if (user) {
@@ -401,7 +402,7 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {[
           { 
-            title: isOverview ? t("allStaff") : (lang === "en" ? "Total Leave Days (All Types)" : "จำนวนวันที่ลา (รวมทุกประเภท)"), 
+            title: isOverview ? t("allStaff") : (lang === "en" ? "Total Leave Days" : "จำนวนวันที่ลา"), 
             value: isOverview ? `${totalStaff} ${t("persons")}` : `${totalUsed} ${t("days")}`, 
             icon: isOverview ? Users : Activity, 
             color: "text-blue-500 dark:text-blue-400", 
@@ -409,7 +410,7 @@ export default function DashboardPage() {
           },
           { 
             title: isOverview ? t("usedQuota") : (lang === "en" ? "Quota Remaining" : "โควตาคงเหลือ"), 
-            value: isOverview ? `${totalUsed} ${t("days")}` : `${totalRemaining} ${t("days")}`, 
+            value: isOverview ? `${totalUsed} ${t("days")}` : `${watchlistRemaining} ${t("days")}`, 
             icon: isOverview ? Activity : CheckCircle2, 
             color: isOverview ? "text-orange-500 dark:text-orange-400" : "text-emerald-500 dark:text-emerald-400", 
             bg: isOverview ? "bg-orange-50 dark:bg-orange-500/10" : "bg-emerald-50 dark:bg-emerald-500/10" 
