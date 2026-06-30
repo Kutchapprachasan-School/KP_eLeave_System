@@ -808,6 +808,93 @@ export default function DashboardPage() {
               })}
             </div>
           )}
+
+          {calendarView === "year" && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 font-sans">
+              {(() => {
+                const year = calendarDate.getFullYear();
+                const monthsTh = [
+                  "มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน",
+                  "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"
+                ];
+                const monthsEn = [
+                  "January", "February", "March", "April", "May", "June",
+                  "July", "August", "September", "October", "November", "December"
+                ];
+                
+                return Array.from({ length: 12 }).map((_, mIdx) => {
+                  const mDate = new Date(year, mIdx, 1);
+                  const days = getDaysInMonth(mDate);
+                  
+                  return (
+                    <div 
+                      key={mIdx} 
+                      className="p-4 rounded-2xl bg-slate-50/50 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800/80 shadow-sm flex flex-col gap-2 transition-all hover:shadow-md"
+                    >
+                      {/* Month Header - Clickable to switch to that month view */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCalendarDate(mDate);
+                          setCalendarView("month");
+                        }}
+                        className="text-left font-bold text-sm text-slate-800 dark:text-slate-200 hover:text-purple-600 dark:hover:text-purple-400 transition-colors w-full flex justify-between items-center"
+                      >
+                        <span>{lang === "en" ? monthsEn[mIdx] : monthsTh[mIdx]}</span>
+                        <span className="text-[10px] text-slate-400 font-semibold px-2 py-0.5 bg-slate-100 dark:bg-slate-800 rounded-lg">
+                          {lang === "en" ? "View" : "ดูรายเดือน"}
+                        </span>
+                      </button>
+
+                      {/* Mini Weekday Headers */}
+                      <div className="grid grid-cols-7 gap-0.5 text-center text-[9px] font-bold text-slate-400">
+                        {(lang === "en" ? ["S", "M", "T", "W", "T", "F", "S"] : ["อา", "จ", "อ", "พ", "พฤ", "ศ", "ส"]).map(day => (
+                          <div key={day}>{day}</div>
+                        ))}
+                      </div>
+
+                      {/* Mini Days Grid */}
+                      <div className="grid grid-cols-7 gap-1">
+                        {days.map((cell, dIdx) => {
+                          const leaves = getLeavesForDay(cell.date);
+                          const isToday = cell.date.toDateString() === new Date().toDateString();
+                          
+                          // Style based on leaves
+                          let cellBgClass = "bg-transparent text-slate-350 dark:text-slate-600 pointer-events-none opacity-20";
+                          let cellBorderClass = "border-transparent";
+                          if (cell.isCurrentMonth) {
+                            if (leaves.length > 0) {
+                              const firstType = leaves[0].type;
+                              const style = getLeaveColorClass(firstType);
+                              cellBgClass = `${style.bg} cursor-pointer`;
+                              cellBorderClass = "border-transparent";
+                            } else {
+                              cellBgClass = "bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer";
+                              cellBorderClass = "border-slate-100 dark:border-slate-850";
+                            }
+                            if (isToday) {
+                              cellBorderClass = "border-purple-500 ring-1 ring-purple-500/50";
+                            }
+                          }
+
+                          return (
+                            <div 
+                              key={dIdx}
+                              onClick={() => cell.isCurrentMonth && handleDayClick(cell.date)}
+                              className={`w-7 h-7 flex items-center justify-center rounded-lg text-[10px] font-semibold border transition-all ${cellBgClass} ${cellBorderClass}`}
+                              title={cell.isCurrentMonth ? `${cell.date.getDate()} ${lang === "en" ? monthsEn[mIdx] : monthsTh[mIdx]} (${leaves.length} ${lang === "en" ? "on leave" : "คนลา"})` : ""}
+                            >
+                              {cell.isCurrentMonth ? cell.date.getDate() : ""}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                });
+              })()}
+            </div>
+          )}
         </motion.div>
       )}
 

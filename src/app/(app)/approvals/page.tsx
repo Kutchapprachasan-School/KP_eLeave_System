@@ -470,7 +470,7 @@ export default function ApprovalsPage() {
                 {isAdmin ? (
                   <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
                     {item.status === "PENDING_HEAD"
-                      ? (lang === "en" ? "Pending HR Head (View Only)" : "รอหัวหน้างานบุคคลพิจารณา (ดูได้อย่างเดียว)")
+                      ? (lang === "en" ? "Pending HR Head (View Only)" : "รอหัวหน้าบุคคลพิจารณา (ดูได้อย่างเดียว)")
                       : (lang === "en" ? "Pending Director (View Only)" : "รอผู้อำนวยการพิจารณา (ดูได้อย่างเดียว)")}
                   </span>
                 ) : (

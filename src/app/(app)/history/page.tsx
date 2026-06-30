@@ -436,7 +436,7 @@ export default function HistoryPage() {
             <select
               value={selectedUserId}
               onChange={(e) => setSelectedUserId(e.target.value)}
-              className="h-10 px-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-250 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all cursor-pointer flex-1 lg:flex-none"
+              className="h-10 px-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-semibold text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all cursor-pointer flex-1 lg:flex-none"
             >
               <option value="me">{t("myHistory")}</option>
               <option value="all">{t("allStaffOption")}</option>
@@ -454,7 +454,7 @@ export default function HistoryPage() {
               setSelectedStatus(e.target.value);
               setCurrentPage(1);
             }}
-            className="h-10 px-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-250 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all cursor-pointer flex-1 lg:flex-none"
+            className="h-10 px-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-semibold text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all cursor-pointer flex-1 lg:flex-none"
           >
             <option value="all">{t("status")}: {t("allOptions")}</option>
             <option value="pending">{t("status")}: {t("pending")}</option>
@@ -540,20 +540,20 @@ export default function HistoryPage() {
             <div className="space-y-4">
               {/* Desktop Table View */}
               <div className="hidden md:block overflow-x-auto max-h-[600px] custom-scrollbar">
-                <table className="w-full text-left text-sm whitespace-nowrap border-collapse">
+                <table className="w-full text-left text-xs md:text-sm border-collapse">
                   <thead className="sticky top-0 bg-white dark:bg-slate-900 z-10 border-b border-slate-100 dark:border-slate-800">
                     <tr>
-                      <th className="px-6 py-4 font-semibold text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-900">เลขที่ใบลา</th>
+                      <th className="px-3 py-3 font-semibold text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-900">เลขที่ใบลา</th>
                       {selectedUserId === "all" && (
-                        <th className="px-6 py-4 font-semibold text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-900">ผู้ขอลา</th>
+                        <th className="px-3 py-3 font-semibold text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-900">ผู้ขอลา</th>
                       )}
-                      <th className="px-6 py-4 font-semibold text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-900">{t("type")}</th>
-                      <th className="px-6 py-4 font-semibold text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-900">{t("date")}</th>
-                      <th className="px-6 py-4 font-semibold text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-900">จำนวนวัน</th>
-                      <th className="px-6 py-4 font-semibold text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-900">{t("reason")}</th>
-                      <th className="px-6 py-4 font-semibold text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-900">เอกสารแนบ</th>
-                      <th className="px-6 py-4 font-semibold text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-900">{t("status")}</th>
-                      <th className="px-6 py-4 font-semibold text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-900 text-right print:hidden">{t("manage")}</th>
+                      <th className="px-3 py-3 font-semibold text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-900">{t("type")}</th>
+                      <th className="px-3 py-3 font-semibold text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-900">{t("date")}</th>
+                      <th className="px-3 py-3 font-semibold text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-900 text-center">จำนวนวัน</th>
+                      <th className="px-3 py-3 font-semibold text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-900">{t("reason")}</th>
+                      <th className="px-3 py-3 font-semibold text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-900">เอกสารแนบ</th>
+                      <th className="px-3 py-3 font-semibold text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-900">{t("status")}</th>
+                      <th className="px-3 py-3 font-semibold text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-900 text-right print:hidden">{t("manage")}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -581,66 +581,66 @@ export default function HistoryPage() {
                         }}
                         className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors cursor-pointer"
                       >
-                        <td className="px-6 py-4">
+                        <td className="px-3 py-3">
                           {item.status === "APPROVED" ? (
-                            <span className="text-emerald-600 dark:text-emerald-400 font-bold text-xs bg-emerald-50 dark:bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-200/40 dark:border-emerald-800/40">
+                            <span className="text-emerald-600 dark:text-emerald-400 font-bold text-xs bg-emerald-50 dark:bg-emerald-500/10 px-2 py-0.5 rounded-lg border border-emerald-200/40 dark:border-emerald-800/40 whitespace-nowrap">
                               {lang === "en" ? `Approved No. ${item.approvedSeq}/${item.fiscalYear}` : `อนุมัติที่ ${item.approvedSeq}/${item.fiscalYear}`}
                             </span>
                           ) : (
-                            <span className="text-slate-500 dark:text-slate-400 text-xs bg-slate-50 dark:bg-slate-800 px-2.5 py-1 rounded-lg border border-slate-200/40 dark:border-slate-700/40">
+                            <span className="text-slate-500 dark:text-slate-400 text-xs bg-slate-50 dark:bg-slate-800 px-2 py-0.5 rounded-lg border border-slate-200/40 dark:border-slate-700/40 whitespace-nowrap">
                               {lang === "en" ? `Request No. ${item.pendingSeq}/${item.fiscalYear}` : `คำขอที่ ${item.pendingSeq}/${item.fiscalYear}`}
                             </span>
                           )}
                         </td>
                         {selectedUserId === "all" && (
-                          <td className="px-6 py-4 font-semibold text-slate-900 dark:text-white">
+                          <td className="px-3 py-3 font-semibold text-slate-900 dark:text-white max-w-[120px] truncate">
                             {item.userName}
                           </td>
                         )}
-                        <td className="px-6 py-4">
+                        <td className="px-3 py-3">
                           <div className="font-medium text-slate-900 dark:text-white">
                             {getLeaveTypeName(item.type)}
                           </div>
                         </td>
-                        <td className="px-6 py-4 text-slate-600 dark:text-slate-300">
+                        <td className="px-3 py-3 text-slate-600 dark:text-slate-300 whitespace-nowrap">
                           {format(new Date(item.startDate), "dd MMM yyyy")} - {format(new Date(item.endDate), "dd MMM yyyy")}
                         </td>
-                        <td className="px-6 py-4 text-slate-600 dark:text-slate-300 font-semibold">
+                        <td className="px-3 py-3 text-center text-slate-600 dark:text-slate-300 font-semibold">
                           {calculateDays(item.startDate, item.endDate, item.type) === 0 && item.type !== "MATERNITY" ? (
-                            <span className="px-2 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 text-xs" title="วันที่เลือกตรงกับวันเสาร์-อาทิตย์ทั้งหมด">
+                            <span className="px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 text-[10px]" title="วันที่เลือกตรงกับวันเสาร์-อาทิตย์ทั้งหมด">
                               {t("weekendZeroDays")}
                             </span>
                           ) : (
-                            <span className="px-2 py-0.5 rounded bg-purple-500/10 text-purple-600 dark:text-purple-400 text-xs">
+                            <span className="px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-600 dark:text-purple-400 text-xs whitespace-nowrap">
                               {calculateDays(item.startDate, item.endDate, item.type)} {t("days")}
                             </span>
                           )}
                         </td>
-                        <td className="px-6 py-4 text-slate-600 dark:text-slate-300 max-w-[200px] truncate">
+                        <td className="px-3 py-3 text-slate-600 dark:text-slate-300 max-w-[150px] whitespace-normal break-words">
                           {item.reason}
                         </td>
-                        <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
+                        <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
                           {renderDocumentLinks(item.documentUrl)}
                         </td>
-                        <td className="px-6 py-4">
+                        <td className="px-3 py-3">
                           {getStatusBadge(item.status)}
                         </td>
-                        <td className="px-6 py-4 text-right print:hidden" onClick={(e) => e.stopPropagation()}>
-                          <div className="flex items-center justify-end gap-2">
+                        <td className="px-3 py-3 text-right print:hidden" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex items-center justify-end gap-1.5">
                             <a
                               href={`/print/leave/${item.id}`}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 dark:bg-indigo-500/10 dark:text-indigo-400 dark:hover:bg-indigo-500/20 text-xs font-semibold rounded-lg border border-indigo-200/40 dark:border-indigo-800/40 transition-colors shadow-sm"
+                              className="inline-flex items-center gap-1 px-2 py-1 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 dark:bg-indigo-500/10 dark:text-indigo-400 dark:hover:bg-indigo-500/20 text-xs font-semibold rounded-lg border border-indigo-200/40 dark:border-indigo-800/40 transition-colors shadow-sm whitespace-nowrap"
                               title="พิมพ์ใบลาทางการ / บันทึก PDF"
                             >
-                              <Printer className="w-3.5 h-3.5" />
+                              <Printer className="w-3 h-3" />
                               <span>{t("print")}</span>
                             </a>
                             {selectedUserId === "me" && (item.status === "PENDING_HEAD" || item.status === "PENDING_EXEC") && (
                               <button
                                 onClick={() => handleCancel(item.id)}
-                                className="text-xs font-medium text-slate-500 hover:text-rose-600 transition-colors px-3 py-1.5 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-500/10 cursor-pointer"
+                                className="text-xs font-medium text-slate-500 hover:text-rose-600 transition-colors px-2 py-1 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-500/10 cursor-pointer whitespace-nowrap"
                               >
                                 {t("cancelLeave")}
                               </button>
@@ -648,7 +648,7 @@ export default function HistoryPage() {
                             {(isAdmin || isHR) && (
                               <button
                                 onClick={() => handleDelete(item.id, getLeaveTypeName(item.type), item.userName || (selectedUserId === "me" ? (session?.user as any)?.name : staffList.find(s => s.id === selectedUserId)?.name) || "ผู้ยื่นคำขอ")}
-                                className="text-xs font-medium text-rose-600 hover:text-rose-700 transition-colors px-3 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 dark:bg-rose-500/10 dark:hover:bg-rose-500/20 cursor-pointer"
+                                className="text-xs font-medium text-rose-600 hover:text-rose-700 transition-colors px-2 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 dark:bg-rose-500/10 dark:hover:bg-rose-500/20 cursor-pointer whitespace-nowrap"
                                 title="ลบข้อมูลนี้ออกจากระบบ (Admin Only)"
                               >
                                 {t("deleteRecord")}

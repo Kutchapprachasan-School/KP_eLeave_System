@@ -2,11 +2,11 @@
 
 import Link from "next/link";
 import { ToastProvider, useToast } from "@/components/toast-provider";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useSession, signOut } from "@/lib/auth-client";
 import { useTheme } from "next-themes";
 import { useI18n } from "@/lib/i18n";
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, Suspense } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   LayoutDashboard, 
@@ -27,7 +27,8 @@ import {
   Activity,
   Archive,
   Bell,
-  BookOpen
+  BookOpen,
+  Plus
 } from "lucide-react";
 
 function ToolbarButtons({ isAdmin, isApprover }: { isAdmin: boolean; isApprover: boolean }) {
@@ -269,27 +270,31 @@ function ToolbarButtons({ isAdmin, isApprover }: { isAdmin: boolean; isApprover:
 function getUserRoleKey(user: any, isFinalApprover: boolean = false) {
   if (user?.role === "ADMIN" || user?.position === "แอดมิน") return "ADMIN";
   if (user?.position === "ผู้อำนวยการ" || isFinalApprover) return "DIRECTOR";
-  if (user?.position === "หัวหน้างานบุคคล" || user?.position === "เจ้าหน้าที่บุคคล") return "HR";
-  if (user?.position === "ผู้ตรวจสอบ" || user?.position === "หัวหน้าหมวด" || user?.position === "หัวหน้ากลุ่มสาระ") return "INSPECTOR";
+  if (user?.position === "หัวหน้างานบุคคล") return "HR";
+  if (user?.position === "เจ้าหน้าที่บุคคล") return "HR_STAFF";
+  if (user?.position === "ผู้ตรวจสอบ") return "INSPECTOR";
+  if (user?.position === "หัวหน้าหมวด" || user?.position === "หัวหน้ากลุ่มสาระ") return "DEPT_HEAD";
   return "TEACHER";
 }
 
-const DEFAULT_PERMISSIONS = {
-  calendar: ["ADMIN", "DIRECTOR", "HR", "INSPECTOR", "TEACHER"],
-  reports: ["ADMIN", "DIRECTOR", "HR", "INSPECTOR"],
-  approvals: ["ADMIN", "DIRECTOR", "HR", "INSPECTOR"],
+const DEFAULT_PERMISSIONS: Record<string, string[]> = {
+  calendar: ["ADMIN", "DIRECTOR", "HR", "HR_STAFF", "INSPECTOR", "DEPT_HEAD", "TEACHER"],
+  reports: ["ADMIN", "DIRECTOR", "HR", "HR_STAFF", "INSPECTOR", "DEPT_HEAD"],
+  approvals: ["ADMIN", "DIRECTOR", "HR", "INSPECTOR", "DEPT_HEAD"],
   logs: ["ADMIN"],
   backups: ["ADMIN"],
-  users: ["ADMIN"],
-  settings: ["ADMIN"]
+  users: ["ADMIN", "HR"],
+  settings: ["ADMIN"],
+  manual_import: ["ADMIN", "HR", "HR_STAFF"]
 };
 
 function AppContent({ children }: { children: React.ReactNode }) {
   const { showToast } = useToast();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const router = useRouter();
   const { data: session, isPending } = useSession();
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [brandName, setBrandName] = useState("ระบบการลา");
   const [brandLogo, setBrandLogo] = useState<string | null>(null);
@@ -387,6 +392,8 @@ function AppContent({ children }: { children: React.ReactNode }) {
   }
   if (activePermissions.settings?.includes(userRole)) {
     navItems.push({ href: "/settings", label: t("settings"), icon: Settings });
+  } else if (activePermissions.manual_import?.includes(userRole)) {
+    navItems.push({ href: "/settings?section=manual-import", label: lang === "en" ? "Manual Leave Entry" : "กรอกข้อมูลใบลาเอง", icon: Plus });
   }
 
   navItems.push({ href: "/manual", label: t("userManual"), icon: BookOpen });
@@ -398,7 +405,13 @@ function AppContent({ children }: { children: React.ReactNode }) {
     if (path.startsWith("/approvals") && !activePerms.approvals?.includes(key)) return false;
     if (path.startsWith("/logs") && !activePerms.logs?.includes(key)) return false;
     if (path.startsWith("/users") && !activePerms.users?.includes(key)) return false;
-    if (path.startsWith("/settings") && !activePerms.settings?.includes(key)) return false;
+    if (path.startsWith("/settings")) {
+      const section = searchParams?.get("section");
+      if (section === "manual-import" && activePerms.manual_import?.includes(key)) {
+        return true;
+      }
+      if (!activePerms.settings?.includes(key)) return false;
+    }
     return true;
   };
 
@@ -620,7 +633,13 @@ function AppContent({ children }: { children: React.ReactNode }) {
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <ToastProvider>
-      <AppContent>{children}</AppContent>
+      <Suspense fallback={
+        <div className="flex min-h-screen items-center justify-center bg-[#F4F7FB] dark:bg-slate-900">
+          <div className="w-10 h-10 border-3 border-purple-200 border-t-purple-600 rounded-full animate-spin" />
+        </div>
+      }>
+        <AppContent>{children}</AppContent>
+      </Suspense>
     </ToastProvider>
   );
 }

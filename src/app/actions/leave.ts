@@ -1207,10 +1207,30 @@ export async function getLeaveRequestForPrint(id: string) {
   });
 
   if (sysSettings?.defaultInspectorId) {
-    inspector = await prisma.user.findUnique({
-      where: { id: sysSettings.defaultInspectorId },
-      select: { id: true, name: true, signatureUrl: true, position: true }
-    });
+    const inspectorIds = (sysSettings?.defaultInspectorId || "").split(",").map((s: string) => s.trim()).filter(Boolean);
+    if (inspectorIds.length > 0) {
+      const defaultInspectorsList = await prisma.user.findMany({
+        where: { id: { in: inspectorIds }, isApproved: true },
+        select: { id: true, name: true, signatureUrl: true, position: true, subjectGroup: true }
+      });
+      // Try to find the inspector matching request applicant's subjectGroup
+      const matchingInspector = defaultInspectorsList.find(u => 
+        u.subjectGroup && request.user.subjectGroup && 
+        u.subjectGroup.trim().toLowerCase() === request.user.subjectGroup.trim().toLowerCase()
+      );
+      if (matchingInspector) {
+        inspector = matchingInspector;
+      } else {
+        // Fallback to first configured inspector that exists in DB
+        for (const id of inspectorIds) {
+          const found = defaultInspectorsList.find(u => u.id === id);
+          if (found) {
+            inspector = found;
+            break;
+          }
+        }
+      }
+    }
   }
 
   // Fallback to inspector first, then HR Head user
@@ -1478,24 +1498,29 @@ export async function getBatchLeaveRequestsForPrint(
   });
   const lastLeaveMode = sysSettings?.lastLeaveMode || "SAME";
 
-  let defaultInspector = null;
+  let defaultInspectorsList: any[] = [];
   if (sysSettings?.defaultInspectorId) {
-    defaultInspector = await prisma.user.findUnique({
-      where: { id: sysSettings.defaultInspectorId },
-      select: { id: true, name: true, signatureUrl: true, position: true }
-    });
+    const inspectorIds = (sysSettings?.defaultInspectorId || "").split(",").map((s: string) => s.trim()).filter(Boolean);
+    if (inspectorIds.length > 0) {
+      defaultInspectorsList = await prisma.user.findMany({
+        where: { id: { in: inspectorIds }, isApproved: true },
+        select: { id: true, name: true, signatureUrl: true, position: true, subjectGroup: true }
+      });
+    }
   }
-  if (!defaultInspector) {
-    defaultInspector = await prisma.user.findFirst({
+
+  let fallbackInspector: any = null;
+  if (defaultInspectorsList.length === 0) {
+    fallbackInspector = await prisma.user.findFirst({
       where: { position: "ผู้ตรวจสอบ", isApproved: true },
-      select: { id: true, name: true, signatureUrl: true, position: true }
+      select: { id: true, name: true, signatureUrl: true, position: true, subjectGroup: true }
     });
-  }
-  if (!defaultInspector) {
-    defaultInspector = await prisma.user.findFirst({
-      where: { position: "หัวหน้างานบุคคล", isApproved: true },
-      select: { id: true, name: true, signatureUrl: true, position: true }
-    });
+    if (!fallbackInspector) {
+      fallbackInspector = await prisma.user.findFirst({
+        where: { position: "หัวหน้างานบุคคล", isApproved: true },
+        select: { id: true, name: true, signatureUrl: true, position: true, subjectGroup: true }
+      });
+    }
   }
 
   const activeConfigs = await prisma.leaveConfig.findMany({
@@ -1506,7 +1531,28 @@ export async function getBatchLeaveRequestsForPrint(
   for (const request of requests) {
     let headApprover = null;
     let execApprover = null;
-    let inspector = defaultInspector;
+    
+    let inspector = null;
+    if (defaultInspectorsList.length > 0) {
+      const matchingInspector = defaultInspectorsList.find(u => 
+        u.subjectGroup && request.user?.subjectGroup && 
+        u.subjectGroup.trim().toLowerCase() === request.user.subjectGroup.trim().toLowerCase()
+      );
+      if (matchingInspector) {
+        inspector = matchingInspector;
+      } else {
+        const inspectorIds = (sysSettings?.defaultInspectorId || "").split(",").map((s: string) => s.trim()).filter(Boolean);
+        for (const id of inspectorIds) {
+          const found = defaultInspectorsList.find(u => u.id === id);
+          if (found) {
+            inspector = found;
+            break;
+          }
+        }
+      }
+    } else {
+      inspector = fallbackInspector;
+    }
 
     if (request.headApproverId) {
       headApprover = await prisma.user.findUnique({

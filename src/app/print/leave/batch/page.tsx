@@ -245,7 +245,7 @@ function BatchPrintPageContent() {
           };
 
           return (
-            <div key={request.id} className="print-container bg-white dark:bg-slate-950 text-black border border-slate-300 dark:border-slate-850 pt-[20mm] pb-[15mm] pl-[25mm] pr-[15mm] w-[210mm] min-h-[297mm] shadow-lg relative print:shadow-none print:border-none page-break">
+            <div key={request.id} className="print-container bg-white text-black border border-slate-300 pt-[20mm] pb-[15mm] pl-[25mm] pr-[15mm] w-[210mm] min-h-[297mm] shadow-lg relative print:shadow-none print:border-none page-break">
               
               <style jsx global>{`
                 @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700;800&display=swap');
@@ -600,7 +600,7 @@ function BatchPrintPageContent() {
                       <img 
                         src={request.user.signatureUrl} 
                         alt="Signature" 
-                        className="max-h-12 max-w-[150px] object-contain absolute bottom-[2px] z-20 pointer-events-none dark:invert" 
+                        className="max-h-12 max-w-[150px] object-contain absolute bottom-[2px] z-20 pointer-events-none" 
                       />
                     )}
                   </div>
@@ -647,7 +647,7 @@ function BatchPrintPageContent() {
                           <img 
                             src={inspector.signatureUrl} 
                             alt="Signature" 
-                            className="max-h-10 max-w-[120px] object-contain absolute bottom-[2px] z-20 pointer-events-none dark:invert" 
+                            className="max-h-10 max-w-[120px] object-contain absolute bottom-[2px] z-20 pointer-events-none" 
                           />
                         )}
                       </div>
@@ -680,7 +680,7 @@ function BatchPrintPageContent() {
                             <img 
                               src={headApprover.signatureUrl} 
                               alt="Signature" 
-                              className="max-h-10 max-w-[120px] object-contain absolute bottom-[2px] z-20 pointer-events-none dark:invert" 
+                              className="max-h-10 max-w-[120px] object-contain absolute bottom-[2px] z-20 pointer-events-none" 
                             />
                           )}
                         </div>
@@ -716,7 +716,7 @@ function BatchPrintPageContent() {
                             <img 
                               src={execApprover.signatureUrl} 
                               alt="Signature" 
-                              className="max-h-10 max-w-[120px] object-contain absolute bottom-[2px] z-20 pointer-events-none dark:invert" 
+                              className="max-h-10 max-w-[120px] object-contain absolute bottom-[2px] z-20 pointer-events-none" 
                             />
                           )}
                         </div>

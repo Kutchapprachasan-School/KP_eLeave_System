@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { getSystemSettings, updateSystemSettings, updateFooter, generateBackup, getLeaveConfigs, updateLeaveConfig, updateLeaveRules, setImpersonationCookie, clearImpersonation, getEligibleInspectors, updateDefaultInspector, getSimpleUsersList } from "@/app/actions/settings";
 import { archiveCurrentCycle, importBackupFromJson, exportLeaveBackup, importLeaveBackup, importLeaveSimple, getImportHistory, undoImportLeave } from "@/app/actions/archive";
 import { adminClearAllLeaveData } from "@/app/actions/leave";
@@ -14,6 +15,7 @@ export default function SettingsPage() {
   const { data: session } = useSession();
   const { t, lang } = useI18n();
   const { showToast } = useToast();
+  const searchParams = useSearchParams();
   const [settings, setSettings] = useState<any>(null);
   const [schoolName, setSchoolName] = useState("");
   const [subheader, setSubheader] = useState("");
@@ -41,6 +43,7 @@ export default function SettingsPage() {
   
   const [leaveConfigs, setLeaveConfigs] = useState<any[]>([]);
   const [defaultInspectorId, setDefaultInspectorId] = useState("");
+  const [defaultInspectorIds, setDefaultInspectorIds] = useState<string[]>([]);
   const [eligibleInspectors, setEligibleInspectors] = useState<any[]>([]);
   const [rolePermissions, setRolePermissions] = useState<any>({
     calendar: ["ADMIN", "DIRECTOR", "HR", "INSPECTOR", "TEACHER"],
@@ -127,6 +130,11 @@ export default function SettingsPage() {
       setMemoThresholdTimes(data.memoThresholdTimes ?? 6);
       setMemoThresholdDays(data.memoThresholdDays ?? 15);
       setDefaultInspectorId(data.defaultInspectorId || "");
+      setDefaultInspectorIds(
+        data.defaultInspectorId
+          ? data.defaultInspectorId.split(",").map((s: string) => s.trim()).filter(Boolean)
+          : []
+      );
       const loadedTitle = data.actingDirectorTitle || "• รักษาการในตำแหน่งผู้อำนวยการโรงเรียน:";
       setActingDirectorTitle(loadedTitle);
       if ([
@@ -163,18 +171,36 @@ export default function SettingsPage() {
   }, []);
 
   useEffect(() => {
-    if (isManualFillModalOpen) {
-      const eligibleFinals = eligibleInspectors.filter(u => 
-        u.position === "ผู้อำนวยการ" || finalApproverUserIds.includes(u.id)
-      );
-      if (eligibleFinals.length > 0) {
-        setManualFinalApproverId(eligibleFinals[0].id);
-      } else if (eligibleInspectors.length > 0) {
-        setManualFinalApproverId(eligibleInspectors[0].id);
+    if (activeSection === "manual-import") {
+      // Default final approver: always prefer ผู้อำนวยการ first
+      const director = eligibleInspectors.find(u => u.position === "ผู้อำนวยการ");
+      if (director) {
+        setManualFinalApproverId(director.id);
+      } else {
+        const eligibleFinals = eligibleInspectors.filter(u => finalApproverUserIds.includes(u.id));
+        if (eligibleFinals.length > 0) {
+          setManualFinalApproverId(eligibleFinals[0].id);
+        } else if (eligibleInspectors.length > 0) {
+          setManualFinalApproverId(eligibleInspectors[0].id);
+        }
       }
-      setManualHeadApproverId(defaultInspectorId || "");
+      // Default head approver: prefer หัวหน้างานบุคคล position
+      const hrHead = eligibleInspectors.find(u => u.position === "หัวหน้างานบุคคล");
+      if (hrHead) {
+        setManualHeadApproverId(hrHead.id);
+      } else {
+        setManualHeadApproverId(defaultInspectorId || "");
+      }
     }
-  }, [isManualFillModalOpen, eligibleInspectors, finalApproverUserIds, defaultInspectorId]);
+  }, [activeSection, eligibleInspectors, finalApproverUserIds, defaultInspectorId]);
+
+  useEffect(() => {
+    const section = searchParams.get("section");
+    if (section !== null) {
+      setActiveSection(section);
+    }
+  }, [searchParams]);
+
   useEffect(() => {
     if (activeSection === "backup") {
       getImportHistory().then(setImportHistory);
@@ -197,7 +223,7 @@ export default function SettingsPage() {
         requirePersonalAdvance,
         memoThresholdTimes,
         memoThresholdDays,
-        defaultInspectorId: defaultInspectorId || null,
+        defaultInspectorId: defaultInspectorIds.join(",") || null,
         actingDirectorTitle: actingDirectorTitleType === "custom" ? customActingDirectorTitle : actingDirectorTitleType,
         finalApproverUserIds: finalApproverUserIds.join(","),
         showActingDirectorTitle,
@@ -600,7 +626,7 @@ export default function SettingsPage() {
     const localEnd = new Date(parseInt(endParts[0]), parseInt(endParts[1]) - 1, parseInt(endParts[2]));
 
     const newRecord: any = {
-      rowNum: validRecords.length + invalidRecords.length + 2,
+      rowNum: 2,
       username: manualSelectedTeacher.username || manualSelectedTeacher.email || manualSelectedTeacher.id,
       startDate: localStart.toISOString(),
       endDate: localEnd.toISOString(),
@@ -616,38 +642,31 @@ export default function SettingsPage() {
       errorList.push("วันที่เริ่มต้นมากกว่าวันที่สิ้นสุด");
     }
 
-    let mappedType = manualLeaveType;
-    if (typeMap[mappedType]) {
-      mappedType = typeMap[mappedType];
-    }
-
-    const enqueuedRecord = {
-      ...newRecord,
-      mappedType,
-      matchedUserName: manualSelectedTeacher.name,
-      userId: manualSelectedTeacher.id
-    };
-
     if (errorList.length > 0) {
-      setInvalidRecords(prev => [...prev, { ...enqueuedRecord, errors: errorList }]);
-    } else {
-      setValidRecords(prev => [...prev, enqueuedRecord]);
+      showToast("error", errorList.join(", "));
+      return;
     }
 
-    setParsedRecords(prev => [...prev, newRecord]);
-    setImportStage("preview");
-    
-    if (closeModal) {
-      setIsManualFillModalOpen(false);
-    }
-
-    // Clear form inputs
-    setManualTeacherSearch("");
-    setManualSelectedTeacher(null);
-    setManualStartDate("");
-    setManualEndDate("");
-    setManualReason("");
-    showToast("success", lang === "en" ? "Added manual leave enqueued successfully" : "เพิ่มข้อมูลใบลาแบบกรอกข้อมูลสำเร็จ");
+    importLeaveSimple([newRecord], "merge")
+      .then((res) => {
+        if (res.success) {
+          showToast("success", lang === "en" ? "Saved leave record successfully" : "บันทึกข้อมูลการลาเข้าระบบสำเร็จแล้ว");
+          // Clear form inputs
+          setManualTeacherSearch("");
+          setManualSelectedTeacher(null);
+          setManualStartDate("");
+          setManualEndDate("");
+          setManualReason("");
+          if (closeModal) {
+            setActiveSection(null);
+          }
+        } else {
+          showToast("error", res.errors?.[0] || "เกิดข้อผิดพลาดในการบันทึกข้อมูล");
+        }
+      })
+      .catch((err) => {
+        showToast("error", err.message || "เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์");
+      });
   };
 
   const handleImportLeave = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -873,11 +892,35 @@ export default function SettingsPage() {
   if (!settings) return <div className="animate-pulse space-y-4"><div className="h-8 bg-gray-200 rounded w-1/4"></div><div className="h-40 bg-gray-200 rounded"></div></div>;
 
   const user = session?.user as any;
+  const getUserRoleKeyLocal = (u: any) => {
+    if (!u) return "TEACHER";
+    if (u.role === "ADMIN" || u.position === "แอดมิน") return "ADMIN";
+    if (u.position === "ผู้อำนวยการ" || finalApproverUserIds.includes(u.id)) return "DIRECTOR";
+    if (u.position === "หัวหน้างานบุคคล") return "HR";
+    if (u.position === "เจ้าหน้าที่บุคคล") return "HR_STAFF";
+    if (u.position === "ผู้ตรวจสอบ") return "INSPECTOR";
+    if (u.position === "หัวหน้าหมวด" || u.position === "หัวหน้ากลุ่มสาระ") return "DEPT_HEAD";
+    return "TEACHER";
+  };
+  const userRole = getUserRoleKeyLocal(user);
+  const DEFAULT_PERMISSIONS = {
+    calendar: ["ADMIN", "DIRECTOR", "HR", "HR_STAFF", "INSPECTOR", "DEPT_HEAD", "TEACHER"],
+    reports: ["ADMIN", "DIRECTOR", "HR", "HR_STAFF", "INSPECTOR", "DEPT_HEAD"],
+    approvals: ["ADMIN", "DIRECTOR", "HR", "INSPECTOR", "DEPT_HEAD"],
+    logs: ["ADMIN"],
+    backups: ["ADMIN"],
+    users: ["ADMIN", "HR"],
+    settings: ["ADMIN"],
+    manual_import: ["ADMIN", "HR", "HR_STAFF"]
+  };
+  const activePerms = rolePermissions || DEFAULT_PERMISSIONS;
+  const canManualImport = activePerms.manual_import?.includes(userRole);
+
   const isAdmin = user?.role === "ADMIN" || user?.position === "แอดมิน";
   const isHRHead = user?.position === "หัวหน้างานบุคคล" || user?.position === "เจ้าหน้าที่บุคคล";
   const isInspector = user?.position === "ผู้ตรวจสอบ";
 
-  if (!isAdmin && !isHRHead && !isInspector) {
+  if (!isAdmin && !isHRHead && !isInspector && !canManualImport) {
     return (
       <div className="max-w-md mx-auto mt-20 p-6 bg-white dark:bg-gray-900 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-red-100 dark:border-red-900/30 text-center">
         <ShieldAlert className="w-12 h-12 text-red-500 mx-auto mb-4" />
@@ -895,37 +938,54 @@ export default function SettingsPage() {
     description: string;
   };
 
-  const systemSettingsItems: MenuItem[] = [
-    { id: "school", icon: <BookOpen className="w-5 h-5 text-blue-500" />, title: lang === "en" ? "School Info" : "ข้อมูลโรงเรียน", description: lang === "en" ? "School name, affiliation, logo" : "ชื่อโรงเรียน, สังกัด, โลโก้" },
-    { id: "approval", icon: <Users className="w-5 h-5 text-emerald-500" />, title: lang === "en" ? "Approval Chain" : "สายอนุมัติ", description: lang === "en" ? "Inspector, approver, acting director" : "ผู้ตรวจสอบ, ผู้อนุมัติ, ตำแหน่งรักษาการ" },
-    { id: "leave-rules", icon: <ShieldAlert className="w-5 h-5 text-amber-500" />, title: lang === "en" ? "Leave Rules & Quotas" : "ระเบียบการลา & โควตา", description: lang === "en" ? "Rules, quotas, restrictions" : "กฎระเบียบ, โควตาวันลา, ข้อจำกัด" },
-    { id: "line", icon: <Bell className="w-5 h-5 text-green-500" />, title: lang === "en" ? "LINE Notification" : "แจ้งเตือน LINE", description: lang === "en" ? "Enable/disable, Token, Group ID" : "เปิด/ปิดการแจ้งเตือน, Token, Group ID" },
-    { id: "font", icon: <Type className="w-5 h-5 text-indigo-500" />, title: lang === "en" ? "Font & File Format" : "ฟอนต์ & รูปแบบไฟล์", description: lang === "en" ? "Leave form font, Google Drive format" : "ฟอนต์ใบลา, รูปแบบอัปโหลด Google Drive" },
-    ...(isAdmin ? [
-      { id: "permissions", icon: <Lock className="w-5 h-5 text-rose-500" />, title: lang === "en" ? "Access Permissions" : "กำหนดสิทธิ์ผู้เข้าใช้งาน", description: lang === "en" ? "Access rights per role" : "กำหนดสิทธิ์เข้าใช้งานตาม Role บุคลากร" }
-    ] : []),
-  ];
+  const systemSettingsItems: MenuItem[] = [];
+  if (isAdmin) {
+    systemSettingsItems.push({ id: "school", icon: <BookOpen className="w-5 h-5 text-blue-500" />, title: lang === "en" ? "School Info" : "ข้อมูลโรงเรียน", description: lang === "en" ? "School name, affiliation, logo" : "ชื่อโรงเรียน, สังกัด, โลโก้" });
+  }
+  if (isAdmin || isHRHead || isInspector) {
+    systemSettingsItems.push({ id: "approval", icon: <Users className="w-5 h-5 text-emerald-500" />, title: lang === "en" ? "Approval Chain" : "สายอนุมัติ", description: lang === "en" ? "Inspector, approver, acting director" : "ผู้ตรวจสอบ, ผู้อนุมัติ, ตำแหน่งรักษาการ" });
+    systemSettingsItems.push({ id: "leave-rules", icon: <ShieldAlert className="w-5 h-5 text-amber-500" />, title: lang === "en" ? "Leave Rules & Quotas" : "ระเบียบการลา & โควตา", description: lang === "en" ? "Rules, quotas, restrictions" : "กฎระเบียบ, โควตาวันลา, ข้อจำกัด" });
+  }
+  if (isAdmin) {
+    systemSettingsItems.push({ id: "line", icon: <Bell className="w-5 h-5 text-green-500" />, title: lang === "en" ? "LINE Notification" : "แจ้งเตือน LINE", description: lang === "en" ? "Enable/disable, Token, Group ID" : "เปิด/ปิดการแจ้งเตือน, Token, Group ID" });
+    systemSettingsItems.push({ id: "font", icon: <Type className="w-5 h-5 text-indigo-500" />, title: lang === "en" ? "Font & File Format" : "ฟอนต์ & รูปแบบไฟล์", description: lang === "en" ? "Leave form font, Google Drive format" : "ฟอนต์ใบลา, รูปแบบอัปโหลด Google Drive" });
+    systemSettingsItems.push({ id: "permissions", icon: <Lock className="w-5 h-5 text-rose-500" />, title: lang === "en" ? "Access Permissions" : "กำหนดสิทธิ์ผู้เข้าใช้งาน", description: lang === "en" ? "Access rights per role" : "กำหนดสิทธิ์เข้าใช้งานตาม Role บุคลากร" });
+  }
 
-  const dataManagementItems: MenuItem[] = [
-    { id: "backup", icon: <HardDrive className="w-5 h-5 text-teal-500" />, title: lang === "en" ? "Backup & Data" : "สำรองข้อมูล", description: lang === "en" ? "Export/Import, clear data" : "Export/Import, ปิดรอบ, ล้างข้อมูล" },
-    ...((session?.user as any)?.isActualAdmin === true ? [
-      { id: "impersonate", icon: <UserCog className="w-5 h-5 text-indigo-500" />, title: lang === "en" ? "Role Impersonation" : "จำลองบทบาท", description: lang === "en" ? "Simulate roles for testing" : "จำลองตำแหน่งเพื่อทดสอบระบบ" },
-    ] : []),
-    { id: "footer", icon: <Settings2 className="w-5 h-5 text-rose-500" />, title: lang === "en" ? "Footer Settings" : "ท้ายกระดาษ", description: lang === "en" ? "Website footer text" : "ข้อความท้ายหน้าเว็บ" },
-  ];
+  const dataManagementItems: MenuItem[] = [];
+  if (canManualImport) {
+    dataManagementItems.push({ id: "manual-import", icon: <Plus className="w-5 h-5 text-purple-500" />, title: lang === "en" ? "Manual Leave Entry" : "กรอกข้อมูลใบลาด้วยตนเอง", description: lang === "en" ? "Manually record leave history" : "บันทึกประวัติการลาของบุคลากรย้อนหลังด้วยตนเอง" });
+  }
+  if (isAdmin || isInspector) {
+    dataManagementItems.push({ id: "backup", icon: <HardDrive className="w-5 h-5 text-teal-500" />, title: lang === "en" ? "Backup & Data" : "สำรองข้อมูล", description: lang === "en" ? "Export/Import, clear data" : "Export/Import, ปิดรอบ, ล้างข้อมูล" });
+  }
+  if ((session?.user as any)?.isActualAdmin === true) {
+    dataManagementItems.push({ id: "impersonate", icon: <UserCog className="w-5 h-5 text-indigo-500" />, title: lang === "en" ? "Role Impersonation" : "จำลองบทบาท", description: lang === "en" ? "Simulate roles for testing" : "จำลองตำแหน่งเพื่อทดสอบระบบ" });
+  }
+  if (isAdmin) {
+    dataManagementItems.push({ id: "footer", icon: <Settings2 className="w-5 h-5 text-rose-500" />, title: lang === "en" ? "Footer Settings" : "ท้ายกระดาษ", description: lang === "en" ? "Website footer text" : "ข้อความท้ายหน้าเว็บ" });
+  }
 
-  // HR Head sees only approval + leave-rules
-  const hrHeadItems: MenuItem[] = [
-    { id: "approval", icon: <Users className="w-5 h-5 text-emerald-500" />, title: lang === "en" ? "System & Approver Settings" : "สายอนุมัติ", description: lang === "en" ? "Inspector, approver, acting director" : "ผู้ตรวจสอบ, ผู้อนุมัติ, ตำแหน่งรักษาการ" },
-    { id: "leave-rules", icon: <ShieldAlert className="w-5 h-5 text-amber-500" />, title: lang === "en" ? "Leave Rules & Quotas" : "ระเบียบการลา & โควตา", description: lang === "en" ? "Rules, quotas, restrictions" : "กฎระเบียบ, โควตาวันลา, ข้อจำกัด" },
-  ];
+  // HR Head sees only approval + leave-rules + manual-import (if permitted)
+  const hrHeadItems: MenuItem[] = [];
+  if (isAdmin || isHRHead) {
+    hrHeadItems.push({ id: "approval", icon: <Users className="w-5 h-5 text-emerald-500" />, title: lang === "en" ? "System & Approver Settings" : "สายอนุมัติ", description: lang === "en" ? "Inspector, approver, acting director" : "ผู้ตรวจสอบ, ผู้อนุมัติ, ตำแหน่งรักษาการ" });
+    hrHeadItems.push({ id: "leave-rules", icon: <ShieldAlert className="w-5 h-5 text-amber-500" />, title: lang === "en" ? "Leave Rules & Quotas" : "ระเบียบการลา & โควตา", description: lang === "en" ? "Rules, quotas, restrictions" : "กฎระเบียบ, โควตาวันลา, ข้อจำกัด" });
+    if (canManualImport) {
+      hrHeadItems.push({ id: "manual-import", icon: <Plus className="w-5 h-5 text-purple-500" />, title: lang === "en" ? "Manual Leave Entry" : "กรอกข้อมูลใบลาด้วยตนเอง", description: lang === "en" ? "Manually record leave history" : "บันทึกประวัติการลาของบุคลากรย้อนหลังด้วยตนเอง" });
+    }
+  }
 
-  // Inspector sees approval + leave-rules + backup
-  const inspectorItems: MenuItem[] = [
-    { id: "approval", icon: <Users className="w-5 h-5 text-emerald-500" />, title: lang === "en" ? "System & Approver Settings" : "สายอนุมัติ", description: lang === "en" ? "Inspector, approver, acting director" : "ผู้ตรวจสอบ, ผู้อนุมัติ, ตำแหน่งรักษาการ" },
-    { id: "leave-rules", icon: <ShieldAlert className="w-5 h-5 text-amber-500" />, title: lang === "en" ? "Leave Rules & Quotas" : "ระเบียบการลา & โควตา", description: lang === "en" ? "Rules, quotas, restrictions" : "กฎระเบียบ, โควตาวันลา, ข้อจำกัด" },
-    { id: "backup", icon: <HardDrive className="w-5 h-5 text-teal-500" />, title: lang === "en" ? "Backup & Data" : "สำรองข้อมูล", description: lang === "en" ? "Export/Import, clear data" : "Export/Import, ปิดรอบ, ล้างข้อมูล" },
-  ];
+  // Inspector sees approval + leave-rules + backup + manual-import (if permitted)
+  const inspectorItems: MenuItem[] = [];
+  if (isInspector) {
+    inspectorItems.push({ id: "approval", icon: <Users className="w-5 h-5 text-emerald-500" />, title: lang === "en" ? "System & Approver Settings" : "สายอนุมัติ", description: lang === "en" ? "Inspector, approver, acting director" : "ผู้ตรวจสอบ, ผู้อนุมัติ, ตำแหน่งรักษาการ" });
+    inspectorItems.push({ id: "leave-rules", icon: <ShieldAlert className="w-5 h-5 text-amber-500" />, title: lang === "en" ? "Leave Rules & Quotas" : "ระเบียบการลา & โควตา", description: lang === "en" ? "Rules, quotas, restrictions" : "กฎระเบียบ, โควตาวันลา, ข้อจำกัด" });
+    inspectorItems.push({ id: "backup", icon: <HardDrive className="w-5 h-5 text-teal-500" />, title: lang === "en" ? "Backup & Data" : "สำรองข้อมูล", description: lang === "en" ? "Export/Import, clear data" : "Export/Import, ปิดรอบ, ล้างข้อมูล" });
+    if (canManualImport) {
+      inspectorItems.push({ id: "manual-import", icon: <Plus className="w-5 h-5 text-purple-500" />, title: lang === "en" ? "Manual Leave Entry" : "กรอกข้อมูลใบลาด้วยตนเอง", description: lang === "en" ? "Manually record leave history" : "บันทึกประวัติการลาของบุคลากรย้อนหลังด้วยตนเอง" });
+    }
+  }
 
   // --- Section title lookup ---
   const sectionTitles: Record<string, string> = {
@@ -936,6 +996,7 @@ export default function SettingsPage() {
     font: lang === "en" ? "Font & File Format" : "ฟอนต์ & รูปแบบไฟล์",
     permissions: lang === "en" ? "Access Permissions" : "กำหนดสิทธิ์ผู้เข้าใช้งาน",
     backup: lang === "en" ? "Backup & Data" : "สำรองข้อมูล",
+    "manual-import": lang === "en" ? "Manual Leave Entry" : "กรอกข้อมูลใบลาด้วยตนเอง",
     impersonate: lang === "en" ? "Role Impersonation" : "จำลองบทบาท",
     footer: lang === "en" ? "Footer Settings" : "ท้ายกระดาษ",
   };
@@ -1075,74 +1136,81 @@ export default function SettingsPage() {
     <form onSubmit={handleGeneralSubmit} className="bg-white dark:bg-gray-900 rounded-2xl p-6 md:p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-100 dark:border-gray-800">
       <SectionHeader title={sectionTitles.approval} />
       <fieldset disabled={isInspector} className="space-y-6">
-        {/* Default Inspector - Tag Input style */}
+        {/* Default Inspectors - Tag Input style */}
         <div className="space-y-2">
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-            {lang === "en" ? "Default Inspector" : "ผู้ตรวจสอบใบลาสะสม (ค่าเริ่มต้น)"}
+            {lang === "en" ? "Default Inspectors (First Level)" : "ผู้ตรวจสอบใบลาขั้นแรก (ค่าเริ่มต้น)"}
           </label>
-          {defaultInspectorId ? (
-            <div className="flex items-center gap-2 px-3 py-2 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 rounded-xl border border-indigo-100 dark:border-indigo-900/50 text-sm font-semibold max-w-max">
-              <span>
-                {eligibleInspectors.find(u => u.id === defaultInspectorId)?.name || defaultInspectorId}
-                {eligibleInspectors.find(u => u.id === defaultInspectorId)?.position ? ` (${eligibleInspectors.find(u => u.id === defaultInspectorId)?.position})` : ""}
-              </span>
-              <button
-                type="button"
-                onClick={() => setDefaultInspectorId("")}
-                className="p-0.5 hover:bg-indigo-150 dark:hover:bg-indigo-900 rounded-full transition-colors"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          ) : (
-            <div className="relative">
-              <input
-                type="text"
-                value={inspectorSearch}
-                onChange={(e) => {
-                  setInspectorSearch(e.target.value);
-                  setShowInspectorDropdown(true);
-                }}
-                onFocus={() => setShowInspectorDropdown(true)}
-                placeholder={lang === "en" ? "Search to select inspector..." : "พิมพ์ค้นหาผู้ตรวจสอบใบลา..."}
-                className="w-full h-11 px-4 rounded-xl border border-gray-250 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none"
-              />
-              {showInspectorDropdown && (
-                <>
-                  <div className="fixed inset-0 z-10" onClick={() => setShowInspectorDropdown(false)} />
-                  <div className="absolute z-20 w-full mt-1.5 max-h-56 overflow-y-auto rounded-xl border border-gray-150 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-lg p-1.5 divide-y divide-gray-50 dark:divide-gray-800">
-                    {(() => {
-                      const filtered = eligibleInspectors.filter(u => 
-                        u.name.toLowerCase().includes(inspectorSearch.toLowerCase()) ||
-                        (u.position && u.position.toLowerCase().includes(inspectorSearch.toLowerCase()))
+          {/* Tag list */}
+          <div className="flex flex-wrap gap-2 mb-2">
+            {defaultInspectorIds.map((userId) => {
+              const u = eligibleInspectors.find(x => x.id === userId);
+              return (
+                <div key={userId} className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 rounded-xl border border-indigo-100 dark:border-indigo-900/50 text-xs font-semibold">
+                  <span>{u ? u.name : userId} {u?.position ? `(${u.position})` : ""}</span>
+                  <button
+                    type="button"
+                    onClick={() => setDefaultInspectorIds(prev => prev.filter(id => id !== userId))}
+                    className="p-0.5 hover:bg-indigo-100 dark:hover:bg-indigo-900 rounded-full transition-colors"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              );
+            })}
+            {defaultInspectorIds.length === 0 && (
+              <span className="text-xs text-gray-400 italic py-1">{lang === "en" ? "No inspectors selected" : "ไม่มีผู้ตรวจสอบ (ข้ามไปยังขั้นสุดท้ายทันที)"}</span>
+            )}
+          </div>
+          {/* Search Input */}
+          <div className="relative">
+            <input
+              type="text"
+              value={inspectorSearch}
+              onChange={(e) => {
+                setInspectorSearch(e.target.value);
+                setShowInspectorDropdown(true);
+              }}
+              onFocus={() => setShowInspectorDropdown(true)}
+              placeholder={lang === "en" ? "Search to add inspector..." : "พิมพ์ค้นหาเพื่อเพิ่มผู้ตรวจสอบ..."}
+              className="w-full h-11 px-4 rounded-xl border border-gray-250 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none"
+            />
+            {showInspectorDropdown && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setShowInspectorDropdown(false)} />
+                <div className="absolute z-20 w-full mt-1.5 max-h-56 overflow-y-auto rounded-xl border border-gray-150 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-lg p-1.5 divide-y divide-gray-50 dark:divide-gray-800">
+                  {(() => {
+                    const filtered = eligibleInspectors.filter(u => 
+                      !defaultInspectorIds.includes(u.id) &&
+                      (u.name.toLowerCase().includes(inspectorSearch.toLowerCase()) ||
+                      (u.position && u.position.toLowerCase().includes(inspectorSearch.toLowerCase())))
+                    );
+                    if (filtered.length === 0) {
+                      return (
+                        <p className="text-xs text-gray-400 text-center py-3">
+                          {lang === "en" ? "No users found" : "ไม่พบรายชื่อผู้ใช้"}
+                        </p>
                       );
-                      if (filtered.length === 0) {
-                        return (
-                          <p className="text-xs text-gray-400 text-center py-3">
-                            {lang === "en" ? "No users found" : "ไม่พบผู้ใช้ที่ค้นหา"}
-                          </p>
-                        );
-                      }
-                      return filtered.map((u) => (
-                        <div
-                          key={u.id}
-                          onClick={() => {
-                            setDefaultInspectorId(u.id);
-                            setInspectorSearch("");
-                            setShowInspectorDropdown(false);
-                          }}
-                          className="p-2.5 text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-850 rounded-lg cursor-pointer transition-colors flex justify-between items-center"
-                        >
-                          <span className="font-semibold">{u.name}</span>
-                          {u.position && <span className="text-[10px] text-gray-400 font-medium bg-gray-100 dark:bg-gray-850 px-1.5 py-0.5 rounded">{u.position}</span>}
-                        </div>
-                      ));
-                    })()}
-                  </div>
-                </>
-              )}
-            </div>
-          )}
+                    }
+                    return filtered.map((u) => (
+                      <div
+                        key={u.id}
+                        onClick={() => {
+                          setDefaultInspectorIds(prev => [...prev, u.id]);
+                          setInspectorSearch("");
+                          setShowInspectorDropdown(false);
+                        }}
+                        className="p-2.5 text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-850 rounded-lg cursor-pointer transition-colors flex justify-between items-center"
+                      >
+                        <span className="font-semibold">{u.name}</span>
+                        {u.position && <span className="text-[10px] text-gray-400 font-medium bg-gray-100 dark:bg-gray-850 px-1.5 py-0.5 rounded">{u.position}</span>}
+                      </div>
+                    ));
+                  })()}
+                </div>
+              </>
+            )}
+          </div>
         </div>
         {/* Final Approver Configuration Section */}
         <div className="border-t border-gray-100 dark:border-gray-800 pt-6 space-y-4">
@@ -1346,8 +1414,9 @@ export default function SettingsPage() {
             <span>💡 {lang === "en" ? "Tip: Setting max quota to 0 makes that leave type unlimited (e.g. sick leave)." : "คำแนะนำ: หากกำหนดค่าโควตาสูงสุดเป็น 0 จะหมายถึง 'ไม่จำกัดจำนวนวันทำการ' (เช่น ลาป่วย)"}</span>
           </div>
 
-          <fieldset disabled={isInspector} className="overflow-x-auto rounded-2xl border border-gray-100 dark:border-gray-850">
-            <table className="w-full text-left border-collapse min-w-[500px]">
+          <fieldset disabled={isInspector} className="w-full">
+            <div className="w-full overflow-x-auto rounded-2xl border border-gray-150 dark:border-gray-850">
+              <table className="w-full text-left border-collapse min-w-[500px]">
               <thead>
                 <tr className="bg-gray-50 dark:bg-gray-800/50 text-xs font-bold text-gray-500 dark:text-gray-400 border-b border-gray-100 dark:border-gray-850">
                   <th className="px-4 py-3 text-center w-20">{lang === "en" ? "Active" : "เปิดใช้งาน"}</th>
@@ -1394,7 +1463,8 @@ export default function SettingsPage() {
                 ))}
               </tbody>
             </table>
-          </fieldset>
+          </div>
+        </fieldset>
 
           {!isInspector && (
             <StickySaveBar isSaving={isSavingAllQuotas} label={isSavingAllQuotas ? t("saving") : (lang === "en" ? "Save All Quotas" : "บันทึกโควตาการลาทั้งหมด")} color="purple" />
@@ -1779,21 +1849,6 @@ export default function SettingsPage() {
                   >
                     <BookOpen className="w-3 h-3" />
                     {lang === "en" ? "Reference Codes" : "รหัสอ้างอิงข้อมูล"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setManualTeacherSearch("");
-                      setManualSelectedTeacher(null);
-                      setManualStartDate("");
-                      setManualEndDate("");
-                      setManualReason("");
-                      setIsManualFillModalOpen(true);
-                    }}
-                    className="inline-flex items-center gap-1 px-2.5 py-1 bg-teal-50 hover:bg-teal-100 dark:bg-teal-500/10 text-teal-600 dark:text-teal-400 border border-teal-100/50 text-[10px] font-bold rounded-lg transition-all"
-                  >
-                    <Plus className="w-3 h-3" />
-                    {lang === "en" ? "Fill Manually" : "กรอกข้อมูลด้วยตนเอง"}
                   </button>
                 </div>
               </div>
@@ -2276,6 +2331,7 @@ export default function SettingsPage() {
       { id: "logs", nameTh: "ประวัติกิจกรรมระบบ (Activity Logs)", nameEn: "System Logs" },
       { id: "backups", nameTh: "สำรองข้อมูลและล้างระบบ", nameEn: "Backups & Data" },
       { id: "users", nameTh: "จัดการบัญชีผู้ใช้งาน", nameEn: "User Management" },
+      { id: "manual_import", nameTh: "ระบบงานกรอกข้อมูลด้วยตนเอง (Manual Entry)", nameEn: "Manual Leave Entry" },
       { id: "settings", nameTh: "ตั้งค่าระบบทั่วไป", nameEn: "General Settings" },
     ];
 
@@ -2283,7 +2339,9 @@ export default function SettingsPage() {
       { id: "ADMIN", nameTh: "แอดมิน", nameEn: "Admin" },
       { id: "DIRECTOR", nameTh: "ผู้อำนวยการ", nameEn: "Director" },
       { id: "HR", nameTh: "หัวหน้างานบุคคล", nameEn: "HR Head" },
-      { id: "INSPECTOR", nameTh: "ผู้ตรวจสอบ/หัวหน้าหมวด", nameEn: "Inspector" },
+      { id: "HR_STAFF", nameTh: "เจ้าหน้าที่บุคคล", nameEn: "HR Staff" },
+      { id: "INSPECTOR", nameTh: "ผู้ตรวจสอบ", nameEn: "Inspector" },
+      { id: "DEPT_HEAD", nameTh: "หัวหน้าหมวด/กลุ่มสาระ", nameEn: "Department Head" },
       { id: "TEACHER", nameTh: "ครู/บุคลากรทั่วไป", nameEn: "Teacher" },
     ];
 
@@ -2376,6 +2434,233 @@ export default function SettingsPage() {
     );
   };
 
+  const renderManualImportSection = () => {
+    return (
+      <div className="bg-white dark:bg-gray-900 rounded-2xl p-6 md:p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-150 dark:border-gray-800">
+        <SectionHeader title={sectionTitles["manual-import"]} />
+        <p className="text-xs text-gray-500 mb-6 leading-relaxed">
+          {lang === "en" 
+            ? "Record a leave history entry for a staff member manually."
+            : "บันทึกประวัติการลาของครูและบุคลากรย้อนหลังด้วยตนเองลงในระบบ"}
+        </p>
+
+        <div className="space-y-5">
+          {/* Teacher Search select */}
+          <div className="relative">
+            <label className="block text-xs font-bold text-gray-750 dark:text-gray-300 mb-1.5 font-sans">
+              {lang === "en" ? "Select Teacher / Staff *" : "เลือกครู / บุคลากร *"}
+            </label>
+            {manualSelectedTeacher ? (
+              <div className="flex items-center justify-between p-3.5 bg-purple-50 dark:bg-purple-950/20 text-purple-700 dark:text-purple-300 rounded-xl border border-purple-100 dark:border-purple-900/50">
+                <div className="text-sm font-semibold">
+                  {manualSelectedTeacher.name} {manualSelectedTeacher.position ? `(${manualSelectedTeacher.position})` : ""}
+                </div>
+                <button 
+                  type="button" 
+                  onClick={() => setManualSelectedTeacher(null)}
+                  className="p-1 hover:bg-purple-100 dark:hover:bg-purple-900 rounded-full"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            ) : (
+              <div>
+                <input
+                  type="text"
+                  value={manualTeacherSearch}
+                  onChange={(e) => {
+                    setManualTeacherSearch(e.target.value);
+                    setShowManualTeacherDropdown(true);
+                  }}
+                  onFocus={() => setShowManualTeacherDropdown(true)}
+                  placeholder={lang === "en" ? "Type to search teacher name..." : "พิมพ์ค้นหาชื่อหรือตำแหน่งครู..."}
+                  className="w-full h-11 px-4 rounded-xl border border-gray-250 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-gray-900 dark:text-white"
+                />
+                {showManualTeacherDropdown && (
+                  <>
+                    <div className="fixed inset-0 z-10" onClick={() => setShowManualTeacherDropdown(false)} />
+                    <div className="absolute z-20 w-full mt-1.5 max-h-48 overflow-y-auto rounded-xl border border-gray-150 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-lg p-1.5 divide-y divide-gray-50 dark:divide-gray-800">
+                      {(() => {
+                        const filtered = eligibleInspectors.filter(u => 
+                          u.name.toLowerCase().includes(manualTeacherSearch.toLowerCase()) ||
+                          (u.position && u.position.toLowerCase().includes(manualTeacherSearch.toLowerCase()))
+                        );
+                        if (filtered.length === 0) {
+                          return (
+                            <p className="text-xs text-gray-400 text-center py-3">
+                              {lang === "en" ? "No matches found" : "ไม่พบรายชื่อผู้ใช้"}
+                            </p>
+                          );
+                        }
+                        return filtered.map((u) => (
+                          <div
+                            key={u.id}
+                            onClick={() => {
+                              setManualSelectedTeacher(u);
+                              setManualTeacherSearch("");
+                              setShowManualTeacherDropdown(false);
+                            }}
+                            className="p-2.5 hover:bg-slate-50 dark:hover:bg-slate-800/80 rounded-lg text-xs cursor-pointer flex items-center justify-between text-gray-900 dark:text-gray-200"
+                          >
+                            <span className="font-semibold">{u.name}</span>
+                            <span className="text-[10px] text-gray-450">{u.position || "-"}</span>
+                          </div>
+                        ));
+                      })()}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Leave Type and Status Row */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 font-sans">
+            <div>
+              <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5 font-sans">
+                {lang === "en" ? "Leave Type *" : "ประเภทการลา *"}
+              </label>
+              <select
+                value={manualLeaveType}
+                onChange={(e) => setManualLeaveType(e.target.value)}
+                className="w-full h-11 px-3 rounded-xl border border-gray-250 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 cursor-pointer text-gray-900 dark:text-white"
+              >
+                {leaveConfigs.map((c) => (
+                  <option key={c.type} value={c.name}>{c.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5 font-sans">
+                {lang === "en" ? "Leave Status *" : "สถานะการลา *"}
+              </label>
+              <select
+                value={manualLeaveStatus}
+                onChange={(e) => setManualLeaveStatus(e.target.value)}
+                className="w-full h-11 px-3 rounded-xl border border-gray-250 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 cursor-pointer text-gray-900 dark:text-white"
+              >
+                <option value="APPROVED">{lang === "en" ? "Approved" : "อนุมัติแล้ว"}</option>
+                <option value="PENDING_HEAD">{lang === "en" ? "Pending Head" : "รอหัวหน้างาน/ผู้ตรวจสอบ"}</option>
+                <option value="PENDING_EXEC">{lang === "en" ? "Pending Exec" : "รอผู้อนุมัติ"}</option>
+                <option value="REJECTED">{lang === "en" ? "Rejected" : "ปฏิเสธแล้ว"}</option>
+                <option value="CANCELLED">{lang === "en" ? "Cancelled" : "ยกเลิกแล้ว"}</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Start Date and End Date Row */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5">
+                {lang === "en" ? "Start Date *" : "วันที่เริ่มลา *"}
+              </label>
+              <input
+                type="date"
+                value={manualStartDate}
+                onChange={(e) => setManualStartDate(e.target.value)}
+                className="w-full h-11 px-4 rounded-xl border border-gray-250 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 text-gray-900 dark:text-white"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5">
+                {lang === "en" ? "End Date *" : "วันที่สิ้นสุด *"}
+              </label>
+              <input
+                type="date"
+                value={manualEndDate}
+                onChange={(e) => setManualEndDate(e.target.value)}
+                className="w-full h-11 px-4 rounded-xl border border-gray-250 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 text-gray-900 dark:text-white"
+              />
+            </div>
+          </div>
+
+          {/* Head Approver and Final Approver Row (หัวหน้าบุคคลก่อน แล้วค่อยผู้อนุมัติขั้นสุดท้าย) */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5">
+                {lang === "en" ? "HR Head (Inspector)" : "หัวหน้าบุคคล (ผู้ตรวจสอบ)"}
+              </label>
+              <select
+                value={manualHeadApproverId}
+                onChange={(e) => setManualHeadApproverId(e.target.value)}
+                className="w-full h-11 px-3 rounded-xl border border-gray-250 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 cursor-pointer text-gray-900 dark:text-white"
+              >
+                <option value="">{lang === "en" ? "None (Direct to Exec)" : "ไม่มี (ข้ามไปผู้อนุมัติ)"}</option>
+                {eligibleInspectors.map((u) => (
+                  <option key={u.id} value={u.id}>{u.name} {u.position ? `(${u.position})` : ""}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5">
+                {lang === "en" ? "Final Approver" : "ผู้อนุมัติขั้นสุดท้าย"}
+              </label>
+              <select
+                value={manualFinalApproverId}
+                onChange={(e) => setManualFinalApproverId(e.target.value)}
+                className="w-full h-11 px-3 rounded-xl border border-gray-250 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 cursor-pointer text-gray-900 dark:text-white"
+              >
+                {(() => {
+                  // Always list ผู้อำนวยการ first, then other eligible approvers
+                  const director = eligibleInspectors.find(u => u.position === "ผู้อำนวยการ");
+                  const otherFinals = eligibleInspectors.filter(u => 
+                    u.position !== "ผู้อำนวยการ" && finalApproverUserIds.includes(u.id)
+                  );
+                  const combinedList = [
+                    ...(director ? [director] : []),
+                    ...otherFinals
+                  ];
+                  if (combinedList.length === 0) {
+                    return eligibleInspectors.map((u) => (
+                      <option key={u.id} value={u.id}>{u.name} {u.position ? `(${u.position})` : ""}</option>
+                    ));
+                  }
+                  return combinedList.map((u) => (
+                    <option key={u.id} value={u.id}>{u.name} {u.position ? `(${u.position})` : ""}</option>
+                  ));
+                })()}
+              </select>
+            </div>
+          </div>
+
+          {/* Reason */}
+          <div>
+            <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5">
+              {lang === "en" ? "Reason (Optional)" : "เหตุผลการลา (ไม่บังคับ)"}
+            </label>
+            <textarea
+              value={manualReason}
+              onChange={(e) => setManualReason(e.target.value)}
+              placeholder={lang === "en" ? "Details or reasons..." : "ใส่เหตุผลการลา..."}
+              className="w-full p-3.5 rounded-xl border border-gray-250 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 resize-none h-24 text-gray-900 dark:text-white"
+            />
+          </div>
+        </div>
+
+        {/* Action buttons */}
+        <div className="flex flex-wrap gap-3 justify-end mt-8 pt-6 border-t border-gray-100 dark:border-gray-800">
+          <button
+            type="button"
+            onClick={() => handleAddManualLeave(false)}
+            className="h-11 px-5 rounded-xl bg-teal-50 hover:bg-teal-100 dark:bg-teal-500/10 dark:hover:bg-teal-500/20 text-teal-600 dark:text-teal-400 border border-teal-100 dark:border-teal-900/50 font-bold text-sm transition-all"
+          >
+            {lang === "en" ? "Add & Continue" : "เพิ่มและกรอกต่อ"}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              handleAddManualLeave(true);
+              setActiveSection(null);
+            }}
+            className="h-11 px-6 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-sm transition-all shadow-md shadow-teal-500/10"
+          >
+            {lang === "en" ? "Add & Back" : "เพิ่มและบันทึกย้อนกลับ"}
+          </button>
+        </div>
+      </div>
+    );
+  };
+
   // --- Section renderer map ---
   const renderActiveSection = () => {
     switch (activeSection) {
@@ -2386,6 +2671,7 @@ export default function SettingsPage() {
       case "font": return renderFontSection();
       case "permissions": return renderPermissionsSection();
       case "backup": return renderBackupSection();
+      case "manual-import": return renderManualImportSection();
       case "impersonate": return renderImpersonateSection();
       case "footer": return renderFooterSection();
       default: return null;
@@ -2841,239 +3127,6 @@ export default function SettingsPage() {
         </div>
       )}
 
-      {/* Manual Leave Import Form Modal */}
-      {isManualFillModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
-          <div className="w-full max-w-lg bg-white dark:bg-gray-900 rounded-3xl shadow-xl overflow-hidden border border-gray-150 dark:border-gray-800 max-h-[90vh] flex flex-col">
-            {/* Modal Header */}
-            <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between shrink-0">
-              <span className="text-md font-bold text-gray-950 dark:text-white">
-                {lang === "en" ? "Manually Fill Leave Data" : "กรอกข้อมูลใบลาด้วยตนเอง"}
-              </span>
-              <button 
-                type="button"
-                onClick={() => setIsManualFillModalOpen(false)}
-                className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors"
-              >
-                <X className="w-5 h-5 text-gray-400" />
-              </button>
-            </div>
-
-            {/* Modal Scroll Content */}
-            <div className="flex-1 p-6 overflow-y-auto space-y-4">
-              {/* Teacher Search select */}
-              <div className="relative">
-                <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5">
-                  {lang === "en" ? "Select Teacher / Staff *" : "เลือกครู / บุคลากร *"}
-                </label>
-                {manualSelectedTeacher ? (
-                  <div className="flex items-center justify-between p-3 bg-purple-50 dark:bg-purple-950/20 text-purple-700 dark:text-purple-300 rounded-xl border border-purple-100 dark:border-purple-900/50">
-                    <div className="text-sm font-semibold">
-                      {manualSelectedTeacher.name} {manualSelectedTeacher.position ? `(${manualSelectedTeacher.position})` : ""}
-                    </div>
-                    <button 
-                      type="button" 
-                      onClick={() => setManualSelectedTeacher(null)}
-                      className="p-1 hover:bg-purple-100 dark:hover:bg-purple-900 rounded-full"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                ) : (
-                  <div>
-                    <input
-                      type="text"
-                      value={manualTeacherSearch}
-                      onChange={(e) => {
-                        setManualTeacherSearch(e.target.value);
-                        setShowManualTeacherDropdown(true);
-                      }}
-                      onFocus={() => setShowManualTeacherDropdown(true)}
-                      placeholder={lang === "en" ? "Type to search teacher name..." : "พิมพ์ค้นหาชื่อหรือตำแหน่งครู..."}
-                      className="w-full h-11 px-4 rounded-xl border border-gray-250 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
-                    />
-                    {showManualTeacherDropdown && (
-                      <>
-                        <div className="fixed inset-0 z-10" onClick={() => setShowManualTeacherDropdown(false)} />
-                        <div className="absolute z-20 w-full mt-1.5 max-h-48 overflow-y-auto rounded-xl border border-gray-150 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-lg p-1.5 divide-y divide-gray-50 dark:divide-gray-800">
-                          {(() => {
-                            const filtered = eligibleInspectors.filter(u => 
-                              u.name.toLowerCase().includes(manualTeacherSearch.toLowerCase()) ||
-                              (u.position && u.position.toLowerCase().includes(manualTeacherSearch.toLowerCase()))
-                            );
-                            if (filtered.length === 0) {
-                              return (
-                                <p className="text-xs text-gray-400 text-center py-3">
-                                  {lang === "en" ? "No matches found" : "ไม่พบรายชื่อผู้ใช้"}
-                                </p>
-                              );
-                            }
-                            return filtered.map((u) => (
-                              <div
-                                key={u.id}
-                                onClick={() => {
-                                  setManualSelectedTeacher(u);
-                                  setManualTeacherSearch("");
-                                  setShowManualTeacherDropdown(false);
-                                }}
-                                className="p-2.5 hover:bg-slate-50 dark:hover:bg-slate-800/80 rounded-lg text-xs cursor-pointer flex items-center justify-between text-gray-900 dark:text-gray-200"
-                              >
-                                <span className="font-semibold">{u.name}</span>
-                                <span className="text-[10px] text-gray-400">{u.position || "-"}</span>
-                              </div>
-                            ));
-                          })()}
-                        </div>
-                      </>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* Leave Type and Status Row */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5">
-                    {lang === "en" ? "Leave Type *" : "ประเภทการลา *"}
-                  </label>
-                  <select
-                    value={manualLeaveType}
-                    onChange={(e) => setManualLeaveType(e.target.value)}
-                    className="w-full h-11 px-3 rounded-xl border border-gray-250 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 cursor-pointer"
-                  >
-                    {leaveConfigs.map((c) => (
-                      <option key={c.type} value={c.name}>{c.name}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5">
-                    {lang === "en" ? "Leave Status *" : "สถานะการลา *"}
-                  </label>
-                  <select
-                    value={manualLeaveStatus}
-                    onChange={(e) => setManualLeaveStatus(e.target.value)}
-                    className="w-full h-11 px-3 rounded-xl border border-gray-250 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 cursor-pointer"
-                  >
-                    <option value="APPROVED">{lang === "en" ? "Approved" : "อนุมัติแล้ว"}</option>
-                    <option value="PENDING_HEAD">{lang === "en" ? "Pending Head" : "รอหัวหน้างาน/ผู้ตรวจสอบ"}</option>
-                    <option value="PENDING_EXEC">{lang === "en" ? "Pending Exec" : "รอผู้อนุมัติ"}</option>
-                    <option value="REJECTED">{lang === "en" ? "Rejected" : "ปฏิเสธแล้ว"}</option>
-                    <option value="CANCELLED">{lang === "en" ? "Cancelled" : "ยกเลิกแล้ว"}</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Start Date and End Date Row */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5">
-                    {lang === "en" ? "Start Date *" : "วันที่เริ่มลา *"}
-                  </label>
-                  <input
-                    type="date"
-                    value={manualStartDate}
-                    onChange={(e) => setManualStartDate(e.target.value)}
-                    className="w-full h-11 px-4 rounded-xl border border-gray-250 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm outline-none focus:ring-2 focus:ring-indigo-500/20"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5">
-                    {lang === "en" ? "End Date *" : "วันที่สิ้นสุด *"}
-                  </label>
-                  <input
-                    type="date"
-                    value={manualEndDate}
-                    onChange={(e) => setManualEndDate(e.target.value)}
-                    className="w-full h-11 px-4 rounded-xl border border-gray-250 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm outline-none focus:ring-2 focus:ring-indigo-500/20"
-                  />
-                </div>
-              </div>
-
-              {/* Final and Head Approver Row */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5">
-                    {lang === "en" ? "Final Approver" : "ผู้อนุมัติขั้นสุดท้าย"}
-                  </label>
-                  <select
-                    value={manualFinalApproverId}
-                    onChange={(e) => setManualFinalApproverId(e.target.value)}
-                    className="w-full h-11 px-3 rounded-xl border border-gray-250 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 cursor-pointer"
-                  >
-                    {(() => {
-                      const eligibleFinals = eligibleInspectors.filter(u => 
-                        u.position === "ผู้อำนวยการ" || finalApproverUserIds.includes(u.id)
-                      );
-                      if (eligibleFinals.length === 0) {
-                        return eligibleInspectors.map((u) => (
-                          <option key={u.id} value={u.id}>{u.name} {u.position ? `(${u.position})` : ""}</option>
-                        ));
-                      }
-                      return eligibleFinals.map((u) => (
-                        <option key={u.id} value={u.id}>{u.name} {u.position ? `(${u.position})` : ""}</option>
-                      ));
-                    })()}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5">
-                    {lang === "en" ? "Head Approver / Inspector" : "ผู้ตรวจสอบ / หัวหน้ากลุ่มสาระ"}
-                  </label>
-                  <select
-                    value={manualHeadApproverId}
-                    onChange={(e) => setManualHeadApproverId(e.target.value)}
-                    className="w-full h-11 px-3 rounded-xl border border-gray-250 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 cursor-pointer"
-                  >
-                    <option value="">{lang === "en" ? "None (Direct to Exec)" : "ไม่มี (ข้ามไปผู้อนุมัติ)"}</option>
-                    {eligibleInspectors.map((u) => (
-                      <option key={u.id} value={u.id}>{u.name} {u.position ? `(${u.position})` : ""}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {/* Reason */}
-              <div>
-                <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5">
-                  {lang === "en" ? "Reason (Optional)" : "เหตุผลการลา (ไม่บังคับ)"}
-                </label>
-                <textarea
-                  value={manualReason}
-                  onChange={(e) => setManualReason(e.target.value)}
-                  placeholder={lang === "en" ? "Details or reasons..." : "ใส่เหตุผลการลา..."}
-                  className="w-full p-3 rounded-xl border border-gray-250 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 resize-none h-16"
-                />
-              </div>
-            </div>
-
-            {/* Modal Footer */}
-            <div className="p-4 bg-gray-50 dark:bg-gray-950/40 border-t border-gray-100 dark:border-gray-800 flex flex-wrap gap-2 justify-end shrink-0">
-              <button
-                type="button"
-                onClick={() => setIsManualFillModalOpen(false)}
-                className="h-11 px-4 rounded-xl bg-white hover:bg-gray-50 dark:bg-gray-800 dark:hover:bg-gray-700/80 text-gray-600 dark:text-gray-300 font-semibold text-sm transition-all border border-gray-150 dark:border-gray-850"
-              >
-                {lang === "en" ? "Close" : "ปิดหน้าต่าง"}
-              </button>
-              <button
-                type="button"
-                onClick={() => handleAddManualLeave(false)}
-                className="h-11 px-5 rounded-xl bg-teal-50 hover:bg-teal-100 dark:bg-teal-500/10 dark:hover:bg-teal-500/20 text-teal-600 dark:text-teal-400 border border-teal-100 dark:border-teal-900/50 font-bold text-sm transition-all"
-              >
-                {lang === "en" ? "Add & Continue" : "เพิ่มและทำต่อ"}
-              </button>
-              <button
-                type="button"
-                onClick={() => handleAddManualLeave(true)}
-                className="h-11 px-5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-sm transition-all shadow-md shadow-teal-500/10"
-              >
-                {lang === "en" ? "Add & Close" : "เพิ่มและปิด"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
