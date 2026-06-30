@@ -13,7 +13,7 @@ export function formatLeaveDate(dateInput: string | Date | null | undefined, lan
     const month = thaiMonthsShort[d.getMonth()];
     // Short BE year (e.g. 2569 -> 69)
     const yearBE = String(d.getFullYear() + 543).slice(-2);
-    return `${day}/${month}/${yearBE}`;
+    return `${day} ${month} ${yearBE}`;
   } else {
     const englishMonthsShort = [
       "Jan", "Feb", "Mar", "Apr", "May", "Jun",
@@ -22,6 +22,6 @@ export function formatLeaveDate(dateInput: string | Date | null | undefined, lan
     const month = englishMonthsShort[d.getMonth()];
     // Short CE year (e.g. 2026 -> 26)
     const yearCE = String(d.getFullYear()).slice(-2);
-    return `${day}/${month}/${yearCE}`;
+    return `${day} ${month} ${yearCE}`;
   }
 }
