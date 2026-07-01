@@ -1,7 +1,8 @@
 "use server";
 
-import { prisma } from "@/lib/db";
+import prisma from "@/lib/prisma";
 import { requireAdminOrHR } from "./settings";
+import { getApprovedLeavesForPeriod, isDateOnLeave } from "./attendance-leave-sync";
 
 export async function getTodayAttendanceStats() {
   await requireAdminOrHR();
@@ -35,6 +36,17 @@ export async function getTodayAttendanceStats() {
     }
   });
 
+  const userIds = allUsers.map(u => u.id);
+  const leaves = await getApprovedLeavesForPeriod(userIds, today, today);
+
+  // Apply leave status overrides to existing attendance records
+  attendances.forEach(a => {
+    const hasLeave = isDateOnLeave(today, a.userId, leaves);
+    if (hasLeave && a.status !== "PRESENT") {
+      a.status = "LEAVE";
+    }
+  });
+
   const presentUsers = attendances.filter(a => a.status === "PRESENT");
   const lateUsers = attendances.filter(a => a.status === "LATE");
   const leaveUsers = attendances.filter(a => a.status === "LEAVE");
@@ -42,12 +54,17 @@ export async function getTodayAttendanceStats() {
   const checkedInUserIds = new Set(attendances.map(a => a.userId));
   const pendingUsers = allUsers.filter(u => !checkedInUserIds.has(u.id));
 
+  // Filter out pending users who have approved leaves and count them as leave
+  const pendingLeaveUsers = pendingUsers.filter(u => isDateOnLeave(today, u.id, leaves));
+  const pendingLeaveUserIds = new Set(pendingLeaveUsers.map(u => u.id));
+  const realPendingUsers = pendingUsers.filter(u => !pendingLeaveUserIds.has(u.id));
+
   return {
     summary: {
       present: presentUsers.length,
       late: lateUsers.length,
-      leave: leaveUsers.length,
-      pending: pendingUsers.length,
+      leave: leaveUsers.length + pendingLeaveUsers.length,
+      pending: realPendingUsers.length,
       total: allUsers.length
     },
     lateList: lateUsers.map(a => ({
@@ -56,7 +73,7 @@ export async function getTodayAttendanceStats() {
       checkIn: a.checkInTime ? new Date(a.checkInTime).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Bangkok" }) : "-",
       subjectGroup: a.user.subjectGroup || "ทั่วไป"
     })),
-    pendingList: pendingUsers.map(u => ({
+    pendingList: realPendingUsers.map(u => ({
       id: u.id,
       name: u.name || "ไม่ระบุชื่อ",
       position: u.position || "ครู",
@@ -110,7 +127,51 @@ export async function getIndividualAttendanceStats(
     }
   });
 
-  return attendances;
+  const leaves = await getApprovedLeavesForPeriod([userId], startDate, endDate);
+
+  // Apply overrides to existing records
+  attendances.forEach(a => {
+    const hasLeave = isDateOnLeave(a.attendanceDate, userId, leaves);
+    if (hasLeave && a.status !== "PRESENT") {
+      a.status = "LEAVE" as any;
+    }
+  });
+
+  // Synthesize virtual LEAVE records for leave days with no attendance records
+  const existingDates = new Set(attendances.map(a => 
+    Date.UTC(a.attendanceDate.getUTCFullYear(), a.attendanceDate.getUTCMonth(), a.attendanceDate.getUTCDate())
+  ));
+
+  const synthesized: typeof attendances = [];
+  const startMs = Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth(), startDate.getUTCDate());
+  const endMs = Date.UTC(endDate.getUTCFullYear(), endDate.getUTCMonth(), endDate.getUTCDate());
+
+  const oneDayMs = 24 * 60 * 60 * 1000;
+  for (let currentMs = startMs; currentMs <= endMs; currentMs += oneDayMs) {
+    const currentDate = new Date(currentMs);
+    const hasLeave = isDateOnLeave(currentDate, userId, leaves);
+    if (hasLeave && !existingDates.has(currentMs)) {
+      synthesized.push({
+        id: `virtual-leave-${currentMs}`,
+        userId,
+        attendanceDate: currentDate,
+        checkInTime: null,
+        checkOutTime: null,
+        status: "LEAVE" as any,
+        workShiftId: null,
+        createdById: null,
+        createdAt: currentDate,
+        updatedAt: currentDate
+      } as any);
+    }
+  }
+
+  // Combine and sort
+  const combined = [...attendances, ...synthesized].sort((a, b) => 
+    a.attendanceDate.getTime() - b.attendanceDate.getTime()
+  );
+
+  return combined;
 }
 
 export async function getSchoolAttendanceAnalytics() {
@@ -133,13 +194,17 @@ export async function getSchoolAttendanceAnalytics() {
     },
     include: {
       user: {
-        select: { subjectGroup: true }
+        select: { id: true, subjectGroup: true }
       }
     }
   });
 
+  const lateUserIds = Array.from(new Set(lates.map(l => l.userId)));
+  const leaves = await getApprovedLeavesForPeriod(lateUserIds, fiscalStart, fiscalEnd);
+  const realLates = lates.filter(l => !isDateOnLeave(l.attendanceDate, l.userId, leaves));
+
   const deptLates: Record<string, number> = {};
-  lates.forEach(l => {
+  realLates.forEach(l => {
     const group = l.user.subjectGroup || "ทั่วไป";
     deptLates[group] = (deptLates[group] || 0) + 1;
   });
@@ -174,7 +239,7 @@ export async function getSchoolAttendanceAnalytics() {
     return hr >= 6 && hr <= 18;
   }); // Only 6 AM - 6 PM
 
-  // 3. Get monthly lates trend (last 6 months) - single batch query
+  // 3. Get monthly lates trend (last 6 months)
   const startMonthDate = new Date();
   startMonthDate.setUTCDate(1);
   startMonthDate.setUTCMonth(startMonthDate.getUTCMonth() - 5);
@@ -193,12 +258,17 @@ export async function getSchoolAttendanceAnalytics() {
       }
     },
     select: {
+      userId: true,
       attendanceDate: true
     }
   });
 
+  const rangeUserIds = Array.from(new Set(attendancesInRange.map(a => a.userId)));
+  const rangeLeaves = await getApprovedLeavesForPeriod(rangeUserIds, rangeStart, rangeEnd);
+  const realRangeLates = attendancesInRange.filter(a => !isDateOnLeave(a.attendanceDate, a.userId, rangeLeaves));
+
   const trendMap: Record<string, number> = {};
-  attendancesInRange.forEach(a => {
+  realRangeLates.forEach(a => {
     const dateObj = new Date(a.attendanceDate);
     const y = dateObj.getUTCFullYear();
     const m = dateObj.getUTCMonth();
