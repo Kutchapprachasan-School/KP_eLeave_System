@@ -28,7 +28,8 @@ import {
   Archive,
   Bell,
   BookOpen,
-  Plus
+  Plus,
+  BarChart3
 } from "lucide-react";
 
 function ToolbarButtons({ isAdmin, isApprover }: { isAdmin: boolean; isApprover: boolean }) {
@@ -383,6 +384,9 @@ function AppContent({ children }: { children: React.ReactNode }) {
   }
   if (activePermissions.reports?.includes(userRole)) {
     navItems.push({ href: "/reports", label: t("reports"), icon: FileSpreadsheet });
+  }
+  if (["ADMIN", "HR", "HR_STAFF", "INSPECTOR"].includes(userRole)) {
+    navItems.push({ href: "/attendance/stats", label: lang === "en" ? "Attendance Stats" : "สถิติการลงเวลา", icon: BarChart3 });
   }
   if (activePermissions.users?.includes(userRole)) {
     navItems.push({ href: "/users", label: t("users"), icon: Users });

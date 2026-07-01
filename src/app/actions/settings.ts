@@ -33,12 +33,19 @@ async function requireSuperAdmin() {
   return session;
 }
 
-async function requireHROrAdmin() {
+export async function requireAdminOrHR() {
   const session = await getSession();
   const user = session?.user as any;
   if (!user) throw new Error("Unauthorized");
   const isAdmin = user.role === "ADMIN" || user.position === "แอดมิน";
   const isHR = user.position === "หัวหน้างานบุคคล" || user.position === "เจ้าหน้าที่บุคคล";
+  const isInspector = user.position === "ผู้ตรวจสอบ";
+  if (!isAdmin && !isHR && !isInspector) throw new Error("Unauthorized");
+  return { session, isAdmin, isHR, isInspector };
+}
+
+async function requireHROrAdmin() {
+  const { session, isAdmin, isHR } = await requireAdminOrHR();
   if (!isAdmin && !isHR) throw new Error("Unauthorized");
   return { session, isAdmin, isHR };
 }
