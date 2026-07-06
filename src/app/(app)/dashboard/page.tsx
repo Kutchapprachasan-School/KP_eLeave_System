@@ -12,9 +12,12 @@ import {
 import { getDashboardStats, getCalendarLeaves } from "@/app/actions/leave";
 import { getHolidays } from "@/app/actions/holiday";
 import { getSystemSettings } from "@/app/actions/settings";
+import { getTodayAttendanceStats } from "@/app/actions/attendance-stats";
+import { getMyAttendanceToday } from "@/app/actions/attendance";
 import { 
   CheckCircle2, AlertCircle, Briefcase, 
-  Users, Activity, Clock, Calendar, ChevronLeft, ChevronRight, X
+  Users, Activity, Clock, Calendar, ChevronLeft, ChevronRight, X,
+  UserCheck, XCircle, MapPin, Fingerprint, CalendarDays
 } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 
@@ -83,8 +86,16 @@ export default function DashboardPage() {
   const [hasCalendarPermission, setHasCalendarPermission] = useState(true);
   const [holidays, setHolidays] = useState<any[]>([]);
 
+  // Time Attendance Dashboard states
+  const [activeSystemTab, setActiveSystemTab] = useState<"leave" | "attendance">("leave");
+  const [attendanceEnabled, setAttendanceEnabled] = useState(false);
+  const [schoolAttendanceStats, setSchoolAttendanceStats] = useState<any>(null);
+  const [personalAttendanceToday, setPersonalAttendanceToday] = useState<any>(null);
+  const [loadingAttendance, setLoadingAttendance] = useState(false);
+
   useEffect(() => {
     getSystemSettings().then((s) => {
+      setAttendanceEnabled(!!s.enableAttendance);
       if (s.rolePermissions && session?.user) {
         try {
           const perms = JSON.parse(s.rolePermissions);
@@ -149,42 +160,52 @@ export default function DashboardPage() {
       });
   }, [cycleFilter, lang, dashboardYear, viewMode, router]);
 
+  useEffect(() => {
+    if (!mounted || !session?.user || activeSystemTab !== "attendance") return;
+    
+    setLoadingAttendance(true);
+    if (viewMode === "school") {
+      getTodayAttendanceStats()
+        .then(setSchoolAttendanceStats)
+        .catch(console.error)
+        .finally(() => setLoadingAttendance(false));
+    } else {
+      getMyAttendanceToday()
+        .then(setPersonalAttendanceToday)
+        .catch(console.error)
+        .finally(() => setLoadingAttendance(false));
+    }
+  }, [activeSystemTab, viewMode, mounted, session]);
+
   // Calendar Helper functions
   const getLeaveColorClass = (type: string) => {
-    const t = type.toUpperCase();
-    if (t === "SICK" || t.includes("ป่วย")) {
-      return { 
-        dot: "bg-rose-500", 
-        text: "text-rose-600 dark:text-rose-400 font-bold", 
-        bg: "bg-rose-50 dark:bg-rose-950/20 border border-rose-150 dark:border-rose-900/30 hover:bg-rose-100/70" 
-      };
-    }
-    if (t === "PERSONAL" || t.includes("กิจ")) {
-      return { 
-        dot: "bg-purple-500", 
-        text: "text-purple-600 dark:text-purple-400 font-bold", 
-        bg: "bg-purple-50 dark:bg-purple-950/20 border border-purple-150 dark:border-purple-900/30 hover:bg-purple-100/70" 
-      };
-    }
-    if (t === "VACATION" || t.includes("พัก")) {
-      return { 
-        dot: "bg-amber-500", 
-        text: "text-amber-600 dark:text-amber-400 font-bold", 
-        bg: "bg-amber-50 dark:bg-amber-950/20 border border-amber-150 dark:border-amber-900/30 hover:bg-amber-100/70" 
-      };
-    }
     return { 
-      dot: "bg-blue-500", 
-      text: "text-blue-600 dark:text-blue-400 font-bold", 
-      bg: "bg-blue-50 dark:bg-blue-950/20 border border-blue-150 dark:border-blue-900/30 hover:bg-blue-100/70" 
+      dot: "bg-indigo-500", 
+      text: "text-indigo-650 dark:text-indigo-400 font-bold", 
+      bg: "bg-indigo-50/80 dark:bg-indigo-950/30 border border-indigo-150 dark:border-indigo-900/30 hover:bg-indigo-100/70" 
     };
   };
 
   const getHolidayForDay = (day: Date) => {
-    const dStr = day.toISOString().split('T')[0];
+    const dYear = day.getFullYear();
+    const dMonth = String(day.getMonth() + 1).padStart(2, '0');
+    const dDate = String(day.getDate()).padStart(2, '0');
+    const dStr = `${dYear}-${dMonth}-${dDate}`;
+    
     return holidays.find(h => {
-      const hDate = new Date(h.date);
-      return hDate.toISOString().split('T')[0] === dStr;
+      const start = new Date(h.startDate);
+      const sYear = start.getUTCFullYear();
+      const sMonth = String(start.getUTCMonth() + 1).padStart(2, '0');
+      const sDate = String(start.getUTCDate()).padStart(2, '0');
+      const sStr = `${sYear}-${sMonth}-${sDate}`;
+
+      const end = new Date(h.endDate);
+      const eYear = end.getUTCFullYear();
+      const eMonth = String(end.getUTCMonth() + 1).padStart(2, '0');
+      const eDate = String(end.getUTCDate()).padStart(2, '0');
+      const eStr = `${eYear}-${eMonth}-${eDate}`;
+
+      return dStr >= sStr && dStr <= eStr;
     });
   };
 
@@ -397,7 +418,37 @@ export default function DashboardPage() {
         </motion.div>
       )}
 
-      <div className="hidden md:flex flex-col mb-6 space-y-3">
+      {/* System Toggle Tabs */}
+      {attendanceEnabled && (
+        <div className="flex gap-2 p-1.5 bg-slate-150/60 dark:bg-slate-800/80 rounded-2xl w-fit mb-2 border border-slate-200/40">
+          <button
+            onClick={() => setActiveSystemTab("leave")}
+            className={`px-5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
+              activeSystemTab === "leave"
+                ? "bg-white dark:bg-slate-700 text-purple-700 dark:text-purple-300 shadow-sm scale-100"
+                : "text-slate-500 hover:text-slate-750 dark:hover:text-slate-350"
+            }`}
+          >
+            <CalendarDays className="w-4.5 h-4.5 text-purple-500" />
+            {lang === "en" ? "Leave System" : "ระบบการลา"}
+          </button>
+          <button
+            onClick={() => setActiveSystemTab("attendance")}
+            className={`px-5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
+              activeSystemTab === "attendance"
+                ? "bg-white dark:bg-slate-700 text-purple-700 dark:text-purple-300 shadow-sm scale-100"
+                : "text-slate-500 hover:text-slate-750 dark:hover:text-slate-350"
+            }`}
+          >
+            <Clock className="w-4.5 h-4.5 text-purple-500" />
+            {lang === "en" ? "Time Attendance" : "ระบบลงเวลาทำงาน"}
+          </button>
+        </div>
+      )}
+
+      {activeSystemTab === "leave" && (
+        <>
+          <div className="hidden md:flex flex-col mb-6 space-y-3">
         <p className="text-sm font-medium text-slate-500">
           {isOverview ? t("overviewStats") : t("yourQuotaStats")} 
           <span className="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300">
@@ -724,9 +775,14 @@ export default function DashboardPage() {
             <div className="space-y-2">
               {/* Week Headers */}
               <div className="grid grid-cols-7 gap-1 text-center text-xs font-bold text-slate-500 dark:text-slate-400 py-1">
-                {(lang === "en" ? ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] : ["อา.", "จ.", "อ.", "พ.", "พฤ.", "ศ.", "ส."]).map(day => (
-                  <div key={day}>{day}</div>
-                ))}
+                {(lang === "en" ? ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] : ["อา.", "จ.", "อ.", "พ.", "พฤ.", "ศ.", "ส."]).map((day, dIdx) => {
+                  const isWeekendHeader = dIdx === 0 || dIdx === 6;
+                  return (
+                    <div key={day} className={isWeekendHeader ? "text-rose-500/80 dark:text-rose-400/80" : ""}>
+                      {day}
+                    </div>
+                  );
+                })}
               </div>
               {/* Grid */}
               <div className="grid grid-cols-7 gap-1.5">
@@ -735,9 +791,12 @@ export default function DashboardPage() {
                   const isToday = cell.date.toDateString() === new Date().toDateString();
                   const holiday = getHolidayForDay(cell.date);
                   const isHoliday = holiday && !holiday.isWorkday;
+                  const isWeekend = cell.date.getDay() === 0 || cell.date.getDay() === 6;
 
                   let cellBgStyle = cell.isCurrentMonth 
-                    ? 'bg-slate-50/50 hover:bg-slate-100/50 dark:bg-slate-900/40 dark:hover:bg-slate-800/40 border-slate-100 dark:border-slate-800/80' 
+                    ? isWeekend
+                      ? 'bg-slate-100/50 hover:bg-slate-200/50 dark:bg-slate-850/40 dark:hover:bg-slate-800/40 border-slate-200/70 dark:border-slate-800/80'
+                      : 'bg-slate-50/50 hover:bg-slate-100/50 dark:bg-slate-900/40 dark:hover:bg-slate-800/40 border-slate-100 dark:border-slate-800/80' 
                     : 'bg-white/10 dark:bg-slate-950/5 opacity-40 border-transparent pointer-events-none';
                   
                   if (cell.isCurrentMonth && isHoliday) {
@@ -750,7 +809,15 @@ export default function DashboardPage() {
                       onClick={() => handleDayClick(cell.date)}
                       className={`min-h-[90px] p-1.5 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between ${cellBgStyle} ${isToday ? 'ring-2 ring-purple-500 dark:ring-purple-400 ring-offset-2 dark:ring-offset-slate-950 bg-purple-50/20 dark:bg-purple-950/10' : ''}`}
                     >
-                      <span className={`text-[11px] font-bold self-start ${isToday ? 'text-purple-600 dark:text-purple-400' : isHoliday ? 'text-rose-600 dark:text-rose-400' : 'text-slate-400 dark:text-slate-500'}`}>
+                      <span className={`text-[11px] font-bold self-start ${
+                        isToday 
+                          ? 'text-purple-600 dark:text-purple-400' 
+                          : isHoliday 
+                            ? 'text-rose-600 dark:text-rose-400' 
+                            : isWeekend
+                              ? 'text-slate-550 dark:text-slate-400'
+                              : 'text-slate-400 dark:text-slate-500'
+                      }`}>
                         {cell.date.getDate()}
                       </span>
                       <div className="flex-1 w-full space-y-1 mt-1">
@@ -803,6 +870,9 @@ export default function DashboardPage() {
               {getDaysInWeek(calendarDate).map((day, idx) => {
                 const leaves = getLeavesForDay(day);
                 const isToday = day.toDateString() === new Date().toDateString();
+                const holiday = getHolidayForDay(day);
+                const isHoliday = holiday && !holiday.isWorkday;
+                const isWeekend = day.getDay() === 0 || day.getDay() === 6;
                 const weekDaysTh = ["อา.", "จ.", "อ.", "พ.", "พฤ.", "ศ.", "ส."];
                 const weekDaysEn = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
                 return (
@@ -811,16 +881,25 @@ export default function DashboardPage() {
                     className={`p-4 rounded-2xl border flex flex-col gap-3 min-h-[300px] ${
                       isToday 
                         ? 'bg-purple-50/20 dark:bg-purple-950/10 border-purple-200 dark:border-purple-900/50 shadow-sm'
-                        : 'bg-slate-50/50 dark:bg-slate-900/40 border-slate-100 dark:border-slate-800'
+                        : isHoliday
+                          ? 'bg-rose-50/40 dark:bg-rose-950/10 border-rose-200 dark:border-rose-900/30 shadow-sm'
+                          : isWeekend
+                            ? 'bg-slate-100/40 dark:bg-slate-850/20 border-slate-205 dark:border-slate-800'
+                            : 'bg-slate-50/50 dark:bg-slate-900/40 border-slate-100 dark:border-slate-800'
                     }`}
                   >
                     <div className="border-b border-slate-100 dark:border-slate-850 pb-2 flex flex-col items-center">
-                      <span className="text-xs font-bold text-slate-400 dark:text-slate-500">
+                      <span className={`text-xs font-bold ${day.getDay() === 0 || day.getDay() === 6 ? 'text-rose-500/80 dark:text-rose-400/80' : 'text-slate-400 dark:text-slate-500'}`}>
                         {lang === "en" ? weekDaysEn[day.getDay()] : weekDaysTh[day.getDay()]}
                       </span>
-                      <span className={`text-2xl font-bold mt-0.5 ${isToday ? 'text-purple-600 dark:text-purple-400' : 'text-slate-800 dark:text-slate-200'}`}>
+                      <span className={`text-2xl font-bold mt-0.5 ${isToday ? 'text-purple-600 dark:text-purple-400' : isHoliday ? 'text-rose-600 dark:text-rose-400' : 'text-slate-800 dark:text-slate-200'}`}>
                         {day.getDate()}
                       </span>
+                      {isHoliday && (
+                        <span className="text-[9px] bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 font-bold px-1.5 py-0.5 rounded-md mt-1 truncate max-w-full text-center" title={holiday.name}>
+                          {holiday.name}
+                        </span>
+                      )}
                     </div>
                     <div className="flex-1 space-y-2 overflow-y-auto max-h-[220px] pr-1.5 custom-scrollbar">
                       {leaves.length === 0 ? (
@@ -899,21 +978,22 @@ export default function DashboardPage() {
                         {days.map((cell, dIdx) => {
                           const leaves = getLeavesForDay(cell.date);
                           const isToday = cell.date.toDateString() === new Date().toDateString();
-                          
                           const holiday = getHolidayForDay(cell.date);
                           const isHoliday = holiday && !holiday.isWorkday;
+                          const isWeekend = cell.date.getDay() === 0 || cell.date.getDay() === 6;
 
                           let cellBgClass = "bg-transparent text-slate-350 dark:text-slate-600 pointer-events-none opacity-20";
                           let cellBorderClass = "border-transparent";
                           if (cell.isCurrentMonth) {
                             if (isHoliday) {
-                              cellBgClass = "bg-rose-50 dark:bg-rose-950/20 text-rose-600 dark:text-rose-400 font-bold hover:bg-rose-100 dark:hover:bg-rose-900/40 cursor-pointer";
-                              cellBorderClass = "border-rose-100 dark:border-rose-900/30";
+                              cellBgClass = "bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-250 font-bold hover:bg-rose-200 dark:hover:bg-rose-900/80 cursor-pointer";
+                              cellBorderClass = "border-rose-200 dark:border-rose-900/40";
                             } else if (leaves.length > 0) {
-                              const firstType = leaves[0].type;
-                              const style = getLeaveColorClass(firstType);
-                              cellBgClass = `${style.bg} cursor-pointer`;
-                              cellBorderClass = "border-transparent";
+                              cellBgClass = "bg-indigo-100 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-250 font-bold hover:bg-indigo-200 dark:hover:bg-indigo-900/80 cursor-pointer";
+                              cellBorderClass = "border-indigo-200 dark:border-indigo-900/40";
+                            } else if (isWeekend) {
+                              cellBgClass = "bg-slate-100/60 dark:bg-slate-900/60 text-slate-500 dark:text-slate-400 hover:bg-slate-200/70 dark:hover:bg-slate-800 cursor-pointer";
+                              cellBorderClass = "border-slate-150 dark:border-slate-850/80";
                             } else {
                               cellBgClass = "bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer";
                               cellBorderClass = "border-slate-100 dark:border-slate-850";
@@ -943,6 +1023,388 @@ export default function DashboardPage() {
                   );
                 });
               })()}
+            </div>
+          )}
+        </motion.div>
+      )}
+        </>
+      )}
+
+      {/* Time Attendance Tab Content */}
+      {activeSystemTab === "attendance" && (
+        <motion.div
+          variants={containerVariants}
+          initial="hidden"
+          animate="show"
+          className="space-y-6"
+        >
+          {loadingAttendance ? (
+            <div className="flex flex-col items-center justify-center min-h-[45vh] bg-white/50 dark:bg-slate-900/40 backdrop-blur-xl border border-white/60 dark:border-slate-800/80 rounded-3xl p-8">
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                className="w-12 h-12 border-4 border-purple-200 border-t-purple-500 rounded-full"
+              />
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-4 font-semibold tracking-wide animate-pulse">
+                {lang === "en" ? "Loading attendance statistics..." : "กำลังโหลดข้อมูลสถิติการลงเวลา..."}
+              </p>
+            </div>
+          ) : viewMode === "school" ? (
+            <>
+              {/* KPI Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                {[
+                  {
+                    title: lang === "en" ? "On Time" : "มาปกติ",
+                    value: `${schoolAttendanceStats?.summary?.present ?? 0} ${t("persons")}`,
+                    icon: UserCheck,
+                    color: "text-emerald-500 dark:text-emerald-400",
+                    bg: "bg-emerald-50 dark:bg-emerald-500/10",
+                    pct: schoolAttendanceStats?.summary?.total ? Math.round(((schoolAttendanceStats?.summary?.present ?? 0) / schoolAttendanceStats.summary.total) * 100) : 0
+                  },
+                  {
+                    title: lang === "en" ? "Late" : "มาสาย",
+                    value: `${schoolAttendanceStats?.summary?.late ?? 0} ${t("persons")}`,
+                    icon: Clock,
+                    color: "text-amber-500 dark:text-amber-400",
+                    bg: "bg-amber-50 dark:bg-amber-500/10",
+                    pct: schoolAttendanceStats?.summary?.total ? Math.round(((schoolAttendanceStats?.summary?.late ?? 0) / schoolAttendanceStats.summary.total) * 100) : 0
+                  },
+                  {
+                    title: lang === "en" ? "On Leave" : "ลาหยุดวันนี้",
+                    value: `${schoolAttendanceStats?.summary?.leave ?? 0} ${t("persons")}`,
+                    icon: Calendar,
+                    color: "text-purple-500 dark:text-purple-400",
+                    bg: "bg-purple-50 dark:bg-purple-500/10",
+                    pct: schoolAttendanceStats?.summary?.total ? Math.round(((schoolAttendanceStats?.summary?.leave ?? 0) / schoolAttendanceStats.summary.total) * 100) : 0
+                  },
+                  {
+                    title: lang === "en" ? "Pending Scan" : "ยังไม่ลงชื่อ",
+                    value: `${schoolAttendanceStats?.summary?.pending ?? 0} ${t("persons")}`,
+                    icon: AlertCircle,
+                    color: "text-rose-500 dark:text-rose-400",
+                    bg: "bg-rose-50 dark:bg-rose-500/10",
+                    pct: schoolAttendanceStats?.summary?.total ? Math.round(((schoolAttendanceStats?.summary?.pending ?? 0) / schoolAttendanceStats.summary.total) * 100) : 0
+                  }
+                ].map((kpi, i) => (
+                  <motion.div key={i} variants={itemVariants} className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white/60 dark:border-slate-800 rounded-3xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_15px_40px_rgb(0,0,0,0.08)] dark:hover:shadow-none transition-all duration-300">
+                    <div className="flex items-center gap-4">
+                      <div className={`w-12 h-12 rounded-2xl ${kpi.bg} flex items-center justify-center shrink-0`}>
+                        <kpi.icon className={`w-6 h-6 ${kpi.color}`} />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 truncate">{kpi.title}</p>
+                        <p className="text-2xl font-bold text-slate-900 dark:text-white mt-1 truncate">{kpi.value}</p>
+                        <p className="text-[10px] text-slate-405 dark:text-slate-500 mt-0.5">{kpi.pct}% {lang === "en" ? "of total staff" : "ของบุคลากรทั้งหมด"}</p>
+                      </div>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+
+              {/* Complex Layout: Donut Chart + Lists */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Today Ratio Pie/Donut Chart */}
+                <motion.div variants={itemVariants} className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white/60 dark:border-slate-800 rounded-3xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] lg:col-span-1 flex flex-col items-center justify-center min-h-[360px]">
+                  <h3 className="text-sm font-bold text-slate-850 dark:text-white mb-4 self-start">
+                    {lang === "en" ? "Today's Attendance Ratio" : "อัตราส่วนการลงชื่อวันนี้"}
+                  </h3>
+                  
+                  <div className="relative flex items-center justify-center my-4">
+                    <svg width="180" height="180" viewBox="0 0 180 180" className="transform -rotate-90">
+                      {/* Background Circle */}
+                      <circle cx="90" cy="90" r="70" fill="transparent" stroke="#F1F5F9" strokeWidth="18" className="dark:stroke-slate-800/60" />
+                      {/* Segment Drawings */}
+                      {(() => {
+                        const total = schoolAttendanceStats?.summary?.total || 1;
+                        let offset = 0;
+                        const slices = [
+                          { val: schoolAttendanceStats?.summary?.present || 0, color: "#10B981" }, // Emerald - Present
+                          { val: schoolAttendanceStats?.summary?.late || 0, color: "#F59E0B" },    // Amber - Late
+                          { val: schoolAttendanceStats?.summary?.leave || 0, color: "#8B5CF6" },   // Purple - Leave
+                          { val: schoolAttendanceStats?.summary?.pending || 0, color: "#EF4444" }  // Rose - Pending
+                        ];
+                        const circ = 439.82;
+                        return slices.map((s, idx) => {
+                          if (s.val === 0) return null;
+                          const size = (s.val / total) * circ;
+                          const currOffset = offset;
+                          offset += size;
+                          return (
+                            <circle
+                              key={idx}
+                              cx="90"
+                              cy="90"
+                              r="70"
+                              fill="transparent"
+                              stroke={s.color}
+                              strokeWidth="18"
+                              strokeDasharray={`${size} ${circ}`}
+                              strokeDashoffset={-currOffset}
+                              strokeLinecap="round"
+                              className="transition-all duration-500 ease-in-out"
+                            />
+                          );
+                        });
+                      })()}
+                    </svg>
+                    <div className="absolute flex flex-col items-center">
+                      <span className="text-3xl font-black text-slate-850 dark:text-white">
+                        {schoolAttendanceStats?.summary?.total ?? 0}
+                      </span>
+                      <span className="text-[9px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider">
+                        {lang === "en" ? "Total Staff" : "บุคลากรทั้งหมด"}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Legend Grid */}
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-2 mt-4 w-full text-xs">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                      <span className="text-slate-650 dark:text-slate-400 font-medium truncate">
+                        {lang === "en" ? "On Time" : "ตรงเวลา"}: <strong>{schoolAttendanceStats?.summary?.present ?? 0}</strong>
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
+                      <span className="text-slate-650 dark:text-slate-400 font-medium truncate">
+                        {lang === "en" ? "Late" : "สาย"}: <strong>{schoolAttendanceStats?.summary?.late ?? 0}</strong>
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-purple-500" />
+                      <span className="text-slate-650 dark:text-slate-400 font-medium truncate">
+                        {lang === "en" ? "On Leave" : "ลา"}: <strong>{schoolAttendanceStats?.summary?.leave ?? 0}</strong>
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-rose-500" />
+                      <span className="text-slate-650 dark:text-slate-400 font-medium truncate">
+                        {lang === "en" ? "Pending" : "ยังไม่สแกน"}: <strong>{schoolAttendanceStats?.summary?.pending ?? 0}</strong>
+                      </span>
+                    </div>
+                  </div>
+                </motion.div>
+
+                {/* Late List Widget */}
+                <motion.div variants={itemVariants} className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white/60 dark:border-slate-800 rounded-3xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] lg:col-span-1 flex flex-col min-h-[360px] max-h-[360px]">
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-sm font-bold text-slate-850 dark:text-white flex items-center gap-1.5">
+                      <Clock className="w-4.5 h-4.5 text-amber-500" />
+                      {lang === "en" ? "Lates Today" : "รายชื่อผู้ลงชื่อสายวันนี้"}
+                    </h3>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-amber-55/60 text-amber-700 dark:bg-amber-950/20 dark:text-amber-400 border border-amber-100 dark:border-amber-900/30">
+                      {schoolAttendanceStats?.lateList?.length ?? 0} {lang === "en" ? "Persons" : "คน"}
+                    </span>
+                  </div>
+                  
+                  <div className="overflow-y-auto flex-1 space-y-2.5 pr-1">
+                    {!schoolAttendanceStats?.lateList || schoolAttendanceStats.lateList.length === 0 ? (
+                      <div className="h-full flex flex-col items-center justify-center text-center text-slate-400 dark:text-slate-500 py-10">
+                        <UserCheck className="w-10 h-10 stroke-1.5 mb-2 text-emerald-450 dark:text-emerald-600" />
+                        <p className="text-xs font-semibold">{lang === "en" ? "No late sign-ins today!" : "วันนี้ไม่มีบุคลากรมาสายเลย!"}</p>
+                      </div>
+                    ) : (
+                      schoolAttendanceStats.lateList.map((a: any, index: number) => (
+                        <div key={index} className="p-3 bg-slate-50/50 dark:bg-slate-900/30 border border-slate-100 dark:border-slate-800 rounded-2xl flex items-center justify-between gap-2">
+                          <div className="min-w-0">
+                            <span className="font-bold text-xs text-slate-850 dark:text-white block truncate">{a.name}</span>
+                            <span className="text-[10px] text-slate-400 block mt-0.5 truncate">{a.subjectGroup}</span>
+                          </div>
+                          <span className="shrink-0 text-[10px] font-bold text-rose-600 dark:text-rose-450 bg-rose-55/10 dark:bg-rose-950/30 border border-rose-100 dark:border-rose-900/20 px-2 py-1 rounded-xl flex items-center gap-1">
+                            <Clock className="w-3.5 h-3.5" />
+                            {a.checkIn} {lang === "en" ? "Late" : "น. (สาย)"}
+                          </span>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </motion.div>
+
+                {/* Pending List Widget */}
+                <motion.div variants={itemVariants} className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white/60 dark:border-slate-800 rounded-3xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] lg:col-span-1 flex flex-col min-h-[360px] max-h-[360px]">
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-sm font-bold text-slate-850 dark:text-white flex items-center gap-1.5">
+                      <AlertCircle className="w-4.5 h-4.5 text-rose-500" />
+                      {lang === "en" ? "Not Checked In Yet" : "ยังไม่ได้ลงเวลาทำงานวันนี้"}
+                    </h3>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-rose-55/60 text-rose-700 dark:bg-rose-950/20 dark:text-rose-400 border border-rose-100 dark:border-rose-900/30">
+                      {schoolAttendanceStats?.pendingList?.length ?? 0} {lang === "en" ? "Persons" : "คน"}
+                    </span>
+                  </div>
+                  
+                  <div className="overflow-y-auto flex-1 space-y-2.5 pr-1">
+                    {!schoolAttendanceStats?.pendingList || schoolAttendanceStats.pendingList.length === 0 ? (
+                      <div className="h-full flex flex-col items-center justify-center text-center text-slate-400 dark:text-slate-500 py-10">
+                        <CheckCircle2 className="w-10 h-10 stroke-1.5 mb-2 text-emerald-450 dark:text-emerald-600" />
+                        <p className="text-xs font-semibold">{lang === "en" ? "Everyone has signed in!" : "บุคลากรทุกคนลงเวลาเข้างานครบแล้ว!"}</p>
+                      </div>
+                    ) : (
+                      schoolAttendanceStats.pendingList.map((u: any, index: number) => (
+                        <div key={index} className="p-3 bg-slate-50/50 dark:bg-slate-900/30 border border-slate-100 dark:border-slate-800 rounded-2xl flex items-center justify-between gap-2">
+                          <div className="min-w-0">
+                            <span className="font-bold text-xs text-slate-850 dark:text-white block truncate">{u.name}</span>
+                            <span className="text-[10px] text-slate-400 block mt-0.5 truncate">{u.position}</span>
+                          </div>
+                          <span className="shrink-0 text-[9px] font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-xl">
+                            {u.subjectGroup}
+                          </span>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </motion.div>
+              </div>
+
+              {/* CTA to Stats Page */}
+              <motion.div variants={itemVariants} className="flex justify-end mt-2">
+                <Link
+                  href="/attendance/stats"
+                  className="px-6 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-750 text-white font-bold text-xs flex items-center gap-2 transition-all shadow-md shadow-indigo-600/10 hover:scale-[1.01] active:scale-95 cursor-pointer"
+                >
+                  <Activity className="w-4.5 h-4.5" />
+                  {lang === "en" ? "View Detailed Attendance Statistics →" : "ดูประวัติและรายงานการลงเวลาอย่างละเอียด →"}
+                </Link>
+              </motion.div>
+            </>
+          ) : (
+            /* PERSONAL TODAY ATTENDANCE VIEW */
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Today Status Card */}
+              <motion.div variants={itemVariants} className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white/60 dark:border-slate-800 rounded-3xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] lg:col-span-2 flex flex-col justify-between min-h-[280px]">
+                <div>
+                  <div className="flex flex-col md:flex-row md:justify-between md:items-start gap-4">
+                    <div>
+                      <h3 className="text-lg font-black text-slate-900 dark:text-white">
+                        {lang === "en" ? "Today's Work Log" : "การลงชื่อเข้างานวันนี้"}
+                      </h3>
+                      <p className="text-xs text-slate-400 mt-1">
+                        {new Date().toLocaleDateString(lang === "th" ? "th-TH" : "en-US", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
+                      </p>
+                    </div>
+                    {personalAttendanceToday?.workShift && (
+                      <span className="px-3 py-1.5 rounded-2xl text-[10px] font-bold bg-indigo-55/10 text-indigo-700 dark:bg-indigo-950/20 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-900/30 w-fit">
+                        {lang === "en" ? "Shift" : "กะเวลา"}: {personalAttendanceToday.workShift.name} ({personalAttendanceToday.workShift.startTime} - {personalAttendanceToday.workShift.endTime})
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Clock Status Details */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
+                    {/* Clock In */}
+                    <div className="p-4 bg-slate-50/50 dark:bg-slate-900/30 border border-slate-100 dark:border-slate-800 rounded-2xl flex flex-col gap-2 relative overflow-hidden">
+                      <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
+                        {lang === "en" ? "Clock In" : "เวลาเข้างาน"}
+                      </span>
+                      {personalAttendanceToday?.checkInTime ? (
+                        <div className="flex flex-col">
+                          <span className="text-3xl font-black text-emerald-600 dark:text-emerald-400">
+                            {new Date(personalAttendanceToday.checkInTime).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Bangkok" })} น.
+                          </span>
+                          <div className="flex items-center gap-1.5 mt-2">
+                            <span className={`px-2 py-0.5 rounded-xl text-[9px] font-bold ${
+                              personalAttendanceToday.status === "LATE"
+                                ? "bg-rose-55/10 text-rose-700 dark:bg-rose-950/20 dark:text-rose-400 border border-rose-100 dark:border-rose-900/30"
+                                : "bg-emerald-55/10 text-emerald-700 dark:bg-emerald-950/20 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-900/30"
+                            }`}>
+                              {personalAttendanceToday.status === "LATE" ? (lang === "en" ? "LATE" : "มาสาย") : (lang === "en" ? "ON TIME" : "ตรงเวลา")}
+                            </span>
+                            {personalAttendanceToday.latitude && (
+                              <span className="text-[9px] text-slate-400 font-semibold flex items-center gap-0.5">
+                                <MapPin className="w-3 h-3 text-slate-400" />
+                                {lang === "en" ? "GPS" : "GPS"}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col py-2">
+                          <span className="text-sm font-bold text-slate-400 italic">
+                            {lang === "en" ? "Not Checked In" : "ยังไม่สแกนเข้างาน"}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Clock Out */}
+                    <div className="p-4 bg-slate-50/50 dark:bg-slate-900/30 border border-slate-100 dark:border-slate-800 rounded-2xl flex flex-col gap-2 relative overflow-hidden">
+                      <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
+                        {lang === "en" ? "Clock Out" : "เวลาเลิกงาน"}
+                      </span>
+                      {personalAttendanceToday?.checkOutTime ? (
+                        <div className="flex flex-col">
+                          <span className="text-3xl font-black text-indigo-650 dark:text-indigo-400">
+                            {new Date(personalAttendanceToday.checkOutTime).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Bangkok" })} น.
+                          </span>
+                          <div className="flex items-center gap-1.5 mt-2">
+                            <span className={`px-2 py-0.5 rounded-xl text-[9px] font-bold ${
+                              personalAttendanceToday.status === "EARLY_OUT"
+                                ? "bg-rose-55/10 text-rose-700 dark:bg-rose-950/20 dark:text-rose-400 border border-rose-100 dark:border-rose-900/30"
+                                : "bg-indigo-55/10 text-indigo-750 dark:bg-indigo-950/20 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-900/30"
+                            }`}>
+                              {personalAttendanceToday.status === "EARLY_OUT" ? (lang === "en" ? "EARLY OUT" : "กลับก่อนเวลา") : (lang === "en" ? "COMPLETED" : "กลับปกติ")}
+                            </span>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col py-2">
+                          <span className="text-sm font-bold text-slate-400 italic text-wrap">
+                            {personalAttendanceToday?.checkInTime 
+                              ? (lang === "en" ? "Pending Clock Out" : "รอสแกนออกงาน")
+                              : (lang === "en" ? "Not Checked In" : "ยังไม่ได้ลงเวลา")}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* If not checked in, show urgent CTA */}
+                {!personalAttendanceToday?.checkInTime && (
+                  <div className="mt-6 flex justify-end">
+                    <Link
+                      href="/attendance"
+                      className="px-6 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs flex items-center gap-2 transition-all shadow-md shadow-indigo-600/20 hover:scale-[1.02] active:scale-95 cursor-pointer"
+                    >
+                      <Fingerprint className="w-5 h-5 text-white animate-pulse" />
+                      {lang === "en" ? "Clock In Now →" : "สแกนนิ้ว / ลงเวลาเข้างานทันที →"}
+                    </Link>
+                  </div>
+                )}
+              </motion.div>
+
+              {/* Quick Actions & Navigation */}
+              <motion.div variants={itemVariants} className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white/60 dark:border-slate-800 rounded-3xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] lg:col-span-1 flex flex-col justify-between min-h-[280px]">
+                <div>
+                  <h3 className="text-sm font-bold text-slate-850 dark:text-white flex items-center gap-1.5 mb-4">
+                    <Activity className="w-4.5 h-4.5 text-indigo-500" />
+                    {lang === "en" ? "Attendance Shortcuts" : "ทางลัดลงเวลาทำงาน"}
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-450 leading-relaxed mb-6">
+                    {lang === "en" 
+                      ? "You can view your history logs, print reports, or scan in/out for daily shifting."
+                      : "คุณสามารถสแกนเวลาเข้าออกงาน ตรวจสอบประวัติการเข้างานรายเดือน หรือพิมพ์สถิติการมาปฏิบัติราชการเพื่อประกอบรายงาน"}
+                  </p>
+                </div>
+                
+                <div className="space-y-3">
+                  <Link
+                    href="/attendance"
+                    className="w-full py-3 rounded-2xl border border-indigo-250/80 text-indigo-600 hover:bg-indigo-50/50 dark:border-indigo-800/40 dark:text-indigo-400 dark:hover:bg-indigo-950/20 text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer"
+                  >
+                    <Fingerprint className="w-4.5 h-4.5" />
+                    {lang === "en" ? "Clock In/Out Dashboard" : "หน้าจอลงเวลาทำงาน"}
+                  </Link>
+                  <Link
+                    href="/history"
+                    className="w-full py-3 rounded-2xl border border-slate-200 text-slate-650 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-350 dark:hover:bg-slate-900/50 text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer"
+                  >
+                    <Calendar className="w-4.5 h-4.5" />
+                    {lang === "en" ? "View Full History" : "ดูประวัติส่วนตัวทั้งหมด"}
+                  </Link>
+                </div>
+              </motion.div>
             </div>
           )}
         </motion.div>

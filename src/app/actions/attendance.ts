@@ -4,7 +4,8 @@ import { getSession } from "@/lib/auth-session";
 import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import { sendLineNotify } from "@/lib/line-notify";
-import { getApprovedLeavesForPeriod, isDateOnLeave } from "./attendance-leave-sync";
+import { getApprovedLeavesForPeriod } from "./attendance-leave-sync";
+import { isDateOnLeave } from "@/lib/attendance-utils";
 import crypto from "crypto";
 
 // ──────────────────────────────────────────────
@@ -23,6 +24,16 @@ async function requireAdmin() {
   const user = session.user as Record<string, unknown>;
   const isAdmin = user.role === "ADMIN" || user.position === "แอดมิน";
   if (!isAdmin) throw new Error("Unauthorized");
+  return session;
+}
+
+async function checkHRorAdminPermission() {
+  const session = await getSession();
+  if (!session?.user) throw new Error("Unauthorized");
+  const user = session.user as Record<string, unknown>;
+  const isAdmin = user.role === "ADMIN" || user.position === "แอดมิน";
+  const isHR = user.position === "หัวหน้างานบุคคล" || user.position === "เจ้าหน้าที่บุคคล" || user.role === "HR_HEAD" || user.role === "HR_STAFF";
+  if (!isAdmin && !isHR) throw new Error("Permission denied");
   return session;
 }
 
@@ -354,7 +365,16 @@ export async function clockIn(payload: ClockPayload) {
     if (shift) {
       const [shiftH, shiftM] = shift.startTime.split(":").map(Number);
       const shiftStartMinutes = shiftH * 60 + shiftM;
-      const currentMinutes = now.getHours() * 60 + now.getMinutes();
+      
+      const bangkokTimeStr = now.toLocaleTimeString("en-US", {
+        timeZone: "Asia/Bangkok",
+        hour12: false,
+        hour: "2-digit",
+        minute: "2-digit"
+      });
+      const [bangkokH, bangkokM] = bangkokTimeStr.split(":").map(Number);
+      const currentMinutes = bangkokH * 60 + bangkokM;
+
       if (currentMinutes > shiftStartMinutes + shift.lateThreshold) {
         status = "LATE";
       }
@@ -472,7 +492,15 @@ export async function clockOut(payload: ClockPayload) {
   if (attendance.workShift) {
     const [endH, endM] = attendance.workShift.endTime.split(":").map(Number);
     const endMinutes = endH * 60 + endM;
-    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+    
+    const bangkokTimeStr = now.toLocaleTimeString("en-US", {
+      timeZone: "Asia/Bangkok",
+      hour12: false,
+      hour: "2-digit",
+      minute: "2-digit"
+    });
+    const [bangkokH, bangkokM] = bangkokTimeStr.split(":").map(Number);
+    const currentMinutes = bangkokH * 60 + bangkokM;
 
     // For overnight shifts, adjust calculation
     let adjustedCurrent = currentMinutes;
@@ -822,7 +850,16 @@ export async function getAttendanceKPI(params: { startDate: string; endDate: str
       .reduce((sum, r) => {
         const [h, m] = r.workShift!.startTime.split(":").map(Number);
         const shiftStart = h * 60 + m;
-        const checkIn = r.checkInTime!.getHours() * 60 + r.checkInTime!.getMinutes();
+        
+        const checkInTimeStr = r.checkInTime!.toLocaleTimeString("en-US", {
+          timeZone: "Asia/Bangkok",
+          hour12: false,
+          hour: "2-digit",
+          minute: "2-digit"
+        });
+        const [checkInH, checkInM] = checkInTimeStr.split(":").map(Number);
+        const checkIn = checkInH * 60 + checkInM;
+
         return sum + Math.max(0, checkIn - shiftStart);
       }, 0);
     avgDelayMinutes = Math.round(totalDelay / lateCount);
@@ -982,4 +1019,84 @@ export async function verifyLogChain(attendanceId: string) {
   }
 
   return { valid: true, count: logs.length };
+}
+
+// ──────────────────────────────────────────────
+// Admin/HR: Official Duty (ไปราชการ) Management
+// ──────────────────────────────────────────────
+
+export async function recordOfficialDuty(data: {
+  userId: string;
+  dateStr: string; // "YYYY-MM-DD"
+}) {
+  const session = await checkHRorAdminPermission();
+  const currentUser = session.user as any;
+  const attendanceDate = new Date(data.dateStr + "T00:00:00.000Z");
+
+  const targetUser = await prisma.user.findUnique({
+    where: { id: data.userId },
+    select: { workShiftId: true }
+  });
+
+  const record = await prisma.attendance.upsert({
+    where: {
+      userId_attendanceDate: {
+        userId: data.userId,
+        attendanceDate
+      }
+    },
+    update: {
+      status: "OFFICIAL_DUTY",
+      workShiftId: targetUser?.workShiftId || null,
+      createdById: currentUser.id
+    },
+    create: {
+      userId: data.userId,
+      attendanceDate,
+      status: "OFFICIAL_DUTY",
+      workShiftId: targetUser?.workShiftId || null,
+      createdById: currentUser.id
+    }
+  });
+
+  revalidatePath("/attendance");
+  revalidatePath("/attendance/stats");
+  revalidatePath("/dashboard");
+  return { success: true, record };
+}
+
+export async function removeOfficialDuty(id: string) {
+  await checkHRorAdminPermission();
+
+  await prisma.attendance.delete({
+    where: { id }
+  });
+
+  revalidatePath("/attendance");
+  revalidatePath("/attendance/stats");
+  revalidatePath("/dashboard");
+  return { success: true };
+}
+
+export async function getOfficialDutyRecords(dateStr?: string) {
+  await checkHRorAdminPermission();
+
+  const where: any = { status: "OFFICIAL_DUTY" };
+  if (dateStr) {
+    where.attendanceDate = new Date(dateStr + "T00:00:00.000Z");
+  }
+
+  return prisma.attendance.findMany({
+    where,
+    include: {
+      user: {
+        select: {
+          id: true,
+          name: true,
+          position: true
+        }
+      }
+    },
+    orderBy: { attendanceDate: "desc" }
+  });
 }

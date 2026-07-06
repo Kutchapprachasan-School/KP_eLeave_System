@@ -28,16 +28,25 @@ async function calculateLeaveDays(startDate: Date, endDate: Date, type: string):
   }
 
   const holidays = await getAllHolidaysMemo();
-  const holidayDates = new Set(
-    holidays
-      .filter(h => !h.isWorkday)
-      .map(h => toUtcDateString(new Date(h.date)))
-  );
-  const specialWorkdayDates = new Set(
-    holidays
-      .filter(h => h.isWorkday)
-      .map(h => toUtcDateString(new Date(h.date)))
-  );
+  const holidayDates = new Set<string>();
+  const specialWorkdayDates = new Set<string>();
+
+  for (const h of holidays) {
+    const cur = new Date(h.startDate);
+    const endH = new Date(h.endDate);
+    const curUTC = new Date(Date.UTC(cur.getUTCFullYear(), cur.getUTCMonth(), cur.getUTCDate()));
+    const endUTC = new Date(Date.UTC(endH.getUTCFullYear(), endH.getUTCMonth(), endH.getUTCDate()));
+    
+    while (curUTC <= endUTC) {
+      const dayStr = toUtcDateString(curUTC);
+      if (h.isWorkday) {
+        specialWorkdayDates.add(dayStr);
+      } else {
+        holidayDates.add(dayStr);
+      }
+      curUTC.setUTCDate(curUTC.getUTCDate() + 1);
+    }
+  }
 
   let count = 0;
   const current = new Date(startUTC);

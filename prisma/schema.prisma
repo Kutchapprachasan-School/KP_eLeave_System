@@ -1,386 +1,887 @@
 generator client {
+
   provider = "prisma-client-js"
+
 }
+
+
 
 datasource db {
+
   provider = "postgresql"
+
 }
+
+
 
 model User {
+
   id            String         @id @default(cuid())
+
   name          String?
+
   email         String         @unique
+
   username      String?        @unique
+
   emailVerified Boolean        @default(false)
+
   image         String?
+
   signatureUrl  String?
+
   isApproved    Boolean        @default(false)
+
   role          String         @default("TEACHER") // ADMIN, TEACHER
+
   position      String? // ครู, หัวหน้าหมวด, ผู้อำนวยการ, แอดมิน
+
   subjectGroup  String?
+
   level         String?
+
   lineUserId    String?
+
   address       String?
+
   phoneNumber   String?
+
   createdAt     DateTime       @default(now())
+
   updatedAt     DateTime       @updatedAt
+
   sessions      Session[]
+
   accounts      Account[]
+
   leaveRequests LeaveRequest[]
+
   documentRecords  DocumentRecord[]
+
   templates        DocumentTemplate[]
+
+
 
   // Attendance & Face Scan Additions
+
   faceProfileUrl   String?
+
   faceDescriptor   Json?
+
   faceConsent      Boolean        @default(false)
+
   faceConsentAt    DateTime?
+
   bypassAttendance Boolean        @default(false)
+
   workShiftId      String?
 
+
+
   // Attendance Relations
+
   workShift          WorkShift?        @relation(fields: [workShiftId], references: [id], onDelete: SetNull)
+
   attendances        Attendance[]      @relation("UserAttendances")
+
   createdAttendances Attendance[]      @relation("AttendanceCreatedBy")
+
   nonces             AttendanceNonce[]
+
+
+
+  // Incoming Document Relations
+
+  createdIncomingDocs IncomingDocument[] @relation("IncomingDocCreator")
+
+  assignedRoutings    DocumentRouting[]  @relation("RoutingAssignee")
+
+  createdRoutings     DocumentRouting[]  @relation("RoutingAssigner")
+
 }
+
+
 
 model Session {
+
   id        String   @id @default(cuid())
+
   userId    String
+
   token     String   @unique
+
   expiresAt DateTime
+
   ipAddress String?
+
   userAgent String?
+
   createdAt DateTime @default(now())
+
   updatedAt DateTime @updatedAt
 
+
+
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
 }
+
+
 
 model Account {
+
   id                    String    @id @default(cuid())
+
   userId                String
+
   accountId             String
+
   providerId            String
+
   accessToken           String?
+
   refreshToken          String?
+
   accessTokenExpiresAt  DateTime?
+
   refreshTokenExpiresAt DateTime?
+
   scope                 String?
+
   password              String?
+
   createdAt             DateTime  @default(now())
+
   updatedAt             DateTime  @updatedAt
 
+
+
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
 }
+
+
 
 model LeaveRequest {
+
   id             String   @id @default(cuid())
+
   userId         String
+
   type           String // SICK, PERSONAL, VACATION
+
   startDate      DateTime
+
   endDate        DateTime
+
   reason         String
+
   status         String   @default("PENDING") // PENDING_HEAD, PENDING_EXEC, APPROVED, REJECTED
+
   documentUrl    String?
+
   headApproverId String?
+
   execApproverId String?
+
   rejectReason   String?
+
   extraFields    String?
+
   fiscalYear     Int?
+
   pendingSeq     Int?
+
   approvedSeq    Int?
+
   createdAt      DateTime @default(now())
+
   updatedAt      DateTime @updatedAt
 
+
+
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
 }
+
+
 
 model SystemSettings {
+
   id                     String   @id @default("default")
+
   schoolName             String   @default("ชื่อโรงเรียน")
+
   affiliation            String   @default("สำนักงานเขตพื้นที่การศึกษามัธยมศึกษาอุดรธานี")
+
   subheader              String   @default("ระบบจัดการการลา")
+
   logoUrl                String?
+
   footerText             String   @default("© 2026 ระบบการลา")
+
   developerSecret        String   @default("admin1234") // Default secret
+
   lineChannelAccessToken String?
+
   lineTargetGroupId      String?
+
   enableLineNotify       Boolean  @default(true)
+
   leaveRules             String   @default("การลากิจต้องยื่นคำขอล่วงหน้าอย่างน้อย 3 วันทำการ\nการลาป่วยติดต่อกันเกิน 3 วัน ต้องแนบใบรับรองแพทย์\nระบบจะส่งแจ้งเตือนให้หัวหน้าหมวดของท่านพิจารณาเป็นลำดับแรก")
+
   requirePersonalAdvance Boolean  @default(true)
+
   memoThresholdTimes     Int      @default(6)
+
   memoThresholdDays      Int      @default(15)
+
   defaultInspectorId     String?
+
   actingDirectorTitle    String   @default("รักษาการในตำแหน่งผู้อำนวยการโรงเรียน")
+
   finalApproverUserIds   String   @default("") // Comma-separated user IDs allowed to give final approval (in addition to ผู้บริหาร)
+
   showActingDirectorTitle Boolean @default(true) // Toggle display of acting director title on printed forms
+
   pdfFont                String   @default("Prompt") // Google Font for leave form: Prompt, Sarabun, Taviraj, Noto Sans Thai, Kanit
+
   googleDriveFormat      String   @default("PDF") // Upload format to Google Drive: PDF, JPG
+
   lastLeaveMode          String   @default("SAME")
+
   quotaExceededAction    String   @default("ALLOW_WITH_MEMO")
+
   rolePermissions        String   @default("{\"calendar\":[\"ADMIN\",\"DIRECTOR\",\"HR\",\"INSPECTOR\",\"TEACHER\"],\"reports\":[\"ADMIN\",\"DIRECTOR\",\"HR\",\"INSPECTOR\"],\"approvals\":[\"ADMIN\",\"DIRECTOR\",\"HR\",\"INSPECTOR\"],\"logs\":[\"ADMIN\"],\"backups\":[\"ADMIN\"],\"users\":[\"ADMIN\"],\"settings\":[\"ADMIN\"]}")
+
   
+
   // Attendance & Face Scan settings
+
   enableAttendance     Boolean  @default(false)
+
+  enableDocument       Boolean  @default(false)
+
+  timezone             String   @default("Asia/Bangkok")
+
   attendanceLatitude   Float?
+
   attendanceLongitude  Float?
+
   attendanceRadius     Float?
+
   requireFaceScan      Boolean  @default(false)
+
   requireGeofence      Boolean  @default(false)
+
   requireLivenessCheck Boolean  @default(false)
+
   photoRetentionDays   Int?
+
   faceMatchThreshold   Float    @default(0.65)
+
   enableAdvancedKPI    Boolean  @default(true)
+  iappApiKey           String   @default("")
+
+
 
   updatedAt              DateTime @updatedAt
+
 }
+
+
 
 model LeaveConfig {
+
   id               String   @id @default(cuid())
+
   type             String   @unique
+
   name             String
+
   maxDaysPerYear   Int      @default(0)
+
   warningThreshold Int      @default(3) // เตือนเมื่อเหลือน้อยกว่านี้
+
   isActive         Boolean  @default(true)
+
   createdAt        DateTime @default(now())
+
   updatedAt        DateTime @updatedAt
+
 }
+
+
 
 model SystemLog {
+
   id          String   @id @default(cuid())
+
   actionType  String // e.g., "CREATE_LEAVE", "APPROVE_LEAVE", "UPDATE_SETTINGS"
+
   description String
+
   userId      String
+
   createdAt   DateTime @default(now())
+
 }
+
+
 
 model LeaveArchive {
+
   id         String   @id @default(cuid())
+
   cycleLabel String // e.g., "รอบ 1/2569 (1 ต.ค. 68 - 31 มี.ค. 69)"
+
   cycleStart DateTime
+
   cycleEnd   DateTime
+
   data       String // JSON array of archived leave summaries
+
   totalStaff Int      @default(0)
+
   totalDays  Int      @default(0)
+
   archivedBy String // userId of admin who archived
+
   createdAt  DateTime @default(now())
+
 }
+
+
 
 model SystemBackup {
+
   id        String   @id @default(cuid())
+
   label     String // e.g., "Backup 19/05/2569"
+
   data      String // JSON of full system snapshot
+
   createdBy String // userId
+
   createdAt DateTime @default(now())
+
 }
+
+
 
 model MemoSection {
+
   id               String             @id @default(cuid())
+
   name             String
+
   code             String             @unique
+
   isActive         Boolean            @default(true)
+
+  color            String             @default("#6366f1")  // Hex color for UI
+
+  icon             String             @default("Folder")   // Lucide icon name
+
+  sortOrder        Int                @default(0)
+
   createdAt        DateTime           @default(now())
+
   updatedAt        DateTime           @updatedAt
+
   
+
   documentConfigs  DocumentConfig[]
+
   documentRecords  DocumentRecord[]
+
   templates        DocumentTemplate[]
+
+  incomingDocuments IncomingDocument[]
+
 }
+
+
 
 model DocumentConfig {
+
   id               String             @id @default(cuid())
+
   docType          String             // MEMO, COMMAND, OUTGOING
+
   memoSectionId    String?            @unique
+
   prefix           String             @default("")
+
   useThaiNumerals  Boolean            @default(true)
+
   paddingDigits    Int                @default(1)
+
   yearFormat       String             @default("TH_BE")
+
   currentSeq       Int                @default(0)
+
   createdAt        DateTime           @default(now())
+
   updatedAt        DateTime           @updatedAt
+
+
 
   memoSection      MemoSection?       @relation(fields: [memoSectionId], references: [id], onDelete: Cascade)
+
 }
+
+
 
 model DocumentRecord {
+
   id               String             @id @default(cuid())
+
   docType          String             // MEMO, COMMAND, OUTGOING
+
   memoSectionId    String?
+
   docNo            String?            @unique
+
   seqNo            Int?
+
   year             Int
+
   title            String
+
   to               String
+
   origin           String
+
   date             DateTime
+
   content          String             @db.Text
+
   signeeName       String
+
   signeePosition   String
+
   enclosures       String?
+
   references       String?
+
   status           String             @default("DRAFT") // DRAFT, ISSUED, PRINTED, CANCELLED, RESERVED
+
   cancelReason     String?
+
   isPinned         Boolean            @default(false)
+
+  requester        String?            // ผู้ปฏิบัติ/ผู้ขอ
+
+  department       String?            // ส่วนราชการเจ้าของเรื่อง
+
   createdById      String
+
   createdAt        DateTime           @default(now())
+
   updatedAt        DateTime           @updatedAt
 
+
+
   user             User               @relation(fields: [createdById], references: [id], onDelete: Cascade)
+
   memoSection      MemoSection?       @relation(fields: [memoSectionId], references: [id], onDelete: SetNull)
+
   outgoingLinks    DocumentRelation[] @relation("FromDocument")
+
   incomingLinks    DocumentRelation[] @relation("ToDocument")
+
 }
+
+
 
 model SigneePreset {
+
   id               String             @id @default(cuid())
+
   name             String
+
   position         String
+
   isCommon         Boolean            @default(true)
+
   createdAt        DateTime           @default(now())
+
   updatedAt        DateTime           @updatedAt
+
 }
+
+
 
 model DocumentTemplate {
+
   id               String             @id @default(cuid())
+
   name             String
+
   docType          String             // MEMO, COMMAND, OUTGOING
+
   memoSectionId    String?
+
   title            String
+
   to               String
+
   origin           String
+
   content          String             @db.Text
+
   signeeName       String
+
   signeePosition   String
+
   isPublic         Boolean            @default(true)
+
   createdById      String
+
   createdAt        DateTime           @default(now())
+
   updatedAt        DateTime           @updatedAt
 
+
+
   memoSection      MemoSection?       @relation(fields: [memoSectionId], references: [id], onDelete: SetNull)
+
   user             User               @relation(fields: [createdById], references: [id], onDelete: Cascade)
+
 }
+
+
 
 model DocumentRelation {
+
   id               String             @id @default(cuid())
+
   fromId           String
+
   toId             String
+
   createdAt        DateTime           @default(now())
 
+
+
   fromDoc          DocumentRecord     @relation("FromDocument", fields: [fromId], references: [id], onDelete: Cascade)
+
   toDoc            DocumentRecord     @relation("ToDocument", fields: [toId], references: [id], onDelete: Cascade)
 
+
+
   @@unique([fromId, toId])
+
 }
+
+
 
 enum AttendanceStatus {
+
   PRESENT
+
   LATE
+
   EARLY_OUT
+
   ABSENT
+
   LEAVE
+
   HOLIDAY
+
   OFFICIAL_DUTY
+
 }
+
+
 
 model WorkShift {
+
   id                String       @id @default(cuid())
+
   name              String
+
   startTime         String       // e.g. "08:30"
+
   endTime           String       // e.g. "16:30"
+
   lateThreshold     Int          // minutes
+
   earlyOutThreshold Int          // minutes
+
   isOvernight       Boolean      @default(false)
+
   createdAt         DateTime     @default(now())
+
   updatedAt         DateTime     @updatedAt
 
+
+
   users             User[]
+
   attendances       Attendance[]
+
 }
+
+
 
 model Attendance {
+
   id             String           @id @default(cuid())
+
   userId         String
+
   attendanceDate DateTime         // normalized to midnight UTC
+
   checkInTime    DateTime?
+
   checkOutTime   DateTime?
+
   status         AttendanceStatus
+
   workShiftId    String?
+
   createdById    String?
+
   createdAt      DateTime         @default(now())
+
   updatedAt      DateTime         @updatedAt
 
+
+
   // Relations
+
   user           User             @relation("UserAttendances", fields: [userId], references: [id], onDelete: Cascade)
+
   createdBy      User?            @relation("AttendanceCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
   workShift      WorkShift?       @relation(fields: [workShiftId], references: [id], onDelete: SetNull)
+
   photos         AttendancePhoto[]
+
   logs           AttendanceLog[]
 
+
+
   // Indexes
+
   @@index([userId])
+
   @@index([attendanceDate])
+
   @@index([status])
+
   @@unique([userId, attendanceDate])
+
 }
+
+
 
 model AttendancePhoto {
+
   id               String      @id @default(cuid())
+
   attendanceId     String
+
   photoUrl         String
+
   faceMatchScore   Float?
+
   isLivenessPassed Boolean     @default(false)
+
   createdAt        DateTime    @default(now())
 
+
+
   // Relations
+
   attendance       Attendance  @relation(fields: [attendanceId], references: [id], onDelete: Cascade)
 
+
+
   // Indexes
+
   @@index([attendanceId])
+
 }
+
+
 
 model AttendanceLog {
+
   id               String      @id @default(cuid())
+
   attendanceId     String
+
   action           String      // e.g., "CHECK_IN", "CHECK_OUT"
+
   timestamp        DateTime    @default(now())
+
   latitude         Float?
+
   longitude        Float?
+
   deviceInfo       String?
+
   verificationHash String?     // Hash fields to verify log integrity
+
   createdAt        DateTime    @default(now())
 
+
+
   // Relations
+
   attendance       Attendance  @relation(fields: [attendanceId], references: [id], onDelete: Cascade)
 
+
+
   // Indexes
+
   @@index([attendanceId])
+
 }
+
+
 
 model AttendanceNonce {
+
   id        String   @id @default(cuid())
+
   userId    String
+
   nonce     String   @unique
+
   expiresAt DateTime
+
   createdAt DateTime @default(now())
+
+
 
   // Relations
+
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+
+
   // Indexes
+
   @@index([userId])
+
   @@index([expiresAt])
+
 }
+
+
+
+model IncomingDocument {
+
+  id              String            @id @default(cuid())
+
+  receiveNo       String            @unique           // เลขทะเบียนรับ (เช่น "รับที่ 123/2569")
+
+  receiveDate     DateTime          @default(now())   // วันที่รับ
+
+  senderOrg       String                              // หน่วยงานผู้ส่ง
+
+  docRefNo        String?                             // เลขที่หนังสือต้นทาง
+
+  title           String                              // เรื่อง
+
+  urgencyLevel    String            @default("NORMAL") // URGENT_MOST, URGENT_MORE, URGENT, NORMAL
+
+  amssLink        String?                             // ลิงก์ AMSS++
+
+  attachmentUrl   String?                             // URL ไฟล์แนบ (PDF)
+
+  memoSectionId   String?
+
+  status          String            @default("PENDING") // PENDING, ROUTING, COMPLETED, CANCELLED
+
+  note            String?           @db.Text
+
+  createdById     String
+
+  createdAt       DateTime          @default(now())
+
+  updatedAt       DateTime          @updatedAt
+
+
+
+  memoSection     MemoSection?      @relation(fields: [memoSectionId], references: [id], onDelete: SetNull)
+
+  createdBy       User              @relation("IncomingDocCreator", fields: [createdById], references: [id], onDelete: Cascade)
+
+  routingSteps    DocumentRouting[]
+
+}
+
+
+
+model DocumentRouting {
+
+  id                String          @id @default(cuid())
+
+  incomingDocId     String
+
+  stepOrder         Int             // ลำดับขั้นตอน (1, 2, 3...)
+
+  assigneeId        String          // ผู้เกษียน/ดำเนินการ
+
+  assignedById      String          // ผู้มอบหมาย
+
+  status            String          @default("PENDING") // PENDING, COMPLETED, SKIPPED
+
+  resolution        String?         // คำเกษียนสั่งการ (เช่น "ทราบและดำเนินการ")
+
+  note              String?         @db.Text
+
+  deadline          DateTime?       // กำหนดเสร็จ
+
+  completedAt       DateTime?
+
+  createdAt         DateTime        @default(now())
+
+  updatedAt         DateTime        @updatedAt
+
+
+
+  incomingDoc       IncomingDocument @relation(fields: [incomingDocId], references: [id], onDelete: Cascade)
+
+  assignee          User            @relation("RoutingAssignee", fields: [assigneeId], references: [id], onDelete: Cascade)
+
+  assignedBy        User            @relation("RoutingAssigner", fields: [assignedById], references: [id], onDelete: Cascade)
+
+
+
+  @@unique([incomingDocId, stepOrder])
+
+}
+
+
 
 model Holiday {
-  id        String   @id @default(cuid())
-  date      DateTime @unique
-  name      String
-  isCustom  Boolean  @default(false)
-  isWorkday Boolean  @default(false)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
 
+  id        String   @id @default(cuid())
+
+  startDate DateTime
+
+  endDate   DateTime
+
+  name      String
+
+  isCustom  Boolean  @default(false)
+
+  isWorkday Boolean  @default(false)
+
+  createdAt DateTime @default(now())
+
+  updatedAt DateTime @updatedAt
+
+
+
+  @@index([startDate, endDate])
+
+}
 

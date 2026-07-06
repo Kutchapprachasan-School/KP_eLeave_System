@@ -2,7 +2,8 @@
 
 import prisma from "@/lib/prisma";
 import { requireAdminOrHR } from "./settings";
-import { getApprovedLeavesForPeriod, isDateOnLeave } from "./attendance-leave-sync";
+import { getApprovedLeavesForPeriod } from "./attendance-leave-sync";
+import { isDateOnLeave } from "@/lib/attendance-utils";
 
 export async function getTodayAttendanceStats() {
   await requireAdminOrHR();
