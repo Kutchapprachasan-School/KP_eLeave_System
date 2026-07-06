@@ -13,11 +13,11 @@ import { getDashboardStats, getCalendarLeaves } from "@/app/actions/leave";
 import { getHolidays } from "@/app/actions/holiday";
 import { getSystemSettings } from "@/app/actions/settings";
 import { getTodayAttendanceStats } from "@/app/actions/attendance-stats";
-import { getMyAttendanceToday } from "@/app/actions/attendance";
+import { getMyAttendanceToday, generateAttendanceNonce, clockIn, clockOut } from "@/app/actions/attendance";
 import { 
   CheckCircle2, AlertCircle, Briefcase, 
   Users, Activity, Clock, Calendar, ChevronLeft, ChevronRight, X,
-  UserCheck, XCircle, MapPin, Fingerprint, CalendarDays
+  UserCheck, XCircle, MapPin, Fingerprint, CalendarDays, Loader2
 } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 
@@ -92,9 +92,12 @@ export default function DashboardPage() {
   const [schoolAttendanceStats, setSchoolAttendanceStats] = useState<any>(null);
   const [personalAttendanceToday, setPersonalAttendanceToday] = useState<any>(null);
   const [loadingAttendance, setLoadingAttendance] = useState(false);
+  const [sysSettings, setSysSettings] = useState<any>(null);
+  const [clockActionLoading, setClockActionLoading] = useState(false);
 
   useEffect(() => {
     getSystemSettings().then((s) => {
+      setSysSettings(s);
       setAttendanceEnabled(!!s.enableAttendance);
       if (s.rolePermissions && session?.user) {
         try {
@@ -171,11 +174,85 @@ export default function DashboardPage() {
         .finally(() => setLoadingAttendance(false));
     } else {
       getMyAttendanceToday()
-        .then(setPersonalAttendanceToday)
+        .then((res: any) => {
+          if (res) {
+            setPersonalAttendanceToday({
+              ...(res.attendance || {}),
+              workShift: res.user?.workShift || res.attendance?.workShift || null,
+              user: res.user
+            });
+          } else {
+            setPersonalAttendanceToday(null);
+          }
+        })
         .catch(console.error)
         .finally(() => setLoadingAttendance(false));
     }
   }, [activeSystemTab, viewMode, mounted, session]);
+
+  const handleQuickClock = async (type: "in" | "out") => {
+    if (!session?.user) return;
+    
+    const bypass = personalAttendanceToday?.user?.bypassAttendance === true;
+    const requireFace = sysSettings?.requireFaceScan === true;
+    const requireGPS = sysSettings?.requireGeofence === true;
+    const requireLiveness = sysSettings?.requireLivenessCheck === true;
+
+    // If security checks are required and user is not bypassed, redirect to clock-in page
+    if (type === "in" && !bypass && (requireFace || requireGPS || requireLiveness)) {
+      router.push("/attendance");
+      return;
+    }
+    
+    setClockActionLoading(true);
+    try {
+      if (type === "in") {
+        const nonceRes = await generateAttendanceNonce();
+        if (!nonceRes || !nonceRes.nonce) {
+          alert("Failed to generate nonce. Please reload.");
+          return;
+        }
+        
+        const res = await clockIn({
+          nonce: nonceRes.nonce,
+          browserFingerprint: typeof window !== "undefined" ? window.navigator.userAgent : "dashboard"
+        });
+        
+        if (res.success) {
+          const todayRes = await getMyAttendanceToday();
+          setPersonalAttendanceToday({
+            ...(todayRes.attendance || {}),
+            workShift: todayRes.user?.workShift || todayRes.attendance?.workShift || null,
+            user: todayRes.user
+          });
+          alert(lang === "en" ? "Clocked in successfully!" : "ลงเวลาเข้างานสำเร็จ!");
+        } else {
+          alert(res.error || "Failed to clock in");
+        }
+      } else {
+        const res = await clockOut({
+          browserFingerprint: typeof window !== "undefined" ? window.navigator.userAgent : "dashboard"
+        });
+        
+        if (res.success) {
+          const todayRes = await getMyAttendanceToday();
+          setPersonalAttendanceToday({
+            ...(todayRes.attendance || {}),
+            workShift: todayRes.user?.workShift || todayRes.attendance?.workShift || null,
+            user: todayRes.user
+          });
+          alert(lang === "en" ? "Clocked out successfully!" : "ลงเวลาออกงานสำเร็จ!");
+        } else {
+          alert(res.error || "Failed to clock out");
+        }
+      }
+    } catch (err: any) {
+      console.error(err);
+      alert(err.message || "An error occurred");
+    } finally {
+      setClockActionLoading(false);
+    }
+  };
 
   // Calendar Helper functions
   const getLeaveColorClass = (type: string) => {
@@ -1360,18 +1437,38 @@ export default function DashboardPage() {
                   </div>
                 </div>
 
-                {/* If not checked in, show urgent CTA */}
-                {!personalAttendanceToday?.checkInTime && (
+                {/* Interactive Clock In/Out Actions */}
+                {!personalAttendanceToday?.checkInTime ? (
                   <div className="mt-6 flex justify-end">
-                    <Link
-                      href="/attendance"
-                      className="px-6 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs flex items-center gap-2 transition-all shadow-md shadow-indigo-600/20 hover:scale-[1.02] active:scale-95 cursor-pointer"
+                    <button
+                      disabled={clockActionLoading}
+                      onClick={() => handleQuickClock("in")}
+                      className="px-6 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs flex items-center gap-2 transition-all shadow-md shadow-indigo-600/20 hover:scale-[1.02] active:scale-95 cursor-pointer disabled:opacity-50"
                     >
-                      <Fingerprint className="w-5 h-5 text-white animate-pulse" />
-                      {lang === "en" ? "Clock In Now →" : "สแกนนิ้ว / ลงเวลาเข้างานทันที →"}
-                    </Link>
+                      {clockActionLoading ? (
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                      ) : (
+                        <Fingerprint className="w-5 h-5 text-white animate-pulse" />
+                      )}
+                      {lang === "en" ? "Clock In Now →" : "สแกนนิ้ว / ลงเวลาเข้างาน →"}
+                    </button>
                   </div>
-                )}
+                ) : !personalAttendanceToday?.checkOutTime ? (
+                  <div className="mt-6 flex justify-end">
+                    <button
+                      disabled={clockActionLoading}
+                      onClick={() => handleQuickClock("out")}
+                      className="px-6 py-3 rounded-2xl bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs flex items-center gap-2 transition-all shadow-md shadow-rose-600/20 hover:scale-[1.02] active:scale-95 cursor-pointer disabled:opacity-50"
+                    >
+                      {clockActionLoading ? (
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                      ) : (
+                        <Clock className="w-5 h-5 text-white animate-pulse" />
+                      )}
+                      {lang === "en" ? "Clock Out Now →" : "ลงเวลาออกงาน (Clock Out) →"}
+                    </button>
+                  </div>
+                ) : null}
               </motion.div>
 
               {/* Quick Actions & Navigation */}
