@@ -5,7 +5,7 @@ import { getSession } from "@/lib/auth-session";
 import { prisma } from "@/lib/db";
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
-import { ensureSequencesPopulated } from "./leave";
+import { ensureSequencesPopulated, calculateLeaveDays } from "./leave";
 
 async function requireSuperAdmin() {
   const session = await getSession();
@@ -161,36 +161,53 @@ export async function getAllUsers() {
 
 // ========= Update User Profile =========
 export async function updateUserProfile(userId: string, data: { name?: string; email?: string; username?: string; role?: string; position?: string; subjectGroup?: string; level?: string }) {
-  await requireSuperAdmin();
+  try {
+    await requireSuperAdmin();
 
-  // If username is changing, ensure it is unique
-  if (data.username) {
-    const existingUsername = await prisma.user.findFirst({
-      where: {
-        username: data.username,
-        id: { not: userId }
+    // If username is changing, ensure it is unique
+    if (data.username) {
+      const existingUsername = await prisma.user.findFirst({
+        where: {
+          username: data.username,
+          id: { not: userId }
+        }
+      });
+      if (existingUsername) {
+        return { success: false, error: "ไอดีเข้าใช้งานนี้ถูกใช้งานแล้วในระบบ" };
+      }
+    }
+
+    // If email is changing, ensure it is unique
+    if (data.email) {
+      const existingEmail = await prisma.user.findFirst({
+        where: {
+          email: data.email,
+          id: { not: userId }
+        }
+      });
+      if (existingEmail) {
+        return { success: false, error: "อีเมลนี้ถูกใช้งานแล้วในระบบ" };
+      }
+    }
+
+    await prisma.user.update({
+      where: { id: userId },
+      data: {
+        ...(data.name && { name: data.name }),
+        ...(data.email && { email: data.email }),
+        ...(data.username !== undefined && { username: data.username || null }),
+        ...(data.role && { role: data.role }),
+        ...(data.position !== undefined && { position: data.position }),
+        ...(data.subjectGroup !== undefined && { subjectGroup: data.subjectGroup }),
+        ...(data.level !== undefined && { level: data.level }),
       }
     });
-    if (existingUsername) {
-      throw new Error("ไอดีเข้าใช้งานนี้ถูกใช้งานแล้วในระบบ");
-    }
+
+    revalidatePath("/users");
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message || "เกิดข้อผิดพลาดในการอัปเดตข้อมูล" };
   }
-
-  await prisma.user.update({
-    where: { id: userId },
-    data: {
-      ...(data.name && { name: data.name }),
-      ...(data.email && { email: data.email }),
-      ...(data.username !== undefined && { username: data.username || null }),
-      ...(data.role && { role: data.role }),
-      ...(data.position !== undefined && { position: data.position }),
-      ...(data.subjectGroup !== undefined && { subjectGroup: data.subjectGroup }),
-      ...(data.level !== undefined && { level: data.level }),
-    }
-  });
-
-  revalidatePath("/users");
-  return { success: true };
 }
 
 export async function approveUser(userId: string) {
@@ -299,34 +316,37 @@ export async function getCycleReport(cycleFilter: "current" | "cycle1" | "cycle2
     orderBy: { startDate: "desc" },
   });
 
-  return requests.map(r => ({
-    id: r.id,
-    userName: r.user?.name || "-",
-    position: r.user?.position || "-",
-    subjectGroup: r.user?.subjectGroup || "-",
-    type: r.type,
-    startDate: r.startDate.toISOString(),
-    endDate: r.endDate.toISOString(),
-    reason: r.reason,
-    status: r.status,
-    documentUrl: r.documentUrl,
-    fiscalYear: r.fiscalYear,
-    pendingSeq: r.pendingSeq,
-    approvedSeq: r.approvedSeq,
-    createdAt: r.createdAt.toISOString(),
-  }));
+  return Promise.all(
+    requests.map(async (r) => {
+      const leaveDays = await calculateLeaveDays(r.startDate, r.endDate, r.type);
+      return {
+        id: r.id,
+        userName: r.user?.name || "-",
+        position: r.user?.position || "-",
+        subjectGroup: r.user?.subjectGroup || "-",
+        type: r.type,
+        startDate: r.startDate.toISOString(),
+        endDate: r.endDate.toISOString(),
+        reason: r.reason,
+        status: r.status,
+        documentUrl: r.documentUrl,
+        fiscalYear: r.fiscalYear,
+        pendingSeq: r.pendingSeq,
+        approvedSeq: r.approvedSeq,
+        createdAt: r.createdAt.toISOString(),
+        leaveDays,
+      };
+    })
+  );
 }
 
 // ========= Reset User Password by Admin =========
 import { hashPassword } from "better-auth/crypto";
 
-export async function resetUserPasswordByAdmin(userId: string, newPassword: string) {
+export async function resetUserPasswordByAdmin(userId: string) {
   await requireSuperAdmin();
 
-  if (!newPassword || newPassword.length < 6) {
-    throw new Error("รหัสผ่านใหม่ต้องมีความยาวอย่างน้อย 6 ตัวอักษร");
-  }
-
+  const newPassword = "12345678";
   const hashedPassword = await hashPassword(newPassword);
 
   await prisma.account.updateMany({
@@ -343,66 +363,77 @@ export async function resetUserPasswordByAdmin(userId: string, newPassword: stri
 }
 
 // ========= Create User by Admin =========
-export async function createUserByAdmin(data: { name: string; email: string; username?: string; password?: string; position: string; subjectGroup: string; level?: string }) {
-  await requireSuperAdmin();
+export async function createUserByAdmin(data: { name: string; email?: string; username?: string; password?: string; position: string; subjectGroup: string; level?: string }) {
+  try {
+    await requireSuperAdmin();
 
-  if (!data.email) {
-    throw new Error("กรุณากรอกอีเมล");
-  }
-  if (!data.name) {
-    throw new Error("กรุณากรอกชื่อ-นามสกุล");
-  }
+    let emailVal = data.email?.trim();
+    const usernameVal = data.username?.trim() || null;
 
-  // Check if email already exists
-  const existingUser = await prisma.user.findUnique({
-    where: { email: data.email }
-  });
-  if (existingUser) {
-    throw new Error("อีเมลนี้ถูกใช้งานแล้วในระบบ");
-  }
+    if (!emailVal && usernameVal) {
+      emailVal = usernameVal.includes("@") ? usernameVal.toLowerCase() : `${usernameVal.toLowerCase()}@eleave.local`;
+    }
 
-  // Check if username already exists
-  if (data.username) {
-    const existingUsername = await prisma.user.findUnique({
-      where: { username: data.username }
+    if (!emailVal) {
+      return { success: false, error: "กรุณากรอกอีเมล" };
+    }
+    if (!data.name?.trim()) {
+      return { success: false, error: "กรุณากรอกชื่อ-นามสกุล" };
+    }
+
+    // Check if email already exists
+    const existingUser = await prisma.user.findUnique({
+      where: { email: emailVal }
     });
-    if (existingUsername) {
-      throw new Error("ไอดีเข้าใช้งานนี้ถูกใช้งานแล้วในระบบ");
+    if (existingUser) {
+      return { success: false, error: "อีเมลนี้ถูกใช้งานแล้วในระบบ" };
     }
+
+    // Check if username already exists
+    if (usernameVal) {
+      const existingUsername = await prisma.user.findUnique({
+        where: { username: usernameVal }
+      });
+      if (existingUsername) {
+        return { success: false, error: "ไอดีเข้าใช้งานนี้ถูกใช้งานแล้วในระบบ" };
+      }
+    }
+
+    const role = data.position === "แอดมิน" ? "ADMIN" : "TEACHER";
+    
+    // Create user record
+    const newUser = await prisma.user.create({
+      data: {
+        name: data.name.trim(),
+        email: emailVal,
+        username: usernameVal,
+        role,
+        position: data.position,
+        subjectGroup: data.subjectGroup,
+        level: data.level || null,
+        isApproved: true, // auto approve admin created users
+        emailVerified: true
+      }
+    });
+
+    // Create credentials account
+    const rawPassword = data.password || "12345678"; // Default password if empty to 12345678
+    const hashedPassword = await hashPassword(rawPassword);
+
+    await prisma.account.create({
+      data: {
+        userId: newUser.id,
+        accountId: emailVal,
+        providerId: "credential",
+        password: hashedPassword
+      }
+    });
+
+    revalidatePath("/users");
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message || "เกิดข้อผิดพลาดในการสร้างบัญชี" };
   }
-
-  const role = data.position === "แอดมิน" ? "ADMIN" : "TEACHER";
-  
-  // Create user record
-  const newUser = await prisma.user.create({
-    data: {
-      name: data.name,
-      email: data.email,
-      username: data.username || null,
-      role,
-      position: data.position,
-      subjectGroup: data.subjectGroup,
-      level: data.level || null,
-      isApproved: true, // auto approve admin created users
-      emailVerified: true
-    }
-  });
-
-  // Create credentials account
-  const rawPassword = data.password || "12345678"; // Default password if empty to 12345678
-  const hashedPassword = await hashPassword(rawPassword);
-
-  await prisma.account.create({
-    data: {
-      userId: newUser.id,
-      accountId: data.email,
-      providerId: "credential",
-      password: hashedPassword
-    }
-  });
-
-  revalidatePath("/users");
-  return { success: true };
 }
 
 export async function importUsersByAdmin(

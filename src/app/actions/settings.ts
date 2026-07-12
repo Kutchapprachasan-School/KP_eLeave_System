@@ -360,6 +360,12 @@ export async function updateSystemSettings(data: {
 
   googleDriveFormat?: string;
 
+  googleDriveUploadUrl?: string;
+
+  googleDriveSecret?: string;
+
+  googleDriveFolderId?: string;
+
   lastLeaveMode?: string;
 
   quotaExceededAction?: string;
@@ -416,6 +422,12 @@ export async function updateSystemSettings(data: {
 
       googleDriveFormat: data.googleDriveFormat !== undefined ? data.googleDriveFormat : undefined,
 
+      googleDriveUploadUrl: data.googleDriveUploadUrl !== undefined ? data.googleDriveUploadUrl : undefined,
+
+      googleDriveSecret: data.googleDriveSecret !== undefined ? data.googleDriveSecret : undefined,
+
+      googleDriveFolderId: data.googleDriveFolderId !== undefined ? data.googleDriveFolderId : undefined,
+
       lastLeaveMode: data.lastLeaveMode !== undefined ? data.lastLeaveMode : undefined,
 
       quotaExceededAction: data.quotaExceededAction !== undefined ? data.quotaExceededAction : undefined,
@@ -467,6 +479,12 @@ export async function updateSystemSettings(data: {
       pdfFont: data.pdfFont || "Prompt",
 
       googleDriveFormat: data.googleDriveFormat || "PDF",
+
+      googleDriveUploadUrl: data.googleDriveUploadUrl || null,
+
+      googleDriveSecret: data.googleDriveSecret || null,
+
+      googleDriveFolderId: data.googleDriveFolderId || null,
 
       lastLeaveMode: data.lastLeaveMode || "SAME",
 

@@ -132,7 +132,7 @@ export default function ReportsPage() {
       acc[curr.userName] = { userName: curr.userName, position: curr.position, totalTimes: 0, totalDays: 0, leaves: {} };
     }
     acc[curr.userName].totalTimes++;
-    const days = Math.ceil((new Date(curr.endDate).getTime() - new Date(curr.startDate).getTime()) / (1000*60*60*24)) + 1;
+    const days = curr.leaveDays !== undefined ? curr.leaveDays : Math.ceil((new Date(curr.endDate).getTime() - new Date(curr.startDate).getTime()) / (1000*60*60*24)) + 1;
     acc[curr.userName].totalDays += days;
     const tName = leaveTypeMap[curr.type] || curr.type;
     if (!acc[curr.userName].leaves[tName]) acc[curr.userName].leaves[tName] = 0;
@@ -153,7 +153,7 @@ export default function ReportsPage() {
           "ประเภท": leaveTypeMap[item.type] || item.type,
           "วันที่เริ่ม": new Date(item.startDate).toLocaleDateString("th-TH"),
           "ถึงวันที่": new Date(item.endDate).toLocaleDateString("th-TH"),
-          "จำนวนวัน": Math.ceil((new Date(item.endDate).getTime() - new Date(item.startDate).getTime()) / (1000*60*60*24)) + 1,
+          "จำนวนวัน": item.leaveDays !== undefined ? item.leaveDays : Math.ceil((new Date(item.endDate).getTime() - new Date(item.startDate).getTime()) / (1000*60*60*24)) + 1,
           "เหตุผล": item.reason,
           "สถานะ": statusMap[item.status] || item.status,
           "วันที่ยื่น": new Date(item.createdAt).toLocaleDateString("th-TH"),
@@ -223,7 +223,7 @@ export default function ReportsPage() {
       `;
 
       const rows = data.map((item, i) => {
-        const days = Math.ceil((new Date(item.endDate).getTime() - new Date(item.startDate).getTime()) / (1000*60*60*24)) + 1;
+        const days = item.leaveDays !== undefined ? item.leaveDays : Math.ceil((new Date(item.endDate).getTime() - new Date(item.startDate).getTime()) / (1000*60*60*24)) + 1;
         const leaveTh = getLeaveTypeNameTh(item.type, leaveTypeMap[item.type]);
         return `
           <tr>
@@ -365,7 +365,7 @@ export default function ReportsPage() {
   const totalRequests = data.length;
   const approvedCount = data.filter(d => d.status === "APPROVED").length;
   const rejectedCount = data.filter(d => d.status === "REJECTED").length;
-  const totalDays = data.filter(d => d.status === "APPROVED").reduce((sum, d) => sum + Math.ceil((new Date(d.endDate).getTime() - new Date(d.startDate).getTime()) / (1000*60*60*24)) + 1, 0);
+  const totalDays = data.filter(d => d.status === "APPROVED").reduce((sum, d) => sum + (d.leaveDays !== undefined ? d.leaveDays : Math.ceil((new Date(d.endDate).getTime() - new Date(d.startDate).getTime()) / (1000*60*60*24)) + 1), 0);
 
   const months = [
     { val: 10, th: "ตุลาคม", en: "October" },
@@ -468,7 +468,7 @@ export default function ReportsPage() {
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800 print:divide-none">
                   {data.map((item, i) => {
-                    const days = Math.ceil((new Date(item.endDate).getTime() - new Date(item.startDate).getTime()) / (1000*60*60*24)) + 1;
+                    const days = item.leaveDays !== undefined ? item.leaveDays : Math.ceil((new Date(item.endDate).getTime() - new Date(item.startDate).getTime()) / (1000*60*60*24)) + 1;
                     return (
                       <tr key={item.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors print:hover:bg-transparent print:break-inside-avoid">
                         <td className="px-4 py-3 text-slate-400 print:text-black print:border print:border-gray-300">{i + 1}</td>

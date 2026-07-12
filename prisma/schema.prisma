@@ -248,6 +248,10 @@ model SystemSettings {
 
   googleDriveFormat      String   @default("PDF") // Upload format to Google Drive: PDF, JPG
 
+  googleDriveUploadUrl   String?
+  googleDriveSecret      String?
+  googleDriveFolderId    String?
+
   lastLeaveMode          String   @default("SAME")
 
   quotaExceededAction    String   @default("ALLOW_WITH_MEMO")

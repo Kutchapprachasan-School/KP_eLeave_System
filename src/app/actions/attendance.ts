@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { sendLineNotify } from "@/lib/line-notify";
 import { getApprovedLeavesForPeriod } from "./attendance-leave-sync";
 import { isDateOnLeave } from "@/lib/attendance-utils";
+import { getTimezoneMemo } from "./leave";
 import crypto from "crypto";
 
 // ──────────────────────────────────────────────
@@ -778,10 +779,11 @@ export async function getAttendanceReport(params: {
 
   const userIds = Array.from(new Set(records.map(r => r.userId)));
   const leaves = await getApprovedLeavesForPeriod(userIds, start, end);
+  const tz = await getTimezoneMemo();
 
   return records.map((r) => {
     let finalStatus = r.status;
-    const hasLeave = isDateOnLeave(r.attendanceDate, r.userId, leaves);
+    const hasLeave = isDateOnLeave(r.attendanceDate, r.userId, leaves, tz);
     if (hasLeave && r.status !== "PRESENT") {
       finalStatus = "LEAVE" as any;
     }
@@ -823,10 +825,11 @@ export async function getAttendanceKPI(params: { startDate: string; endDate: str
 
   const userIds = Array.from(new Set(records.map(r => r.userId)));
   const leaves = await getApprovedLeavesForPeriod(userIds, start, end);
+  const tz = await getTimezoneMemo();
 
   // Apply leave status overrides in-memory before compiling KPIs
   records.forEach((r) => {
-    const hasLeave = isDateOnLeave(r.attendanceDate, r.userId, leaves);
+    const hasLeave = isDateOnLeave(r.attendanceDate, r.userId, leaves, tz);
     if (hasLeave && r.status !== "PRESENT") {
       r.status = "LEAVE" as any;
     }

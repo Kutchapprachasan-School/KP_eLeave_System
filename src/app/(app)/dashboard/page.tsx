@@ -7,7 +7,8 @@ import { useSession } from "@/lib/auth-client";
 import { motion } from "framer-motion";
 import { 
   BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, 
-  AreaChart, Area, PieChart, Pie, Cell, RadialBarChart, RadialBar
+  AreaChart, Area, PieChart, Pie, Cell, RadialBarChart, RadialBar,
+  LineChart, Line, Legend, LabelList
 } from "recharts";
 import { getDashboardStats, getCalendarLeaves } from "@/app/actions/leave";
 import { getHolidays } from "@/app/actions/holiday";
@@ -75,6 +76,7 @@ export default function DashboardPage() {
   const [cycleFilter, setCycleFilter] = useState<"current" | "cycle1" | "cycle2" | "year">("current");
   const [leaderboardFilter, setLeaderboardFilter] = useState<"times" | "days">("times");
   const [viewMode, setViewMode] = useState<"school" | "personal">("school");
+  const [trendViewMode, setTrendViewMode] = useState<"types" | "total">("types");
 
   // Calendar states
   const [calendarView, setCalendarView] = useState<"week" | "month" | "year">("month");
@@ -603,79 +605,265 @@ export default function DashboardPage() {
       {/* Main Complex Widgets */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
-        {/* Global Quota Progress */}
-        <motion.div variants={itemVariants} className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white/60 dark:border-slate-800 rounded-3xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] lg:col-span-1 flex flex-col justify-center">
-          <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-6">{t("leaveOverviewSickPersonal")}</h3>
-          <div className="space-y-6">
-            {/* Times Progress */}
-            <div>
-              <div className="flex justify-between text-sm font-semibold mb-2">
-                <span className="text-slate-700 dark:text-slate-300">{t("usedQuotaTimes")}</span>
-                <span className="text-slate-900 dark:text-white">{stats.userWatchlistStats?.totalTimes || 0} / {limitTimes} {t("timesUnit")}</span>
+        {/* Global Quota Progress / Per-Person Breakdown */}
+        <motion.div variants={itemVariants} className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white/60 dark:border-slate-800 rounded-3xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] lg:col-span-1 flex flex-col">
+          {isOverview ? (
+            // ===== School Overview: Per-Person Sick/Personal Breakdown =====
+            <>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-base font-bold text-slate-900 dark:text-white">{lang === "en" ? "Leave by Person (Sick & Personal)" : "ภาพรวมการลารายบุคคล (ป่วย+กิจ)"}</h3>
               </div>
-              <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-3.5 overflow-hidden">
-                <motion.div 
-                  initial={{ width: 0 }}
-                  animate={{ width: `${Math.min(((stats.userWatchlistStats?.totalTimes || 0) / limitTimes) * 100, 100)}%` }}
-                  transition={{ duration: 1, ease: "easeOut" }}
-                  className={`h-full rounded-full ${(stats.userWatchlistStats?.totalTimes || 0) >= Math.floor(limitTimes * 0.67) ? 'bg-orange-500' : 'bg-purple-500'}`}
-                />
+              {/* Column Headers */}
+              <div className="grid grid-cols-[1fr_auto_auto] gap-2 px-2 mb-2">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{lang === "en" ? "Name" : "ชื่อ"}</span>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 text-center w-14">{lang === "en" ? "Sick" : "ลาป่วย"}</span>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 text-center w-14">{lang === "en" ? "Personal" : "ลากิจ"}</span>
               </div>
-            </div>
-            
-            {/* Days Progress */}
-            <div>
-              <div className="flex justify-between text-sm font-semibold mb-2">
-                <span className="text-slate-700 dark:text-slate-300">{t("usedQuotaDays")}</span>
-                <span className="text-slate-900 dark:text-white">{stats.userWatchlistStats?.totalDays || 0} / {limitDays} {t("days")}</span>
+              <div className="space-y-1.5 overflow-y-auto custom-scrollbar flex-1 max-h-[280px] pr-1">
+                {(!stats.leaveLeaderboard || stats.leaveLeaderboard.length === 0) ? (
+                  <p className="text-sm text-slate-400 text-center py-8">{lang === "en" ? "No leave records yet" : "ยังไม่มีข้อมูลการลา"}</p>
+                ) : (
+                  [...stats.leaveLeaderboard]
+                    .sort((a: any, b: any) => (b.sickTimes + b.personalTimes) - (a.sickTimes + a.personalTimes))
+                    .map((item: any, i: number) => (
+                      <div key={i} className={`grid grid-cols-[1fr_auto_auto] gap-2 items-center px-3 py-2 rounded-xl border transition-colors ${item.isWarning ? 'bg-rose-50 dark:bg-rose-900/20 border-rose-100 dark:border-rose-800' : 'bg-slate-50 dark:bg-slate-800/50 border-slate-100 dark:border-slate-700'}`}>
+                        <div className="min-w-0">
+                          <p className={`text-xs font-bold truncate ${item.isWarning ? 'text-rose-700 dark:text-rose-400' : 'text-slate-800 dark:text-white'}`}>
+                            {item.name}
+                          </p>
+                          <p className="text-[10px] text-slate-400 truncate">{tPosition(item.position)}</p>
+                        </div>
+                        {/* Sick */}
+                        <div className="w-14 text-center">
+                          <span className={`text-xs font-bold ${item.sickTimes > 0 ? 'text-rose-500 dark:text-rose-400' : 'text-slate-300 dark:text-slate-600'}`}>
+                            {item.sickTimes > 0 ? `${item.sickTimes}${lang === "en" ? "x" : "ครั้ง"}` : "—"}
+                          </span>
+                          {item.sickDays > 0 && (
+                            <p className="text-[10px] text-slate-400">{item.sickDays}{lang === "en" ? "d" : "วัน"}</p>
+                          )}
+                        </div>
+                        {/* Personal */}
+                        <div className="w-14 text-center">
+                          <span className={`text-xs font-bold ${item.personalTimes > 0 ? 'text-amber-500 dark:text-amber-400' : 'text-slate-300 dark:text-slate-600'}`}>
+                            {item.personalTimes > 0 ? `${item.personalTimes}${lang === "en" ? "x" : "ครั้ง"}` : "—"}
+                          </span>
+                          {item.personalDays > 0 && (
+                            <p className="text-[10px] text-slate-400">{item.personalDays}{lang === "en" ? "d" : "วัน"}</p>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                )}
               </div>
-              <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-3.5 overflow-hidden">
-                <motion.div 
-                  initial={{ width: 0 }}
-                  animate={{ width: `${Math.min(((stats.userWatchlistStats?.totalDays || 0) / limitDays) * 100, 100)}%` }}
-                  transition={{ duration: 1, ease: "easeOut", delay: 0.2 }}
-                  className={`h-full rounded-full ${(stats.userWatchlistStats?.totalDays || 0) >= Math.floor(limitDays * 0.8) ? 'bg-rose-500' : 'bg-blue-500'}`}
-                />
+              <div className="pt-3 border-t border-slate-100 dark:border-slate-800 mt-3">
+                <div className="flex items-center gap-3 text-[11px] text-slate-400">
+                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-rose-400 inline-block"></span>{lang === "en" ? "Sick leave" : "ลาป่วย"}</span>
+                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-400 inline-block"></span>{lang === "en" ? "Personal leave" : "ลากิจ"}</span>
+                  <span className="flex items-center gap-1 ml-auto"><span className="w-2 h-2 rounded-full bg-rose-500 inline-block"></span>{lang === "en" ? "Over threshold" : "เกินเกณฑ์"}</span>
+                </div>
               </div>
-            </div>
+            </>
+          ) : (
+            // ===== Personal Mode: My Quota Progress =====
+            <>
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-6">{t("leaveOverviewSickPersonal")}</h3>
+              <div className="space-y-6">
+                {/* Times Progress */}
+                <div>
+                  <div className="flex justify-between text-sm font-semibold mb-2">
+                    <span className="text-slate-700 dark:text-slate-300">{t("usedQuotaTimes")}</span>
+                    <span className="text-slate-900 dark:text-white">{stats.userWatchlistStats?.totalTimes || 0} / {limitTimes} {t("timesUnit")}</span>
+                  </div>
+                  <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-3.5 overflow-hidden">
+                    <motion.div 
+                      initial={{ width: 0 }}
+                      animate={{ width: `${Math.min(((stats.userWatchlistStats?.totalTimes || 0) / limitTimes) * 100, 100)}%` }}
+                      transition={{ duration: 1, ease: "easeOut" }}
+                      className={`h-full rounded-full ${(stats.userWatchlistStats?.totalTimes || 0) >= Math.floor(limitTimes * 0.67) ? 'bg-orange-500' : 'bg-purple-500'}`}
+                    />
+                  </div>
+                </div>
+                
+                {/* Days Progress */}
+                <div>
+                  <div className="flex justify-between text-sm font-semibold mb-2">
+                    <span className="text-slate-700 dark:text-slate-300">{t("usedQuotaDays")}</span>
+                    <span className="text-slate-900 dark:text-white">{stats.userWatchlistStats?.totalDays || 0} / {limitDays} {t("days")}</span>
+                  </div>
+                  <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-3.5 overflow-hidden">
+                    <motion.div 
+                      initial={{ width: 0 }}
+                      animate={{ width: `${Math.min(((stats.userWatchlistStats?.totalDays || 0) / limitDays) * 100, 100)}%` }}
+                      transition={{ duration: 1, ease: "easeOut", delay: 0.2 }}
+                      className={`h-full rounded-full ${(stats.userWatchlistStats?.totalDays || 0) >= Math.floor(limitDays * 0.8) ? 'bg-rose-500' : 'bg-blue-500'}`}
+                    />
+                  </div>
+                </div>
 
-            <div className="pt-4 border-t border-slate-100 dark:border-slate-800">
-              <p className="text-xs text-slate-500 dark:text-slate-400 text-center leading-relaxed">
-                {t("quotaWarningNote")}
-              </p>
-            </div>
-          </div>
+                <div className="pt-4 border-t border-slate-100 dark:border-slate-800">
+                  <p className="text-xs text-slate-500 dark:text-slate-400 text-center leading-relaxed">
+                    {t("quotaWarningNote")}
+                  </p>
+                </div>
+              </div>
+            </>
+          )}
         </motion.div>
 
-        {/* Monthly Trend Area Chart */}
+
+        {/* Monthly Trend Line Chart */}
         <motion.div variants={itemVariants} className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white/60 dark:border-slate-800 rounded-3xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] lg:col-span-2 flex flex-col">
-          <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-6">{t("monthlyTrend")}</h3>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+            <h3 className="text-lg font-bold text-slate-900 dark:text-white">{t("monthlyTrend")}</h3>
+            
+            {/* View Mode Toggle */}
+            <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl text-xs font-semibold self-start sm:self-auto shadow-inner">
+              <button
+                onClick={() => setTrendViewMode("types")}
+                className={`px-3 py-1.5 rounded-lg transition-all ${
+                  trendViewMode === "types"
+                    ? "bg-white dark:bg-slate-700 text-purple-600 dark:text-purple-300 shadow-sm"
+                    : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
+                }`}
+              >
+                {lang === "th" ? "แยกตามประเภท" : "By Leave Type"}
+              </button>
+              <button
+                onClick={() => setTrendViewMode("total")}
+                className={`px-3 py-1.5 rounded-lg transition-all ${
+                  trendViewMode === "total"
+                    ? "bg-white dark:bg-slate-700 text-purple-600 dark:text-purple-300 shadow-sm"
+                    : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
+                }`}
+              >
+                {lang === "th" ? "ยอดรวม" : "Total"}
+              </button>
+            </div>
+          </div>
+
           <div className="min-h-[250px] h-[250px] w-full flex-1">
             <ResponsiveContainer width="99%" height="100%">
-              <AreaChart data={monthlyData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="colorSick" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor={COLORS.blue} stopOpacity={0.4}/>
-                    <stop offset="95%" stopColor={COLORS.blue} stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
+              <LineChart data={monthlyData} margin={{ top: 20, right: 15, left: -20, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(148, 163, 184, 0.1)" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: "#94A3B8" }} dy={10} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: "#94A3B8" }} />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: "#94A3B8" }} dy={10} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: "#94A3B8" }} />
                 <Tooltip 
-                  contentStyle={{ 
-                    borderRadius: '16px', 
-                    border: '1px solid rgba(255, 255, 255, 0.08)', 
-                    backgroundColor: 'rgba(15, 23, 42, 0.95)', 
-                    color: '#fff', 
-                    boxShadow: '0 10px 40px rgba(0,0,0,0.2)',
-                    backdropFilter: 'blur(8px)'
-                  }} 
-                  itemStyle={{ color: '#e2e8f0' }}
-                  labelStyle={{ color: '#94a3b8', fontWeight: 'bold' }}
+                  content={({ active, payload, label }: any) => {
+                    if (!active || !payload || payload.length === 0) return null;
+                    const dataPoint = payload[0]?.payload;
+                    if (!dataPoint) return null;
+
+                    // Build list of all leave types with their values
+                    const activeConfigs = leaveConfigs?.filter((c: any) => c.isActive) || [];
+                    const typeRows = activeConfigs
+                      .map((config: any, idx: number) => ({
+                        name: lang === "th" ? config.name : (tLeaveType(config.type, config.name) || config.name),
+                        value: dataPoint[config.type] || 0,
+                        color: COLOR_PALETTE[idx % COLOR_PALETTE.length],
+                        type: config.type
+                      }))
+                      .filter((row: any) => row.value > 0);
+
+                    const total = dataPoint.total || 0;
+
+                    return (
+                      <div className="bg-slate-900/95 backdrop-blur-lg border border-white/10 rounded-2xl px-4 py-3 shadow-2xl min-w-[180px]">
+                        <p className="text-slate-400 text-xs font-bold mb-2 border-b border-slate-700/50 pb-2">{label}</p>
+                        {typeRows.length > 0 ? (
+                          <div className="space-y-1.5">
+                            {typeRows.map((row: any) => (
+                              <div key={row.type} className="flex items-center justify-between gap-4">
+                                <div className="flex items-center gap-2">
+                                  <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: row.color }} />
+                                  <span className="text-slate-300 text-xs">{row.name}</span>
+                                </div>
+                                <span className="text-white text-xs font-bold">{row.value} {lang === "th" ? "วัน" : "days"}</span>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-slate-500 text-xs">{lang === "th" ? "ไม่มีการลา" : "No leave"}</p>
+                        )}
+                        <div className="mt-2 pt-2 border-t border-slate-700/50 flex items-center justify-between">
+                          <span className="text-slate-400 text-xs font-semibold">{lang === "th" ? "รวม" : "Total"}</span>
+                          <span className="text-white text-sm font-bold">{total} {lang === "th" ? "วัน" : "days"}</span>
+                        </div>
+                      </div>
+                    );
+                  }}
                 />
-                <Area type="monotone" dataKey="value" stroke={COLORS.blue} strokeWidth={4} fill="url(#colorSick)" activeDot={{ r: 8, fill: COLORS.blue, stroke: '#fff', strokeWidth: 3 }} />
-              </AreaChart>
+                
+                {trendViewMode === "types" ? (
+                  <>
+                    <Legend 
+                      verticalAlign="top" 
+                      height={36} 
+                      iconType="circle"
+                      iconSize={8}
+                      wrapperStyle={{ fontSize: '11px', fontWeight: '500', paddingBottom: '10px' }}
+                    />
+                    {leaveConfigs
+                      ?.filter((c: any) => c.isActive)
+                      .map((config: any, index: number) => {
+                        // Check if this type has non-zero data in monthlyData or is a primary type
+                        const hasData = monthlyData?.some((m: any) => (m[config.type] || 0) > 0);
+                        const isPrimary = ["SICK", "PERSONAL", "VACATION"].includes(config.type);
+                        if (!isPrimary && !hasData) return null;
+
+                        return (
+                          <Line
+                            key={config.type}
+                            type="monotone"
+                            dataKey={config.type}
+                            name={lang === "th" ? config.name : (tLeaveType(config.type, config.name) || config.name)}
+                            stroke={COLOR_PALETTE[index % COLOR_PALETTE.length]}
+                            strokeWidth={3}
+                            dot={{ r: 3 }}
+                            activeDot={{ r: 6, strokeWidth: 2, stroke: '#fff' }}
+                            connectNulls
+                            isAnimationActive={true}
+                            animationDuration={1200}
+                            animationEasing="ease-in-out"
+                          >
+                            <LabelList 
+                              dataKey={config.type} 
+                              position="top" 
+                              offset={8} 
+                              fill={COLOR_PALETTE[index % COLOR_PALETTE.length]} 
+                              fontSize={10} 
+                              fontWeight="600" 
+                              formatter={(val: any) => val > 0 ? val : ""} 
+                            />
+                          </Line>
+                        );
+                      })}
+                  </>
+                ) : (
+                  <Line
+                    type="monotone"
+                    dataKey="total"
+                    name={lang === "th" ? "ยอดรวม" : "Total"}
+                    stroke={COLORS.blue}
+                    strokeWidth={4}
+                    dot={{ r: 4, fill: COLORS.blue, strokeWidth: 2, stroke: '#fff' }}
+                    activeDot={{ r: 7, fill: COLORS.blue, strokeWidth: 2, stroke: '#fff' }}
+                    isAnimationActive={true}
+                    animationDuration={1500}
+                    animationEasing="ease-in-out"
+                  >
+                    <LabelList 
+                      dataKey="total" 
+                      position="top" 
+                      offset={10} 
+                      fill="#64748b" 
+                      className="dark:fill-slate-400" 
+                      fontSize={11} 
+                      fontWeight="bold" 
+                      formatter={(val: any) => val > 0 ? val : ""} 
+                    />
+                  </Line>
+                )}
+              </LineChart>
             </ResponsiveContainer>
           </div>
         </motion.div>

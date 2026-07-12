@@ -4,6 +4,7 @@ import prisma from "@/lib/prisma";
 import { requireAdminOrHR } from "./settings";
 import { getApprovedLeavesForPeriod } from "./attendance-leave-sync";
 import { isDateOnLeave } from "@/lib/attendance-utils";
+import { getTimezoneMemo } from "./leave";
 
 export async function getTodayAttendanceStats() {
   await requireAdminOrHR();
@@ -39,10 +40,11 @@ export async function getTodayAttendanceStats() {
 
   const userIds = allUsers.map(u => u.id);
   const leaves = await getApprovedLeavesForPeriod(userIds, today, today);
+  const tz = await getTimezoneMemo();
 
   // Apply leave status overrides to existing attendance records
   attendances.forEach(a => {
-    const hasLeave = isDateOnLeave(today, a.userId, leaves);
+    const hasLeave = isDateOnLeave(today, a.userId, leaves, tz);
     if (hasLeave && a.status !== "PRESENT") {
       a.status = "LEAVE";
     }
@@ -56,7 +58,7 @@ export async function getTodayAttendanceStats() {
   const pendingUsers = allUsers.filter(u => !checkedInUserIds.has(u.id));
 
   // Filter out pending users who have approved leaves and count them as leave
-  const pendingLeaveUsers = pendingUsers.filter(u => isDateOnLeave(today, u.id, leaves));
+  const pendingLeaveUsers = pendingUsers.filter(u => isDateOnLeave(today, u.id, leaves, tz));
   const pendingLeaveUserIds = new Set(pendingLeaveUsers.map(u => u.id));
   const realPendingUsers = pendingUsers.filter(u => !pendingLeaveUserIds.has(u.id));
 
@@ -129,10 +131,11 @@ export async function getIndividualAttendanceStats(
   });
 
   const leaves = await getApprovedLeavesForPeriod([userId], startDate, endDate);
+  const tz = await getTimezoneMemo();
 
   // Apply overrides to existing records
   attendances.forEach(a => {
-    const hasLeave = isDateOnLeave(a.attendanceDate, userId, leaves);
+    const hasLeave = isDateOnLeave(a.attendanceDate, userId, leaves, tz);
     if (hasLeave && a.status !== "PRESENT") {
       a.status = "LEAVE" as any;
     }
@@ -150,7 +153,7 @@ export async function getIndividualAttendanceStats(
   const oneDayMs = 24 * 60 * 60 * 1000;
   for (let currentMs = startMs; currentMs <= endMs; currentMs += oneDayMs) {
     const currentDate = new Date(currentMs);
-    const hasLeave = isDateOnLeave(currentDate, userId, leaves);
+    const hasLeave = isDateOnLeave(currentDate, userId, leaves, tz);
     if (hasLeave && !existingDates.has(currentMs)) {
       synthesized.push({
         id: `virtual-leave-${currentMs}`,
@@ -177,6 +180,7 @@ export async function getIndividualAttendanceStats(
 
 export async function getSchoolAttendanceAnalytics() {
   await requireAdminOrHR();
+  const tz = await getTimezoneMemo();
 
   const today = new Date();
   const currentYear = today.getFullYear();
@@ -202,7 +206,7 @@ export async function getSchoolAttendanceAnalytics() {
 
   const lateUserIds = Array.from(new Set(lates.map(l => l.userId)));
   const leaves = await getApprovedLeavesForPeriod(lateUserIds, fiscalStart, fiscalEnd);
-  const realLates = lates.filter(l => !isDateOnLeave(l.attendanceDate, l.userId, leaves));
+  const realLates = lates.filter(l => !isDateOnLeave(l.attendanceDate, l.userId, leaves, tz));
 
   const deptLates: Record<string, number> = {};
   realLates.forEach(l => {
@@ -227,7 +231,7 @@ export async function getSchoolAttendanceAnalytics() {
   const hourlyCounts = Array(24).fill(0);
   allEntries.forEach(e => {
     if (e.checkInTime) {
-      const hour = parseInt(new Date(e.checkInTime).toLocaleTimeString("en-US", { hour12: false, hour: "2-digit", timeZone: "Asia/Bangkok" }), 10);
+      const hour = parseInt(new Date(e.checkInTime).toLocaleTimeString("en-US", { hour12: false, hour: "2-digit", timeZone: tz }), 10);
       hourlyCounts[hour]++;
     }
   });
@@ -266,7 +270,7 @@ export async function getSchoolAttendanceAnalytics() {
 
   const rangeUserIds = Array.from(new Set(attendancesInRange.map(a => a.userId)));
   const rangeLeaves = await getApprovedLeavesForPeriod(rangeUserIds, rangeStart, rangeEnd);
-  const realRangeLates = attendancesInRange.filter(a => !isDateOnLeave(a.attendanceDate, a.userId, rangeLeaves));
+  const realRangeLates = attendancesInRange.filter(a => !isDateOnLeave(a.attendanceDate, a.userId, rangeLeaves, tz));
 
   const trendMap: Record<string, number> = {};
   realRangeLates.forEach(a => {

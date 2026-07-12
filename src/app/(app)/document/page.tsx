@@ -390,17 +390,7 @@ export default function DocumentPage() {
             ออกเลขส่งคำสั่งและลงทะเบียนรับเกษียนหนังสือออนไลน์ เชื่อมโยงข้อมูลอย่างมีประสิทธิภาพ
           </p>
         </div>
-        
         <div className="flex gap-2">
-          {isAdmin && (
-            <Link
-              href="/document/settings"
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-bold shadow-sm hover:bg-slate-50 dark:hover:bg-slate-700 transition"
-            >
-              <Settings className="w-4 h-4" />
-              ตั้งค่าหมวดหมู่/ผู้ลงนาม
-            </Link>
-          )}
           <button
             onClick={loadData}
             className="flex items-center gap-2 px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 transition"

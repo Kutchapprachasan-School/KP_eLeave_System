@@ -15,8 +15,6 @@ export default function UsersPage() {
   const [editingData, setEditingData] = useState<any>(null);
   const [isAddingUser, setIsAddingUser] = useState(false);
   const [addingData, setAddingData] = useState<any>(null);
-  const [resettingId, setResettingId] = useState<string | null>(null);
-  const [newPassword, setNewPassword] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
   const { t, lang, tPosition, tSubjectGroup, tLevel } = useI18n();
@@ -180,24 +178,32 @@ export default function UsersPage() {
 
   const handleSaveEdit = async () => {
     if (!editingData) return;
-    const role = editingData.position === "แอดมิน" ? "ADMIN" : "TEACHER";
-    await updateUserProfile(editingData.id, {
-      name: editingData.name,
-      email: editingData.email,
-      username: editingData.username,
-      role,
-      position: editingData.position,
-      subjectGroup: editingData.subjectGroup,
-      level: editingData.level || ""
-    });
-    setEditingData(null);
-    loadUsers();
+    try {
+      const role = editingData.position === "แอดมิน" ? "ADMIN" : "TEACHER";
+      const res = await updateUserProfile(editingData.id, {
+        name: editingData.name,
+        email: editingData.email,
+        username: editingData.username,
+        role,
+        position: editingData.position,
+        subjectGroup: editingData.subjectGroup,
+        level: editingData.level || ""
+      });
+      if (res && !res.success) {
+        alert(res.error || (lang === "en" ? "An error occurred" : "เกิดข้อผิดพลาด"));
+        return;
+      }
+      setEditingData(null);
+      loadUsers();
+    } catch (err: any) {
+      alert(err.message || (lang === "en" ? "An error occurred" : "เกิดข้อผิดพลาด"));
+    }
   };
 
   const handleSaveAdd = async () => {
     if (!addingData) return;
     try {
-      await createUserByAdmin({
+      const res = await createUserByAdmin({
         name: addingData.name,
         email: addingData.email,
         username: addingData.username,
@@ -206,11 +212,28 @@ export default function UsersPage() {
         subjectGroup: addingData.subjectGroup,
         level: addingData.level || ""
       });
+      if (res && !res.success) {
+        alert(res.error || t("createUserError"));
+        return;
+      }
       setIsAddingUser(false);
       setAddingData(null);
       loadUsers();
     } catch (err: any) {
       alert(err.message || t("createUserError"));
+    }
+  };
+
+  const handleResetPassword = async (userId: string, name: string) => {
+    const msg = lang === "en" 
+      ? `Are you sure you want to reset password for "${name}" to "12345678"?`
+      : `คุณต้องการรีเซ็ตรหัสผ่านของ "${name}" เป็น "12345678" ใช่หรือไม่?`;
+    if (!confirm(msg)) return;
+    try {
+      await resetUserPasswordByAdmin(userId);
+      alert(lang === "en" ? "Password reset successfully to 12345678!" : "รีเซ็ตรหัสผ่านเป็น 12345678 เรียบร้อยแล้ว!");
+    } catch (err: any) {
+      alert(err.message || (lang === "en" ? "An error occurred" : "เกิดข้อผิดพลาด"));
     }
   };
 
@@ -482,10 +505,7 @@ export default function UsersPage() {
                                 <UserCog className="w-4 h-4" />
                               </button>
                               <button
-                                onClick={() => {
-                                  setResettingId(user.id);
-                                  setNewPassword("");
-                                }}
+                                onClick={() => handleResetPassword(user.id, user.name)}
                                 className="p-2 rounded-lg text-slate-400 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-500/10 transition-colors cursor-pointer"
                                 title={t("resetPassword")}
                               >
@@ -566,67 +586,7 @@ export default function UsersPage() {
         </div>
       )}
 
-      {/* Reset Password Modal */}
-      {resettingId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-xl p-6"
-          >
-            <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
-              <Key className="w-5 h-5 text-amber-500" />
-              {t("resetPasswordTitle")}
-            </h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-              {t("resetPasswordDesc")}
-            </p>
 
-            <input
-              type="text"
-              placeholder={t("newPassword")}
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              className="w-full h-11 px-4 mt-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-850 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500 outline-none transition-all"
-              autoFocus
-            />
-
-            <div className="flex justify-end gap-2 mt-6">
-              <button
-                type="button"
-                onClick={() => {
-                  setResettingId(null);
-                  setNewPassword("");
-                }}
-                className="px-4 py-2 rounded-xl text-xs font-semibold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors cursor-pointer"
-              >
-                {t("cancel")}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  const targetUser = users.find(u => u.id === resettingId);
-                  if (targetUser) {
-                    if (!confirm(t("confirmResetPasswordByAdmin").replace("{name}", targetUser.name))) return;
-                    resetUserPasswordByAdmin(resettingId, newPassword)
-                      .then(() => {
-                        alert(t("resetPasswordSuccessAlert"));
-                        setResettingId(null);
-                        setNewPassword("");
-                      })
-                      .catch((err) => {
-                        alert(err.message || (lang === "en" ? "An error occurred" : "เกิดข้อผิดพลาด"));
-                      });
-                  }
-                }}
-                className="px-4 py-2 rounded-xl text-xs font-semibold bg-gradient-to-r from-amber-500 to-orange-600 hover:opacity-95 text-white shadow-md shadow-amber-500/20 transition-all cursor-pointer"
-              >
-                {t("saveNewPassword")}
-              </button>
-            </div>
-          </motion.div>
-        </div>
-      )}
 
       {/* Edit User Modal */}
       {editingData && (

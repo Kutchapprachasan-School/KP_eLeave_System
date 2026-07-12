@@ -1,12 +1,33 @@
 import type { Metadata } from "next";
 import { ThemeProvider } from "@/components/theme-provider";
 import { I18nProvider } from "@/lib/i18n";
+import { prisma } from "@/lib/db";
 import "./globals.css";
 
-export const metadata: Metadata = {
-  title: "e-Leave System | ระบบลาออนไลน์",
-  description: "ระบบการลาออนไลน์สำหรับโรงเรียน - Online Leave Management System",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  let iconUrl: string = "/icon.jpg";
+  try {
+    const settings = await prisma.systemSettings.findUnique({
+      where: { id: "default" },
+      select: { logoUrl: true, schoolName: true },
+    });
+    if (settings?.logoUrl) {
+      iconUrl = settings.logoUrl;
+    }
+  } catch {
+    // fallback to default icon if DB is unreachable
+  }
+
+  return {
+    title: "e-Leave System | ระบบลาออนไลน์",
+    description: "ระบบการลาออนไลน์สำหรับโรงเรียน - Online Leave Management System",
+    icons: {
+      icon: iconUrl,
+      apple: iconUrl,
+    },
+  };
+}
+
 
 export default function RootLayout({
   children,

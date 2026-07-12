@@ -82,19 +82,26 @@ export function compressPhoto(
   return offscreen.toDataURL("image/jpeg", quality);
 }
 
-export function isDateOnLeave(date: Date, userId: string, leaves: any[]): boolean {
-  const targetTime = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
+function toLocalCustomDateString(date: Date, tz: string): string {
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: tz,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  });
+  return formatter.format(date);
+}
+
+export function isDateOnLeave(date: Date, userId: string, leaves: any[], tz: string = "Asia/Bangkok"): boolean {
+  const targetStr = toLocalCustomDateString(date, tz);
 
   return leaves.some((l) => {
     if (l.userId !== userId) return false;
 
     // Convert dates if they are strings or Date objects
-    const startD = new Date(l.startDate);
-    const endD = new Date(l.endDate);
+    const startStr = toLocalCustomDateString(new Date(l.startDate), tz);
+    const endStr = toLocalCustomDateString(new Date(l.endDate), tz);
 
-    const leaveStart = Date.UTC(startD.getUTCFullYear(), startD.getUTCMonth(), startD.getUTCDate());
-    const leaveEnd = Date.UTC(endD.getUTCFullYear(), endD.getUTCMonth(), endD.getUTCDate());
-
-    return targetTime >= leaveStart && targetTime <= leaveEnd;
+    return targetStr >= startStr && targetStr <= endStr;
   });
 }

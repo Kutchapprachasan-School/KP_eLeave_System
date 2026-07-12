@@ -6,7 +6,7 @@ import { getLeaveConfigs } from "@/app/actions/settings";
 import { useSession } from "@/lib/auth-client";
 import { format } from "date-fns";
 import { formatLeaveDate } from "@/lib/date-format";
-import { CalendarDays, Clock, FileX, CheckCircle2, XCircle, Download, Printer, FileSpreadsheet, Paperclip, X, ChevronRight, Users } from "lucide-react";
+import { CalendarDays, Clock, FileX, CheckCircle2, XCircle, Download, Printer, FileSpreadsheet, Paperclip, X, ChevronRight, Users, Search } from "lucide-react";
 import * as XLSX from "xlsx";
 import { CycleSelect } from "@/components/cycle-select";
 import { useSearchParams } from "next/navigation";
@@ -75,6 +75,7 @@ export default function HistoryPage() {
   const [staffList, setStaffList] = useState<any[]>([]);
   const [selectedUserId, setSelectedUserId] = useState<string>("me");
   const [selectedStatus, setSelectedStatus] = useState<string>("all");
+  const [searchName, setSearchName] = useState<string>("");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
   const printRef = useRef<HTMLDivElement>(null);
@@ -82,15 +83,17 @@ export default function HistoryPage() {
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
 
   const filteredHistory = history.filter((item) => {
-    if (selectedStatus === "all") return true;
-    if (selectedStatus === "pending") {
-      return item.status === "PENDING_HEAD" || item.status === "PENDING_EXEC";
+    // Filter by status
+    if (selectedStatus !== "all") {
+      if (selectedStatus === "pending" && item.status !== "PENDING_HEAD" && item.status !== "PENDING_EXEC") return false;
+      if (selectedStatus === "approved" && item.status !== "APPROVED") return false;
+      if (selectedStatus === "rejected" && item.status !== "REJECTED" && item.status !== "CANCELLED") return false;
     }
-    if (selectedStatus === "approved") {
-      return item.status === "APPROVED";
-    }
-    if (selectedStatus === "rejected") {
-      return item.status === "REJECTED" || item.status === "CANCELLED";
+    // Filter by name search
+    if (searchName.trim()) {
+      const keyword = searchName.trim().toLowerCase();
+      const name = (item.userName || "").toLowerCase();
+      if (!name.includes(keyword)) return false;
     }
     return true;
   });
@@ -262,7 +265,7 @@ export default function HistoryPage() {
           <td style="border:1px solid #ddd;padding:8px;">${leaveTh}</td>
           <td style="border:1px solid #ddd;padding:8px;text-align:center;">${formatLeaveDate(item.startDate, lang)}</td>
           <td style="border:1px solid #ddd;padding:8px;text-align:center;">${formatLeaveDate(item.endDate, lang)}</td>
-          <td style="border:1px solid #ddd;padding:8px;text-align:center;">${Math.ceil((new Date(item.endDate).getTime() - new Date(item.startDate).getTime()) / (1000*60*60*24)) + 1}</td>
+          <td style="border:1px solid #ddd;padding:8px;text-align:center;">${item.leaveDays !== undefined ? item.leaveDays : Math.ceil((new Date(item.endDate).getTime() - new Date(item.startDate).getTime()) / (1000*60*60*24)) + 1}</td>
           <td style="border:1px solid #ddd;padding:8px;">${item.reason}</td>
           <td style="border:1px solid #ddd;padding:8px;text-align:center;">${getStatusTextTh(item.status)}</td>
         </tr>
@@ -331,7 +334,7 @@ export default function HistoryPage() {
       row["ประเภท"] = leaveTypeMap[item.type] || item.type;
       row["วันที่เริ่ม"] = new Date(item.startDate).toLocaleDateString("th-TH");
       row["ถึงวันที่"] = new Date(item.endDate).toLocaleDateString("th-TH");
-      row["จำนวนวัน"] = Math.ceil((new Date(item.endDate).getTime() - new Date(item.startDate).getTime()) / (1000 * 60 * 60 * 24)) + 1;
+      row["จำนวนวัน"] = item.leaveDays !== undefined ? item.leaveDays : Math.ceil((new Date(item.endDate).getTime() - new Date(item.startDate).getTime()) / (1000 * 60 * 60 * 24)) + 1;
       row["เหตุผล"] = item.reason;
       row["สถานะ"] = getStatusText(item.status);
       row["วันที่ยื่นใบลา"] = new Date(item.createdAt).toLocaleDateString("th-TH");
@@ -449,6 +452,25 @@ export default function HistoryPage() {
             </select>
           )}
           <CycleSelect defaultValue="all" showAll={true} />
+          {/* Name Search */}
+          <div className="relative flex-1 lg:flex-none">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+            <input
+              type="text"
+              value={searchName}
+              onChange={(e) => { setSearchName(e.target.value); setCurrentPage(1); }}
+              placeholder={lang === "en" ? "Search by name..." : "ค้นหาชื่อ..."}
+              className="h-10 pl-9 pr-4 w-full lg:w-48 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-semibold text-slate-900 dark:text-slate-100 placeholder:text-slate-400 placeholder:font-normal focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all"
+            />
+            {searchName && (
+              <button
+                onClick={() => { setSearchName(""); setCurrentPage(1); }}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
           <select
             value={selectedStatus}
             onChange={(e) => {
@@ -607,13 +629,13 @@ export default function HistoryPage() {
                           {formatLeaveDate(item.startDate, lang)} - {formatLeaveDate(item.endDate, lang)}
                         </td>
                         <td className="px-3 py-3 text-center text-slate-600 dark:text-slate-300 font-semibold">
-                          {calculateDays(item.startDate, item.endDate, item.type) === 0 && item.type !== "MATERNITY" ? (
+                          {(item.leaveDays !== undefined ? item.leaveDays : calculateDays(item.startDate, item.endDate, item.type)) === 0 && item.type !== "MATERNITY" ? (
                             <span className="px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 text-[10px]" title="วันที่เลือกตรงกับวันเสาร์-อาทิตย์ทั้งหมด">
                               {t("weekendZeroDays")}
                             </span>
                           ) : (
                             <span className="px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-600 dark:text-purple-400 text-xs whitespace-nowrap">
-                              {calculateDays(item.startDate, item.endDate, item.type)} {t("days")}
+                              {item.leaveDays !== undefined ? item.leaveDays : calculateDays(item.startDate, item.endDate, item.type)} {t("days")}
                             </span>
                           )}
                         </td>
@@ -705,7 +727,7 @@ export default function HistoryPage() {
                       <div>
                         <span className="text-slate-400 dark:text-slate-500 block">จำนวนวัน:</span>
                         <span className="font-semibold text-slate-950 dark:text-white">
-                          {calculateDays(item.startDate, item.endDate, item.type) === 0 && item.type !== "MATERNITY" ? t("weekendZeroDays") : `${calculateDays(item.startDate, item.endDate, item.type)} ${t("days")}`}
+                          {(item.leaveDays !== undefined ? item.leaveDays : calculateDays(item.startDate, item.endDate, item.type)) === 0 && item.type !== "MATERNITY" ? t("weekendZeroDays") : `${item.leaveDays !== undefined ? item.leaveDays : calculateDays(item.startDate, item.endDate, item.type)} ${t("days")}`}
                         </span>
                       </div>
                     </div>
@@ -818,7 +840,7 @@ export default function HistoryPage() {
         const item = selectedLeaveDetail;
         const config = leaveConfigs.find((c) => c.type === item.type);
         const leaveTypeName = getLeaveTypeName(item.type);
-        const leaveDays = calculateDays(item.startDate, item.endDate, item.type);
+        const leaveDays = item.leaveDays !== undefined ? item.leaveDays : calculateDays(item.startDate, item.endDate, item.type);
         const applicantName = item.userName || staffList.find(s => s.id === item.userId)?.name || "-";
         const applicantPosition = staffList.find(s => s.id === item.userId)?.position || "-";
         const headApprover = staffList.find(s => s.id === item.headApproverId);
