@@ -7557,7 +7557,7 @@ function DocMemoSectionsTab({
 
   const handleSave = async () => {
     if (!form.name.trim() || !form.code.trim()) {
-      showToast("error", "กรุณากรอกชื่อและรหัส");
+      showToast("กรุณากรอกชื่อและรหัส", "error");
       return;
     }
     setSaving(true);
@@ -7571,11 +7571,11 @@ function DocMemoSectionsTab({
         form.icon,
         Number(form.sortOrder)
       );
-      showToast("success", editId ? "แก้ไขสำเร็จ" : "เพิ่มสำเร็จ");
+      showToast(editId ? "แก้ไขสำเร็จ" : "เพิ่มสำเร็จ", "success");
       resetForm();
       await onRefresh();
     } catch (err: any) {
-      showToast("error", err.message || "เกิดข้อผิดพลาด");
+      showToast(err.message || "เกิดข้อผิดพลาด", "error");
     } finally {
       setSaving(false);
     }
@@ -7585,10 +7585,10 @@ function DocMemoSectionsTab({
     if (!confirm("ต้องการลบงานย่อยนี้หรือไม่? (DocumentConfig ที่เชื่อมอยู่จะถูกลบด้วย)")) return;
     try {
       await deleteMemoSection(id);
-      showToast("success", "ลบสำเร็จ");
+      showToast("ลบสำเร็จ", "success");
       await onRefresh();
     } catch (err: any) {
-      showToast("error", err.message || "ลบไม่สำเร็จ");
+      showToast(err.message || "ลบไม่สำเร็จ", "error");
     }
   };
 
@@ -7934,11 +7934,11 @@ function DocPatternBuilderTab({
         localPadding,
         localYearFormat
       );
-      showToast("success", "บันทึกรูปแบบเลขสำเร็จ");
+      showToast("บันทึกรูปแบบเลขสำเร็จ", "success");
       cancelEdit();
       await onRefresh();
     } catch (err: any) {
-      showToast("error", err.message || "บันทึกไม่สำเร็จ");
+      showToast(err.message || "บันทึกไม่สำเร็จ", "error");
     } finally {
       setSaving(false);
     }
@@ -8231,7 +8231,7 @@ function DocSigneesTab({
 
   const handleSave = async () => {
     if (!form.name.trim() || !form.position.trim()) {
-      showToast("error", "กรุณากรอกชื่อและตำแหน่ง");
+      showToast("กรุณากรอกชื่อและตำแหน่ง", "error");
       return;
     }
     setSaving(true);
@@ -8242,11 +8242,11 @@ function DocSigneesTab({
         form.position.trim(),
         form.isCommon
       );
-      showToast("success", editId ? "แก้ไขสำเร็จ" : "เพิ่มสำเร็จ");
+      showToast(editId ? "แก้ไขสำเร็จ" : "เพิ่มสำเร็จ", "success");
       resetForm();
       await onRefresh();
     } catch (err: any) {
-      showToast("error", err.message || "เกิดข้อผิดพลาด");
+      showToast(err.message || "เกิดข้อผิดพลาด", "error");
     } finally {
       setSaving(false);
     }
@@ -8256,10 +8256,10 @@ function DocSigneesTab({
     if (!confirm("ต้องการลบผู้ลงนามนี้หรือไม่?")) return;
     try {
       await deleteSigneePreset(id);
-      showToast("success", "ลบสำเร็จ");
+      showToast("ลบสำเร็จ", "success");
       await onRefresh();
     } catch (err: any) {
-      showToast("error", err.message || "ลบไม่สำเร็จ");
+      showToast(err.message || "ลบไม่สำเร็จ", "error");
     }
   };
 
