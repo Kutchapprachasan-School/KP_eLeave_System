@@ -1898,7 +1898,7 @@ export default function SettingsPage() {
               type="button"
               onClick={() => setEnableAttendance(!enableAttendance)}
               className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors focus:outline-none ${
-                enableAttendance ? "bg-indigo-650" : "bg-gray-200 dark:bg-gray-700"
+                enableAttendance ? "bg-indigo-600" : "bg-gray-200 dark:bg-gray-700"
               }`}
             >
               <span
@@ -2008,7 +2008,7 @@ export default function SettingsPage() {
                   type="button"
                   onClick={() => setRequireFaceScan(!requireFaceScan)}
                   className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${
-                    requireFaceScan ? "bg-indigo-650" : "bg-gray-200 dark:bg-gray-700"
+                    requireFaceScan ? "bg-emerald-500" : "bg-gray-200 dark:bg-gray-700"
                   }`}
                 >
                   <span
@@ -2125,7 +2125,7 @@ export default function SettingsPage() {
                     }
                   }}
                   className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors focus:outline-none ${
-                    enableDocument ? "bg-orange-650" : "bg-gray-200 dark:bg-gray-700"
+                    enableDocument ? "bg-orange-500" : "bg-gray-200 dark:bg-gray-700"
                   }`}
                 >
                   <span
@@ -3260,7 +3260,7 @@ export default function SettingsPage() {
 
                         />
 
-                        <div className="w-9 h-5 bg-gray-255 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-indigo-300 dark:peer-focus:ring-indigo-850 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-600 peer-checked:bg-indigo-600"></div>
+                        <div className="w-9 h-5 bg-gray-200 dark:bg-gray-700 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-emerald-300 dark:peer-focus:ring-emerald-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-600 peer-checked:bg-emerald-500"></div>
 
                       </label>
 
@@ -3662,7 +3662,7 @@ export default function SettingsPage() {
 
             />
 
-            <div className="w-11 h-6 bg-gray-250 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-indigo-300 dark:peer-focus:ring-indigo-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-indigo-600"></div>
+            <div className="w-11 h-6 bg-gray-200 dark:bg-gray-700 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-emerald-300 dark:peer-focus:ring-emerald-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-emerald-500"></div>
 
           </label>
 
