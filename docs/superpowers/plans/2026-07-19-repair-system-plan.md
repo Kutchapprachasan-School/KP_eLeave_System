@@ -1,26 +1,25 @@
-# ระบบแจ้งซ่อม (Repair Request System) Implementation Plan
+# ระบบแจ้งซ่อม (Repair Request System) Implementation Plan v5.1
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** สร้างระบบแจ้งซ่อมสำหรับครูและบุคลากรเพื่อแจ้งปัญหาอาคารสถานที่/อุปกรณ์ โดยมีระบบบีบอัดรูปภาพฝั่งไคลเอนต์ (Canvas) เก็บภาพแบบ Binary (BYTEA) และระบบจัดเก็บบันทึกประวัติเก่า (Archive) ครอบคลุมความปลอดภัยผ่าน Transaction การจำกัดขนาด รูปแบบข้อมูลการเงิน และการตรวจสอบสิทธิ์แบบ Permissions
+**Goal:** สร้างระบบแจ้งซ่อมสำหรับโรงเรียนแบบประสิทธิภาพสูง ตามพิมพ์เขียว Master Architecture Blueprint v5.1 โดยรองรับการบันทึกภาพแบบ Binary (BYTEA) จำกัดจำนวน BEFORE 2 รูป และ AFTER 2 รูป ย่อยรูปบน Canvas ฝั่งไคลเอนต์ ควบคุมสิทธิ์ด้วย Capability Permissions และมีระบบจดหมายเหตุย้ายความสัมพันธ์รูปภาพด้วยความปลอดภัยผ่าน Transaction
 
 **Architecture:** 
-- เพิ่ม Enums `RepairStatus`, `RepairUrgency`, `RepairPhotoType` และตาราง `RepairRequest`, `RepairPhoto`, `RepairArchive` ใน Prisma
-- ใช้ `Bytes` (BYTEA) สำหรับรูปภาพ, กำหนดประเภท `Decimal` สำหรับ `cost` และฟิลด์ `archivedAt` สำหรับระบุสัญกรณ์ Soft Delete
-- จัดทำระบบจำกัดจำนวนภาพสูงสุด BEFORE 2 ภาพ, AFTER 2 ภาพ รวมสูงสุด 4 ภาพ/คำขอ พร้อมระบบ Auto Client-side compression
-- เพิ่มระบบ Log บันทึกกิจกรรม และ Archiver ด้วย `prisma.$transaction` เพื่อโอนประวัติย้อนหลัง > 180 วัน/กดย้ายทันที
+- ตาราง `RepairRequest`, `RepairPhoto` และ `RepairArchive`
+- API Stream รูปภาพและแคชถาวร 1 ปี พร้อมระบบดักสิทธิ์เข้าถึง และแคชบัสเตอร์ `?v={createdAt}`
+- Server Action สำหรับย้ายข้อมูลเก่า (>180 วัน) ผ่าน Prisma Transaction และสลับสายความสัมพันธ์รูปภาพ
+- สิทธิ์การทำงานอิงตาม Permissions: `repair:view.own`, `repair:view.all`, `repair:create`, `repair:assign`, `repair:update`, `repair:archive`
 
-**Tech Stack:** Next.js, Prisma, PostgreSQL (BYTEA), Framer Motion, Tailwind CSS v4, Lucide React
+**Tech Stack:** Next.js (App Router), Prisma, PostgreSQL (BYTEA), Framer Motion, Tailwind CSS, Lucide React
 
 ---
 
 ## Global Constraints
-- ขนาดรูปภาพบีบอัดไม่เกิน 100 KB ต่อภาพ, กว้าง/สูงไม่เกิน 800px และเป็น JPEG (คุณภาพเริ่มต้น 0.7)
-- **ห้ามจำกัดขนาดไฟล์รูปต้นฉบับ**: ระบบต้องอนุญาตให้อัปโหลดไฟล์รูปภาพทุกขนาด (3-15 MB) จากมือถือ โดยทำการย่อและบีบอัดรูปภาพด้วย HTML5 Canvas บน Client อัตโนมัติ (และลด Quality ลงมาที่ 0.5 เผื่อกรณีที่ขนาดไฟล์ยังเกิน 100 KB หลังย่อ)
-- จำกัดรูปภาพก่อนซ่อม (BEFORE) สูงสุด 2 รูป และรูปภาพหลังซ่อม (AFTER) สูงสุด 2 รูป รวมสูงสุด 4 รูปต่อใบแจ้งซ่อม
-- สิทธิ์การเข้าใช้งานหน้าจอและการทำงานอิงผ่านระบบสิทธิ์ (Permissions Checking) ประกอบด้วย `repair:view`, `repair:create`, `repair:assign`, `repair:update`, `repair:archive` โดยห้ามผูกสิทธิ์ตรงกับตำแหน่งหรือบทบาท
-- ใช้ `Decimal` (Prisma `@db.Decimal(10,2)`) สำหรับฟิลด์ค่าใช้จ่าย (`cost`)
-- ทุกๆ กิจกรรมของงานซ่อมต้องมีการบันทึก Audit Log ลงตาราง `SystemLog` เสมอ (`REPAIR_CREATED`, `REPAIR_ASSIGNED`, `REPAIR_STARTED`, `REPAIR_COMPLETED`, `REPAIR_CANCELLED`, `REPAIR_ARCHIVED`)
+- **จำกัดรูปภาพ**: ก่อนซ่อม (BEFORE) สูงสุด 2 รูป และหลังซ่อม (AFTER) สูงสุด 2 รูป (รวม 4 รูปต่อใบงาน)
+- **การบีบอัดรูปภาพ**: ด้านยาวสุดไม่เกิน 800px บีบอัดเป็น JPEG (Quality = 0.7) ขนาดหลังย่อ $\le 100\text{ KB}$ ต่อรูป โดยไม่มีการจำกัดขนาดไฟล์รูปต้นฉบับของผู้ใช้
+- **ระบบการเงิน**: ใช้ประเภท `Decimal` (Prisma `@db.Decimal(10,2)`) สำหรับฟิลด์ค่าใช้จ่าย `cost` ของใบแจ้งซ่อม
+- **สิทธิ์เข้าใช้ระบบ**: ควบคุมระดับ Capability-based Permissions ผ่านการตรวจสอบฟังก์ชัน `hasPermission` ในไฟล์ `src/lib/permissions.ts`
+- **Audit Logs**: ทุกการเปลี่ยนแปลงใบแจ้งซ่อมต้องบันทึกลงตาราง `SystemLog` ในรหัสกิจกรรม: `REPAIR_CREATED`, `REPAIR_ASSIGNED`, `REPAIR_STARTED`, `REPAIR_COMPLETED`, `REPAIR_CANCELLED`, และ `REPAIR_ARCHIVED`
 
 ---
 
@@ -30,19 +29,19 @@
 
 **Files:**
 - Modify: [prisma/schema.prisma](file:///C:/dev/eLeave/prisma/schema.prisma)
-- Create: Migrations via Prisma CLI
+- Create: Migration files via Prisma CLI
 
 **Interfaces:**
-- Produces: `RepairStatus`, `RepairUrgency`, `RepairPhotoType` enums; `RepairRequest`, `RepairPhoto`, and `RepairArchive` models in database client
+- Produces: `RepairStatus`, `RepairUrgency` enums, `RepairRequest`, `RepairPhoto`, and `RepairArchive` models.
 
 - [ ] **Step 1: Edit `schema.prisma`**
   - เพิ่มฟิลด์ `enableRepair Boolean @default(false)` ในตาราง `SystemSettings`
-  - เพิ่ม Relations ในตาราง `User`:
+  - อัปเดตความสัมพันธ์ในโมเดล `User`:
     ```prisma
-    createdRepairs  RepairRequest[] @relation("RequestCreatedBy")
-    assignedRepairs RepairRequest[] @relation("RequestAssignedTo")
+    requestsCreated  RepairRequest[] @relation("RequestCreatedBy")
+    requestsAssigned RepairRequest[] @relation("RequestAssignedTo")
     ```
-  - เพิ่มโมเดลและโครงสร้างตารางแจ้งซ่อม:
+  - เพิ่มโมเดลและโครงสร้างตารางแจ้งซ่อมตามสเปก v5.1:
     ```prisma
     enum RepairStatus {
       PENDING
@@ -56,11 +55,6 @@
       NORMAL
       URGENT
       URGENT_MOST
-    }
-
-    enum RepairPhotoType {
-      BEFORE
-      AFTER
     }
 
     model RepairRequest {
@@ -80,168 +74,157 @@
       cancelReason   String?         @db.Text
       assignedAt     DateTime?
       finishedAt     DateTime?
-      archivedAt     DateTime?
       createdAt      DateTime        @default(now())
       updatedAt      DateTime        @updatedAt
       photos         RepairPhoto[]
 
-      @@index([requesterId])
-      @@index([assigneeId])
-      @@index([status])
+      @@index([status, createdAt(sort: Desc)])
+      @@index([status, updatedAt])
+      @@index([assigneeId, status])
+      @@index([requesterId, status])
     }
 
     model RepairPhoto {
-      id             String          @id @default(cuid())
-      repairId       String
-      photoType      RepairPhotoType
-      mimeType       String
-      imageData      Bytes
-      createdAt      DateTime        @default(now())
-      repair         RepairRequest   @relation(fields: [repairId], references: [id], onDelete: Cascade)
+      id        String          @id @default(cuid())
+      repairId  String?
+      archiveId String?
+      photoType String
+      mimeType  String
+      imageData Bytes
+      createdAt DateTime        @default(now())
+      
+      repair    RepairRequest?  @relation(fields: [repairId], references: [id], onDelete: SetNull)
+      archive   RepairArchive?  @relation(fields: [archiveId], references: [id], onDelete: Cascade)
 
       @@index([repairId])
+      @@index([archiveId])
     }
 
     model RepairArchive {
-      id             String          @id @default(cuid())
-      archivedAt     DateTime        @default(now())
+      id             String        @id @default(cuid())
+      archivedAt     DateTime      @default(now())
       itemCount      Int
+      completedCount Int
+      cancelledCount Int
+      totalCost      Decimal?      @db.Decimal(12, 2)
       payload        Json
+      photos         RepairPhoto[]
     }
     ```
 
-- [ ] **Step 2: Run dry-run check of database migration**
+- [ ] **Step 2: Run dry-run migration check**
   - Run: `npx prisma migrate diff --from-schema-datasource prisma/schema.prisma --to-schema-datamodel prisma/schema.prisma --script`
-  - Verify: ตรวจสอบโค้ด SQL ที่แสดงผลว่าไม่มีการเขียนคำสั่งเพื่อล้างตารางเดิม
+  - Verify: ตรวจทานคำสั่ง SQL ว่าไม่มีการ DROP ตารางที่สำคัญ
 
-- [ ] **Step 3: Create the migration file**
-  - Run: `npx prisma migrate dev --create-only --name add_repair_system`
-  - Verify: ตรวจสอบความถูกต้องไฟล์ SQL ใน `prisma/migrations/`
+- [ ] **Step 3: Create the migration package**
+  - Run: `npx prisma migrate dev --create-only --name add_repair_engine_v5`
+  - Verify: ตรวจทานไฟล์ SQL ในโฟลเดอร์ `prisma/migrations/`
 
-- [ ] **Step 4: Execute database migration**
+- [ ] **Step 4: Execute migration to database**
   - Run: `npx prisma migrate dev`
-  - Verify: การรัน Migration สำเร็จและ Client ได้รับการสร้างใหม่
+  - Verify: การรันผ่านสำเร็จและสร้าง Prisma Client สำเร็จ
 
 - [ ] **Step 5: Commit changes**
   - Run: `git add prisma/schema.prisma prisma/migrations/`
-  - Run: `git commit -m "db: add enums and models for Repair Request System"`
+  - Run: `git commit -m "db: add tables for Repair engine v5.1"`
 
 ---
 
-### Task 2: Server Actions for Repair System
+### Task 2: Implement Permissions & Actions & Secure Photo API
 
 **Files:**
+- Create: [src/lib/permissions.ts](file:///C:/dev/eLeave/src/lib/permissions.ts)
+- Create: [src/app/api/repair/photo/[photoId]/route.ts](file:///C:/dev/eLeave/src/app/api/repair/photo/%5BphotoId%5D/route.ts)
 - Create: [src/app/actions/repair.ts](file:///C:/dev/eLeave/src/app/actions/repair.ts)
 
 **Interfaces:**
-- Produces: 
-  - `createRepairRequest(data: { title, description, location, urgency: RepairUrgency, photos: { photoType: RepairPhotoType, mimeType: string, base64: string }[] })`
-  - `getRepairRequests(filters: { status?, search?, assigneeId?, requesterId? })`
-  - `getRepairRequestDetails(id: string)`
-  - `assignRepairRequest(id: string, assigneeId: string)`
-  - `updateRepairStatus(id: string, status: RepairStatus, data: { resolutionNote?, cost?, materialsUsed?, photos?: { photoType: RepairPhotoType, mimeType: string, base64: string }[], cancelReason? })`
+- Consumes: Prisma models
+- Produces: `hasPermission` helper, photo stream GET endpoint, and Server Actions for RepairRequest
 
-- [ ] **Step 1: Create `src/app/actions/repair.ts` and write validations + CRUD logic**
-  - ตรวจสอบความถูกต้องของสิทธิ์ด้วยระบบ Permissions
-  - ใน `createRepairRequest`:
-    - ตรวจทานตัวกรองจำนวนรูปภาพ: `BEFORE` สูงสุด 2 รูป และ `AFTER` สูงสุด 2 รูป
-    - โค้ดตรวจสอบ:
-      ```typescript
-      const beforePhotos = photos.filter(p => p.photoType === "BEFORE");
-      if (beforePhotos.length > 2) {
-        throw new Error("สามารถแนบรูปก่อนซ่อมได้สูงสุด 2 รูป");
-      }
-      ```
-    - แปลงข้อมูลภาพ Base64 เป็น Buffer บันทึกลงตาราง `RepairPhoto`
-    - เขียนบันทึกกิจกรรม `REPAIR_CREATED` ลงในตาราง `SystemLog`
-  - ใน `getRepairRequests`:
-    - ดึงรายการแจ้งซ่อมทั้งหมดโดยการทำคิวรีที่ไม่รวมความสัมพันธ์ `photos` เพื่อรักษาความเร็ว
-  - ใน `getRepairRequestDetails`:
-    - โหลดรายการคำขอพร้อมรูปภาพ โดยแปลงฟิลด์ `imageData` จาก Buffer คืนเป็น Base64 Data URL เพื่อส่งกลับไปแสดงผล
-  - ใน `assignRepairRequest`:
-    - แอดมินมอบหมายงานให้ช่าง บันทึกเวลา `assignedAt` และเพิ่ม SystemLog `REPAIR_ASSIGNED`
-  - ใน `updateRepairStatus`:
-    - เมื่อผู้ใช้อัปเดตสถานะ เช่น จาก `ASSIGNED` ไป `IN_PROGRESS` (เริ่มงาน) ให้สร้าง SystemLog `REPAIR_STARTED`
-    - เมื่อเปลี่ยนเป็น `COMPLETED` บันทึกค่าใช้จ่ายในรูป `Decimal` รายละเอียด วัสดุ และอัปโหลดภาพหลังซ่อม (ตรวจทานรูปหลังซ่อม `AFTER` ไม่เกิน 2 รูป) และสร้าง SystemLog `REPAIR_COMPLETED`
-    - เมื่อเปลี่ยนเป็น `CANCELLED` บันทึกเหตุผลการยกเลิก และสร้าง SystemLog `REPAIR_CANCELLED`
+- [ ] **Step 1: Write `src/lib/permissions.ts`**
+  - เขียนออบเจกต์และฟังก์ชันตรวจสอบสิทธิ์ `hasPermission` ตามพิมพ์เขียว v5.1
 
-- [ ] **Step 2: Verify typing & compilations**
-  - Verify: ไฟล์ compile ผ่าน ไม่มี TypeScript errors
+- [ ] **Step 2: Create Photo Streaming API Route**
+  - เขียนโค้ดใน `src/app/api/repair/photo/[photoId]/route.ts` เพื่อส่งภาพกลับเป็น Binary Response
+  - บังคับใช้การตรวจสอบสิทธิ์แบบ Ownership และตั้งค่า Cache-Control 1 ปีเต็มตามพิมพ์เขียว
 
-- [ ] **Step 3: Commit changes**
-  - Run: `git add src/app/actions/repair.ts`
-  - Run: `git commit -m "feat: implement Repair System server actions with enums and audit logs"`
+- [ ] **Step 3: Write Server Actions in `src/app/actions/repair.ts`**
+  - ฟังก์ชัน `createRepairRequest` เพื่อบันทึกงานใหม่ (จำกัดรูป BEFORE $\le 2$, และเซฟรูปในตาราง `RepairPhoto` แปลงจาก Base64 เป็น Buffer บันทึกรูปในฟิลด์ `imageData` แบบ Binary)
+  - ฟังก์ชัน `getRepairRequests` ดึงข้อมูลรายการแจ้งซ่อม (ห้ามดึงตารางความสัมพันธ์รูปภาพ `photos` เพื่อประสิทธิภาพ)
+  - ฟังก์ชัน `getRepairRequestDetails` ดึงข้อมูลเดี่ยวแสดงผล
+  - ฟังก์ชัน `assignRepairRequest` สำหรับมอบหมายช่าง
+  - ฟังก์ชัน `updateRepairStatus` อัปเดตงานสำหรับช่าง (รวมบันทึกรายละเอียดซ่อม, แนบรูปภาพ AFTER $\le 2$, บันทึกค่าซ่อมเป็น `Decimal`)
+  - แทรกคำสั่งสร้าง Audit Logs ในตาราง `SystemLog` เสมอในแต่ละขั้นตอน
+
+- [ ] **Step 4: Commit changes**
+  - Run: `git add src/lib/permissions.ts src/app/api/repair/photo/ src/app/actions/repair.ts`
+  - Run: `git commit -m "feat: add permissions helper, secure photo streaming API, and repair actions"`
 
 ---
 
-### Task 3: UI Integration: Layout, Settings & Archiving Transaction
+### Task 3: Implement ETL Transactional Archiver Job
+
+**Files:**
+- Create: [src/app/actions/archive.ts](file:///C:/dev/eLeave/src/app/actions/archive.ts)
+
+- [ ] **Step 1: Implement `archiveRepairsJob`**
+  - ใช้สิทธิ์ตรวจสอบ `repair:archive`
+  - อ่านใบแจ้งซ่อมที่ซ่อมเสร็จ/ยกเลิก และอายุ > 180 วัน ครั้งละ 200 รายการ
+  - เขียนการจัดส่งข้อมูลใน `prisma.$transaction` เพื่อสร้าง `RepairArchive`
+  - สลับคีย์ความสัมพันธ์รูปภาพ ย้ายมาเกาะ `archiveId` และล้างคีย์ `repairId`
+  - ทำลายใบแจ้งซ่อมหลักใน `RepairRequest` และบันทึก Log ลง `SystemLog`
+
+- [ ] **Step 2: Commit changes**
+  - Run: `git add src/app/actions/archive.ts`
+  - Run: `git commit -m "feat: implement transaction-safe ETL Archiver job"`
+
+---
+
+### Task 4: UI Integration (Sidebar, Settings, Forms, & Dashboard)
 
 **Files:**
 - Modify: [src/app/(app)/layout.tsx](file:///C:/dev/eLeave/src/app/(app)/layout.tsx)
-- Modify: [src/app/actions/settings.ts](file:///C:/dev/eLeave/src/app/actions/settings.ts)
 - Modify: [src/app/(app)/settings/page.tsx](file:///C:/dev/eLeave/src/app/(app)/settings/page.tsx)
-- Modify: [src/app/actions/repair.ts](file:///C:/dev/eLeave/src/app/actions/repair.ts) (เพิ่ม Archiver)
-
-- [ ] **Step 1: Configure access control based on permissions**
-  - เพิ่มสิทธิ์แจ้งซ่อมในระบบสิทธิ์พื้นฐาน `DEFAULT_PERMISSIONS` (เช่น `repair: ["ADMIN", "DIRECTOR", "HR", "INSPECTOR", "DEPT_HEAD", "TEACHER"]`) เพื่อควบคุมการโหลด sidebar
-  - แก้ไข `layout.tsx` ให้อ่านตัวชี้วัดสิทธิ์และเรนเดอร์เมนู "ระบบแจ้งซ่อม" (ใช้ไอคอน `Wrench`) ภายใต้กลุ่มเมนู "งานทั่วไป" เฉพาะเมื่อสิทธิ์อนุญาต
-
-- [ ] **Step 2: Implement transactional archiving action**
-  - เขียนฟังก์ชัน `archiveRepairs` ใน `src/app/actions/repair.ts` โดยให้ทำงานดังนี้:
-    1. ทำงานภายใน Prisma transaction: `await prisma.$transaction(async (tx) => { ... })`
-    2. ค้นหาใบแจ้งซ่อมที่สถานะเป็น `COMPLETED` หรือ `CANCELLED` และมีอายุมากกว่า 180 วัน (หรือตามช่วงเวลาที่กดแมนนวล)
-    3. ทำการ Soft Delete โดยอัปเดตฟิลด์ `archivedAt = new Date()` บนรายการที่ค้นพบ
-    4. โหลดประวัติรายการแจ้งซ่อมพร้อมรูปภาพที่เกี่ยวข้องทั้งหมด (แปลงภาพเป็น Base64 เพื่อรวมในก้อนข้อมูลประวัติ)
-    5. เขียนบันทึกก้อน JSON ขนาดใหญ่ลงในตาราง `RepairArchive`
-    6. ดำเนินการลบเรคคอร์ดจากตารางหลัก `RepairRequest` และ `RepairPhoto`
-    7. บันทึก SystemLog ระบุการทำรายการจดหมายเหตุ `REPAIR_ARCHIVED`
-  - เพิ่มตัวเลือกเปิด/ปิดระบบแจ้งซ่อมและแผงควบคุมจดหมายเหตุในหน้าตั้งค่าเพื่อให้ผู้ดูแลระบบสั่งการ Archive แบบ Manual ได้
-
-- [ ] **Step 3: Commit changes**
-  - Run: `git add src/app/(app)/layout.tsx src/app/actions/settings.ts src/app/(app)/settings/page.tsx src/app/actions/repair.ts`
-  - Run: `git commit -m "feat: implement layout permissions, settings, and transactional archive policy"`
-
----
-
-### Task 4: Repair Request Pages & Form
-
-**Files:**
 - Create: `src/app/(app)/repair/page.tsx`
 - Create: `src/app/(app)/repair/new/page.tsx`
 
-- [ ] **Step 1: Implement Request Form Page (`new/page.tsx`)**
-  - ออกแบบฟอร์มการแจ้งซ่อม: หัวเรื่อง, สถานที่, รายละเอียด และตัวเลือกระดับความเร่งด่วนตาม Enum `RepairUrgency`
-  - พัฒนาสคริปต์ย่อภาพผ่าน Canvas ขนาดความกว้างไม่เกิน 800px คุณภาพ 0.7 รหัส JPEG โดยไม่มีการบล็อกขนาดไฟล์รูปต้นฉบับ หากย่อยแล้วยังเกิน 100 KB ให้ลดคุณภาพลงเหลือ 0.5 อัตโนมัติ (จำกัดการส่งภาพก่อนซ่อม `BEFORE` ไม่เกิน 2 รูป)
+- [ ] **Step 1: Update Sidebar layout menu**
+  - ตรวจเช็คสิทธิ์ `repair:view` เพื่อเรนเดอร์เมนู "ระบบแจ้งซ่อม" (ใช้ไอคอน `Wrench`) ภายใต้เมนู "งานทั่วไป"
 
-- [ ] **Step 2: Implement Main Repair List & Detail Views (`page.tsx`)**
-  - แสดงตัวเลขสถิติผ่านการ์ด `.stat-card` ตามสถานะต่างๆ
-  - ตารางสรุปรายการแสดงตามสิทธิ์และเงื่อนไข (แอดมินดูทั้งหมด, ช่างดูงานที่มอบหมาย, ครูดูเฉพาะของตนเอง)
-  - รูปแบบแสดงภาพย่อ: ใช้ Thumbnail 120 x 120 pixels ในการ์ดข้อมูลเบื้องต้นเพื่อประหยัดหน่วยความจำ RAM และเปิดดูภาพเต็มผ่านกล่อง Lightbox Zoom ในหน้ารายละเอียดเมื่อคลิกเท่านั้น
-  - เพิ่มปุ่มอัปเดตและระบุค่าใช้จ่าย (Decimal) พร้อมระบุอุปกรณ์/แนบรูปประกอบหลังซ่อม (ช่าง/แอดมิน - แนบรูปหลังซ่อม `AFTER` ไม่เกิน 2 รูป)
+- [ ] **Step 2: Update Settings Page**
+  - สวิตช์เปิด/ปิด `enableRepair` และแผงสั่งงานคลังจดหมายเหตุปุ่มกด "Archive Now" สำหรับผู้ดูแลระบบ
 
-- [ ] **Step 3: Verify build and compile stability**
+- [ ] **Step 3: Implement Request Form Page (`new/page.tsx`)**
+  - ฟอร์มระบุข้อมูลพร้อม Canvas Auto Resizing (JPEG, Quality 0.7, ดันคุณภาพลงมาหากขนาดหลังย่อเกิน 100 KB)
+  - จำกัดการเพิ่มรูปภาพ BEFORE ไม่เกิน 2 รูป
+
+- [ ] **Step 4: Implement Dashboard & List View Page (`repair/page.tsx`)**
+  - การ์ดสถิติ `.stat-card` และตารางรายการซ่อมแยกตามสิทธิ์
+  - หน้ารายละเอียดงานซ่อมพร้อม Thumbnail 120x120 และ Lightbox Modal ขยายภาพเมื่อคลิก
+  - ช่องอัปเดตสถานะของช่างพร้อมใส่ภาพ AFTER ไม่เกิน 2 รูป และค่าใช้จ่าย
+
+- [ ] **Step 5: Verify build stability**
   - Run: `npm run build`
-  - Verify: ไม่มี TypeScript/Lint compilation errors เกิดขึ้น
+  - Verify: Build สำเร็จโดยไม่มีข้อผิดพลาด
 
-- [ ] **Step 4: Commit changes**
-  - Run: `git add src/app/(app)/repair/`
-  - Run: `git commit -m "feat: implement frontend views for repair request forms and management board"`
+- [ ] **Step 6: Commit changes**
+  - Run: `git add src/app/(app)/layout.tsx src/app/(app)/settings/page.tsx src/app/(app)/repair/`
+  - Run: `git commit -m "feat: integrate repair frontend UI components and pages"`
 
 ---
 
 ## Verification Plan
 
 ### Automated Verification
-- ตรวจทานด้วยคำสั่ง `npm run build` เพื่อให้แน่ใจว่าไม่มีข้อผิดพลาดการอ้างอิงสิทธิ์และการรวบรวมไฟล์
+- ตรวจทานความถูกต้องด้วย `npm run build` เพื่อตรวจสอบ Type ล่าสุดของ Decimal และ BYTEA ในหน้าเพจต่างๆ
 
 ### Manual Verification
-1. **การแจ้งซ่อมใหม่ (Client Limits)**:
-   - ตรวจสอบว่าสามารถอัปโหลดภาพต้นฉบับขนาดใดก็ได้ (เช่น 5-10 MB) และระบบ Canvas ทำการบีบอัดลงมาเหลือต่ำกว่า 100 KB สำเร็จโดยผู้ใช้ไม่ต้องทำเอง
-   - ทดสอบว่าเมื่อแนบภาพ BEFORE เกิน 2 รูป ระบบแสดงแจ้งเตือนบล็อก
-2. **การกู้คืนประวัติและรูปภาพแบบ BYTEA**:
-   - ลองแจ้งซ่อม 1 รายการพร้อมภาพก่อนซ่อม 2 รูป และช่างส่งงานพร้อมภาพหลังซ่อม 2 รูป
-   - เข้าดูหน้ารายการแจ้งซ่อมทั้งหมด ตรวจทานผ่าน Network Tab ว่าไม่มีการส่ง Byte รูปภาพก้อนใหญ่มา
-   - กดดูรายละเอียดของรายการซ่อม ตรวจสอบการแปลงจาก BYTEA เป็น Base64 และตรวจสอบว่าแสดงผลภาพ Thumbnail 120x120 เมื่องานแสดง และเปิดขยายรูปเต็มขนาดได้
-3. **ระบบการบันทึก Log และ Transaction Archive**:
-   - ตรวจเช็คว่าเมื่อแจ้งซ่อม มอบหมายงาน อัปเดตงาน มีข้อมูลเข้าตาราง `SystemLog` ครบถ้วน
-   - ดำเนินการกดปุ่ม "Archive Now" ในหน้าตั้งค่า ตรวจสอบการทำ Transaction อัปเดต `archivedAt` และย้ายข้อมูลลงตาราง `RepairArchive` สำเร็จโดยลบข้อมูลจากตารางหลักทั้งหมด
+1. **การแจ้งซ่อมใหม่และระบบบีบอัดภาพอัตโนมัติ**:
+   - ลองแนบไฟล์ภาพขนาดใหญ่ (5 MB) ภาพจะถูก Canvas ย่อให้เหลือกว้าง 800px เป็นไฟล์ JPEG ขนาด < 100 KB ทันที
+   - ตรวจสอบว่าไม่สามารถส่งรูปภาพ BEFORE เกิน 2 รูป และ AFTER เกิน 2 รูป
+2. **การดึงภาพปลอดภัย (Stream API)**:
+   - ทดสอบเข้าดู URL `/api/repair/photo/[id]` ของผู้ใช้อื่นที่ไม่ใช่เจ้าของงานและไม่มีสิทธิ์ `repair:view.all` ต้องถูกส่งกลับเป็น 403
+   - ตรวจดู Cache-Control headers ของภาพถ่ายในเครือข่ายเบราว์เซอร์
+3. **ETL Archive**:
+   - กดปุ่ม "Archive Now" และตรวจสอบในฐานข้อมูลว่าเรคคอร์ดในตาราง `RepairPhoto` เปลี่ยนมาจับกับ `archiveId` และลบเรคคอร์ด `RepairRequest` ทิ้งสำเร็จอย่างถูกต้อง
+   - ตรวจดูบันทึก SystemLog
