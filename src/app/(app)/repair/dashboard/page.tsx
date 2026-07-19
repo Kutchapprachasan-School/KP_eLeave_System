@@ -1,11 +1,5 @@
-import { Metadata } from "next";
-import RepairDashboardPage from "../_components/RepairDashboardPage";
-
-export const metadata: Metadata = {
-  title: "แดชบอร์ดแจ้งซ่อม | e-Leave",
-  description: "วิเคราะห์และรายงานสรุป SLA ระบบแจ้งซ่อม",
-};
+import { redirect } from "next/navigation";
 
 export default function RepairDashboardRoute() {
-  return <RepairDashboardPage />;
+  redirect("/dashboard?system=repair");
 }

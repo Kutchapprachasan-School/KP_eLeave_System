@@ -179,8 +179,8 @@ export default function RepairListPage() {
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">จัดการคำขอแจ้งซ่อมทั้งหมดในโรงเรียน</p>
         </div>
         <div className="flex items-center gap-2">
-          {user && hasRepairPermission(user, "repair:view.cost") && (
-            <Link href="/repair/dashboard">
+          {user && hasRepairPermission(user, "repair:dashboard") && (
+            <Link href="/dashboard?system=repair">
               <button className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors shadow-sm">
                 <BarChart3 className="w-4 h-4 text-orange-500" />
                 แดชบอร์ดวิเคราะห์
