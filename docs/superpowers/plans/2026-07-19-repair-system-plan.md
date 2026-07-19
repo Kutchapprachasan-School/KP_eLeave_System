@@ -1,18 +1,18 @@
-# ระบบแจ้งซ่อม (Repair Request System) Implementation Plan v7.0
+# ระบบแจ้งซ่อม (Repair Request System) Implementation Plan v7.1
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** สร้างระบบแจ้งซ่อมสำหรับโรงเรียนแบบประสิทธิภาพสูง ตามพิมพ์เขียว Master Architecture Blueprint v7.0 โดยเปลี่ยนการบันทึกภาพจาก BYTEA เป็นการอ้างอิงตำแหน่งบน Storage (Neon/S3/Disk), เพิ่มชั้นเลเยอร์การทำงาน (Repositories/Services), จัดการ Concurrency แบบ Optimistic OCC (version field), กำหนดหมวดหมู่แจ้งซ่อม, SLA Tracking, Soft Delete และบันทึกประวัติแบบตารางจดหมายเหตุคู่ขนาน (Mirror Archive Tables)
+**Goal:** สร้างระบบแจ้งซ่อมสำหรับโรงเรียนแบบประสิทธิภาพสูง ตามพิมพ์เขียว Master Architecture Blueprint v7.1 โดยเปลี่ยนการบันทึกภาพจากการเก็บในฐานข้อมูลหรือเก็บ URL แข็ง เป็นระบบอ้างอิงตำแหน่งบน Storage (Signed URL / Runtime Dynamic resolution) ผ่าน Provider Pattern, เพิ่มชั้นเลเยอร์การทำงาน (Repositories/Services), จัดการ Concurrency แบบ Optimistic OCC (version field + index), กำหนดหมวดหมู่แจ้งซ่อม, SLA Tracking + slaStatus, Soft Delete + audit tracking (deletedBy, deleteReason), และบันทึกประวัติแบบตารางจดหมายเหตุคู่ขนาน (Mirror Archive Tables)
 
 **Architecture:** 
-- ตาราง `RepairRequest`, `RepairPhoto` (เก็บ url และ storageKey ชี้หา Storage), `RepairRequestArchive`, `RepairPhotoArchive` และ `SystemLog`
+- ตาราง `RepairRequest`, `RepairPhoto` (เก็บเฉพาะ storageKey, fileSize, mimeType ไร้ฟิลด์ URL), `RepairRequestArchive`, `RepairPhotoArchive` และ `SystemLog` (เก็บ JSON metadata)
 - API Stream/Serve รูปภาพพร้อมแคชถาวร 7 วัน, แคชบัสเตอร์ `?v={createdAt}` และ ETag + 304 Not Modified
 - Services Layer (`src/services/` และ `src/repositories/`) แยกหน้าที่และ Logic ออกจาก Server Actions ชัดเจน
-- Server Action สำหรับย้ายข้อมูลเก่า (>180 วัน) ผ่าน Prisma Transaction ย้ายข้อมูลเข้าตารางประวัติศาสตร์คู่ขนาน และลบข้อมูลตารางทำงานออก ( Cascade Delete รูปใน DB แต่คงไฟล์และข้อมูล URL ใน Archive)
+- Server Action สำหรับย้ายข้อมูลเก่า (>180 วัน) ผ่าน Prisma Transaction ย้ายข้อมูลเข้าตารางประวัติศาสตร์คู่ขนาน และลบข้อมูลตารางทำงานออก ( Cascade Delete รูปใน DB แต่คงคีย์และขนาดใน Archive)
 - สิทธิ์การทำงานอิงตาม Permissions: `repair:view.own`, `repair:view.all`, `repair:view.cost`, `repair:create`, `repair:assign`, `repair:update`, `repair:export`, `repair:delete`, `repair:archive`
 - ระบบตรวจสอบและอัปเดตข้อมูลแบบป้องกัน Lost Update โดยใช้คำสั่ง Atomic Compare-And-Swap บน status และ version
 
-**Tech Stack:** Next.js (App Router), Prisma, PostgreSQL (BYTEA/Storage URLs), Framer Motion, Tailwind CSS, Lucide React
+**Tech Stack:** Next.js (App Router), Prisma, PostgreSQL (Metadata Only), Object Storage (Supabase Storage / local development disk)
 
 ---
 
@@ -20,7 +20,7 @@
 - **จำกัดรูปภาพ**: ก่อนซ่อม (BEFORE) สูงสุด 2 รูป และหลังซ่อม (AFTER) สูงสุด 2 รูป (รวม 4 รูปต่อใบงาน) โดยเช็คนับใน Transaction เสมอก่อนบันทึก
 - **การบีบอัดรูปภาพ**: ด้านยาวสุดไม่เกิน 800px บีบอัดเป็น JPEG (Quality = 0.7) ขนาดหลังย่อ **100 KB - 300 KB** ต่อรูป โดยไม่มีการจำกัดขนาดไฟล์รูปต้นฉบับของผู้ใช้
 - **ระบบการเงิน**: ใช้ประเภท `Decimal` (Prisma `@db.Decimal(10,2)`) สำหรับฟิลด์ค่าใช้จ่าย `cost` ของใบแจ้งซ่อม โดยต้องแปลงเป็นตัวเลข (`toNumber()`) เสมอก่อนส่งข้อมูลไปยัง Client Components และจำกัดการมองเห็นด้วยสิทธิ์ `repair:view.cost`
-- **สิทธิ์เข้าใช้ระบบ**: ควบคุมระดับ Capability-based Permissions ผ่านการตรวจสอบฟังก์ชัน `hasPermission` ในไฟล์ `src/lib/permissions.ts`
+- **สิทธิ์เข้าใช้ระบบ**: ควบคุมระดับ Capability-based Permissions ผ่านการตรวจสอบฟังก์ชัน `hasPermission` ในไฟล์ `src/lib/permissions.ts` อิงจากผัง Matrix บทบาท (TEACHER, TECHNICIAN, HEAD, ADMIN)
 - **Audit Logs**: ทุกการเปลี่ยนแปลงใบแจ้งซ่อมต้องบันทึกลงตาราง `SystemLog` ในรหัสกิจกรรม: `REPAIR_CREATED`, `REPAIR_ASSIGNED`, `REPAIR_STARTED`, `REPAIR_COMPLETED`, `REPAIR_CANCELLED`, `REPAIR_DELETED`, และ `REPAIR_ARCHIVED` พร้อมเขียนข้อความอ้างอิง ID ในรูปแบบโครงสร้าง `[REPAIR_ID:${id}][ACTOR_ID:${userId}][ACTION:${action}] ...` และบันทึก JSON Metadata ลงฟิลด์ `metadata` ของ `SystemLog`
 
 ---
@@ -41,7 +41,7 @@
     requestsCreated  RepairRequest[] @relation("RequestCreatedBy")
     requestsAssigned RepairRequest[] @relation("RequestAssignedTo")
     ```
-  - เพิ่มโมเดลและโครงสร้างตารางแจ้งซ่อมตามสเปก v7.0:
+  - เพิ่มโมเดลและโครงสร้างตารางแจ้งซ่อมตามสเปก v7.1:
     ```prisma
     enum RepairStatus {
       PENDING
@@ -73,6 +73,7 @@
 
     model RepairRequest {
       id             String          @id @default(cuid())
+      repairNo       String          @unique
       title          String
       description    String          @db.Text
       location       String
@@ -90,9 +91,12 @@
       cancelReason   String?         @db.Text
       expectedFinishAt DateTime?
       actualFinishAt   DateTime?
+      slaStatus      String?
       assignedAt     DateTime?
       finishedAt     DateTime?
       deletedAt      DateTime?
+      deletedBy      String?
+      deleteReason   String?
       createdAt      DateTime        @default(now())
       updatedAt      DateTime        @updatedAt
       photos         RepairPhoto[]
@@ -102,6 +106,7 @@
       @@index([assigneeId, status])
       @@index([requesterId, status])
       @@index([updatedAt])
+      @@index([id, version])
     }
 
     model RepairPhoto {
@@ -111,7 +116,6 @@
       mimeType   String
       fileSize   Int
       storageKey String
-      url        String
       createdAt  DateTime        @default(now())
       
       repair     RepairRequest   @relation(fields: [repairId], references: [id], onDelete: Cascade)
@@ -122,6 +126,7 @@
 
     model RepairRequestArchive {
       id             String          @id
+      repairNo       String          @unique
       title          String
       description    String          @db.Text
       location       String
@@ -136,6 +141,7 @@
       cancelReason   String?         @db.Text
       expectedFinishAt DateTime?
       actualFinishAt   DateTime?
+      slaStatus      String?
       assignedAt     DateTime?
       finishedAt     DateTime?
       createdAt      DateTime
@@ -151,7 +157,6 @@
       mimeType   String
       fileSize   Int
       storageKey String
-      url        String
       createdAt  DateTime
       archivedAt DateTime             @default(now())
       
@@ -192,7 +197,7 @@
 
 - [ ] **Step 5: Commit changes**
   - Run: `git add prisma/schema.prisma prisma/migrations/`
-  - Run: `git commit -m "db: add enums, models, checks, and indexes for Repair engine v7.0"`
+  - Run: `git commit -m "db: add enums, models, checks, and indexes for Repair engine v7.1"`
 
 ---
 
@@ -206,22 +211,25 @@
 - Create: [src/lib/permissions.ts](file:///C:/dev/eLeave/src/lib/permissions.ts)
 
 - [ ] **Step 1: Write `src/lib/permissions.ts`**
-  - เขียนออบเจกต์และฟังก์ชันตรวจสอบสิทธิ์ `hasPermission` ครอบคลุมสิทธิ์ระบบแจ้งซ่อม v7.0 ทั้งหมด รวมถึงสิทธิ์งบประมาณ (`repair:view.cost`) และการ Export/Delete
+  - เขียนออบเจกต์และฟังก์ชันตรวจสอบสิทธิ์ `hasPermission` ครอบคลุมสิทธิ์ระบบแจ้งซ่อม v7.1 ทั้งหมด รวมถึงบทบาท Matrix และสิทธิ์งบประมาณ (`repair:view.cost`) และการ Export/Delete
 
 - [ ] **Step 2: Create `src/repositories/repair.repository.ts`**
   - เขียนฟังก์ชันค้นหา อัปเดต และสร้างรายการผ่าน `prisma.repairRequest`
   - กรองค่า `deletedAt: null` เสมอในการค้นหาทั่วไป
-  - จัดการ Optimistic Concurrency Control (OCC) โดยการตรวจสอบ version และเพิ่มค่า version atomically เมื่อเขียนข้อมูล
+  - จัดการ Optimistic Concurrency Control (OCC) โดยการตรวจสอบ version และเพิ่มค่า version atomically เมื่อเขียนข้อมูล โดยอิงผ่าน index `[id, version]`
+  - ระบบจัดทำหมายเลขแจ้งซ่อม `repairNo` (เช่นดึงหมายเลขล่าสุดมาเพิ่มทีละ 1 ในรูปแบบ `REP-YYYY-XXXXXX`)
 
 - [ ] **Step 3: Create `src/services/photo.service.ts`**
-  - เขียนฟังก์ชัน `uploadPhoto` และ `deletePhoto` รองรับการเซฟไฟล์ลงในพื้นที่เก็บข้อมูลคลาวด์/ดิสก์ (โดยปกติให้เก็บลงโฟลเดอร์ `public/uploads/repairs/` และส่งกลับ URL เข้าถึงไฟล์ และสร้างคีย์ `storageKey` อ้างอิงไฟล์)
-  - ประมวลผลบีบอัดรูปภาพปลายทางขนาด 100 KB - 300 KB
+  - เขียน Interface `StorageProvider`
+  - เขียน `LocalDiskProvider` บันทึกรูปลงในไดเรกทอรีโลคัล (สำหรับ Development)
+  - เขียน `SupabaseStorageProvider` อัปโหลดขึ้นบริการ Cloud (สำหรับ Production)
+  - พัฒนา `PhotoService` ดึงข้อมูลด้วยการแปลง `storageKey` เป็น URL แบบไดนามิกผ่าน Provider ที่ใช้งานอยู่
 
 - [ ] **Step 4: Create `src/services/audit.service.ts`**
-  - จัดการ Log Audit ในโมเดล `SystemLog` โดยบันทึก Action Type และ JSON metadata โครงสร้างในฟิลด์ `metadata` เปลือกนอกด้วย Enum `SystemAction`
+  - จัดการ Log Audit ในโมเดล `SystemLog` บันทึก JSON metadata โครงสร้างในฟิลด์ `metadata` และใช้ Enum `SystemAction`
 
 - [ ] **Step 5: Create `src/services/repair.service.ts`**
-  - ดึงบริการจาก repository และ service อื่นๆ มาจัดสรร Business Flow (การตรวจสอบสิทธิ์ระดับความสามารถ, การกวดขันจำนวนรูปภาพ transactional count $\le 2$, การตรวจสัญญาสถานะ CAS, การบันทึก SLA Tracking)
+  - จัดการ Business Flow แจ้งซ่อม (นับรูป BEFORE/AFTER สูงสุด 2 ใน transaction, ปรับปรุงสถานะ SLA อัตโนมัติในฟิลด์ `slaStatus`, และรองรับ Soft Delete พร้อมเก็บข้อมูลผู้ลบและเหตุผล)
 
 ---
 
@@ -236,18 +244,16 @@
 - Create: [src/app/api/repair/photo/[photoId]/route.ts](file:///C:/dev/eLeave/src/app/api/repair/photo/%5BphotoId%5D/route.ts)
 
 - [ ] **Step 1: Write Server Actions in `src/app/actions/repair/`**
-  - เขียน Endpoint การทำงาน CRUD สำหรับหน้า Component ไคลเอนต์ โดยเรียกใช้เมธอดจากชั้น `RepairService` เท่านั้น (ห้ามเรียกใช้ `prisma` ตรง)
-  - ทำการตรวจสอบสิทธิ์ความสามารถและสัญญากลับ
-  - ทำการตรวจสอบและซ่อนค่า `cost` ในออบเจกต์ขากลับกรณีผู้ใช้ไม่มีสิทธิ์ `repair:view.cost`
+  - เขียน Server Actions เรียกใช้งานผ่าน `RepairService`
+  - ตรวจสอบสิทธิ์ความสามารถและกรองข้อมูล `cost` ตามสิทธิ์
 
 - [ ] **Step 2: Create Photo Streaming API Route with ETag Support**
-  - เขียนโค้ดใน `src/app/api/repair/photo/[photoId]/route.ts` เพื่อส่งภาพกลับเป็น Binary Response
-  - นำเข้า ETag logic: คำนวณ ETag จากไอดีและ timestamp และเปรียบเทียบกับ `If-None-Match` หากตรงกันให้ส่งกลับ `304 Not Modified`
-  - ดำเนินการเช็คสิทธิ์แบบละเอียดและสิทธิ์การมองเห็น
+  - ดึงภาพผ่าน `PhotoService.getPhotoStream(storageKey)` 
+  - คำนวณ ETag จากไอดีและ timestamp คืนค่า 304 เมื่อร้องขอซ้ำเพื่อประหยัดแบนด์วิดท์
 
 - [ ] **Step 3: Commit changes**
   - Run: `git add src/repositories/ src/services/ src/app/actions/repair/ src/app/api/repair/`
-  - Run: `git commit -m "feat: implement repository, services, server actions, and etag photo streaming for Repair module v7.0"`
+  - Run: `git commit -m "feat: implement repository, services, server actions, and dynamic photo streaming for Repair module v7.1"`
 
 ---
 
@@ -259,14 +265,13 @@
 
 - [ ] **Step 1: Implement `archiveRepairsJob` in `archive.service.ts`**
   - ตรวจสอบสิทธิ์ `repair:archive`
-  - กวาดใบแจ้งซ่อม Completed/Cancelled อายุ > 180 วัน โดยเรียงลำดับ `updatedAt: "asc"` ครั้งละ 200 รายการ จำกัดจำนวนลูปสูงสุด `MAX_BATCHES = 100`
-  - ทำธุรกรรมผ่าน `prisma.$transaction(..., { timeout: 30000 })` พร้อมการทำ pg_advisory_xact_lock(45729)
-  - โอนย้ายข้อมูลเข้าตาราง `RepairRequestArchive` และ `RepairPhotoArchive` โดยสมบูรณ์ (รักษาประวัติรูปและ URL ไว้)
-  - ลบรายการทำงานหลัก `RepairRequest` (Cascade Delete รูปในตารางทำงาน `RepairPhoto` ออกโดยอัตโนมัติ) และบันทึก Log ลง `SystemLog`
+  - กวาดใบแจ้งซ่อม Completed/Cancelled อายุ > 180 วัน โดยเรียงลำดับ `updatedAt: "asc"` ครั้งละ 200 รายการ จำกัดลูปสูงสุด `MAX_BATCHES = 100`
+  - ทำธุรกรรมภายใต้ `prisma.$transaction(..., { timeout: 30000 })` และ pg_advisory_xact_lock(45729)
+  - โอนย้ายข้อมูลเข้าตารางจดหมายเหตุ `RepairRequestArchive` และ `RepairPhotoArchive` โดยตรง (รักษาคีย์ภาพใน Storage)
+  - ลบรายการทำงานหลัก `RepairRequest` และบันทึก Log
 
 - [ ] **Step 2: Create Action Archive Interface**
-  - เขียน Action ใน `src/app/actions/repair/archive.ts` เพื่อให้หน้าแอดมินคลิกกด "Archive Now" ได้
-  - บันทึกความถูกต้องและ Commit การทำงาน
+  - เขียน Action ใน `src/app/actions/repair/archive.ts` ให้ Admin กดเรียกใช้อัตโนมัติ
 
 ---
 
@@ -312,7 +317,7 @@
 
 ### Manual Verification
 1. **การแจ้งซ่อมใหม่และระบบบีบอัดภาพอัตโนมัติ**:
-   - ลองแนบไฟล์ภาพขนาดใหญ่ (5 MB) ภาพจะถูก Canvas ย่อให้เหลือกว้าง 800px เป็นไฟล์ JPEG ขนาด < 300 KB ทันที และบันทึกตำแหน่งไฟล์สำเร็จ
+   - ลองแนบไฟล์ภาพขนาดใหญ่ (5 MB) ภาพจะถูก Canvas ย่อให้เหลือกว้าง 800px เป็นไฟล์ JPEG ขนาด < 300 KB ทันที และบันทึกตำแหน่งไฟล์สำเร็จใน Storage
 2. **การป้องกัน Concurrency ด้วย OCC**:
    - เปิดหน้ารายละเอียดงานซ่อมชิ้นเดียวกัน 2 แท็บบัญชี ลองกดยืนยันการอัปเดตพร้อมกัน บัญชีที่ยืนยันช้ากว่าจะต้องปฏิเสธด้วยข้อความข้อขัดแย้งของเวอร์ชันข้อมูล
 3. **การดึงภาพปลอดภัย (Stream API)**:
@@ -321,4 +326,4 @@
    - กดปุ่ม "Archive Now" ตรวจสอบข้อมูลในตาราง `RepairRequestArchive` และ `RepairPhotoArchive` ว่าโอนย้ายสำเร็จ และตารางหลักถูกล้างสะอาดเรียบร้อย
    - ตรวจดูบันทึก SystemLog
 5. **Soft Delete**:
-   - ทดสอบสั่งลบงานในหน้าจัดการแอดมิน รายการแจ้งซ่อมจะต้องเพิ่มค่า `deletedAt` และหายไปจากหน้าแสดงผลปกติ แต่ข้อมูลดิบและรูปภาพจะยังไม่ถูกลบออกจากฐานข้อมูล
+   - ทดสอบสั่งลบงานในหน้าจัดการแอดมิน รายการแจ้งซ่อมจะต้องเพิ่มค่า `deletedAt`, `deletedBy`, `deleteReason` และหายไปจากหน้าแสดงผลปกติ
