@@ -16,6 +16,8 @@ import {
   completeRepairAction,
   cancelRepairAction,
 } from "@/app/actions/repair/update";
+import { getRepairPhotosAction } from "@/app/actions/repair/photo";
+import RepairPhotosPanel from "./RepairPhotosPanel";
 import { hasRepairPermission } from "@/lib/permissions";
 import { useToast } from "@/components/toast-provider";
 
@@ -212,6 +214,7 @@ export default function RepairDetailPage({ repairId }: { repairId: string }) {
   const [repair, setRepair] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [photosData, setPhotosData] = useState<any>(null);
 
   const user = session?.user as any;
 
@@ -219,8 +222,12 @@ export default function RepairDetailPage({ repairId }: { repairId: string }) {
     try {
       setLoading(true);
       setError("");
-      const data = await getRepairDetailAction(repairId);
+      const [data, photos] = await Promise.all([
+        getRepairDetailAction(repairId),
+        getRepairPhotosAction(repairId).catch(() => ({ BEFORE: [], AFTER: [], limits: { BEFORE: 2, AFTER: 2 } })),
+      ]);
       setRepair(data);
+      setPhotosData(photos);
     } catch (e: any) {
       setError(e?.message ?? "ไม่สามารถโหลดข้อมูลได้");
     } finally {
@@ -315,6 +322,25 @@ export default function RepairDetailPage({ repairId }: { repairId: string }) {
           </div>
         </motion.div>
       </div>
+
+      {/* Photo Panel */}
+      {photosData && user && (
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.15 }}
+        >
+          <RepairPhotosPanel
+            repairId={repair.id}
+            repairStatus={repair.status}
+            photosData={photosData}
+            userId={user.id}
+            userRole={user.role ?? "TEACHER"}
+            userPosition={user.position ?? null}
+            onRefresh={load}
+          />
+        </motion.div>
+      )}
     </div>
   );
 }
