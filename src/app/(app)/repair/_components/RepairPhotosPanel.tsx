@@ -3,6 +3,7 @@
 import { useState, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Camera, Upload, X, Loader2, ImagePlus, Trash2, Eye, ZoomIn } from "lucide-react";
+import Image from "next/image";
 import { useToast } from "@/components/toast-provider";
 import {
   uploadRepairPhotoAction,
@@ -46,19 +47,25 @@ function Lightbox({ url, onClose }: { url: string; onClose: () => void }) {
       >
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors"
+          className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors z-10"
         >
           <X className="w-5 h-5" />
         </button>
-        <motion.img
+        <motion.div
           initial={{ scale: 0.9, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           exit={{ scale: 0.9, opacity: 0 }}
-          src={url}
-          alt="ภาพขยาย"
           onClick={e => e.stopPropagation()}
-          className="max-w-full max-h-[90vh] rounded-2xl shadow-2xl object-contain"
-        />
+          className="relative w-full max-w-4xl h-[80vh]"
+        >
+          <Image
+            src={url}
+            alt="ภาพขยาย"
+            fill
+            sizes="(max-width: 1024px) 100vw, 1024px"
+            className="object-contain rounded-2xl shadow-2xl"
+          />
+        </motion.div>
       </motion.div>
     </AnimatePresence>
   );
@@ -104,10 +111,12 @@ function PhotoCard({
         exit={{ opacity: 0, scale: 0.9 }}
         className="relative group rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 aspect-square"
       >
-        <img
+        <Image
           src={photo.url}
           alt={`${photo.photoType} photo`}
-          className="w-full h-full object-cover"
+          fill
+          sizes="(max-width: 640px) 50vw, 200px"
+          className="object-cover"
         />
         {/* Overlay on hover */}
         <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100">
