@@ -1,4 +1,4 @@
-# ระบบแจ้งซ่อม (Repair Request System) — Design Specification v5.6 (Master Architecture Blueprint)
+# ระบบแจ้งซ่อม (Repair Request System) — Design Specification v6.0 (Master Architecture Blueprint)
 
 เอกสารนี้กำหนดการออกแบบและโครงสร้างของ **ระบบแจ้งซ่อม** ซึ่งเป็นระบบย่อยเพิ่มเติมในกลุ่มงานทั่วไป (ต่อจากระบบเอกสาร) สำหรับระบบ **eLeave & School OS** โดยมุ่งเน้นความเป็นระเบียบ ความปลอดภัย และความคุ้มค่าของพื้นที่เก็บข้อมูล (Zero Dependency + Database-backed BYTEA Storage + Archiving)
 
@@ -26,10 +26,13 @@
   - **Auto Resize & Auto Recompress**: ไคลเอนต์จะประมวลผลผ่าน HTML5 Canvas ย่อให้ด้านยาวสุดของภาพไม่เกิน **800px** บีบอัดเป็น **JPEG (Quality = 0.7)** และหากขนาดรูปยังคงเกิน **100 KB** จะทำการลดคุณภาพความละเอียดลงมาที่ 0.5 อัตโนมัติ เพื่อการันตีปลายทางขนาดรูป $\le 100\text{ KB}$ เสมอก่อนส่งไปยัง Server Action
 - **สถาปัตยกรรมการจัดเก็บ**: บันทึกรูปภาพในรูปแบบ Raw Binary (`Bytes` หรือ `BYTEA` ในฐานข้อมูล PostgreSQL) เพื่อหลีกเลี่ยง Overhead (+33%) ของ Base64
 
-### B. การจัดส่งรูปภาพประสิทธิภาพสูง (API Secure Streaming)
+### B. การจัดส่งรูปภาพประสิทธิภาพสูง (API Secure Streaming with ETag)
 จัดทำเส้นทาง API ใน [src/app/api/repair/photo/[photoId]/route.ts](file:///C:/dev/eLeave/src/app/api/repair/photo/%5BphotoId%5D/route.ts) เพื่อดึงข้อมูลรูปภาพแบบ Binary Stream ด้วยความปลอดภัยสูง:
 - ตรวจสอบเซสชันผู้ใช้งานและสิทธิ์ หากไม่มีสิทธิ์ `repair:view.all` และไม่ได้เป็นเจ้าของใบงาน (Requester / Assignee) จะส่งกลับ 403 Forbidden
-- ตั้งแคชระยะกลาง 7 วันเพื่อป้องกันปัญหาแคชค้างหากมีกรณีปรับปรุงรูปภาพ `"Cache-Control": "public, max-age=604800, immutable"`
+- **ETag & Cache Integration**:
+  - คำนวณค่า ETag จาก ID และเวลาสร้าง: `const etag = `W/"${photo.id}-${photo.createdAt.getTime()}"``
+  - หากพบ Header `If-None-Match` ตรงกับ ETag ดังกล่าว ให้ตอบกลับด้วย **`304 Not Modified`** ทันทีโดยไม่ต้องประมวลผลหรือดาวน์โหลดข้อมูลภาพเพื่อประหยัดแบนด์วิดท์อย่างคุ้มค่าสูงสุด
+  - ตั้งแคชระยะกลาง 7 วัน `"Cache-Control": "public, max-age=604800, immutable"`
 
 ---
 
@@ -111,9 +114,19 @@ model RepairArchive {
   completedCount Int
   cancelledCount Int
   totalCost      Decimal?      @db.Decimal(12, 2)
-  oldestRecordAt DateTime?     // เวลาสร้างเอกสารใบงานที่เก่าที่สุดใน Chunk ประวัติศาสตร์ชุดนี้
-  newestRecordAt DateTime?     // เวลาสร้างเอกสารใบงานที่ใหม่ที่สุดใน Chunk ประวัติศาสตร์ชุดนี้
+  oldestRecordAt DateTime?
+  newestRecordAt DateTime?
   payload        Json          // Native JSONB เก็บเนื้อหาใบแจ้งซ่อมดิบ ค้นหาสะดวก
+}
+
+// โมเดลสำหรับเก็บ Log เดิมของระบบ โดยเพิ่มฟิลด์เก็บข้อมูล JSON (Optional)
+model SystemLog {
+  id          String   @id @default(cuid())
+  actionType  String
+  description String
+  userId      String
+  metadata    Json?    // [NEW] เก็บข้อมูลดิบในรูปโครงสร้าง JSON เพื่อระบบแดชบอร์ดสรุปผลวิเคราะห์ในอนาคต
+  createdAt   DateTime @default(now())
 }
 ```
 
@@ -135,25 +148,37 @@ model User {
 1. **Transaction Isolation & Timeout**: 
    - การรันกระบวนการย้ายข้อมูลทั้งหมดจะอยู่ภายใต้ `prisma.$transaction`
    - กำหนดเวลาการประมวลผลสูงสุด **30 วินาที (timeout: 30000)** เพื่อรับประกันความปลอดภัยของระบบฐานข้อมูลกรณีติดล็อกการทำรายการ (Deadlock) หรือเครื่องทำงานหนัก
-2. **Deterministic Processing**: การคิวรีดึงข้อมูลใบแจ้งซ่อมเก่าจะใช้การเรียงลำดับล่วงหน้า `orderBy: { updatedAt: "asc" }` เพื่อให้ประวัติที่อัปเดตเก่าที่สุดได้รับการจัดเก็บเข้าคลังก่อน ทำงานอย่างเป็นระบบ และดีบักง่าย
-3. **Infinite Loop Protection**: มีการกำหนดจำนวนลูปประมวลผลสูงสุด `const MAX_BATCHES = 100` เพื่อรับประกันว่า Job จะไม่มีการรันค้างเป็นวงลูปไม่สิ้นสุดกรณีมีข้อมูลผิดปกติ
-4. **Range Metadata**: ระบุเวลาสร้างเอกสารที่เก่าที่สุด (`oldestRecordAt`) และใหม่ที่สุด (`newestRecordAt`) ใน Batch นั้นๆ ลงตาราง `RepairArchive` เพื่อให้ตรวจสอบขอบเขตวันของชุดประวัติศาสตร์ได้โดยไม่ต้องเปิดแยกก้อน JSON payload
-5. **Schema Evolution Support**: โครงสร้างฟิลด์ `payload` ในตาราง `RepairArchive` จะถูกบันทึกด้วยรูปแบบ Schema Versioning หุ้มอาร์เรย์รายการเพื่อรองรับการขยายโครงสร้างฐานข้อมูลในอนาคต:
+2. **Idempotency Guard (Locking)**: 
+   - ใช้ระบบล็อคทางเลือกของ PostgreSQL (Advisory Lock) ผ่านคิวรี `SELECT pg_advisory_xact_lock(45729);` เป็นคำสั่งแรกใน Transaction
+   - ข้อดี: จะทำการต่อคิวหรือสลัดยกเลิกหากมีการเรียกใช้ Archiver ซ้ำซ้อนกันในเสี้ยววินาทีเดียว และระบบฐานข้อมูลจะทำการปลดล็อคโดยอัตโนมัติหากจบการทำงานสำเร็จหรือเกิดปัญหา Error (Resilient to Crash)
+3. **Deterministic Processing**: การคิวรีดึงข้อมูลใบแจ้งซ่อมเก่าจะใช้การเรียงลำดับล่วงหน้า `orderBy: { updatedAt: "asc" }` เพื่อให้ประวัติที่อัปเดตเก่าที่สุดได้รับการจัดเก็บเข้าคลังก่อน ทำงานอย่างเป็นระบบ และดีบักง่าย
+4. **Infinite Loop Protection**: มีการกำหนดจำนวนลูปประมวลผลสูงสุด `const MAX_BATCHES = 100` เพื่อรับประกันว่า Job จะไม่มีการรันค้างเป็นวงลูปไม่สิ้นสุดกรณีมีข้อมูลผิดปกติ
+5. **Range Metadata**: ระบุเวลาสร้างเอกสารที่เก่าที่สุด (`oldestRecordAt`) และใหม่ที่สุด (`newestRecordAt`) ใน Batch นั้นๆ ลงตาราง `RepairArchive` เพื่อให้ตรวจสอบขอบเขตวันของชุดประวัติศาสตร์ได้โดยไม่ต้องเปิดแยกก้อน JSON payload
+6. **Schema Evolution Support**: โครงสร้างฟิลด์ `payload` ในตาราง `RepairArchive` จะถูกบันทึกด้วยรูปแบบ Schema Versioning หุ้มอาร์เรย์รายการเพื่อรองรับการขยายโครงสร้างฐานข้อมูลในอนาคต:
    ```json
    {
      "version": 1,
      "records": [...]
    }
    ```
-6. **การล้างรูปภาพ (Metadata-Only Archiving)**: 
+7. **การล้างรูปภาพ (Metadata-Only Archiving)**: 
    - ระบบจะแปลงข้อมูลเฉพาะเนื้อหาของใบแจ้งซ่อมหลักรวมถึงรายละเอียดผลการดำเนินการซ่อมและค่าใช้จ่ายเก็บเข้าโครงสร้าง payload ในรูป JSON
    - การลบเรคคอร์ด `RepairRequest` ด้วยคำสั่ง delete จะทำให้รูปภาพที่เกี่ยวข้องทั้งหมดในตาราง `RepairPhoto` ถูกลบออกถาวรโดยอัตโนมัติผ่านข้อกำหนด `onDelete: Cascade` ทำให้ขนาดพื้นที่เก็บข้อมูลของระบบเป็นสัดส่วนที่ต่ำมาก
-7. **Audit Logs**: มีระบบบันทึกความปลอดภัยของประวัติผ่าน `SystemLog` ทุกครั้งที่มีการล้างประวัติงานแจ้งซ่อมสำเร็จในกิจกรรม `REPAIR_ARCHIVED`
+8. **Audit Logs**: มีระบบบันทึกความปลอดภัยของประวัติผ่าน `SystemLog` ทุกครั้งที่มีการล้างประวัติงานแจ้งซ่อมสำเร็จในกิจกรรม `REPAIR_ARCHIVED` พร้อมบันทึก JSON metadata
 
 ---
 
 ## 5. การจัดการสิทธิ์และการบันทึก Log แบบโครงสร้าง (Data Safety & Concurrency Control)
 
+- **Database-level Constraint on Photo Count**: เพื่อป้องกันข้อมูลรูปภาพมีปริมาณเกินขอบเขตจำกัดระดับฐานข้อมูล การดำเนินการสร้าง `RepairPhoto` ใหม่ใน Server Action จะต้องนับภาพผ่าน Query `count()` ใน Transaction เดียวกันก่อนการเขียนภาพลงตาราง:
+  ```typescript
+  const count = await tx.repairPhoto.count({
+    where: { repairId, photoType }
+  });
+  if (count >= 2) {
+    throw new Error(`สามารถแนบรูปภาพประเภท ${photoType} ได้สูงสุด 2 รูปเท่านั้น`);
+  }
+  ```
 - **Atomic Compare-And-Swap Concurrency Control**: เพื่อป้องกันปัญหาการแก้ไขงานทับซ้อนกัน (Lost Update) โดยผู้รับผิดชอบงานหรือผู้ดูแลระบบหลายคน การเปลี่ยนสถานะงานแจ้งซ่อมจะหลีกเลี่ยงรูปแบบ `Read -> Check -> Write` นอก Transaction โดยเปลี่ยนไปทำ **Compare-And-Swap** บนคิวรีฐานข้อมูลโดยตรงผ่านคำสั่ง `updateMany` ในลักษณะของ SQL Constraint Checking:
   ```typescript
   const result = await prisma.repairRequest.updateMany({
@@ -179,6 +204,7 @@ model User {
   ```text
   [REPAIR_ID:${repairId}][ACTOR_ID:${userId}][ACTION:${action}] รายละเอียดกิจกรรม...
   ```
+  และจะเซฟข้อมูลโครงสร้างระบุ ID ต่างๆ ลงฟิลด์ `metadata` ของ `SystemLog`
 
 ---
 
@@ -190,4 +216,4 @@ model User {
 - *แนวทางแก้ไข*: ทำการสร้างถังเก็บข้อมูลคลาวด์ภายนอกที่รองรับ S3 (เช่น AWS S3, MinIO, หรือ Cloudflare R2) แล้วทำการย้ายฟิลด์ไบนารี `imageData` ออกไป และเก็บเป็นลิงก์ URL แทน โดยในปัจจุบันระยะ 1-3 ปีแรกให้ใช้โครงสร้างแบบ BYTEA บนระบบ PostgreSQL ของ eLeave ต่อเนื่องอย่างสมบูรณ์
 
 ---
-*(เอกสารการออกแบบฉบับสมบูรณ์ v5.6 ได้รับการปรับปรุงเพื่อเป็นพิมพ์เขียวการโค้ดเรียบร้อย)*
+*(เอกสารการออกแบบฉบับสมบูรณ์ v6.0 ได้รับการปรับปรุงเพื่อเป็นพิมพ์เขียวการโค้ดเรียบร้อย)*
