@@ -113,7 +113,7 @@ function WorkflowPanel({ repair, user, onRefresh }: { repair: any; user: any; on
           />
           <button
             disabled={busy || !assigneeId.trim()}
-            onClick={() => wrap(() => assignRepairAction(repair.id, assigneeId.trim(), repair.version))}
+            onClick={() => wrap(async () => { await assignRepairAction(repair.id, assigneeId.trim(), repair.version); })}
             className="w-full py-2.5 rounded-xl text-sm font-bold text-white bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 disabled:opacity-50 shadow-lg shadow-blue-500/20 transition-all flex items-center justify-center gap-2"
           >
             {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <ChevronRight className="w-4 h-4" />}
@@ -126,7 +126,7 @@ function WorkflowPanel({ repair, user, onRefresh }: { repair: any; user: any; on
       {(isAssignee || isAdmin) && canUpdate && repair.status === "ASSIGNED" && (
         <button
           disabled={busy}
-          onClick={() => wrap(() => startRepairAction(repair.id, repair.version))}
+          onClick={() => wrap(async () => { await startRepairAction(repair.id, repair.version); })}
           className="w-full py-3 rounded-2xl text-sm font-bold text-white bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700 disabled:opacity-50 shadow-lg shadow-violet-500/20 transition-all flex items-center justify-center gap-2"
         >
           {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wrench className="w-4 h-4" />}
@@ -166,11 +166,11 @@ function WorkflowPanel({ repair, user, onRefresh }: { repair: any; user: any; on
           </div>
           <button
             disabled={busy || !completeForm.resolutionNote.trim()}
-            onClick={() => wrap(() => completeRepairAction(repair.id, repair.version, {
+            onClick={() => wrap(async () => { await completeRepairAction(repair.id, repair.version, {
               resolutionNote: completeForm.resolutionNote,
               cost: completeForm.cost ? Number(completeForm.cost) : null,
               materialsUsed: completeForm.materialsUsed || null,
-            }))}
+            }); })}
             className="w-full py-2.5 rounded-xl text-sm font-bold text-white bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 disabled:opacity-50 shadow-lg shadow-emerald-500/20 transition-all flex items-center justify-center gap-2"
           >
             {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
@@ -194,7 +194,7 @@ function WorkflowPanel({ repair, user, onRefresh }: { repair: any; user: any; on
           />
           <button
             disabled={busy || !cancelReason.trim()}
-            onClick={() => wrap(() => cancelRepairAction(repair.id, repair.version, cancelReason))}
+            onClick={() => wrap(async () => { await cancelRepairAction(repair.id, repair.version, cancelReason); })}
             className="w-full py-2.5 rounded-xl text-sm font-bold text-white bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 disabled:opacity-50 shadow-lg shadow-red-500/20 transition-all flex items-center justify-center gap-2"
           >
             {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <XCircle className="w-4 h-4" />}

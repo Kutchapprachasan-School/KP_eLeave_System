@@ -10,21 +10,18 @@ import { RepairCategory, RepairUrgency } from "@prisma/client";
 import { useToast } from "@/components/toast-provider";
 
 const URGENCY_OPTIONS: { value: RepairUrgency; label: string; desc: string; color: string }[] = [
-  { value: "LOW",      label: "ปกติ",     desc: "ไม่เร่งด่วน สามารถรอได้",         color: "border-slate-300 hover:border-slate-400" },
-  { value: "MEDIUM",   label: "ปานกลาง",  desc: "ควรแก้ไขภายใน 1-3 วัน",           color: "border-amber-300 hover:border-amber-400" },
-  { value: "HIGH",     label: "เร่งด่วน", desc: "กระทบการเรียนการสอน",             color: "border-orange-400 hover:border-orange-500" },
-  { value: "CRITICAL", label: "วิกฤต",    desc: "อันตราย ต้องแก้ไขทันที",          color: "border-red-500 hover:border-red-600" },
+  { value: "NORMAL",      label: "ปกติ",       desc: "ไม่เร่งด่วน สามารถรอได้",        color: "border-slate-300 hover:border-slate-400" },
+  { value: "URGENT",      label: "เร่งด่วน",   desc: "กระทบการเรียนการสอน",            color: "border-orange-400 hover:border-orange-500" },
+  { value: "URGENT_MOST", label: "เร่งด่วนมาก", desc: "อันตราย ต้องแก้ไขทันที",        color: "border-red-500 hover:border-red-600" },
 ];
 
 const CATEGORY_OPTIONS: { value: RepairCategory; label: string; emoji: string }[] = [
-  { value: "ELECTRICAL",   label: "ไฟฟ้า",           emoji: "⚡" },
-  { value: "PLUMBING",     label: "ประปา",           emoji: "🚿" },
-  { value: "HVAC",         label: "แอร์/พัดลม",     emoji: "❄️" },
-  { value: "STRUCTURAL",   label: "โครงสร้าง",      emoji: "🏗️" },
-  { value: "FURNITURE",    label: "เฟอร์นิเจอร์",   emoji: "🪑" },
-  { value: "IT_EQUIPMENT", label: "อุปกรณ์ IT",     emoji: "💻" },
-  { value: "GROUNDS",      label: "พื้นที่/สนาม",   emoji: "🌳" },
-  { value: "OTHER",        label: "อื่น ๆ",          emoji: "🔧" },
+  { value: "ELECTRICAL", label: "ไฟฟ้า",        emoji: "⚡" },
+  { value: "PLUMBING",   label: "ประปา",        emoji: "🚿" },
+  { value: "BUILDING",   label: "อาคาร/โครงสร้าง", emoji: "🏗️" },
+  { value: "IT",         label: "อุปกรณ์ IT",   emoji: "💻" },
+  { value: "EQUIPMENT",  label: "ครุภัณฑ์/เฟอร์นิเจอร์", emoji: "🪑" },
+  { value: "OTHER",      label: "อื่น ๆ",        emoji: "🔧" },
 ];
 
 export default function RepairNewPage() {
