@@ -128,15 +128,23 @@
 - [ ] **Step 3: Create the migration package and edit the migration script**
   - Run: `npx prisma migrate dev --create-only --name add_repair_engine_v6`
   - แก้ไขไฟล์ `.sql` ในโฟลเดอร์ `prisma/migrations/...` ที่เพิ่งเกิดขึ้น:
-    1. เพิ่ม CHECK Constraint:
+    1. เพิ่ม CHECK Constraint สำหรับขนาดรูปภาพ:
        ```sql
        ALTER TABLE "RepairPhoto" ADD CONSTRAINT repair_photo_filesize_chk CHECK ("fileSize" > 0);
        ```
-    2. เพิ่ม Partial Index สำหรับ Archiver Candidates:
+    2. เพิ่ม CHECK Constraint สำหรับค่าใช้จ่ายซ่อม:
+       ```sql
+       ALTER TABLE "RepairRequest" ADD CONSTRAINT repair_cost_chk CHECK ("cost" IS NULL OR "cost" >= 0);
+       ```
+    3. เพิ่ม Partial Index สำหรับ Archiver Candidates:
        ```sql
        CREATE INDEX idx_repair_archive_candidates ON "RepairRequest" ("updatedAt") WHERE status IN ('COMPLETED', 'CANCELLED');
        ```
-  - Verify: ไฟล์ `.sql` มีคำสั่ง Custom SQL ครบถ้วน
+    4. เพิ่ม GIN Index สำหรับค้นหา Audit Log Metadata:
+       ```sql
+       CREATE INDEX idx_systemlog_metadata ON "SystemLog" USING GIN ("metadata");
+       ```
+  - Verify: ไฟล์ `.sql` มีคำสั่ง Custom SQL ครบถ้วน (4 รายการ)
 
 - [ ] **Step 4: Execute migration to database**
   - Run: `npx prisma migrate dev`

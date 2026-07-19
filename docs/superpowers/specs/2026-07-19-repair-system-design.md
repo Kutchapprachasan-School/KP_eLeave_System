@@ -139,6 +139,22 @@ model User {
 }
 ```
 
+### Custom Migration SQL (นอกเหนือจาก Prisma Schema)
+คำสั่ง SQL ด้านล่างจะถูกเพิ่มในไฟล์ Migration Script ด้วยตนเองหลังจาก Prisma สร้างไฟล์ให้แล้ว:
+```sql
+-- 1. ป้องกันขนาดไฟล์รูปภาพไม่ถูกต้อง
+ALTER TABLE "RepairPhoto" ADD CONSTRAINT repair_photo_filesize_chk CHECK ("fileSize" > 0);
+
+-- 2. ป้องกันค่าใช้จ่ายซ่อมติดลบ
+ALTER TABLE "RepairRequest" ADD CONSTRAINT repair_cost_chk CHECK ("cost" IS NULL OR "cost" >= 0);
+
+-- 3. Partial Index สำหรับ Archiver Candidates (เร็วกว่า full index มาก)
+CREATE INDEX idx_repair_archive_candidates ON "RepairRequest" ("updatedAt") WHERE status IN ('COMPLETED', 'CANCELLED');
+
+-- 4. GIN Index สำหรับค้นหา Audit Log Metadata (JSONB)
+CREATE INDEX idx_systemlog_metadata ON "SystemLog" USING GIN ("metadata");
+```
+
 ---
 
 ## 4. ระบบการคลังจดหมายเหตุย้อนหลัง (Pragmatic ETL Archiver Engine)
