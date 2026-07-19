@@ -104,6 +104,8 @@ model User {
 
   amssCredentials     AMSSCredentials?
 
+  uploadedPhotos      RepairPhoto[]      @relation("PhotoUploadedBy")
+
 }
 
 
@@ -996,15 +998,17 @@ model RepairRequest {
 }
 
 model RepairPhoto {
-  id         String          @id @default(cuid())
-  repairId   String
-  photoType  RepairPhotoType
-  mimeType   String
-  fileSize   Int
-  storageKey String
-  createdAt  DateTime        @default(now())
+  id           String          @id @default(cuid())
+  repairId     String
+  photoType    RepairPhotoType
+  mimeType     String
+  fileSize     Int
+  storageKey   String
+  uploadedById String
+  createdAt    DateTime        @default(now())
   
-  repair     RepairRequest   @relation(fields: [repairId], references: [id], onDelete: Cascade)
+  repair       RepairRequest   @relation(fields: [repairId], references: [id], onDelete: Cascade)
+  uploadedBy   User            @relation("PhotoUploadedBy", fields: [uploadedById], references: [id], onDelete: Cascade)
 
   @@index([repairId])
   @@index([repairId, photoType])
@@ -1038,16 +1042,17 @@ model RepairRequestArchive {
 }
 
 model RepairPhotoArchive {
-  id         String               @id
-  repairId   String
-  photoType  RepairPhotoType
-  mimeType   String
-  fileSize   Int
-  storageKey String
-  createdAt  DateTime
-  archivedAt DateTime             @default(now())
+  id           String               @id
+  repairId     String
+  photoType    RepairPhotoType
+  mimeType     String
+  fileSize     Int
+  storageKey   String
+  uploadedById String
+  createdAt    DateTime
+  archivedAt   DateTime             @default(now())
   
-  repair     RepairRequestArchive @relation(fields: [repairId], references: [id], onDelete: Cascade)
+  repair       RepairRequestArchive @relation(fields: [repairId], references: [id], onDelete: Cascade)
 
   @@index([repairId])
   @@index([storageKey])
