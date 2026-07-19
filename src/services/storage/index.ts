@@ -2,8 +2,9 @@
  * Storage Provider Factory
  *
  * Returns the correct provider based on STORAGE_PROVIDER env var.
- *   "local"    → LocalStorageProvider   (default, dev-safe)
+ *   "neon"     → NeonStorageProvider    (production — Neon Object Storage, S3-compatible)
  *   "supabase" → SupabaseStorageProvider
+ *   "local"    → LocalStorageProvider   (dev fallback)
  *
  * Usage:
  *   import { getStorageProvider } from "@/services/storage";
@@ -21,7 +22,10 @@ export function getStorageProvider(): StorageProvider {
 
   const provider = process.env.STORAGE_PROVIDER ?? "local";
 
-  if (provider === "supabase") {
+  if (provider === "neon") {
+    const { NeonStorageProvider } = require("./neon.provider");
+    _instance = new NeonStorageProvider();
+  } else if (provider === "supabase") {
     const { SupabaseStorageProvider } = require("./supabase.provider");
     _instance = new SupabaseStorageProvider();
   } else {
