@@ -255,7 +255,6 @@ export const syncAMSSDocumentsAutomatically = safeAction(async () => {
         const res = await fetchWithTlsFallback(fetchUrl, {
           signal: controller.signal,
           headers: {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
             "Cookie": loginCookies,
           }
         });

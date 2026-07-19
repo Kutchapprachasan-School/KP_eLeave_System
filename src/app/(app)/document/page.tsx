@@ -10,6 +10,7 @@ import {
   Plus,
   Calendar,
   ArrowRight,
+  ArrowLeft,
   X,
   AlertTriangle,
   Zap
@@ -34,12 +35,16 @@ import { useSession } from "@/lib/auth-client";
 import { useToast } from "@/components/toast-provider";
 import AmssImportModal from "@/components/AmssImportModal";
 import AmssCredentialsModal from "./_components/amss-credentials-modal";
+import CertGenerator from "./_components/cert-generator";
 
 // Import atomic components
 import DocumentStats from "./_components/document-stats";
 import OutboundForm from "./_components/forms/outbound-form";
 import InboundForm from "./_components/forms/inbound-form";
 import DocumentTable from "./_components/document-table";
+import { WidgetContainer } from "./_components/widget-container";
+import { GuardedAction } from "./_components/guarded-action";
+import RecentActivityTimeline from "./_components/recent-activity";
 
 // ── Animation variants ──────────────────────────────────────────────
 const containerVariants: any = {
@@ -105,8 +110,23 @@ export default function DocumentPage() {
   }, [originalShowToast]);
 
   const [activeTab, setActiveTab] = useState<"outbound" | "inbound">("outbound");
-  const [view, setView] = useState<"menu" | "outbound" | "inbound">("menu");
+  const [view, setView] = useState<"menu" | "outbound" | "inbound" | "cert">("menu");
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear() + 543);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedDocType, setSelectedDocType] = useState("");
+  const [selectedYearTable, setSelectedYearTable] = useState("");
+  const [selectedStatus, setSelectedStatus] = useState("");
+  // Quick Request Form states
+  const [quickDocType, setQuickDocType] = useState("MEMO");
+  const [quickMemoSectionId, setQuickMemoSectionId] = useState("");
+  const [quickTitle, setQuickTitle] = useState("");
+  const [quickTo, setQuickTo] = useState("ผู้อำนวยการโรงเรียน");
+  const [quickOrigin, setQuickOrigin] = useState("");
+  const [quickDate, setQuickDate] = useState(new Date().toISOString().split("T")[0]);
+  const [isQuickIssuing, setIsQuickIssuing] = useState(false);
+  const [quickIssuedResult, setQuickIssuedResult] = useState<any | null>(null);
+  const [copiedQuickNo, setCopiedQuickNo] = useState(false);
+
   const [loading, setLoading] = useState(true);
   const [sections, setSections] = useState<MemoSection[]>([]);
   const [outboundDocs, setOutboundDocs] = useState<DocumentRecord[]>([]);
@@ -325,14 +345,99 @@ export default function DocumentPage() {
     }
   };
 
+  // Quick Request presets
+  useEffect(() => {
+    if (sections.length > 0 && !quickMemoSectionId) {
+      setQuickMemoSectionId(sections[0].id);
+    }
+  }, [sections, quickMemoSectionId]);
+
+  useEffect(() => {
+    if (session?.user) {
+      setQuickOrigin((session.user as any).subjectGroup || "งานสารบรรณ");
+    }
+  }, [session]);
+
+  // Click Telemetry Tracking
+  useEffect(() => {
+    const handleGlobalClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      const trackId = target.closest("[data-track-id]")?.getAttribute("data-track-id");
+      if (trackId) {
+        console.log(`📈 [Telemetry Click]: ${trackId}`, {
+          timestamp: new Date().toISOString(),
+          pathname: window.location.pathname,
+          element: target.tagName.toLowerCase()
+        });
+      }
+    };
+    
+    document.addEventListener("click", handleGlobalClick);
+    return () => document.removeEventListener("click", handleGlobalClick);
+  }, []);
+
+  const handleQuickIssue = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (isQuickIssuing) return;
+
+    if (!quickTitle.trim()) {
+      showToast("กรุณากรอกชื่อเรื่องของเอกสาร", "error");
+      return;
+    }
+
+    setIsQuickIssuing(true);
+    try {
+      const res = await quickIssueDoc({
+        docType: quickDocType,
+        memoSectionId: quickDocType === "MEMO" ? quickMemoSectionId : undefined,
+        title: quickTitle.trim(),
+        to: quickTo.trim(),
+        origin: quickOrigin.trim(),
+        date: quickDate,
+        requester: session?.user?.name || "ไม่ระบุชื่อ",
+        department: (session?.user as any)?.subjectGroup || "งานสารบรรณ",
+      });
+
+      if (res.success) {
+        setQuickIssuedResult(res.data);
+        setQuickTitle(""); // Clear title
+        showToast("ออกเลขทะเบียนเอกสารสำเร็จ!", "success");
+        loadData(); // Refresh list & stats
+      } else {
+        showToast(res.error || "ออกเลขทะเบียนล้มเหลว", "error");
+      }
+    } catch (err: any) {
+      showToast(err.message || "ออกเลขทะเบียนล้มเหลว", "error");
+    } finally {
+      setIsQuickIssuing(false);
+    }
+  };
+
   if (loading && outboundDocs.length === 0) {
     return (
-      <div className="min-h-[60vh] flex items-center justify-center">
-        <motion.div
-          animate={{ rotate: 360 }}
-          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-          className="w-10 h-10 border-4 border-orange-105 border-t-orange-500 rounded-full"
-        />
+      <div className="flex min-h-[60vh] flex-col items-center justify-center p-6 overflow-hidden">
+        <div className="relative z-10 flex flex-col items-center max-w-sm w-full text-center space-y-4">
+          <div className="w-12 h-12 rounded-2xl bg-white dark:bg-slate-800 p-1 shadow-sm border border-slate-100 dark:border-slate-850 flex items-center justify-center overflow-hidden animate-pulse">
+            <ClipboardList className="w-6 h-6 text-orange-500" />
+          </div>
+          <p className="text-xs text-slate-500 dark:text-slate-400 font-bold">กำลังโหลดระบบงานสารบรรณ...</p>
+          <div className="w-32 pt-2 mx-auto">
+            <div className="h-1 w-full bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden relative">
+              <motion.div 
+                className="h-full bg-gradient-to-r from-orange-500 to-amber-500 rounded-full absolute top-0 bottom-0"
+                animate={{ 
+                  left: ["-100%", "100%"],
+                  width: ["30%", "60%", "30%"]
+                }}
+                transition={{ 
+                  duration: 1.5, 
+                  repeat: Infinity, 
+                  ease: "easeInOut" 
+                }}
+              />
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
@@ -346,14 +451,38 @@ export default function DocumentPage() {
     >
       {/* ── Header ────────────────────────────────────────────── */}
       <motion.div variants={itemVariants} className="flex justify-between items-center gap-4 flex-wrap">
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white flex items-center gap-2.5">
-            <ClipboardList className="w-7 h-7 text-orange-500" />
-            ระบบงานสารบรรณ
-          </h2>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-            รับ-ส่งหนังสือราชการ บันทึกข้อความ คำสั่ง ประกาศ เกียรติบัตร
-          </p>
+        <div className="flex items-center gap-3">
+          {view !== "menu" ? (
+            <button
+              onClick={() => {
+                setView("menu");
+                setSelectedDocType("");
+                setSearchQuery("");
+                setSelectedStatus("");
+              }}
+              className="w-9 h-9 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-center hover:bg-slate-50 dark:hover:bg-slate-800 transition-all shrink-0 shadow-sm cursor-pointer animate-in fade-in zoom-in duration-200"
+              title="กลับไปหน้าเมนู"
+            >
+              <ArrowLeft className="w-4 h-4 text-slate-700 dark:text-slate-300" />
+            </button>
+          ) : (
+            <Link
+              href="/dashboard"
+              className="w-9 h-9 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-center hover:bg-slate-50 dark:hover:bg-slate-800 transition-all shrink-0 shadow-sm"
+              title="กลับบอร์ดหน้าแรก"
+            >
+              <ArrowLeft className="w-4 h-4 text-slate-700 dark:text-slate-300" />
+            </Link>
+          )}
+          <div>
+            <h2 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white flex items-center gap-2.5">
+              <ClipboardList className="w-7 h-7 text-orange-500" />
+              ระบบงานสารบรรณ
+            </h2>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+              รับ-ส่งหนังสือราชการ บันทึกข้อความ คำสั่ง ประกาศ เกียรติบัตร
+            </p>
+          </div>
         </div>
         <div className="flex gap-2">
           <div className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-orange-50 dark:bg-orange-950/20 text-orange-700 dark:text-orange-400 border border-orange-100 dark:border-orange-900/30 text-xs font-bold shadow-sm">
@@ -378,161 +507,363 @@ export default function DocumentPage() {
         </div>
       </motion.div>
 
-      {/* ── Stats Grid ────────────────────────────────────────── */}
-      <DocumentStats
-        inboundTotal={filteredInboundDocs.length}
-        outboundTotal={filteredOutboundDocs.filter(d => d.docType !== "COMMAND").length}
-        inboundPending={filteredInboundDocs.filter(d => d.status === "ROUTING" || d.status === "PENDING").length}
-        commandTotal={filteredOutboundDocs.filter(d => d.docType === "COMMAND").length}
-        activeTab={activeTab}
-        setActiveTab={(tab) => {
-          setActiveTab(tab);
-          setView(tab);
-        }}
-      />
-
-      {/* ── Sub Action Links ──────────────────────────────────── */}
-      <div className="flex justify-between items-center gap-3 flex-wrap">
-        {view !== "menu" ? (
-          <button
-            onClick={() => setView("menu")}
-            className="text-xs text-slate-500 hover:text-slate-850 dark:hover:text-white transition flex items-center gap-1 font-bold cursor-pointer"
-          >
-            <ArrowRight className="w-3.5 h-3.5 rotate-180" />
-            กลับไปหน้าเมนูระบบเอกสาร
-          </button>
-        ) : (
-          <Link href="/dashboard" className="text-xs text-slate-505 hover:text-slate-850 dark:hover:text-white transition flex items-center gap-1 font-semibold">
-            <ArrowRight className="w-3.5 h-3.5 rotate-180" />
-            กลับบอร์ดหน้าแรก
-          </Link>
-        )}
-        {view === "inbound" && (
-          <div className="flex items-center gap-3 flex-wrap">
-            {/* ── Credential Health Badge & Last Sync Time ── */}
-            <div className="flex flex-col items-end sm:items-start">
-              {amssCredsExist !== null && (
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                  amssCredsExist
-                    ? "bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400 border-emerald-100 dark:border-emerald-900/30"
-                    : "bg-amber-50 dark:bg-amber-950/20 text-amber-600 dark:text-amber-400 border-amber-100 dark:border-amber-900/30"
-                }`}>
-                  {amssCredsExist ? "🟢 เชื่อมต่อแล้ว" : "🟡 ยังไม่ได้ตั้งค่า"}
-                </span>
-              )}
-              {lastSyncAt && (
-                <span className="text-[9px] text-slate-400 dark:text-slate-500 font-bold mt-0.5">
-                  ซิงค์ล่าสุด: {lastSyncAt.toLocaleDateString("th-TH", {
-                    month: "short",
-                    day: "numeric",
-                    hour: "2-digit",
-                    minute: "2-digit"
-                  })} น.
-                </span>
-              )}
-            </div>
-
-            {/* ── Auto Sync Button ── */}
-            <button
-              onClick={handleAmssAutoSync}
-              disabled={amssSyncing}
-              className="text-xs bg-indigo-650 hover:bg-indigo-700 text-white font-extrabold px-4.5 py-2 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shadow-sm active:scale-95 disabled:opacity-50 shrink-0"
-            >
-              {amssSyncing ? (
-                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-              ) : (
-                <Zap className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
-              )}
-              {amssSyncing ? "กำลังซิงค์..." : "ดึงข้อมูลจาก AMSS++ อัตโนมัติ"}
-            </button>
-
-            {/* ── Settings Link ── */}
-            <button
-              onClick={() => setShowAmssCredentialsModal(true)}
-              className="text-xs text-indigo-650 dark:text-indigo-400 hover:underline font-bold cursor-pointer shrink-0"
-            >
-              ตั้งค่าเชื่อมต่อ
-            </button>
-
-            {/* ── Fallback manual import link ── */}
-            <button
-              onClick={() => setShowAmssImportModal(true)}
-              className="text-xs text-slate-500 hover:underline font-medium cursor-pointer shrink-0"
-            >
-              นำเข้าแบบวางโค้ด
-            </button>
+      {/* ── AMSS Sync Toolbar (Inbound Only) ────────────────────── */}
+      {view === "inbound" && (
+        <div className="flex justify-end items-center gap-3 flex-wrap">
+          {/* ── Credential Health Badge & Last Sync Time ── */}
+          <div className="flex flex-col items-end sm:items-start">
+            {amssCredsExist !== null && (
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                amssCredsExist
+                  ? "bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400 border-emerald-100 dark:border-emerald-900/30"
+                  : "bg-amber-50 dark:bg-amber-950/20 text-amber-600 dark:text-amber-400 border-amber-100 dark:border-amber-900/30"
+              }`}>
+                {amssCredsExist ? "🟢 เชื่อมต่อแล้ว" : "🟡 ยังไม่ได้ตั้งค่า"}
+              </span>
+            )}
+            {lastSyncAt && (
+              <span className="text-[9px] text-slate-400 dark:text-slate-550 font-bold mt-0.5">
+                ซิงค์ล่าสุด: {lastSyncAt.toLocaleDateString("th-TH", {
+                  month: "short",
+                  day: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit"
+                })} น.
+              </span>
+            )}
           </div>
-        )}
-      </div>
 
-      {/* ── Dashboard Menu Modules ── */}
-      {view === "menu" && (
-        <motion.div
-          variants={containerVariants}
-          initial="hidden"
-          animate="show"
-          className="grid grid-cols-1 sm:grid-cols-3 gap-6 pt-2"
-        >
-          {/* Card 1: ขอเลขเอกสาร */}
-          <motion.div
-            variants={itemVariants}
-            whileHover={{ y: -6 }}
-            onClick={() => {
-              setActiveTab("outbound");
-              setView("outbound");
-            }}
-            className="cursor-pointer bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl p-8 flex flex-col items-center text-center shadow-sm hover:shadow-md hover:border-slate-200 transition-all duration-300 group"
+          {/* ── Auto Sync Button ── */}
+          <button
+            onClick={handleAmssAutoSync}
+            disabled={amssSyncing}
+            className="text-xs bg-indigo-650 hover:bg-indigo-700 text-white font-extrabold px-4.5 py-2 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shadow-sm active:scale-95 disabled:opacity-50 shrink-0"
           >
-            <div className="w-16 h-16 rounded-2xl bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 flex items-center justify-center mb-6 group-hover:scale-105 transition-transform shadow-sm">
-              <span className="text-3xl font-black font-sans">#</span>
-            </div>
-            <h4 className="text-base font-extrabold text-slate-850 dark:text-white">ขอเลขเอกสาร</h4>
-            <p className="text-xs text-slate-400 dark:text-slate-550 mt-2 font-medium">ขอเลขหนังสือออกและดูประวัติ</p>
-          </motion.div>
+            {amssSyncing ? (
+              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <Zap className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
+            )}
+            {amssSyncing ? "กำลังซิงค์..." : "ดึงข้อมูลจาก AMSS++ อัตโนมัติ"}
+          </button>
 
-          {/* Card 2: ทะเบียนหนังสือรับ */}
-          <motion.div
-            variants={itemVariants}
-            whileHover={{ y: -6 }}
-            onClick={() => {
-              setActiveTab("inbound");
-              setView("inbound");
-            }}
-            className="cursor-pointer bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl p-8 flex flex-col items-center text-center shadow-sm hover:shadow-md hover:border-slate-200 transition-all duration-300 group"
+          {/* ── Settings Link ── */}
+          <button
+            onClick={() => setShowAmssCredentialsModal(true)}
+            className="text-xs text-indigo-650 dark:text-indigo-400 hover:underline font-bold cursor-pointer shrink-0"
           >
-            <div className="w-16 h-16 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mb-6 group-hover:scale-105 transition-transform shadow-sm relative">
-              <ClipboardList className="w-7 h-7" />
-              {filteredInboundDocs.filter(d => d.status === "ROUTING" || d.status === "PENDING").length > 0 && (
-                <span className="absolute -top-1.5 -right-1.5 w-5.5 h-5.5 bg-rose-500 text-white rounded-full flex items-center justify-center text-[10px] font-black border-2 border-white dark:border-slate-900 animate-pulse">
-                  {filteredInboundDocs.filter(d => d.status === "ROUTING" || d.status === "PENDING").length}
-                </span>
-              )}
-            </div>
-            <h4 className="text-base font-extrabold text-slate-850 dark:text-white">ทะเบียนหนังสือรับ</h4>
-            <p className="text-xs text-slate-400 dark:text-slate-550 mt-2 font-medium">รับหนังสือ AMSS++ และทะเบียนงาน</p>
-          </motion.div>
+            ตั้งค่าเชื่อมต่อ
+          </button>
 
-          {/* Card 3: ออกเกียรติบัตร */}
-          <motion.div
-            variants={itemVariants}
-            whileHover={{ y: -6 }}
-            onClick={() => {
-              setShowCertModal(true);
-            }}
-            className="cursor-pointer bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl p-8 flex flex-col items-center text-center shadow-sm hover:shadow-md hover:border-slate-200 transition-all duration-300 group"
+          {/* ── Fallback manual import link ── */}
+          <button
+            onClick={() => setShowAmssImportModal(true)}
+            className="text-xs text-slate-500 hover:underline font-medium cursor-pointer shrink-0"
           >
-            <div className="w-16 h-16 rounded-2xl bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400 flex items-center justify-center mb-6 group-hover:scale-105 transition-transform shadow-sm">
-              <span className="text-3xl font-black">🏅</span>
-            </div>
-            <h4 className="text-base font-extrabold text-slate-850 dark:text-white">ออกเกียรติบัตร</h4>
-            <p className="text-xs text-slate-400 dark:text-slate-550 mt-2 font-medium">สร้างใบเกียรติบัตรพร้อม QR Code</p>
-          </motion.div>
-        </motion.div>
+            นำเข้าแบบวางโค้ด
+          </button>
+        </div>
       )}
 
-      {/* ── Main Two-Column Layout ────────────────────────────── */}
-      {view !== "menu" && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {/* ── Dashboard Menu Modules (Split Layout: Cards + Quick Request) ── */}
+      {view === "menu" && (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start animate-in fade-in slide-in-from-bottom-3 duration-250">
+          
+          {/* Left Column: Stats, Cards & Timeline (col-span-8) */}
+          <div className="lg:col-span-8 space-y-6">
+            
+            {/* Stats Summary Grid (Wrapped in Widget Engine) */}
+            <WidgetContainer widget={{ id: "document-stats", type: "summary", componentName: "DocumentStats" }}>
+              <DocumentStats
+                inboundTotal={filteredInboundDocs.length}
+                outboundTotal={filteredOutboundDocs.filter(d => d.docType !== "COMMAND").length}
+                inboundPending={filteredInboundDocs.filter(d => d.status === "ROUTING" || d.status === "PENDING").length}
+                commandTotal={filteredOutboundDocs.filter(d => d.docType === "COMMAND").length}
+                activeTab={activeTab}
+                onCardClick={(key) => {
+                  if (key === "inbound") {
+                    setActiveTab("inbound");
+                    setView("inbound");
+                    setSelectedDocType("");
+                    setSelectedStatus("");
+                  } else if (key === "outbound") {
+                    setActiveTab("outbound");
+                    setView("outbound");
+                    setSelectedDocType("OUTGOING");
+                    setSelectedStatus("");
+                  } else if (key === "pending") {
+                    setActiveTab("inbound");
+                    setView("inbound");
+                    setSelectedDocType("");
+                    setSelectedStatus("PENDING");
+                  } else if (key === "command") {
+                    setActiveTab("outbound");
+                    setView("outbound");
+                    setSelectedDocType("COMMAND");
+                    setSelectedStatus("");
+                  }
+                }}
+              />
+            </WidgetContainer>
+
+            {/* Menu Cards (Wrapped in Widget Engine) */}
+            <WidgetContainer widget={{ id: "document-menu-grid", type: "custom", componentName: "MenuGrid" }}>
+              <motion.div
+                variants={containerVariants}
+                initial="hidden"
+                animate="show"
+                className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-2"
+              >
+                {/* Card 1: บันทึกข้อความ (Memo) */}
+                <motion.div
+                  variants={itemVariants}
+                  whileHover={{ y: -6 }}
+                  data-track-id="menu-card-memo"
+                  onClick={() => {
+                    setActiveTab("outbound");
+                    setView("outbound");
+                    setSelectedDocType("MEMO");
+                    setSelectedStatus("");
+                  }}
+                  className="cursor-pointer bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl p-8 flex flex-col items-center text-center shadow-sm hover:shadow-md hover:border-slate-200 transition-all duration-300 group"
+                >
+                  <div className="w-16 h-16 rounded-2xl bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 flex items-center justify-center mb-6 group-hover:scale-105 transition-transform shadow-sm">
+                    <span className="text-3xl font-black">📝</span>
+                  </div>
+                  <h4 className="text-base font-extrabold text-slate-850 dark:text-white">บันทึกข้อความ</h4>
+                  <p className="text-xs text-slate-400 dark:text-slate-550 mt-2 font-medium">ออกเลขบันทึกข้อความราชการภายใน</p>
+                </motion.div>
+
+                {/* Card 2: หนังสือส่ง */}
+                <motion.div
+                  variants={itemVariants}
+                  whileHover={{ y: -6 }}
+                  data-track-id="menu-card-outgoing"
+                  onClick={() => {
+                    setActiveTab("outbound");
+                    setView("outbound");
+                    setSelectedDocType("OUTGOING");
+                    setSelectedStatus("");
+                  }}
+                  className="cursor-pointer bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl p-8 flex flex-col items-center text-center shadow-sm hover:shadow-md hover:border-slate-200 transition-all duration-300 group"
+                >
+                  <div className="w-16 h-16 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mb-6 group-hover:scale-105 transition-transform shadow-sm">
+                    <span className="text-3xl font-black">📤</span>
+                  </div>
+                  <h4 className="text-base font-extrabold text-slate-850 dark:text-white">หนังสือส่ง</h4>
+                  <p className="text-xs text-slate-400 dark:text-slate-550 mt-2 font-medium">ออกเลขหนังสือราชการภายนอกโรงเรียน</p>
+                </motion.div>
+
+                {/* Card 3: คำสั่ง */}
+                <motion.div
+                  variants={itemVariants}
+                  whileHover={{ y: -6 }}
+                  data-track-id="menu-card-command"
+                  onClick={() => {
+                    setActiveTab("outbound");
+                    setView("outbound");
+                    setSelectedDocType("COMMAND");
+                    setSelectedStatus("");
+                  }}
+                  className="cursor-pointer bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl p-8 flex flex-col items-center text-center shadow-sm hover:shadow-md hover:border-slate-200 transition-all duration-300 group"
+                >
+                  <div className="w-16 h-16 rounded-2xl bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400 flex items-center justify-center mb-6 group-hover:scale-105 transition-transform shadow-sm">
+                    <span className="text-3xl font-black">📢</span>
+                  </div>
+                  <h4 className="text-base font-extrabold text-slate-850 dark:text-white">คำสั่ง</h4>
+                  <p className="text-xs text-slate-400 dark:text-slate-550 mt-2 font-medium">ออกทะเบียนเลขคำสั่งและประกาศสำคัญ</p>
+                </motion.div>
+
+                {/* Card 4: หนังสือรับ */}
+                <motion.div
+                  variants={itemVariants}
+                  whileHover={{ y: -6 }}
+                  data-track-id="menu-card-inbound"
+                  onClick={() => {
+                    setActiveTab("inbound");
+                    setView("inbound");
+                    setSelectedDocType("");
+                    setSelectedStatus("");
+                  }}
+                  className="cursor-pointer bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl p-8 flex flex-col items-center text-center shadow-sm hover:shadow-md hover:border-slate-200 transition-all duration-300 group"
+                >
+                  <div className="w-16 h-16 rounded-2xl bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 flex items-center justify-center mb-6 group-hover:scale-105 transition-transform shadow-sm">
+                    <span className="text-3xl font-black">📥</span>
+                  </div>
+                  <h4 className="text-base font-extrabold text-slate-850 dark:text-white">หนังสือรับ</h4>
+                  <p className="text-xs text-slate-400 dark:text-slate-550 mt-2 font-medium">ทะเบียนเอกสารรับเข้าจากภายนอกโรงเรียน</p>
+                </motion.div>
+
+                {/* Card 5: รอดำเนินการ */}
+                <motion.div
+                  variants={itemVariants}
+                  whileHover={{ y: -6 }}
+                  data-track-id="menu-card-pending"
+                  onClick={() => {
+                    setActiveTab("inbound");
+                    setView("inbound");
+                    setSelectedDocType("");
+                    setSelectedStatus("PENDING");
+                  }}
+                  className="cursor-pointer bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl p-8 flex flex-col items-center text-center shadow-sm hover:shadow-md hover:border-slate-200 transition-all duration-300 group font-bold relative"
+                >
+                  <div className="w-16 h-16 rounded-2xl bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 flex items-center justify-center mb-6 group-hover:scale-105 transition-transform shadow-sm relative">
+                    <span className="text-3xl font-black">⏳</span>
+                    {filteredInboundDocs.filter(d => d.status === "ROUTING" || d.status === "PENDING").length > 0 && (
+                      <span className="absolute -top-1.5 -right-1.5 w-5.5 h-5.5 bg-rose-500 text-white rounded-full flex items-center justify-center text-[10px] font-black border-2 border-white dark:border-slate-900 animate-pulse">
+                        {filteredInboundDocs.filter(d => d.status === "ROUTING" || d.status === "PENDING").length}
+                      </span>
+                    )}
+                  </div>
+                  <h4 className="text-base font-extrabold text-slate-850 dark:text-white">รอดำเนินการ</h4>
+                  <p className="text-xs text-slate-400 dark:text-slate-550 mt-2 font-medium">เรื่องที่รอเสนอเซ็น / เกษียณสั่งการ</p>
+                </motion.div>
+
+                {/* Card 6: ออกเกียรติบัตร */}
+                <motion.div
+                  variants={itemVariants}
+                  whileHover={{ y: -6 }}
+                  data-track-id="menu-card-cert"
+                  onClick={() => {
+                    setView("cert");
+                  }}
+                  className="cursor-pointer bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl p-8 flex flex-col items-center text-center shadow-sm hover:shadow-md hover:border-slate-200 transition-all duration-300 group"
+                >
+                  <div className="w-16 h-16 rounded-2xl bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 flex items-center justify-center mb-6 group-hover:scale-105 transition-transform shadow-sm">
+                    <span className="text-3xl font-black">🏅</span>
+                  </div>
+                  <h4 className="text-base font-extrabold text-slate-850 dark:text-white">ออกเกียรติบัตร</h4>
+                  <p className="text-xs text-slate-400 dark:text-slate-550 mt-2 font-medium">สร้างใบเกียรติบัตรพร้อม QR Code</p>
+                </motion.div>
+              </motion.div>
+            </WidgetContainer>
+
+            {/* Recent Activities Timeline (Wrapped in Widget Engine) */}
+            <WidgetContainer widget={{ id: "document-recent-activities", type: "recent_activity", componentName: "RecentActivityTimeline" }}>
+              <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl p-6 shadow-sm">
+                <RecentActivityTimeline />
+              </div>
+            </WidgetContainer>
+          </div>
+
+          {/* Right Column: Quick Request Sidebar (col-span-4) */}
+          <div className="lg:col-span-4">
+            <WidgetContainer widget={{ id: "document-quick-request", type: "quick_action", componentName: "QuickRequestForm" }}>
+              <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl p-5 md:p-6 shadow-sm space-y-4 relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-indigo-500/5 to-purple-500/5 rounded-full pointer-events-none" />
+                
+                <div className="flex items-center gap-2 border-b border-slate-50 dark:border-slate-800 pb-3">
+                  <span className="text-xl">⚡</span>
+                  <h3 className="text-sm font-extrabold text-slate-850 dark:text-white">ขอเลขทะเบียนด่วน (Quick Request)</h3>
+                </div>
+
+                <form onSubmit={handleQuickIssue} className="space-y-4">
+                  
+                  {/* Type Selection */}
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider block">ประเภทเอกสาร</label>
+                    <select
+                      value={quickDocType}
+                      onChange={(e) => setQuickDocType(e.target.value)}
+                      className="w-full h-10 px-3.5 rounded-xl border border-slate-200 dark:border-slate-750 bg-slate-50 dark:bg-slate-950 text-xs cursor-pointer focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none"
+                    >
+                      <option value="MEMO">📝 บันทึกข้อความ (ภายใน)</option>
+                      <option value="OUTGOING">📤 หนังสือส่ง (ภายนอกปกติ)</option>
+                      <option value="COMMAND">📢 คำสั่ง / ประกาศ</option>
+                    </select>
+                  </div>
+
+                  {/* Section (Only if MEMO) */}
+                  {quickDocType === "MEMO" && (
+                    <div className="space-y-1 animate-in fade-in slide-in-from-top-1 duration-150">
+                      <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider block">กลุ่มงาน / กลุ่มสาระฯ</label>
+                      <select
+                        value={quickMemoSectionId}
+                        onChange={(e) => setQuickMemoSectionId(e.target.value)}
+                        className="w-full h-10 px-3.5 rounded-xl border border-slate-200 dark:border-slate-750 bg-slate-50 dark:bg-slate-950 text-xs cursor-pointer focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none"
+                      >
+                        {sections.map(s => (
+                          <option key={s.id} value={s.id}>{s.name} ({s.code})</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {/* Title Input */}
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider block">ชื่อเรื่อง</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="เช่น ขออนุมัติจัดซื้อ..."
+                      value={quickTitle}
+                      onChange={(e) => setQuickTitle(e.target.value)}
+                      className="w-full h-10 px-3.5 rounded-xl border border-slate-200 dark:border-slate-750 bg-slate-50 dark:bg-slate-950 text-xs focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none"
+                    />
+                  </div>
+
+                  {/* To Input */}
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider block">เสนอ / เรียน</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="เสนอหัวหน้าส่วนงาน..."
+                      value={quickTo}
+                      onChange={(e) => setQuickTo(e.target.value)}
+                      className="w-full h-10 px-3.5 rounded-xl border border-slate-200 dark:border-slate-750 bg-slate-50 dark:bg-slate-950 text-xs focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none"
+                    />
+                  </div>
+
+                  {/* Origin Input */}
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider block">เจ้าของเรื่อง / ต้นเรื่อง</label>
+                    <input
+                      type="text"
+                      required
+                      value={quickOrigin}
+                      onChange={(e) => setQuickOrigin(e.target.value)}
+                      className="w-full h-10 px-3.5 rounded-xl border border-slate-200 dark:border-slate-750 bg-slate-50 dark:bg-slate-950 text-xs focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none"
+                    />
+                  </div>
+
+                  {/* Date Input */}
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider block">วันที่ลงนาม</label>
+                    <input
+                      type="date"
+                      required
+                      value={quickDate}
+                      onChange={(e) => setQuickDate(e.target.value)}
+                      className="w-full h-10 px-3.5 rounded-xl border border-slate-200 dark:border-slate-750 bg-slate-50 dark:bg-slate-950 text-xs focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none"
+                    />
+                  </div>
+
+                  {/* Submit button with client-side block state */}
+                  <button
+                    type="submit"
+                    disabled={isQuickIssuing}
+                    data-track-id="quick-request-submit"
+                    className="w-full h-11 rounded-xl bg-slate-900 hover:bg-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 text-white font-extrabold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  >
+                    {isQuickIssuing ? (
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <span>ขอเลขทะเบียนด่วนเลย ⚡</span>
+                    )}
+                  </button>
+                </form>
+              </div>
+            </WidgetContainer>
+          </div>
+        </div>
+      )}
+
+      {/* ── Sub Views Rendering ── */}
+      {view === "cert" ? (
+        <CertGenerator onBack={() => setView("menu")} />
+      ) : view !== "menu" ? (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-3 duration-250">
         
         {/* Left Column: Form Panel (Desktop Only) */}
         <div className="hidden lg:block lg:col-span-1">
@@ -591,10 +922,18 @@ export default function DocumentPage() {
               setDocToCancel(id);
               setShowCancelModal(true);
             }}
+            searchQuery={searchQuery}
+            setSearchQuery={setSearchQuery}
+            selectedDocType={selectedDocType}
+            setSelectedDocType={setSelectedDocType}
+            selectedYear={selectedYearTable}
+            setSelectedYear={setSelectedYearTable}
+            selectedStatus={selectedStatus}
+            setSelectedStatus={setSelectedStatus}
           />
         </div>
       </div>
-      )}
+      ) : null}
 
       {/* ── Mobile Form Modals ───────────────────────────────── */}
       <AnimatePresence>
@@ -612,7 +951,7 @@ export default function DocumentPage() {
                 </h3>
                 <button
                   onClick={() => setShowIssueModal(false)}
-                  className="p-2 rounded-full hover:bg-slate-105 dark:hover:bg-slate-800 text-slate-400 cursor-pointer"
+                  className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 cursor-pointer"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -644,7 +983,7 @@ export default function DocumentPage() {
                 </h3>
                 <button
                   onClick={() => setShowReceiveModal(false)}
-                  className="p-2 rounded-full hover:bg-slate-105 dark:hover:bg-slate-800 text-slate-400 cursor-pointer"
+                  className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 cursor-pointer"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -763,6 +1102,78 @@ export default function DocumentPage() {
         onClose={() => setShowAmssImportModal(false)}
         onRefresh={loadData}
       />
+
+      {/* ── Quick Issue Success Modal ── */}
+      <AnimatePresence>
+        {quickIssuedResult && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white dark:bg-slate-900 rounded-3xl max-w-md w-full border border-slate-100 dark:border-slate-800 shadow-2xl p-6 md:p-8 space-y-6 relative overflow-hidden"
+            >
+              <div className="absolute -top-12 -left-12 w-32 h-32 bg-indigo-500/5 dark:bg-indigo-500/10 rounded-full blur-xl pointer-events-none" />
+              
+              <div className="text-center space-y-3">
+                <div className="w-16 h-16 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 rounded-full flex items-center justify-center mx-auto text-3xl shadow-sm">
+                  🎉
+                </div>
+                <h3 className="text-lg font-black text-slate-900 dark:text-white">ออกเลขทะเบียนสำเร็จ!</h3>
+                <p className="text-xs text-slate-400 dark:text-slate-550">หมายเลขทะเบียนนี้ได้รับการผูกมัดและป้องกันการออกเลขซ้ำแล้ว</p>
+              </div>
+
+              <div className="bg-slate-50 dark:bg-slate-950/60 rounded-2xl p-5 border border-slate-100/50 dark:border-slate-850 flex flex-col items-center justify-center text-center space-y-1">
+                <span className="text-[10px] font-bold text-slate-400 dark:text-slate-550 uppercase tracking-wider">เลขทะเบียนที่ได้รับ</span>
+                <span className="text-2xl font-black font-mono text-indigo-600 dark:text-indigo-400 selection:bg-indigo-100 dark:selection:bg-indigo-900/40">
+                  {quickIssuedResult.docNo}
+                </span>
+              </div>
+
+              <div className="space-y-2.5 text-xs text-slate-600 dark:text-slate-400 bg-slate-50/50 dark:bg-slate-950/30 rounded-xl p-3.5 border border-slate-100/30">
+                <div className="flex justify-between">
+                  <span className="font-semibold text-slate-450">เรื่อง:</span>
+                  <span className="font-bold text-slate-800 dark:text-slate-200 text-right truncate max-w-[200px]">{quickIssuedResult.title}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="font-semibold text-slate-450">เรียน/เสนอ:</span>
+                  <span className="font-bold text-slate-800 dark:text-slate-200">{quickIssuedResult.to}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="font-semibold text-slate-450">วันที่:</span>
+                  <span className="font-bold text-slate-800 dark:text-slate-200">
+                    {new Date(quickIssuedResult.date).toLocaleDateString("th-TH", {
+                      day: "numeric",
+                      month: "short",
+                      year: "numeric"
+                    })}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(quickIssuedResult.docNo);
+                    setCopiedQuickNo(true);
+                    showToast("คัดลอกเลขทะเบียนแล้ว!", "success");
+                    setTimeout(() => setCopiedQuickNo(false), 2000);
+                  }}
+                  className="flex-1 h-11 rounded-xl bg-indigo-600 hover:bg-indigo-750 text-white font-extrabold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  {copiedQuickNo ? "คัดลอกสำเร็จ! ✓" : "คัดลอกเลขทะเบียน 📋"}
+                </button>
+                <button
+                  onClick={() => setQuickIssuedResult(null)}
+                  className="px-5 h-11 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-extrabold text-xs transition cursor-pointer"
+                >
+                  ปิดหน้าต่าง
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }

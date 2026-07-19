@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { loginToAMSS } from "@/lib/amss-parser";
+import { loginToAMSS, AMSS_HEADERS } from "@/lib/amss-parser";
 import { decrypt } from "@/lib/crypto";
 
 export async function POST(req: Request) {
@@ -108,9 +108,7 @@ export async function POST(req: Request) {
 
     try {
       initRes = await fetch(initUrl, {
-        headers: {
-          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        }
+        headers: AMSS_HEADERS
       });
     } catch (err: any) {
       const isTlsError = 
@@ -130,9 +128,7 @@ export async function POST(req: Request) {
         process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
         try {
           initRes = await fetch(initUrl, {
-            headers: {
-              "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-            }
+            headers: AMSS_HEADERS
           });
           tlsBypassUsed = true;
           logs.push({ step: "HTTP_HANDSHAKE", status: "warning", message: "Handshake succeeded using TLS certificate bypass." });
@@ -207,8 +203,8 @@ export async function POST(req: Request) {
       loginRes = await fetch(postUrl, {
         method: "POST",
         headers: {
+          ...AMSS_HEADERS,
           "Content-Type": "application/x-www-form-urlencoded",
-          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
           "Cookie": cookies,
         },
         body: payload.toString(),
@@ -254,7 +250,7 @@ export async function POST(req: Request) {
         logs.push({ step: "SESSION_VERIFICATION", status: "info", message: `Trying to fetch: ${checkUrl}` });
         const res = await fetch(checkUrl, {
           headers: {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            ...AMSS_HEADERS,
             "Cookie": cookies,
           }
         });

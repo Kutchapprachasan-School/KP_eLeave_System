@@ -45,12 +45,44 @@ body {
   --color-sidebar-bg: #1e1b4b;
   --color-sidebar-hover: #312e81;
   --color-sidebar-active: #4f46e5;
+
+  /* Semantic System Tokens */
+  --surface-primary: #f8fafc;
+  --surface-card: #ffffff;
+  --border-default: #e2e8f0;
+
+  /* Intent Tokens */
+  --color-success-bg: #f0fdf4;
+  --color-success-text: #166534;
+  --color-success-border: #bbf7d0;
+  --color-warning-bg: #fffbeb;
+  --color-warning-text: #9a3412;
+  --color-warning-border: #fde68a;
+  --color-danger-bg: #fef2f2;
+  --color-danger-text: #991b1b;
+  --color-danger-border: #fecaca;
 }
 
 .dark {
   --color-sidebar-bg: #0f0e26;
   --color-sidebar-hover: #1e1b4b;
   --color-sidebar-active: #4338ca;
+
+  /* Semantic System Tokens (dark) */
+  --surface-primary: #0f172a;
+  --surface-card: #1e293b;
+  --border-default: #334155;
+
+  /* Intent Tokens (dark) */
+  --color-success-bg: rgba(16, 185, 129, 0.1);
+  --color-success-text: #34d399;
+  --color-success-border: rgba(16, 185, 129, 0.2);
+  --color-warning-bg: rgba(245, 158, 11, 0.1);
+  --color-warning-text: #fbbf24;
+  --color-warning-border: rgba(245, 158, 11, 0.2);
+  --color-danger-bg: rgba(239, 68, 68, 0.1);
+  --color-danger-text: #f87171;
+  --color-danger-border: rgba(239, 68, 68, 0.2);
 }
 
 body, .font-sans, input, select, textarea, button {
@@ -135,4 +167,29 @@ body, .font-sans, input, select, textarea, button {
   100% {
     transform: translateX(150%) skewX(-20deg);
   }
+}
+
+/* Semantic Utility Classes */
+.card-surface {
+  background-color: var(--surface-card);
+  border: 1px solid var(--border-default);
+  transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.bg-success-intent {
+  background-color: var(--color-success-bg);
+  color: var(--color-success-text);
+  border: 1px solid var(--color-success-border);
+}
+
+.bg-warning-intent {
+  background-color: var(--color-warning-bg);
+  color: var(--color-warning-text);
+  border: 1px solid var(--color-warning-border);
+}
+
+.bg-danger-intent {
+  background-color: var(--color-danger-bg);
+  color: var(--color-danger-text);
+  border: 1px solid var(--color-danger-border);
 }

@@ -1,5 +1,13 @@
 import { toThaiNumerals } from "./document-utils";
 
+export const AMSS_HEADERS = {
+  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+  "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+  "Accept-Language": "th-TH,th;q=0.9,en-US;q=0.8,en;q=0.7",
+  "Cache-Control": "max-age=0",
+  "Upgrade-Insecure-Requests": "1"
+};
+
 interface AMSSBookDetails {
   registerNo: string;
   year: string;
@@ -15,8 +23,12 @@ interface AMSSBookDetails {
  * Uses HTTP fetch and RegExp parsing to avoid heavy libraries like Cheerio or JSDOM.
  */
 export async function fetchWithTlsFallback(url: string | URL, init?: RequestInit): Promise<Response> {
+  const mergedHeaders = {
+    ...AMSS_HEADERS,
+    ...(init?.headers || {})
+  };
   try {
-    return await fetch(url, init);
+    return await fetch(url, { ...init, headers: mergedHeaders });
   } catch (error: any) {
     const isTlsError = 
       error.code === "UNABLE_TO_VERIFY_LEAF_SIGNATURE" ||
@@ -36,7 +48,7 @@ export async function fetchWithTlsFallback(url: string | URL, init?: RequestInit
       const originalVal = process.env.NODE_TLS_REJECT_UNAUTHORIZED;
       process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
       try {
-        return await fetch(url, init);
+        return await fetch(url, { ...init, headers: mergedHeaders });
       } finally {
         if (originalVal === undefined) {
           delete process.env.NODE_TLS_REJECT_UNAUTHORIZED;
@@ -62,8 +74,6 @@ export async function parseAMSSUrl(urlStr: string, cookieHeader?: string): Promi
     const response = await fetchWithTlsFallback(urlStr, {
       signal: controller.signal,
       headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Accept-Language": "th-TH,th;q=0.9,en-US;q=0.8,en;q=0.7",
         ...(cookieHeader ? { "Cookie": cookieHeader } : {}),
       },
     });
@@ -252,9 +262,6 @@ export async function loginToAMSS(baseUrl: string, username: string, passwordSec
     
     const initRes = await fetchWithTlsFallback(initUrl, {
       signal: controller.signal,
-      headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-      }
     });
     clearTimeout(timeoutId);
     
@@ -295,7 +302,6 @@ export async function loginToAMSS(baseUrl: string, username: string, passwordSec
       signal: postController.signal,
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
         "Cookie": cookies,
       },
       body: payload.toString(),

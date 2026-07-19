@@ -13,6 +13,14 @@ type DocumentTableProps = {
   sections: MemoSection[];
   onRefresh: () => void;
   onCancelDocClick: (id: string) => void;
+  searchQuery: string;
+  setSearchQuery: (val: string) => void;
+  selectedDocType: string;
+  setSelectedDocType: (val: string) => void;
+  selectedYear: string;
+  setSelectedYear: (val: string) => void;
+  selectedStatus: string;
+  setSelectedStatus: (val: string) => void;
 };
 
 export default function DocumentTable({
@@ -22,10 +30,15 @@ export default function DocumentTable({
   sections,
   onRefresh,
   onCancelDocClick,
+  searchQuery,
+  setSearchQuery,
+  selectedDocType,
+  setSelectedDocType,
+  selectedYear,
+  setSelectedYear,
+  selectedStatus,
+  setSelectedStatus,
 }: DocumentTableProps) {
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedDocType, setSelectedDocType] = useState("");
-  const [selectedYear, setSelectedYear] = useState("");
   const [showAllRows, setShowAllRows] = useState(false);
 
   // Filters logic
@@ -42,6 +55,7 @@ export default function DocumentTable({
           (selectedDocType === "MEMO" && d.docType === "MEMO") ||
           (selectedDocType === "COMMAND" && d.docType === "COMMAND") ||
           (selectedDocType === "OUTGOING_NORMAL" && (d.docType === "OUTGOING_NORMAL" || d.docType === "OUTGOING")) ||
+          (selectedDocType === "OUTGOING" && (d.docType === "OUTGOING" || d.docType === "OUTGOING_NORMAL")) ||
           (selectedDocType === "OUTGOING_CIRCULAR" && d.docType === "OUTGOING_CIRCULAR") ||
           (selectedDocType === "ANNOUNCEMENT" && d.docType === "ANNOUNCEMENT") ||
           d.memoSectionId === selectedDocType;
@@ -49,7 +63,11 @@ export default function DocumentTable({
         const docYear = new Date(d.date).getFullYear() + 543;
         const matchesYear = !selectedYear || docYear.toString() === selectedYear;
 
-        return matchesSearch && matchesType && matchesYear;
+        const matchesStatus =
+          !selectedStatus ||
+          d.status === selectedStatus;
+
+        return matchesSearch && matchesType && matchesYear && matchesStatus;
       });
     } else {
       return inboundDocs.filter((d) => {
@@ -68,10 +86,15 @@ export default function DocumentTable({
         const docYear = new Date(d.receiveDate).getFullYear() + 543;
         const matchesYear = !selectedYear || docYear.toString() === selectedYear;
 
-        return matchesSearch && matchesType && matchesYear;
+        const matchesStatus =
+          !selectedStatus ||
+          (selectedStatus === "PENDING" && (d.status === "PENDING" || d.status === "ROUTING")) ||
+          d.status === selectedStatus;
+
+        return matchesSearch && matchesType && matchesYear && matchesStatus;
       });
     }
-  }, [activeTab, outboundDocs, inboundDocs, searchQuery, selectedDocType, selectedYear]);
+  }, [activeTab, outboundDocs, inboundDocs, searchQuery, selectedDocType, selectedYear, selectedStatus]);
 
   // Paginated/shown rows
   const visibleRows = useMemo(() => {
@@ -83,6 +106,7 @@ export default function DocumentTable({
     setSearchQuery("");
     setSelectedDocType("");
     setSelectedYear("");
+    setSelectedStatus("");
   };
 
   return (
@@ -90,7 +114,7 @@ export default function DocumentTable({
       {/* Table Title and Toolbar */}
       <div className="flex justify-between items-center border-b border-slate-50 dark:border-slate-800 pb-3 flex-wrap gap-2">
         <h3 className="text-sm font-extrabold text-slate-850 dark:text-white flex items-center gap-2">
-          <FolderOpen className="w-4 h-4 text-purple-650" />
+          <FolderOpen className="w-4 h-4 text-indigo-600" />
           ประวัติและทะเบียน{activeTab === "outbound" ? "ออกเลข" : "รับหนังสือ"}
         </h3>
         
@@ -113,14 +137,14 @@ export default function DocumentTable({
             placeholder={activeTab === "outbound" ? "ค้นหาเลขเดิม/เรื่อง/ผู้ขอ..." : "ค้นหาเลขรับ/อ้างอิง/เรื่อง/ผู้ส่ง..."}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full h-10 pl-10 pr-4 rounded-xl border border-slate-200 dark:border-slate-750 bg-slate-50 dark:bg-slate-950 text-xs focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all outline-none"
+            className="w-full h-10 pl-10 pr-4 rounded-xl border border-slate-200 dark:border-slate-750 bg-slate-50 dark:bg-slate-950 text-xs focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none"
           />
         </div>
 
         <select
           value={selectedDocType}
           onChange={(e) => setSelectedDocType(e.target.value)}
-          className="h-10 px-3.5 rounded-xl border border-slate-200 dark:border-slate-750 bg-slate-50 dark:bg-slate-950 text-xs cursor-pointer focus:ring-2 focus:ring-purple-500/20 outline-none"
+          className="h-10 px-3.5 rounded-xl border border-slate-200 dark:border-slate-750 bg-slate-50 dark:bg-slate-950 text-xs cursor-pointer focus:ring-2 focus:ring-indigo-500/20 outline-none"
         >
           <option value="">ประเภททั้งหมด</option>
           {activeTab === "outbound" ? (
@@ -148,7 +172,7 @@ export default function DocumentTable({
         <select
           value={selectedYear}
           onChange={(e) => setSelectedYear(e.target.value)}
-          className="h-10 px-3.5 rounded-xl border border-slate-200 dark:border-slate-750 bg-slate-50 dark:bg-slate-950 text-xs cursor-pointer focus:ring-2 focus:ring-purple-500/20 outline-none"
+          className="h-10 px-3.5 rounded-xl border border-slate-200 dark:border-slate-750 bg-slate-50 dark:bg-slate-950 text-xs cursor-pointer focus:ring-2 focus:ring-indigo-500/20 outline-none"
         >
           <option value="">ทุกปีการศึกษา</option>
           <option value="2569">ปีการศึกษา 2569</option>
@@ -156,7 +180,7 @@ export default function DocumentTable({
           <option value="2567">ปีการศึกษา 2567</option>
         </select>
 
-        {(searchQuery || selectedDocType || selectedYear) && (
+        {(searchQuery || selectedDocType || selectedYear || selectedStatus) && (
           <button
             onClick={clearFilters}
             className="flex items-center gap-1 px-3 h-10 rounded-xl text-xs font-bold text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/20 transition-colors cursor-pointer"
@@ -207,7 +231,7 @@ export default function DocumentTable({
                       key={d.id}
                       className="hover:bg-slate-50 dark:hover:bg-slate-950/20 transition-colors"
                     >
-                      <td className="py-3 px-4 font-bold font-mono text-purple-650 dark:text-purple-400">
+                      <td className="py-3 px-4 font-bold font-mono text-indigo-600 dark:text-indigo-400">
                         {d.docNo ? (
                           <Link href={`/document/${d.id}`} className="hover:underline">
                             {d.docNo}

@@ -9,7 +9,7 @@ type StatsProps = {
   inboundPending: number;
   commandTotal: number;
   activeTab: "outbound" | "inbound";
-  setActiveTab: (tab: "outbound" | "inbound") => void;
+  onCardClick: (key: "inbound" | "outbound" | "pending" | "command") => void;
 };
 
 export default function DocumentStats({
@@ -18,7 +18,7 @@ export default function DocumentStats({
   inboundPending,
   commandTotal,
   activeTab,
-  setActiveTab,
+  onCardClick,
 }: StatsProps) {
   const cards = [
     {
@@ -82,16 +82,10 @@ export default function DocumentStats({
           <motion.div
             key={c.title}
             whileHover={{ y: -4 }}
-            onClick={() => {
-              if (c.key === "inbound" || c.key === "pending") {
-                setActiveTab("inbound");
-              } else {
-                setActiveTab("outbound");
-              }
-            }}
+            onClick={() => onCardClick(c.key)}
             className={`cursor-pointer rounded-2xl p-5 border bg-white dark:bg-slate-900 transition-all flex justify-between items-center relative overflow-hidden group shadow-sm ${
               isActive
-                ? `border-orange-500 ring-2 ring-orange-500/10`
+                ? `${c.activeBorder} ring-2 ${c.ringColor}`
                 : "border-slate-100 dark:border-slate-800/80 hover:border-slate-300"
             }`}
           >

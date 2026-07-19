@@ -484,3 +484,46 @@ export async function saveDocumentAttachment(id: string, url: string | null, nam
     return handleActionError(err, "saveDocumentAttachment");
   }
 }
+
+export async function getDocumentActivities(): Promise<ActionResponse> {
+  try {
+    const user = await getSessionUser();
+    
+    const logs = await prisma.systemLog.findMany({
+      where: {
+        actionType: {
+          in: [
+            "DOC_ISSUE",
+            "DOC_CANCEL",
+            "INCOMING_SYNC_AUTO",
+            "INCOMING_SYNC_HTML",
+            "INCOMING_CREATE",
+            "INCOMING_RESOLVE"
+          ]
+        }
+      },
+      orderBy: { createdAt: "desc" },
+      take: 6
+    });
+
+    const userIds = Array.from(new Set(logs.map(l => l.userId)));
+    const usersList = await prisma.user.findMany({
+      where: { id: { in: userIds } },
+      select: { id: true, name: true }
+    });
+
+    const userMap = new Map(usersList.map(u => [u.id, u.name]));
+
+    const events = logs.map(l => ({
+      id: l.id,
+      timestamp: l.createdAt.toISOString(),
+      actorName: userMap.get(l.userId) || "ไม่ระบุชื่อ",
+      actionType: l.actionType,
+      description: l.description
+    }));
+
+    return { success: true, data: events };
+  } catch (err: any) {
+    return handleActionError(err, "getDocumentActivities");
+  }
+}
