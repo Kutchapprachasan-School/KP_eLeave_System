@@ -48,7 +48,7 @@ export default function RepairNewPage() {
     }
     try {
       setSubmitting(true);
-      await createRepairAction({
+      const repair = await createRepairAction({
         title: form.title.trim(),
         description: form.description.trim(),
         location: form.location.trim(),
@@ -56,8 +56,8 @@ export default function RepairNewPage() {
         category: form.category,
         expectedFinishAt: form.expectedFinishAt || null,
       });
-      showToast("success", "ส่งคำขอแจ้งซ่อมเรียบร้อยแล้ว");
-      router.push("/repair");
+      showToast("success", "ส่งคำขอแจ้งซ่อมเรียบร้อยแล้ว — สามารถแนบรูปภาพก่อนซ่อมได้ในหน้านี้");
+      router.push(`/repair/${repair.id}`);
     } catch (err: any) {
       showToast("error", err?.message ?? "เกิดข้อผิดพลาด กรุณาลองใหม่");
     } finally {
