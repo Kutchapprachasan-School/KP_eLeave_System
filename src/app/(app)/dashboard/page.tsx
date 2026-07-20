@@ -8,6 +8,7 @@ import { hasRepairPermission } from "@/lib/permissions";
 import DashboardShell from "./_components/DashboardShell";
 import LeaveDashboardClient from "./_components/LeaveDashboardClient";
 import RepairDashboardView, { type RepairDashStats } from "./_components/RepairDashboardView";
+import DocumentDashboardView from "./_components/DocumentDashboardView";
 
 export const metadata: Metadata = {
   title: "แดชบอร์ด | e-Leave",
@@ -42,6 +43,7 @@ export default async function DashboardPage({
   // Define available dashboard tabs based on permissions & features enabled
   const availableSystems = [
     { id: "leave", label: "ระบบการลา", icon: "CalendarDays" as const },
+    { id: "document", label: "ระบบงานสารบรรณ", icon: "FileText" as const },
     ...(canViewRepairDash
       ? [{ id: "repair", label: "ระบบแจ้งซ่อม", icon: "Wrench" as const }]
       : []),
@@ -68,6 +70,7 @@ export default async function DashboardPage({
       initialSystem={activeSystem}
       availableSystems={availableSystems}
       leaveView={<LeaveDashboardClient />}
+      documentView={<DocumentDashboardView />}
       repairView={
         repairStats ? (
           <RepairDashboardView stats={repairStats} canViewCost={canViewCost} />

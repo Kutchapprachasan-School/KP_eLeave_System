@@ -9,6 +9,7 @@ type Props = {
   availableSystems: SystemOption[];
   leaveView: React.ReactNode;
   repairView: React.ReactNode | null;
+  documentView?: React.ReactNode | null;
 };
 
 export default function DashboardShell({
@@ -16,6 +17,7 @@ export default function DashboardShell({
   availableSystems,
   leaveView,
   repairView,
+  documentView,
 }: Props) {
   const router = useRouter();
   const [activeSystem, setActiveSystem] = useState(initialSystem);
@@ -28,6 +30,12 @@ export default function DashboardShell({
     });
   };
 
+  const getTitle = () => {
+    if (activeSystem === "repair") return "ภาพรวมระบบแจ้งซ่อม";
+    if (activeSystem === "document") return "ภาพรวมระบบงานสารบรรณ";
+    return "แดชบอร์ดหลัก";
+  };
+
   return (
     <div className="space-y-6">
       {/* Dashboard Subsystem Selector Header */}
@@ -35,7 +43,7 @@ export default function DashboardShell({
         <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800/80 pb-4">
           <div className="flex items-center gap-3">
             <h1 className="text-xl font-bold tracking-tight text-slate-800 dark:text-white">
-              {activeSystem === "repair" ? "ภาพรวมระบบแจ้งซ่อม" : "แดชบอร์ดหลัก"}
+              {getTitle()}
             </h1>
             {isPending && (
               <Loader2 className="w-4 h-4 text-slate-400 animate-spin" />
@@ -50,7 +58,11 @@ export default function DashboardShell({
       )}
 
       {/* Render selected view */}
-      {activeSystem === "repair" && repairView ? repairView : leaveView}
+      {activeSystem === "repair" && repairView
+        ? repairView
+        : activeSystem === "document" && documentView
+        ? documentView
+        : leaveView}
     </div>
   );
 }
