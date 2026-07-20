@@ -314,6 +314,12 @@ export default function SettingsPage() {
 
   const [manualReason, setManualReason] = useState("");
 
+  // Repair Settings states
+
+  const [isSavingRepair, setIsSavingRepair] = useState(false);
+
+  const [repairSearchQuery, setRepairSearchQuery] = useState("");
+
   // Drill-down navigation state
 
   const [activeSection, setActiveSection] = useState<string | null>(null);
@@ -6625,8 +6631,10 @@ export default function SettingsPage() {
 
   // ─── Repair Settings Section ──────────────────────────────────────────────────
   const renderRepairSettingsSection = () => {
-    const [saving, setSaving] = useState(false);
-    const [searchQuery, setSearchQuery] = useState("");
+    const saving = isSavingRepair;
+    const setSaving = setIsSavingRepair;
+    const searchQuery = repairSearchQuery;
+    const setSearchQuery = setRepairSearchQuery;
 
     const managers = rolePermissions.repairManagers || [];
     const headAdmin = rolePermissions.headGeneralAdminId || "";
