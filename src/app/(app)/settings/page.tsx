@@ -146,7 +146,7 @@ export default function SettingsPage() {
   const [enableAttendance, setEnableAttendance] = useState(false);
   const [enableDocument, setEnableDocument] = useState(false);
   const [enableRepair, setEnableRepair] = useState(false);
-  const [isSavingSubsystems, setIsSavingSubsystems] = useState(false);
+
 
   const [isImpersonating, setIsImpersonating] = useState(false);
 
@@ -647,27 +647,27 @@ export default function SettingsPage() {
 
   };
 
-  const handleSubsystemsSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSavingSubsystems(true);
+  // Inline-save a single subsystem toggle
+  const saveSubsystem = async (
+    key: "enableAttendance" | "enableDocument" | "enableRepair",
+    val: boolean
+  ) => {
+    if (key === "enableAttendance") setEnableAttendance(val);
+    if (key === "enableDocument") setEnableDocument(val);
+    if (key === "enableRepair") setEnableRepair(val);
     try {
       await updateSystemSettings({
         schoolName,
         subheader,
-        enableAttendance,
-        enableDocument,
-        enableRepair
+        enableAttendance: key === "enableAttendance" ? val : enableAttendance,
+        enableDocument:   key === "enableDocument"   ? val : enableDocument,
+        enableRepair:     key === "enableRepair"     ? val : enableRepair,
       });
-      localStorage.setItem("eleave_enableAttendance", String(enableAttendance));
-      localStorage.setItem("eleave_enableDocument", String(enableDocument));
-      localStorage.setItem("eleave_enableRepair", String(enableRepair));
+      localStorage.setItem(`eleave_${key}`, String(val));
       window.dispatchEvent(new Event("storage"));
-      alert(lang === "en" ? "Subsystem settings saved successfully" : "บันทึกการตั้งค่าระบบย่อยสำเร็จ");
-      setActiveSection(null);
-    } catch (error: any) {
-      alert("เกิดข้อผิดพลาดในการบันทึก:" + (error?.message || error));
-    } finally {
-      setIsSavingSubsystems(false);
+      showToast("success", lang === "en" ? "Saved" : "บันทึกสำเร็จ");
+    } catch (e: any) {
+      showToast("error", e?.message ?? "เกิดข้อผิดพลาด");
     }
   };
 
@@ -1905,40 +1905,6 @@ export default function SettingsPage() {
       <SectionHeader title={sectionTitles["attendance-settings"]} />
 
       <div className="space-y-6">
-        {/* Toggle system active */}
-        <div className={`flex items-center gap-4 p-5 rounded-2xl border ${enableAttendance ? "bg-indigo-50/50 dark:bg-indigo-950/20 border-indigo-200 dark:border-indigo-800" : "bg-gray-50 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700"} transition-all`}>
-          <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${enableAttendance ? "bg-indigo-600 text-white" : "bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400"}`}>
-            <Clock className="w-6 h-6" />
-          </div>
-          <div className="flex-1">
-            <p className="font-semibold text-gray-900 dark:text-white text-sm">
-              {lang === "en" ? "Attendance Management System" : "ระบบลงเวลาปฏิบัติงาน"}
-            </p>
-            <p className="text-xs text-gray-550 text-gray-500 dark:text-gray-400 mt-0.5">
-              {lang === "en"
-                ? "Allow personnel to sign-in and sign-out of work using GPS location verification."
-                : "เปิดการใช้งานระบบการลงเวลาปฏิบัติงานเข้า-ออก สำหรับครูและบุคลากร"}
-            </p>
-          </div>
-          <div className="flex items-center gap-3 shrink-0">
-            <button
-              type="button"
-              onClick={() => setEnableAttendance(!enableAttendance)}
-              className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors focus:outline-none ${
-                enableAttendance ? "bg-indigo-600" : "bg-gray-200 dark:bg-gray-700"
-              }`}
-            >
-              <span
-                className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
-                  enableAttendance ? "translate-x-6" : "translate-x-1"
-                }`}
-              />
-            </button>
-            <span className={`text-xs font-semibold ${enableAttendance ? "text-indigo-650 dark:text-indigo-400" : "text-gray-400"}`}>
-              {enableAttendance ? (lang === "en" ? "Active" : "เปิดใช้งาน") : (lang === "en" ? "Inactive" : "ปิดใช้งาน")}
-            </span>
-          </div>
-        </div>
 
         <div className="space-y-6">
           {/* Shift hours card */}
@@ -2124,56 +2090,6 @@ export default function SettingsPage() {
           <SectionHeader title={sectionTitles["document-settings"]} />
 
           <div className="space-y-6">
-            <div className={`flex items-center gap-4 p-5 rounded-2xl border ${enableDocument ? "bg-orange-50 dark:bg-orange-950/30 border-orange-200 dark:border-orange-800" : "bg-gray-50 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700"} transition-all`}>
-              <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${enableDocument ? "bg-orange-500 text-white" : "bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400"}`}>
-                <ClipboardList className="w-6 h-6" />
-              </div>
-              <div className="flex-1">
-                <p className="font-semibold text-gray-900 dark:text-white text-sm">
-                  {lang === "en" ? "Document Management System" : "ระบบเอกสารรับ-ส่ง"}
-                </p>
-                <p className="text-xs text-gray-550 text-gray-500 dark:text-gray-400 mt-0.5">
-                  {lang === "en"
-                    ? "Enable the incoming/outgoing document tracking and routing module."
-                    : "เปิดให้ใช้งานระบบบริหารจัดการหนังสือราชการรับ-ส่งภายในโรงเรียน"}
-                </p>
-              </div>
-              <div className="flex items-center gap-3 shrink-0">
-                <button
-                  type="button"
-                  onClick={async () => {
-                    const nextVal = !enableDocument;
-                    setEnableDocument(nextVal);
-                    try {
-                      await updateSystemSettings({ schoolName, subheader, enableDocument: nextVal });
-                      showToast("success", lang === "en" ? "Document system settings updated" : "อัปเดตสถานะระบบงานเอกสารสำเร็จ");
-                    } catch (e: any) {
-                      showToast("error", e.message || "เกิดข้อผิดพลาด");
-                    }
-                  }}
-                  className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors focus:outline-none ${
-                    enableDocument ? "bg-orange-500" : "bg-gray-200 dark:bg-gray-700"
-                  }`}
-                >
-                  <span
-                    className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
-                      enableDocument ? "translate-x-6" : "translate-x-1"
-                    }`}
-                  />
-                </button>
-                <span className={`text-xs font-semibold ${enableDocument ? "text-orange-600 dark:text-orange-400" : "text-gray-400"}`}>
-                  {enableDocument ? (lang === "en" ? "Active" : "เปิดใช้งาน") : (lang === "en" ? "Inactive" : "ปิดใช้งาน")}
-                </span>
-              </div>
-            </div>
-
-            <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4">
-              <p className="text-xs text-amber-700 dark:text-amber-300 leading-relaxed">
-                {lang === "en"
-                  ? "When enabled, the 'Documents' menu item will appear in the sidebar. Users can create, send, receive, and track official documents within the system."
-                  : "เมื่อเปิดใช้งาน เมนู 'เอกสาร' จะปรากฏในแถบด้านข้าง ผู้ใช้สามารถสร้าง ส่ง รับ และติดตามหนังสือราชการภายในระบบได้"}
-              </p>
-            </div>
 
             <div className="space-y-4 pt-4 border-t border-gray-100 dark:border-gray-800">
               {/* Tabs list */}
@@ -6700,166 +6616,152 @@ export default function SettingsPage() {
   };
 
   const renderSubsystemsSection = () => {
-    return (
-      <form onSubmit={handleSubsystemsSubmit} className="bg-white dark:bg-gray-900 rounded-2xl p-6 md:p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-100 dark:border-gray-800">
-        <SectionHeader title={sectionTitles.subsystems} />
+    // Each subsystem: auto-save toggle + optional "ตั้งค่า" navigation
+    type SubDef = {
+      id: string;
+      icon: React.ReactNode;
+      activeColor: string;
+      activeBg: string;
+      activeBorder: string;
+      toggleColor: string;
+      title: string;
+      desc: string;
+      core?: boolean;
+      enabled: boolean;
+      saveKey?: "enableAttendance" | "enableDocument" | "enableRepair";
+      settingsId?: string;
+    };
 
+    const SUBS: SubDef[] = [
+      {
+        id: "leave",
+        icon: <CalendarDays className="w-5 h-5" />,
+        activeColor: "text-emerald-600 dark:text-emerald-400",
+        activeBg: "bg-emerald-100 dark:bg-emerald-950/30",
+        activeBorder: "bg-emerald-50/40 dark:bg-emerald-950/10 border-emerald-200 dark:border-emerald-800",
+        toggleColor: "",
+        title: lang === "en" ? "Leave System" : "ระบบการลา",
+        desc: lang === "en" ? "Core leave management module" : "ระบบบริหารจัดการการลาหลัก",
+        core: true,
+        enabled: true,
+      },
+      {
+        id: "attendance",
+        icon: <Clock className="w-5 h-5" />,
+        activeColor: "text-indigo-600 dark:text-indigo-400",
+        activeBg: "bg-indigo-100 dark:bg-indigo-950/40",
+        activeBorder: "bg-indigo-50/40 dark:bg-indigo-950/10 border-indigo-200 dark:border-indigo-800",
+        toggleColor: "bg-indigo-600",
+        title: lang === "en" ? "Attendance System" : "ระบบลงชื่อเข้างาน",
+        desc: lang === "en" ? "Shift times, geofence, face scan" : "บันทึกเวลาปฏิบัติงานด้วย GPS, Geofence, Face Scan",
+        enabled: enableAttendance,
+        saveKey: "enableAttendance",
+        settingsId: "attendance-settings",
+      },
+      {
+        id: "document",
+        icon: <ClipboardList className="w-5 h-5" />,
+        activeColor: "text-orange-600 dark:text-orange-400",
+        activeBg: "bg-orange-100 dark:bg-orange-950/40",
+        activeBorder: "bg-orange-50/40 dark:bg-orange-950/10 border-orange-200 dark:border-orange-800",
+        toggleColor: "bg-orange-500",
+        title: lang === "en" ? "Document System" : "ระบบจัดการเอกสาร",
+        desc: lang === "en" ? "Incoming/outgoing documents tracking" : "บันทึกและส่งต่อหนังสือราชการรับ-ส่ง",
+        enabled: enableDocument,
+        saveKey: "enableDocument",
+        settingsId: "document-settings",
+      },
+      {
+        id: "repair",
+        icon: <Wrench className="w-5 h-5" />,
+        activeColor: "text-amber-600 dark:text-amber-400",
+        activeBg: "bg-amber-100 dark:bg-amber-950/40",
+        activeBorder: "bg-amber-50/40 dark:bg-amber-950/10 border-amber-200 dark:border-amber-800",
+        toggleColor: "bg-amber-500",
+        title: lang === "en" ? "Repair System" : "ระบบแจ้งซ่อม",
+        desc: lang === "en" ? "Equipment/building repair requests" : "แจ้งปัญหาวัสดุครุภัณฑ์และติดตามสถานะงานซ่อม",
+        enabled: enableRepair,
+        saveKey: "enableRepair",
+      },
+    ];
+
+    return (
+      <div className="bg-white dark:bg-gray-900 rounded-2xl p-6 md:p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-100 dark:border-gray-800">
+        <SectionHeader title={sectionTitles.subsystems} />
         <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
           {lang === "en"
-            ? "Enable or disable subsystems. Leave system is the core and cannot be disabled."
-            : "เปิดหรือปิดการใช้งานระบบย่อยต่าง ๆ ระบบการลาเป็นระบบหลักของโรงเรียนไม่สามารถปิดการใช้งานได้"}
+            ? "Toggle subsystems on or off. Click 'Settings ›' to configure each module."
+            : "เปิด/ปิดการใช้งานระบบย่อย กดปุ่ม 'ตั้งค่า ›' เพื่อเข้าตั้งค่าของแต่ละระบบ"}
         </p>
 
-        <div className="space-y-4 mb-6">
-          {/* Leave System (Core, Always Enabled) */}
-          <div className="flex items-center justify-between p-4 rounded-2xl border border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/40">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-950/30 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
-                <CalendarDays className="w-5 h-5" />
-              </div>
-              <div>
-                <p className="font-semibold text-gray-900 dark:text-white text-sm">
-                  {lang === "en" ? "Leave System" : "ระบบการลา"}
-                </p>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                  {lang === "en" ? "Core leave management module" : "ระบบบริหารจัดการการลาหลัก"}
-                </p>
-              </div>
-            </div>
-            <span className="px-3 py-1 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300 text-xs font-bold">
-              {lang === "en" ? "Active" : "เปิดใช้งาน"}
-            </span>
-          </div>
-
-          {/* Attendance Toggle */}
-          <div className={`flex items-center justify-between p-4 rounded-2xl border transition-all ${
-            enableAttendance
-              ? "bg-indigo-50/50 dark:bg-indigo-950/20 border-indigo-200 dark:border-indigo-800"
-              : "bg-white dark:bg-gray-950 border-gray-200 dark:border-gray-800"
-          }`}>
-            <div className="flex items-center gap-3">
-              <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${
-                enableAttendance
-                  ? "bg-indigo-100 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400"
-                  : "bg-gray-50 dark:bg-gray-800 text-gray-500"
-              }`}>
-                <Clock className="w-5 h-5" />
-              </div>
-              <div>
-                <p className="font-semibold text-gray-900 dark:text-white text-sm">
-                  {lang === "en" ? "Attendance System" : "ระบบลงชื่อเข้างาน"}
-                </p>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                  {lang === "en" ? "Shift times, geofence, face scan" : "บันทึกเวลาปฏิบัติงานด้วย GPS, Geofence, Face Scan"}
-                </p>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => setEnableAttendance(!enableAttendance)}
-              className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors focus:outline-none ${
-                enableAttendance ? "bg-indigo-600" : "bg-gray-200 dark:bg-gray-700"
+        <div className="space-y-3">
+          {SUBS.map((sys) => (
+            <div
+              key={sys.id}
+              className={`flex items-center gap-4 p-4 rounded-2xl border transition-all ${
+                sys.enabled
+                  ? sys.activeBorder
+                  : "bg-white dark:bg-gray-950 border-gray-200 dark:border-gray-800"
               }`}
             >
-              <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
-                enableAttendance ? "translate-x-6" : "translate-x-1"
-              }`} />
-            </button>
-          </div>
-
-          {/* Document Toggle */}
-          <div className={`flex items-center justify-between p-4 rounded-2xl border transition-all ${
-            enableDocument
-              ? "bg-orange-50/50 dark:bg-orange-950/20 border-orange-200 dark:border-orange-800"
-              : "bg-white dark:bg-gray-950 border-gray-200 dark:border-gray-800"
-          }`}>
-            <div className="flex items-center gap-3">
-              <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${
-                enableDocument
-                  ? "bg-orange-100 dark:bg-orange-950/40 text-orange-600 dark:text-orange-400"
-                  : "bg-gray-50 dark:bg-gray-800 text-gray-500"
-              }`}>
-                <ClipboardList className="w-5 h-5" />
+              {/* Icon */}
+              <div
+                className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-colors ${
+                  sys.enabled
+                    ? `${sys.activeBg} ${sys.activeColor}`
+                    : "bg-gray-50 dark:bg-gray-800 text-gray-400"
+                }`}
+              >
+                {sys.icon}
               </div>
-              <div>
-                <p className="font-semibold text-gray-900 dark:text-white text-sm">
-                  {lang === "en" ? "Document System" : "ระบบจัดการเอกสาร"}
-                </p>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                  {lang === "en" ? "Incoming/outgoing documents tracking" : "บันทึกและส่งต่อหนังสือราชการรับ-ส่ง"}
-                </p>
+
+              {/* Text */}
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-gray-900 dark:text-white text-sm">{sys.title}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{sys.desc}</p>
+              </div>
+
+              {/* Right controls */}
+              <div className="flex items-center gap-2 shrink-0">
+                {sys.core ? (
+                  <span className="px-3 py-1 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300 text-xs font-bold">
+                    {lang === "en" ? "Core" : "ระบบหลัก"}
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => saveSubsystem(sys.saveKey!, !sys.enabled)}
+                    className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors focus:outline-none ${
+                      sys.enabled ? sys.toggleColor : "bg-gray-200 dark:bg-gray-700"
+                    }`}
+                    title={sys.enabled ? (lang === "en" ? "Disable" : "ปิดใช้งาน") : (lang === "en" ? "Enable" : "เปิดใช้งาน")}
+                  >
+                    <span
+                      className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
+                        sys.enabled ? "translate-x-6" : "translate-x-1"
+                      }`}
+                    />
+                  </button>
+                )}
+
+                {sys.settingsId && (
+                  <button
+                    type="button"
+                    onClick={() => setActiveSection(sys.settingsId!)}
+                    className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                  >
+                    {lang === "en" ? "Settings" : "ตั้งค่า"}
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                )}
               </div>
             </div>
-            <button
-              type="button"
-              onClick={() => setEnableDocument(!enableDocument)}
-              className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors focus:outline-none ${
-                enableDocument ? "bg-orange-500" : "bg-gray-200 dark:bg-gray-700"
-              }`}
-            >
-              <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
-                enableDocument ? "translate-x-6" : "translate-x-1"
-              }`} />
-            </button>
-          </div>
-
-          {/* Repair Toggle */}
-          <div className={`flex items-center justify-between p-4 rounded-2xl border transition-all ${
-            enableRepair
-              ? "bg-amber-50/50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800"
-              : "bg-white dark:bg-gray-950 border-gray-200 dark:border-gray-800"
-          }`}>
-            <div className="flex items-center gap-3">
-              <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${
-                enableRepair
-                  ? "bg-amber-100 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400"
-                  : "bg-gray-50 dark:bg-gray-800 text-gray-500"
-              }`}>
-                <Wrench className="w-5 h-5" />
-              </div>
-              <div>
-                <p className="font-semibold text-gray-900 dark:text-white text-sm">
-                  {lang === "en" ? "Repair System" : "ระบบแจ้งซ่อม"}
-                </p>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                  {lang === "en" ? "Equipment/building repair requests" : "แจ้งปัญหาวัสดุครุภัณฑ์และติดตามสถานะงานซ่อม"}
-                </p>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => setEnableRepair(!enableRepair)}
-              className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors focus:outline-none ${
-                enableRepair ? "bg-amber-500" : "bg-gray-200 dark:bg-gray-700"
-              }`}
-            >
-              <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
-                enableRepair ? "translate-x-6" : "translate-x-1"
-              }`} />
-            </button>
-          </div>
+          ))}
         </div>
-
-        <div className="flex items-center justify-end gap-3 border-t border-gray-100 dark:border-gray-800 pt-6">
-          <button
-            type="button"
-            onClick={() => setActiveSection(null)}
-            className="h-11 px-6 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 font-bold text-sm transition-all"
-          >
-            {lang === "en" ? "Cancel" : "ยกเลิก"}
-          </button>
-          <button
-            type="submit"
-            disabled={isSavingSubsystems}
-            className="h-11 px-6 rounded-xl bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white font-bold text-sm transition-all flex items-center gap-2 shadow-md shadow-teal-500/10"
-          >
-            {isSavingSubsystems && <Loader2 className="w-4 h-4 animate-spin" />}
-            {lang === "en" ? "Save Settings" : "บันทึกการตั้งค่า"}
-          </button>
-        </div>
-      </form>
+      </div>
     );
   };
+
 
   // --- Section renderer map ---
 

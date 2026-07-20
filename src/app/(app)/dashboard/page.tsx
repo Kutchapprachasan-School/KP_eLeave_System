@@ -31,9 +31,11 @@ export default async function DashboardPage({
   const systemSettings = await getSystemSettings();
 
   // Derive repair dashboard permissions
+  // Admin always sees repair dashboard (to manage it even when disabled for others)
+  const userRole = (session.user as any).role;
   const canViewRepairDash =
     hasRepairPermission(session.user as any, "repair:dashboard") &&
-    !!systemSettings.enableRepair;
+    (userRole === "ADMIN" || !!systemSettings.enableRepair);
 
   const canViewCost = hasRepairPermission(session.user as any, "repair:view.cost");
 
