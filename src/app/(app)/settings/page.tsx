@@ -577,7 +577,13 @@ export default function SettingsPage() {
 
     }
 
-  }, [activeSection, holidaysYear]);
+    if (activeSection === "repair-settings" && userList.length === 0) {
+
+      getSimpleUsersList().then(setUserList).catch(console.error);
+
+    }
+
+  }, [activeSection, holidaysYear, userList.length]);
 
   const handleGeneralSubmit = async (e: React.FormEvent) => {
 
@@ -2224,10 +2230,6 @@ export default function SettingsPage() {
     systemSettingsItems.push({ id: "font", icon: <Type className="w-5 h-5 text-indigo-500" />, title: lang === "en" ? "Font & File Format" : "ฟอนต์ & รูปแบบไฟล์", description: lang === "en" ? "Leave form font, Google Drive format" : "ฟอนต์ใบลา, รูปแบบอัปโหลด Google Drive" });
 
     systemSettingsItems.push({ id: "permissions", icon: <Lock className="w-5 h-5 text-rose-500" />, title: lang === "en" ? "Access Permissions" : "กำหนดสิทธิ์ผู้เข้าใช้งาน", description: lang === "en" ? "Access rights per role" : "กำหนดสิทธิ์เข้าใช้งานตาม Role บุคลากร" });
-
-    systemSettingsItems.push({ id: "attendance-settings", icon: <Clock className="w-5 h-5 text-blue-600" />, title: lang === "en" ? "Attendance Settings" : "ตั้งค่าระบบลงเวลา", description: lang === "en" ? "Shift times, geofence, location" : "เวลาเข้า-ออกงาน, พิกัดสถานที่ลงเวลา (Geofence)" });
-
-    systemSettingsItems.push({ id: "document-settings", icon: <ClipboardList className="w-5 h-5 text-orange-500" />, title: lang === "en" ? "Document Settings" : "ตั้งค่าระบบเอกสาร", description: lang === "en" ? "Memo sections, prefix patterns, signees" : "จัดหมวดหมู่งานย่อย, รูปแบบเลขรัน, ผู้ลงนามใช้บ่อย" });
 
     systemSettingsItems.push({ id: "subsystems", icon: <LayoutGrid className="w-5 h-5 text-purple-600" />, title: lang === "en" ? "Subsystems" : "ระบบย่อย", description: lang === "en" ? "Enable/disable subsystem features" : "เปิด/ปิดการใช้งานระบบย่อยต่าง ๆ" });
 
@@ -5089,6 +5091,8 @@ export default function SettingsPage() {
 
       { id: "settings", nameTh: "ตั้งค่าระบบทั่วไป", nameEn: "General Settings" },
 
+      { id: "repair_management", nameTh: "จัดการระบบแจ้งซ่อม", nameEn: "Repair Management" },
+
     ];
 
     const roles = [
@@ -5104,6 +5108,8 @@ export default function SettingsPage() {
       { id: "INSPECTOR", nameTh: "ผู้ตรวจสอบ", nameEn: "Inspector" },
 
       { id: "DEPT_HEAD", nameTh: "หัวหน้าหมวด/กลุ่มสาระ", nameEn: "Department Head" },
+
+      { id: "REPAIR_MANAGER", nameTh: "ผู้จัดการเรื่องระบบซ่อม", nameEn: "Repair Manager" },
 
       { id: "TEACHER", nameTh: "ครู/บุคลากรทั่วไป", nameEn: "Teacher" },
 
@@ -6619,174 +6625,230 @@ export default function SettingsPage() {
 
   // ─── Repair Settings Section ──────────────────────────────────────────────────
   const renderRepairSettingsSection = () => {
-    const configCards = [
-      {
-        title: lang === "en" ? "Repair Categories" : "หมวดหมู่งานซ่อม",
-        icon: <Settings2 className="w-4 h-4" />,
-        color: "text-blue-600 dark:text-blue-400",
-        bg: "bg-blue-50 dark:bg-blue-950/30",
-        content: (
-          <div className="flex flex-wrap gap-2 mt-3">
-            {[
-              { label: "⚡ ไฟฟ้า", key: "ELECTRICAL" },
-              { label: "🚿 ประปา", key: "PLUMBING" },
-              { label: "🏗️ อาคาร/โครงสร้าง", key: "BUILDING" },
-              { label: "💻 อุปกรณ์ IT", key: "IT" },
-              { label: "🪑 ครุภัณฑ์/เฟอร์นิเจอร์", key: "EQUIPMENT" },
-              { label: "🔧 อื่น ๆ", key: "OTHER" },
-            ].map(c => (
-              <span key={c.key} className="px-3 py-1.5 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-700 dark:text-slate-300">
-                {c.label}
-              </span>
-            ))}
-          </div>
-        ),
-        note: lang === "en"
-          ? "Categories are defined in the database schema and cannot be changed from this page."
-          : "หมวดหมู่กำหนดไว้ในระบบฐานข้อมูล ไม่สามารถเพิ่ม/ลบจากหน้านี้ได้",
-      },
-      {
-        title: lang === "en" ? "Urgency Levels" : "ระดับความเร่งด่วน",
-        icon: <AlertTriangle className="w-4 h-4" />,
-        color: "text-orange-600 dark:text-orange-400",
-        bg: "bg-orange-50 dark:bg-orange-950/30",
-        content: (
-          <div className="space-y-2 mt-3">
-            {[
-              { label: lang === "en" ? "Normal" : "ปกติ", desc: lang === "en" ? "Not urgent, can wait" : "ไม่เร่งด่วน สามารถรอได้", color: "bg-slate-200 dark:bg-slate-700" },
-              { label: lang === "en" ? "Urgent" : "เร่งด่วน", desc: lang === "en" ? "Affects teaching & learning" : "กระทบการเรียนการสอน", color: "bg-orange-400" },
-              { label: lang === "en" ? "Most Urgent" : "เร่งด่วนมาก", desc: lang === "en" ? "Dangerous, fix immediately" : "อันตราย ต้องแก้ไขทันที", color: "bg-red-500" },
-            ].map(u => (
-              <div key={u.label} className="flex items-center gap-3">
-                <div className={`w-3 h-3 rounded-full ${u.color} shrink-0`} />
-                <span className="text-sm font-medium text-slate-800 dark:text-white">{u.label}</span>
-                <span className="text-xs text-slate-500 dark:text-slate-400">— {u.desc}</span>
-              </div>
-            ))}
-          </div>
-        ),
-        note: lang === "en"
-          ? "3 urgency levels are built-in."
-          : "ระดับความเร่งด่วนมี 3 ระดับ กำหนดไว้ในระบบ",
-      },
-      {
-        title: lang === "en" ? "Photo Upload Limits" : "จำนวนรูปภาพสูงสุด",
-        icon: <ImageIcon className="w-4 h-4" />,
-        color: "text-violet-600 dark:text-violet-400",
-        bg: "bg-violet-50 dark:bg-violet-950/30",
-        content: (
-          <div className="grid grid-cols-2 gap-3 mt-3">
-            <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 p-3 text-center">
-              <p className="text-2xl font-bold text-amber-600 dark:text-amber-400">2</p>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{lang === "en" ? "BEFORE photos" : "รูปก่อนซ่อม"}</p>
-            </div>
-            <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 p-3 text-center">
-              <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">2</p>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{lang === "en" ? "AFTER photos" : "รูปหลังซ่อม"}</p>
-            </div>
-          </div>
-        ),
-        note: lang === "en"
-          ? "Max 2 photos per type (BEFORE/AFTER). Images are auto-compressed to WebP ≤ 800px."
-          : "อัปโหลดได้สูงสุด 2 รูป/ประเภท (ก่อนซ่อม/หลังซ่อม) ระบบบีบอัดเป็น WebP ≤ 800px อัตโนมัติ",
-      },
-      {
-        title: lang === "en" ? "Max File Size" : "ขนาดไฟล์สูงสุด",
-        icon: <HardDrive className="w-4 h-4" />,
-        color: "text-sky-600 dark:text-sky-400",
-        bg: "bg-sky-50 dark:bg-sky-950/30",
-        content: (
-          <div className="mt-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 p-3 flex items-baseline gap-2">
-            <span className="text-2xl font-bold text-sky-600 dark:text-sky-400">10</span>
-            <span className="text-sm text-slate-500 dark:text-slate-400">MB</span>
-            <span className="text-xs text-slate-400 ml-auto">{lang === "en" ? "per upload" : "ต่อไฟล์"}</span>
-          </div>
-        ),
-        note: lang === "en"
-          ? "Supports JPEG, PNG, WebP, and HEIC/HEIF formats."
-          : "รองรับไฟล์ JPEG, PNG, WebP และ HEIC/HEIF",
-      },
-      {
-        title: lang === "en" ? "SLA Warning Threshold" : "เกณฑ์แจ้งเตือน SLA",
-        icon: <Clock className="w-4 h-4" />,
-        color: "text-rose-600 dark:text-rose-400",
-        bg: "bg-rose-50 dark:bg-rose-950/30",
-        content: (
-          <div className="mt-3 space-y-2">
-            <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 p-3 flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-amber-100 dark:bg-amber-950/30 flex items-center justify-center">
-                <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-              </div>
-              <div className="flex-1">
-                <p className="text-sm font-semibold text-slate-800 dark:text-white">{lang === "en" ? "Warning" : "ใกล้ครบกำหนด"}</p>
-                <p className="text-xs text-slate-500 dark:text-slate-400">{lang === "en" ? "Less than 24 hours remaining" : "เหลือเวลาน้อยกว่า 24 ชั่วโมง"}</p>
-              </div>
-            </div>
-            <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 p-3 flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-red-100 dark:bg-red-950/30 flex items-center justify-center">
-                <XCircle className="w-4 h-4 text-red-600 dark:text-red-400" />
-              </div>
-              <div className="flex-1">
-                <p className="text-sm font-semibold text-slate-800 dark:text-white">{lang === "en" ? "Overdue" : "เลยกำหนด"}</p>
-                <p className="text-xs text-slate-500 dark:text-slate-400">{lang === "en" ? "Past expected finish date" : "เลยวันที่กำหนดเสร็จแล้ว"}</p>
-              </div>
-            </div>
-          </div>
-        ),
-        note: lang === "en"
-          ? "SLA status is calculated from the expected finish date set during repair creation."
-          : "สถานะ SLA คำนวณจากวันที่กำหนดเสร็จที่ตั้งไว้ตอนแจ้งซ่อม",
-      },
-      {
-        title: lang === "en" ? "Workflow Statuses" : "สถานะงานซ่อม",
-        icon: <ClipboardList className="w-4 h-4" />,
-        color: "text-emerald-600 dark:text-emerald-400",
-        bg: "bg-emerald-50 dark:bg-emerald-950/30",
-        content: (
-          <div className="flex flex-wrap gap-2 mt-3">
-            {[
-              { label: lang === "en" ? "Pending" : "รอดำเนินการ", cls: "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300" },
-              { label: lang === "en" ? "Assigned" : "มอบหมายแล้ว", cls: "bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300" },
-              { label: lang === "en" ? "In Progress" : "กำลังซ่อม", cls: "bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300" },
-              { label: lang === "en" ? "Completed" : "เสร็จสิ้น", cls: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300" },
-              { label: lang === "en" ? "Cancelled" : "ยกเลิก", cls: "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300" },
-            ].map(s => (
-              <span key={s.label} className={`px-3 py-1.5 rounded-full text-xs font-bold ${s.cls}`}>
-                {s.label}
-              </span>
-            ))}
-          </div>
-        ),
-        note: lang === "en"
-          ? "Workflow: Pending → Assigned → In Progress → Completed/Cancelled"
-          : "ลำดับ: รอดำเนินการ → มอบหมาย → กำลังซ่อม → เสร็จสิ้น/ยกเลิก",
-      },
-    ];
+    const [saving, setSaving] = useState(false);
+    const [searchQuery, setSearchQuery] = useState("");
+
+    const managers = rolePermissions.repairManagers || [];
+    const headAdmin = rolePermissions.headGeneralAdminId || "";
+    const limitBefore = rolePermissions.repairPhotoLimitBefore !== undefined ? rolePermissions.repairPhotoLimitBefore : 2;
+    const limitAfter = rolePermissions.repairPhotoLimitAfter !== undefined ? rolePermissions.repairPhotoLimitAfter : 2;
+    const maxFileSize = rolePermissions.repairMaxFileSizeMb !== undefined ? rolePermissions.repairMaxFileSizeMb : 10;
+    const slaHours = rolePermissions.repairSlaWarningHours !== undefined ? rolePermissions.repairSlaWarningHours : 24;
+
+    const filteredUsers = userList.filter((u: any) =>
+      u.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      u.position?.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+
+    const handleSave = async (e: React.FormEvent) => {
+      e.preventDefault();
+      setSaving(true);
+      try {
+        const updatedPermissions = {
+          ...rolePermissions,
+          repairManagers: managers,
+          headGeneralAdminId: headAdmin,
+          repairPhotoLimitBefore: Number(limitBefore),
+          repairPhotoLimitAfter: Number(limitAfter),
+          repairMaxFileSizeMb: Number(maxFileSize),
+          repairSlaWarningHours: Number(slaHours),
+        };
+        const res = await updateSystemSettings({
+          schoolName,
+          subheader,
+          rolePermissions: JSON.stringify(updatedPermissions),
+        });
+        if (res.success) {
+          showToast("success", lang === "en" ? "Repair settings saved successfully" : "บันทึกการตั้งค่าระบบแจ้งซ่อมสำเร็จ");
+          setRolePermissions(updatedPermissions);
+        } else {
+          showToast("error", "ไม่สามารถบันทึกการตั้งค่าได้");
+        }
+      } catch (err: any) {
+        showToast("error", err.message || "เกิดข้อผิดพลาด");
+      } finally {
+        setSaving(false);
+      }
+    };
+
+    const handleManagerToggle = (userId: string, checked: boolean) => {
+      const newList = checked
+        ? [...managers, userId]
+        : managers.filter((id: string) => id !== userId);
+      setRolePermissions((prev: any) => ({ ...prev, repairManagers: newList }));
+    };
 
     return (
-      <div className="bg-white dark:bg-gray-900 rounded-2xl p-6 md:p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-100 dark:border-gray-800">
-        <SectionHeader title={sectionTitles["repair-settings"]} />
-        <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
+      <form onSubmit={handleSave} className="bg-white dark:bg-gray-900 rounded-2xl p-6 md:p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-100 dark:border-gray-800 space-y-6">
+        <div className="flex items-center justify-between">
+          <SectionHeader title={sectionTitles["repair-settings"]} />
+          <button
+            type="submit"
+            disabled={saving}
+            className="px-5 py-2.5 rounded-xl bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white font-bold text-sm shadow-md shadow-orange-500/20 transition-all flex items-center gap-2"
+          >
+            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+            {lang === "en" ? "Save Settings" : "บันทึกตั้งค่า"}
+          </button>
+        </div>
+
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-[-10px]">
           {lang === "en"
-            ? "Current configuration of the repair request system. These values are built into the system."
-            : "การตั้งค่าระบบแจ้งซ่อมปัจจุบัน ค่าเหล่านี้กำหนดไว้ในระบบ"}
+            ? "Configure repair limits, SLA parameters, and assign responsible staff."
+            : "ปรับแต่งขีดจำกัดระบบงานแจ้งซ่อม, เกณฑ์การแจ้งเตือน SLA และมอบหมายบุคลากรผู้ดูแลรับผิดชอบ"}
         </p>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {configCards.map((card) => (
-            <div key={card.title} className={`rounded-2xl border border-slate-200 dark:border-slate-700 p-4 ${card.bg}`}>
-              <div className="flex items-center gap-2">
-                <div className={card.color}>{card.icon}</div>
-                <h4 className="text-sm font-bold text-slate-800 dark:text-white">{card.title}</h4>
-              </div>
-              {card.content}
-              <p className="mt-3 text-[11px] text-slate-400 dark:text-slate-500 leading-relaxed">
-                {card.note}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Left Column: Personnel assignment */}
+          <div className="space-y-6">
+            {/* Repair Managers (Multiple) */}
+            <div className="space-y-2 bg-slate-50 dark:bg-slate-900/50 p-5 rounded-2xl border border-slate-200/60 dark:border-slate-800">
+              <label className="text-sm font-bold text-slate-805 text-slate-800 dark:text-white flex items-center gap-2">
+                <Users className="w-4 h-4 text-orange-500" />
+                {lang === "en" ? "Repair Caregivers / Staff" : "ผู้ดูแลและช่างดูแลระบบซ่อม (เลือกได้หลายคน)"}
+              </label>
+              <p className="text-[11px] text-slate-450 text-slate-400 leading-normal">
+                {lang === "en"
+                  ? "Select staff members responsible for inspecting, assigning, and resolving repair requests."
+                  : "เลือกบุคลากร/ช่างที่จะทำหน้าที่ตรวจรับใบงาน, มอบหมายงาน และปฏิบัติงานซ่อมในระบบ"}
               </p>
+
+              {/* Search bar */}
+              <input
+                type="text"
+                placeholder={lang === "en" ? "Search staff name..." : "ค้นหาชื่อครู/บุคลากร..."}
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                className="w-full px-3 py-2 text-xs rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-950 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+              />
+
+              {/* User List Scrollable Area */}
+              <div className="h-[220px] overflow-y-auto border border-slate-200 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-950/40 p-2 space-y-1">
+                {filteredUsers.length === 0 ? (
+                  <p className="text-center text-xs text-slate-400 py-8">{lang === "en" ? "No users found" : "ไม่พบชื่อบุคลากร"}</p>
+                ) : (
+                  filteredUsers.map((u: any) => {
+                    const isChecked = managers.includes(u.id);
+                    return (
+                      <label key={u.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer transition">
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={e => handleManagerToggle(u.id, e.target.checked)}
+                          className="rounded text-orange-555 text-orange-500 focus:ring-orange-500/20 w-4 h-4"
+                        />
+                        <div className="flex-1">
+                          <p className="text-xs font-semibold text-slate-800 dark:text-slate-200">{u.name}</p>
+                          <p className="text-[10px] text-slate-400 mt-0.5">{u.position || (lang === "en" ? "No position" : "ไม่ได้ระบุตำแหน่ง")}</p>
+                        </div>
+                      </label>
+                    );
+                  })
+                )}
+              </div>
             </div>
-          ))}
+
+            {/* General Administration Head (Single) */}
+            <div className="space-y-2 bg-slate-50 dark:bg-slate-900/50 p-5 rounded-2xl border border-slate-200/60 dark:border-slate-800">
+              <label className="text-sm font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                <UserCheck className="w-4 h-4 text-orange-500" />
+                {lang === "en" ? "Head of General Administration" : "หัวหน้าบริหารงานทั่วไป (1 คน)"}
+              </label>
+              <p className="text-[11px] text-slate-400 leading-normal">
+                {lang === "en"
+                  ? "Select the head officer in charge of general school administration."
+                  : "เลือกหัวหน้าผู้รับผิดชอบงานฝ่ายบริหารทั่วไปของโรงเรียน"}
+              </p>
+              <select
+                value={headAdmin}
+                onChange={e => setRolePermissions((prev: any) => ({ ...prev, headGeneralAdminId: e.target.value }))}
+                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-white dark:bg-slate-950 text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+              >
+                <option value="">-- {lang === "en" ? "Select Head of General Admin" : "เลือกหัวหน้าฝ่ายบริหารทั่วไป"} --</option>
+                {userList.map((u: any) => (
+                  <option key={u.id} value={u.id}>
+                    {u.name} ({u.position || (lang === "en" ? "No position" : "ไม่ได้ระบุตำแหน่ง")})
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Right Column: Parameters and Limits */}
+          <div className="space-y-4">
+            {/* Photo Limits */}
+            <div className="bg-slate-50 dark:bg-slate-900/50 p-5 rounded-2xl border border-slate-200/60 dark:border-slate-800 space-y-4">
+              <h4 className="text-sm font-bold text-slate-800 dark:text-white flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-2">
+                <ImageIcon className="w-4 h-4 text-orange-500" />
+                {lang === "en" ? "Photo Upload Limits" : "ขีดจำกัดจำนวนรูปภาพและไฟล์"}
+              </h4>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-555 text-slate-500 dark:text-slate-400">{lang === "en" ? "BEFORE Photos Limit" : "รูปก่อนซ่อมสูงสุด (รูป)"}</label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={10}
+                    value={limitBefore}
+                    onChange={e => setRolePermissions((prev: any) => ({ ...prev, repairPhotoLimitBefore: Number(e.target.value) }))}
+                    className="w-full px-4 py-2.5 rounded-xl border border-slate-205 border-slate-200 bg-white dark:bg-slate-950 text-xs text-slate-950 dark:text-white"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-500 dark:text-slate-400">{lang === "en" ? "AFTER Photos Limit" : "รูปหลังซ่อมสูงสุด (รูป)"}</label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={10}
+                    value={limitAfter}
+                    onChange={e => setRolePermissions((prev: any) => ({ ...prev, repairPhotoLimitAfter: Number(e.target.value) }))}
+                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-white dark:bg-slate-950 text-xs text-slate-950 dark:text-white"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-slate-500 dark:text-slate-400">{lang === "en" ? "Max File Size (MB)" : "ขนาดไฟล์สูงสุดต่อรูป (MB)"}</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={50}
+                  value={maxFileSize}
+                  onChange={e => setRolePermissions((prev: any) => ({ ...prev, repairMaxFileSizeMb: Number(e.target.value) }))}
+                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-white dark:bg-slate-950 text-xs text-slate-950 dark:text-white"
+                />
+              </div>
+            </div>
+
+            {/* SLA Warning */}
+            <div className="bg-slate-50 dark:bg-slate-900/50 p-5 rounded-2xl border border-slate-200/60 dark:border-slate-800 space-y-3">
+              <h4 className="text-sm font-bold text-slate-800 dark:text-white flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-2">
+                <Clock className="w-4 h-4 text-orange-500" />
+                {lang === "en" ? "SLA Parameters" : "เกณฑ์ความเร็วในการซ่อม (SLA)"}
+              </h4>
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                  {lang === "en" ? "SLA Warning Threshold (Hours)" : "ชั่วโมงเตือนก่อนล่วงหน้า (ชั่วโมง)"}
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  max={720}
+                  value={slaHours}
+                  onChange={e => setRolePermissions((prev: any) => ({ ...prev, repairSlaWarningHours: Number(e.target.value) }))}
+                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-white dark:bg-slate-950 text-xs text-slate-950 dark:text-white"
+                />
+                <p className="text-[10px] text-slate-400 leading-relaxed mt-1">
+                  {lang === "en"
+                    ? "Calculates warning status when the expected finish time is within this many hours."
+                    : "ระบบจะแจ้งสถานะเตือนใกล้ล่าช้าหากเหลือเวลาน้อยกว่าค่าที่ระบุนี้"}
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
+      </form>
     );
   };
 

@@ -29,13 +29,25 @@ export type RepairPermission =
   | "repair:delete"
   | "repair:archive";
 
-type RepairRole = "TEACHER" | "TECHNICIAN" | "HEAD" | "ADMIN";
+type RepairRole = "TEACHER" | "TECHNICIAN" | "HEAD" | "ADMIN" | "REPAIR_MANAGER";
 
 /** Static permission matrix — change role capabilities here, not in component/action code */
 const REPAIR_PERMISSION_MATRIX: Record<RepairRole, RepairPermission[]> = {
   TEACHER: ["repair:create", "repair:view.own"],
   TECHNICIAN: ["repair:view.all", "repair:update", "repair:dashboard"],
   HEAD: ["repair:view.all", "repair:assign", "repair:view.cost", "repair:dashboard"],
+  REPAIR_MANAGER: [
+    "repair:create",
+    "repair:view.own",
+    "repair:view.all",
+    "repair:view.cost",
+    "repair:dashboard",
+    "repair:assign",
+    "repair:update",
+    "repair:export",
+    "repair:delete",
+    "repair:archive",
+  ],
   ADMIN: [
     "repair:create",
     "repair:view.own",
@@ -56,6 +68,7 @@ export function getRepairRole(user: {
   position?: string | null;
 }): RepairRole {
   if (user.role === "ADMIN" || user.position === "แอดมิน") return "ADMIN";
+  if (user.role === "REPAIR_MANAGER" || user.position === "ผู้จัดการเรื่องระบบซ่อม") return "REPAIR_MANAGER";
   if (user.position === "ช่าง") return "TECHNICIAN";
   if (
     user.position === "หัวหน้างาน" ||

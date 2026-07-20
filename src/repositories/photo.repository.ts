@@ -32,7 +32,24 @@ export async function createPhoto(input: CreatePhotoInput) {
       where: { repairId: input.repairId, photoType: input.photoType },
     });
 
-    const limit = PHOTO_LIMITS[input.photoType];
+    const limit = await (async () => {
+      let l = PHOTO_LIMITS[input.photoType];
+      try {
+        const settings = await tx.systemSettings.findUnique({ where: { id: "default" } });
+        if (settings?.rolePermissions) {
+          const parsed = JSON.parse(settings.rolePermissions);
+          if (input.photoType === "BEFORE" && parsed.repairPhotoLimitBefore !== undefined) {
+            l = Number(parsed.repairPhotoLimitBefore);
+          } else if (input.photoType === "AFTER" && parsed.repairPhotoLimitAfter !== undefined) {
+            l = Number(parsed.repairPhotoLimitAfter);
+          }
+        }
+      } catch (e) {
+        console.error("Failed to parse settings rolePermissions in createPhoto", e);
+      }
+      return l;
+    })();
+
     if (currentCount >= limit) {
       throw new Error(
         `ไม่สามารถอัปโหลดได้ เนื่องจากรูปประเภท ${input.photoType} มีครบ ${limit} รูปแล้ว`

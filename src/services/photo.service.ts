@@ -12,6 +12,7 @@
 import sharp from "sharp";
 import { RepairPhotoType } from "@prisma/client";
 import { getStorageProvider } from "@/services/storage";
+import { prisma } from "@/lib/db";
 import {
   createPhoto,
   deletePhoto,
@@ -80,8 +81,23 @@ export async function uploadRepairPhoto({
       `ประเภทไฟล์ ${originalMimeType} ไม่รองรับ กรุณาอัปโหลดเป็น JPEG, PNG, WebP หรือ HEIC`
     );
   }
-  if (fileBuffer.byteLength > MAX_FILE_SIZE_BYTES) {
-    throw new Error("ขนาดไฟล์เกิน 10 MB");
+
+  // ดึงขนาดสูงสุดแบบไดนามิกจากระบบตั้งค่า
+  let maxSizeBytes = MAX_FILE_SIZE_BYTES;
+  try {
+    const settings = await prisma.systemSettings.findUnique({ where: { id: "default" } });
+    if (settings?.rolePermissions) {
+      const parsed = JSON.parse(settings.rolePermissions);
+      if (parsed.repairMaxFileSizeMb !== undefined) {
+        maxSizeBytes = Number(parsed.repairMaxFileSizeMb) * 1024 * 1024;
+      }
+    }
+  } catch (e) {
+    console.error("Failed to load dynamic file size limit:", e);
+  }
+
+  if (fileBuffer.byteLength > maxSizeBytes) {
+    throw new Error(`ขนาดไฟล์เกิน ${maxSizeBytes / (1024 * 1024)} MB`);
   }
 
   // 2. Load repair
@@ -135,11 +151,24 @@ export async function getRepairPhotosWithUrls(repairId: string) {
     }))
   );
 
+  // ดึงขีดจำกัดสูงสุดแบบไดนามิกจากระบบตั้งค่า
+  let limits = { BEFORE: 2, AFTER: 2 };
+  try {
+    const settings = await prisma.systemSettings.findUnique({ where: { id: "default" } });
+    if (settings?.rolePermissions) {
+      const parsed = JSON.parse(settings.rolePermissions);
+      if (parsed.repairPhotoLimitBefore !== undefined) limits.BEFORE = Number(parsed.repairPhotoLimitBefore);
+      if (parsed.repairPhotoLimitAfter !== undefined) limits.AFTER = Number(parsed.repairPhotoLimitAfter);
+    }
+  } catch (e) {
+    console.error("Failed to load dynamic photo limits:", e);
+  }
+
   // Group by type
   return {
     BEFORE: withUrls.filter((p) => p.photoType === "BEFORE"),
     AFTER: withUrls.filter((p) => p.photoType === "AFTER"),
-    limits: PHOTO_LIMITS,
+    limits,
   };
 }
 

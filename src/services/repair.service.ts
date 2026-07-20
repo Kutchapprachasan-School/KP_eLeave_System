@@ -28,11 +28,29 @@ interface SessionUser {
   position?: string | null;
 }
 
+import { prisma } from "@/lib/db";
+
 // ─── SLA Helper ───────────────────────────────────────────────────────────────
+
+async function getSlaWarningHours(): Promise<number> {
+  try {
+    const settings = await prisma.systemSettings.findUnique({ where: { id: "default" } });
+    if (settings?.rolePermissions) {
+      const parsed = JSON.parse(settings.rolePermissions);
+      if (parsed.repairSlaWarningHours !== undefined) {
+        return Number(parsed.repairSlaWarningHours);
+      }
+    }
+  } catch (e) {
+    console.error("Failed to load SLA warning hours:", e);
+  }
+  return 24; // Default fallback
+}
 
 function computeSlaStatus(
   expectedFinishAt: Date | null | undefined,
-  status: RepairStatus
+  status: RepairStatus,
+  warningHours: number = 24
 ): "ON_TIME" | "WARNING" | "OVERDUE" | null {
   if (!expectedFinishAt) return null;
   if (status === "COMPLETED" || status === "CANCELLED") return null;
@@ -42,7 +60,7 @@ function computeSlaStatus(
     (expectedFinishAt.getTime() - now.getTime()) / (1000 * 60 * 60);
 
   if (hoursRemaining < 0) return "OVERDUE";
-  if (hoursRemaining < 24) return "WARNING";
+  if (hoursRemaining < warningHours) return "WARNING";
   return "ON_TIME";
 }
 
@@ -136,6 +154,7 @@ export async function assignRepair(
   const repair = await findRepairById(repairId);
   if (!repair) throw new Error("ไม่พบรายการแจ้งซ่อม");
 
+  const warningHours = await getSlaWarningHours();
   const updated = await updateRepairStatus({
     repairId,
     currentVersion,
@@ -143,7 +162,7 @@ export async function assignRepair(
     nextStatus: "ASSIGNED",
     assigneeId,
     assignedAt: new Date(),
-    slaStatus: computeSlaStatus(repair.expectedFinishAt, "ASSIGNED"),
+    slaStatus: computeSlaStatus(repair.expectedFinishAt, "ASSIGNED", warningHours),
   });
 
   await logRepairAction({
@@ -172,12 +191,13 @@ export async function startRepair(
     throw new Error("คุณไม่ใช่ช่างที่รับผิดชอบงานชิ้นนี้");
   }
 
+  const warningHours = await getSlaWarningHours();
   const updated = await updateRepairStatus({
     repairId,
     currentVersion,
     expectedCurrentStatus: "ASSIGNED",
     nextStatus: "IN_PROGRESS",
-    slaStatus: computeSlaStatus(repair.expectedFinishAt, "IN_PROGRESS"),
+    slaStatus: computeSlaStatus(repair.expectedFinishAt, "IN_PROGRESS", warningHours),
   });
 
   await logRepairAction({
