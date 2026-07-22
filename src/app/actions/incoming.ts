@@ -122,7 +122,9 @@ export const saveAMSSCredentials = safeAction(async (data: {
       data: {
         url: normalizedUrl,
         username: data.username.trim(),
-        password: data.password ? encrypt(data.password) : existing.password
+        password: data.password ? encrypt(data.password) : existing.password,
+        sessionCookie: null,
+        sessionExpiresAt: null
       }
     });
     safeRevalidatePath("/document");
@@ -226,12 +228,33 @@ export const syncAMSSDocumentsAutomatically = safeAction(async () => {
       throw new Error("ยังไม่ได้ตั้งค่าข้อมูลการเชื่อมต่อหรือลิงก์ AMSS++");
     }
 
-    const decryptedPassword = decrypt(credentials.password);
+    let loginCookies = "";
+    const now = new Date();
+    if (credentials.sessionCookie && credentials.sessionExpiresAt && credentials.sessionExpiresAt > now) {
+      try {
+        loginCookies = decrypt(credentials.sessionCookie);
+      } catch (e) {
+        loginCookies = "";
+      }
+    }
 
-    // Login using the full credentials.url path
-    const loginCookies = await loginToAMSS(credentials.url, credentials.username, decryptedPassword);
     if (!loginCookies) {
-      throw new Error("เข้าสู่ระบบ AMSS++ ล้มเหลว กรุณาตรวจสอบความถูกต้องของชื่อผู้ใช้งานและรหัสผ่าน");
+      const decryptedPassword = decrypt(credentials.password);
+      const freshCookies = await loginToAMSS(credentials.url, credentials.username, decryptedPassword);
+      if (!freshCookies) {
+        throw new Error("เข้าสู่ระบบ AMSS++ ล้มเหลว กรุณาตรวจสอบความถูกต้องของชื่อผู้ใช้งานและรหัสผ่าน");
+      }
+      loginCookies = freshCookies;
+
+      // Cache session cookie for 2 hours
+      const expiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000);
+      await prisma.aMSSCredentials.update({
+        where: { userId: user.id },
+        data: {
+          sessionCookie: encrypt(freshCookies),
+          sessionExpiresAt: expiresAt
+        }
+      });
     }
 
     // Fetch list of documents (document list page)
