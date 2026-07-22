@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { getRepairDetailAction } from "@/app/actions/repair/update";
 import { getRepairPhotosAction } from "@/app/actions/repair/photo";
 import { getSystemSettings } from "@/app/actions/settings";
-import { Printer, ArrowLeft, Loader2, CheckCircle2, Clock, Wrench, AlertCircle, XCircle } from "lucide-react";
+import { Printer, ArrowLeft, Loader2, XCircle } from "lucide-react";
 import Image from "next/image";
 
 // Helper for Thai Date formatting (e.g. 22 กรกฎาคม พ.ศ. 2569)
@@ -124,177 +124,188 @@ export default function PrintRepairPage() {
   const schoolName = settings?.schoolName || "โรงเรียนกุฉินารายณ์";
   const logoUrl = settings?.logoUrl;
 
+  const beforePhotos = photos?.BEFORE || [];
+  const afterPhotos = photos?.AFTER || [];
+  const hasPhotos = beforePhotos.length > 0 || afterPhotos.length > 0;
+
   return (
-    <div className="min-h-screen bg-slate-100 dark:bg-slate-950 p-4 sm:p-8 font-sans print:p-0 print:bg-white text-slate-900">
+    <div className="min-h-screen bg-slate-100 dark:bg-slate-950 p-4 sm:p-6 font-sans print:p-0 print:bg-white text-slate-900">
+      {/* CSS Print Styles for strict 1-page A4 */}
+      <style jsx global>{`
+        @media print {
+          @page {
+            size: A4 portrait;
+            margin: 8mm 10mm 8mm 10mm;
+          }
+          html, body {
+            background: white !important;
+            color: black !important;
+            font-size: 11pt !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          .print-container {
+            width: 100% !important;
+            max-width: 100% !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            border: none !important;
+            box-shadow: none !important;
+            page-break-after: avoid !important;
+            page-break-inside: avoid !important;
+          }
+          .print:hidden {
+            display: none !important;
+          }
+        }
+      `}</style>
+
       {/* Top Action Toolbar (Hidden during print) */}
-      <div className="max-w-4xl mx-auto mb-6 flex items-center justify-between gap-4 bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm print:hidden">
+      <div className="max-w-4xl mx-auto mb-4 flex items-center justify-between gap-4 bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm print:hidden">
         <button
           onClick={() => router.back()}
-          className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+          className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
           ย้อนกลับ
         </button>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => window.print()}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 shadow-md shadow-orange-500/20 transition-all cursor-pointer"
-          >
-            <Printer className="w-4 h-4" />
-            พิมพ์เอกสารใบแจ้งซ่อม
-          </button>
-        </div>
+        <button
+          onClick={() => window.print()}
+          className="flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 shadow-md shadow-orange-500/20 transition-all cursor-pointer"
+        >
+          <Printer className="w-4 h-4" />
+          พิมพ์เอกสาร (1 หน้า A4)
+        </button>
       </div>
 
       {/* A4 Document Printable Sheet */}
-      <div className="max-w-[210mm] mx-auto bg-white p-[15mm] shadow-xl border border-slate-200 print:border-none print:shadow-none print:p-0 print:w-full font-serif text-[13pt] leading-normal text-black">
-        {/* Document Header */}
-        <div className="flex flex-col items-center text-center pb-4 border-b-2 border-black space-y-1">
-          {logoUrl ? (
-            <div className="relative w-16 h-16 mb-1">
+      <div className="print-container max-w-[210mm] mx-auto bg-white p-[10mm] shadow-xl border border-slate-200 text-[11pt] leading-tight text-black font-sans">
+        {/* Header */}
+        <div className="flex flex-col items-center text-center pb-2 border-b-2 border-black space-y-0.5">
+          {logoUrl && (
+            <div className="relative w-12 h-12 mb-0.5">
               <Image src={logoUrl} alt="Logo" fill className="object-contain" />
             </div>
-          ) : (
-            <div className="w-14 h-14 rounded-full bg-slate-200 flex items-center justify-center font-bold text-slate-700 text-lg mb-1">
-              ตรา
-            </div>
           )}
-          <h1 className="text-[16pt] font-bold tracking-wide">{schoolName}</h1>
-          <h2 className="text-[14pt] font-bold">แบบบันทึกคำขอแจ้งซ่อมแซมวัสดุ / ครุภัณฑ์ / อาคารสถานที่</h2>
-          <p className="text-[11pt] font-sans font-semibold text-slate-700">
+          <h1 className="text-[14pt] font-bold tracking-wide">{schoolName}</h1>
+          <h2 className="text-[12pt] font-bold">แบบบันทึกคำขอแจ้งซ่อมแซมวัสดุ / ครุภัณฑ์ / อาคารสถานที่</h2>
+          <p className="text-[10pt] font-semibold text-slate-700">
             เลขที่คำขอ: <span className="font-mono">{repair.repairNo}</span>
           </p>
         </div>
 
-        {/* Section 1: Requester & Problem Info */}
-        <div className="mt-6 space-y-3 font-sans">
-          <div className="flex justify-between items-center text-sm border-b border-slate-200 pb-2">
-            <div><span className="font-bold">วันที่แจ้งคำขอ:</span> {toThaiDateTimeString(repair.createdAt)}</div>
-            <div><span className="font-bold">ระดับความเร่งด่วน:</span> {URGENCY_LABELS[repair.urgency] || repair.urgency}</div>
+        {/* Section 1: Request Metadata */}
+        <div className="mt-3 space-y-2 text-[10pt]">
+          <div className="flex justify-between items-center border-b border-slate-200 pb-1 font-semibold">
+            <div><span>วันที่แจ้งคำขอ:</span> {toThaiDateTimeString(repair.createdAt)}</div>
+            <div><span>ความเร่งด่วน:</span> {URGENCY_LABELS[repair.urgency] || repair.urgency}</div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4 text-sm pt-1">
-            <div>
-              <span className="font-bold">ผู้แจ้งคำขอ:</span> {repair.requester?.name || "-"}
-            </div>
-            <div>
-              <span className="font-bold">ตำแหน่ง:</span> {repair.requester?.position || "บุคลากร"}
-            </div>
-            <div>
-              <span className="font-bold">หมวดหมู่งานซ่อม:</span> {CATEGORY_LABELS[repair.category] || repair.category}
-            </div>
-            <div>
-              <span className="font-bold">สถานที่ / ห้องที่แจ้ง:</span> {repair.location}
-            </div>
+          <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+            <div><span className="font-bold">ผู้แจ้งคำขอ:</span> {repair.requester?.name || "-"}</div>
+            <div><span className="font-bold">ตำแหน่ง:</span> {repair.requester?.position || "บุคลากร"}</div>
+            <div><span className="font-bold">หมวดหมู่งานซ่อม:</span> {CATEGORY_LABELS[repair.category] || repair.category}</div>
+            <div><span className="font-bold">สถานที่ / ห้องที่แจ้ง:</span> {repair.location}</div>
           </div>
 
-          <div className="text-sm pt-2">
-            <span className="font-bold block mb-1">หัวข้อการแจ้งซ่อม:</span>
-            <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-slate-900 font-medium">
-              {repair.title}
-            </div>
+          <div>
+            <span className="font-bold">หัวข้อการแจ้งซ่อม: </span>
+            <span className="font-semibold text-slate-900">{repair.title}</span>
           </div>
 
-          <div className="text-sm pt-1">
-            <span className="font-bold block mb-1">รายละเอียดปัญหา / อาการชำรุด:</span>
-            <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 whitespace-pre-wrap leading-relaxed min-h-[60px]">
-              {repair.description || "ไม่ระบุรายละเอียดเพิ่มเติม"}
-            </div>
+          <div>
+            <span className="font-bold">รายละเอียดปัญหา / อาการชำรุด: </span>
+            <span className="text-slate-800">{repair.description || "ไม่ระบุรายละเอียดเพิ่มเติม"}</span>
           </div>
         </div>
 
-        {/* Section 2: Execution & Repair Results */}
-        <div className="mt-6 pt-4 border-t-2 border-dashed border-slate-300 font-sans space-y-3">
-          <h3 className="font-bold text-sm text-slate-900 uppercase tracking-wide">บันทึกผลการดำเนินงานซ่อมแซม</h3>
+        {/* Section 2: Repair Execution Status */}
+        <div className="mt-3 pt-2 border-t-2 border-dashed border-slate-300 space-y-2 text-[10pt]">
+          <h3 className="font-bold text-[10.5pt] text-slate-900 uppercase">บันทึกผลการดำเนินงานซ่อมแซม</h3>
 
-          <div className="grid grid-cols-2 gap-4 text-sm">
-            <div>
-              <span className="font-bold">สถานะการซ่อม:</span> {STATUS_LABELS[repair.status] || repair.status}
-            </div>
-            <div>
-              <span className="font-bold">ผู้รับผิดชอบ / ช่างซ่อม:</span> {repair.assignee?.name || "ยังไม่ได้มอบหมาย"}
-            </div>
-            <div>
-              <span className="font-bold">วันที่มอบหมาย:</span> {toThaiDateString(repair.assignedAt)}
-            </div>
-            <div>
-              <span className="font-bold">วันที่ดำเนินการเสร็จ:</span> {toThaiDateString(repair.finishedAt)}
-            </div>
+          <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+            <div><span className="font-bold">สถานะการซ่อม:</span> {STATUS_LABELS[repair.status] || repair.status}</div>
+            <div><span className="font-bold">ช่างผู้รับผิดชอบ:</span> {repair.assignee?.name || "ยังไม่ได้มอบหมาย"}</div>
+            <div><span className="font-bold">วันที่มอบหมาย:</span> {toThaiDateString(repair.assignedAt)}</div>
+            <div><span className="font-bold">วันที่ซ่อมเสร็จ:</span> {toThaiDateString(repair.finishedAt)}</div>
           </div>
 
-          <div className="text-sm pt-1">
-            <span className="font-bold block mb-1">สรุปผลการซ่อม / บันทึกการแก้ไข:</span>
-            <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 whitespace-pre-wrap leading-relaxed min-h-[50px]">
-              {repair.resolutionNote || (repair.status === "COMPLETED" ? "ดำเนินการซ่อมแซมเรียบร้อยแล้ว" : "อยู่ระหว่างดำเนินการ")}
-            </div>
+          <div>
+            <span className="font-bold">สรุปผลการซ่อม / บันทึกการแก้ไข: </span>
+            <span className="text-slate-800">{repair.resolutionNote || (repair.status === "COMPLETED" ? "ดำเนินการซ่อมแซมเรียบร้อยแล้ว" : "อยู่ระหว่างดำเนินการ")}</span>
           </div>
 
-          <div className="grid grid-cols-2 gap-4 text-sm pt-1">
-            <div>
-              <span className="font-bold">วัสดุ/อุปกรณ์ที่ใช้:</span> {repair.materialsUsed || "-"}
-            </div>
-            <div>
-              <span className="font-bold">ค่าใช้จ่ายรวม:</span> {repair.cost != null ? `${Number(repair.cost).toLocaleString("th-TH")} บาท` : "-"}
-            </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div><span className="font-bold">วัสดุ/อุปกรณ์ที่ใช้:</span> {repair.materialsUsed || "-"}</div>
+            <div><span className="font-bold">ค่าใช้จ่ายรวม:</span> {repair.cost != null ? `${Number(repair.cost).toLocaleString("th-TH")} บาท` : "-"}</div>
           </div>
         </div>
 
-        {/* Section 3: BEFORE & AFTER Photos (If any) */}
-        {photos && ((photos.BEFORE && photos.BEFORE.length > 0) || (photos.AFTER && photos.AFTER.length > 0)) && (
-          <div className="mt-6 pt-4 border-t border-slate-200 font-sans space-y-3">
-            <h3 className="font-bold text-xs text-slate-700 uppercase tracking-wide">รูปภาพประกอบงานซ่อม</h3>
-            <div className="grid grid-cols-2 gap-4 text-center">
-              {photos.BEFORE && photos.BEFORE.length > 0 && (
-                <div>
-                  <p className="text-xs font-bold text-slate-600 mb-1">รูปก่อนซ่อม (BEFORE)</p>
-                  <div className="relative w-full h-36 border border-slate-200 rounded-lg overflow-hidden bg-slate-50">
-                    <Image src={photos.BEFORE[0].url} alt="Before Photo" fill className="object-contain" />
+        {/* Section 3: BEFORE & AFTER Photos (Compact fit) */}
+        {hasPhotos && (
+          <div className="mt-3 pt-2 border-t border-slate-200 space-y-1.5">
+            <h3 className="font-bold text-[10pt] text-slate-800 uppercase">รูปภาพประกอบงานซ่อม</h3>
+            <div className="grid grid-cols-2 gap-3 text-center">
+              <div>
+                <p className="text-[9pt] font-bold text-slate-700 mb-0.5">รูปตอนแจ้งซ่อม / ก่อนซ่อม (BEFORE)</p>
+                {beforePhotos.length > 0 ? (
+                  <div className="relative w-full h-28 border border-slate-300 rounded overflow-hidden bg-slate-50">
+                    <Image src={beforePhotos[0].url} alt="Before Photo" fill className="object-contain" />
                   </div>
-                </div>
-              )}
-              {photos.AFTER && photos.AFTER.length > 0 && (
-                <div>
-                  <p className="text-xs font-bold text-slate-600 mb-1">รูปหลังซ่อม (AFTER)</p>
-                  <div className="relative w-full h-36 border border-slate-200 rounded-lg overflow-hidden bg-slate-50">
-                    <Image src={photos.AFTER[0].url} alt="After Photo" fill className="object-contain" />
+                ) : (
+                  <div className="h-28 border border-dashed border-slate-300 rounded flex items-center justify-center text-[9pt] text-slate-400">
+                    ไม่มีรูปก่อนซ่อม
                   </div>
-                </div>
-              )}
+                )}
+              </div>
+
+              <div>
+                <p className="text-[9pt] font-bold text-slate-700 mb-0.5">รูปหลังซ่อม (AFTER)</p>
+                {afterPhotos.length > 0 ? (
+                  <div className="relative w-full h-28 border border-slate-300 rounded overflow-hidden bg-slate-50">
+                    <Image src={afterPhotos[0].url} alt="After Photo" fill className="object-contain" />
+                  </div>
+                ) : (
+                  <div className="h-28 border border-dashed border-slate-300 rounded flex items-center justify-center text-[9pt] text-slate-400">
+                    ไม่มีรูปหลังซ่อม
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         )}
 
-        {/* Section 4: 3 Signature Columns */}
-        <div className="mt-10 pt-6 border-t-2 border-black font-sans text-xs">
-          <div className="grid grid-cols-3 gap-4 text-center">
+        {/* Section 4: 3-Column Signatures */}
+        <div className="mt-6 pt-4 border-t-2 border-black text-[9.5pt]">
+          <div className="grid grid-cols-3 gap-2 text-center">
             {/* Signature 1: Requester */}
-            <div className="space-y-8 flex flex-col justify-between min-h-[120px]">
+            <div className="space-y-4 flex flex-col justify-between">
               <div>
-                <p className="font-bold mb-6">ลงชื่อ......................................................ผู้แจ้ง</p>
-                <p>({repair.requester?.name || "...................................................."})</p>
-                <p className="text-[10px] text-slate-500 mt-0.5">ตำแหน่ง {repair.requester?.position || "บุคลากร"}</p>
+                <p className="font-bold mb-4">ลงชื่อ...................................................ผู้แจ้ง</p>
+                <p>({repair.requester?.name || "................................................."})</p>
+                <p className="text-[8.5pt] text-slate-600 mt-0.5">ตำแหน่ง {repair.requester?.position || "บุคลากร"}</p>
               </div>
-              <p>วันที่ .......... / .......... / ..........</p>
+              <p>วันที่ ......... / ......... / .........</p>
             </div>
 
             {/* Signature 2: Repairer / Technician */}
-            <div className="space-y-8 flex flex-col justify-between min-h-[120px]">
+            <div className="space-y-4 flex flex-col justify-between">
               <div>
-                <p className="font-bold mb-6">ลงชื่อ......................................................ผู้ซ่อม</p>
-                <p>({repair.assignee?.name || "...................................................."})</p>
-                <p className="text-[10px] text-slate-500 mt-0.5">ตำแหน่ง {repair.assignee?.position || "เจ้าหน้าที่ช่าง/ผู้รับผิดชอบ"}</p>
+                <p className="font-bold mb-4">ลงชื่อ...................................................ผู้ซ่อม</p>
+                <p>({repair.assignee?.name || "................................................."})</p>
+                <p className="text-[8.5pt] text-slate-600 mt-0.5">ตำแหน่ง {repair.assignee?.position || "เจ้าหน้าที่ช่าง/ผู้รับผิดชอบ"}</p>
               </div>
-              <p>วันที่ .......... / .......... / ..........</p>
+              <p>วันที่ ......... / ......... / .........</p>
             </div>
 
             {/* Signature 3: Head of Admin / Director */}
-            <div className="space-y-8 flex flex-col justify-between min-h-[120px]">
+            <div className="space-y-4 flex flex-col justify-between">
               <div>
-                <p className="font-bold mb-6">ลงชื่อ......................................................ผู้ตรวจสอบ/อนุมัติ</p>
-                <p>(....................................................)</p>
-                <p className="text-[10px] text-slate-500 mt-0.5">ตำแหน่ง หัวหน้าฝ่ายบริหารทั่วไป / ผู้อำนวยการ</p>
+                <p className="font-bold mb-4">ลงชื่อ...................................................ผู้อนุมัติ</p>
+                <p>(.................................................)</p>
+                <p className="text-[8.5pt] text-slate-600 mt-0.5">ตำแหน่ง หัวหน้าฝ่ายบริหารทั่วไป / ผู้อำนวยการ</p>
               </div>
-              <p>วันที่ .......... / .......... / ..........</p>
+              <p>วันที่ ......... / ......... / .........</p>
             </div>
           </div>
         </div>
