@@ -1,17 +1,12 @@
-"use client";
-
-import { useState, useEffect, useCallback } from "react";
-import { useSession } from "@/lib/auth-client";
-import { useRouter } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
 import {
   Wrench, Plus, Search, Filter, RefreshCw,
   Clock, CheckCircle2, XCircle, AlertTriangle,
-  ChevronRight, Zap, AlertCircle, Loader2, BarChart3
+  ChevronRight, Zap, AlertCircle, Loader2, BarChart3, FileText, ListFilter
 } from "lucide-react";
 import Link from "next/link";
 import { getRepairsAction } from "@/app/actions/repair/update";
 import { hasRepairPermission } from "@/lib/permissions";
+import RepairSummaryReportView from "./RepairSummaryReportView";
 
 // ─── Status helpers ───────────────────────────────────────────────────────────
 
@@ -128,6 +123,8 @@ export default function RepairListPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("ทั้งหมด");
 
+  const [activeTab, setActiveTab] = useState<"list" | "report">("list");
+
   const user = session?.user as any;
   const canCreate = user && hasRepairPermission(user, "repair:create");
 
@@ -210,6 +207,37 @@ export default function RepairListPage() {
         </div>
       </div>
 
+      {/* Main Tab Navigation */}
+      <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-1">
+        <button
+          onClick={() => setActiveTab("list")}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all cursor-pointer ${
+            activeTab === "list"
+              ? "bg-orange-500 text-white shadow-md shadow-orange-500/20"
+              : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+          }`}
+        >
+          <ListFilter className="w-4 h-4" />
+          รายการแจ้งซ่อม
+        </button>
+        <button
+          onClick={() => setActiveTab("report")}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all cursor-pointer ${
+            activeTab === "report"
+              ? "bg-orange-500 text-white shadow-md shadow-orange-500/20"
+              : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+          }`}
+        >
+          <FileText className="w-4 h-4" />
+          สรุปการดำเนินงาน (รายเดือน/รอบประเมิน/รายปี)
+        </button>
+      </div>
+
+      {activeTab === "report" ? (
+        <RepairSummaryReportView canViewCost={user ? hasRepairPermission(user, "repair:view.cost") : false} />
+      ) : (
+        <>
+
       {/* Stat Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard label="ทั้งหมด"         value={stats.total}      icon={ClipboardIcon} gradient="bg-gradient-to-br from-slate-600 to-slate-800"      delay={0}    />
@@ -231,26 +259,23 @@ export default function RepairListPage() {
             className="w-full pl-9 pr-4 py-2.5 text-sm rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-400 transition-all shadow-sm"
           />
         </div>
-        {/* Status tabs */}
-        <div className="flex items-center gap-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-1 shadow-sm overflow-x-auto">
-          {FILTER_STATUSES.map(s => {
-            const cfg = STATUS_CONFIG[s];
-            const label = cfg ? cfg.label : s;
-            const isActive = statusFilter === s;
-            return (
-              <button
-                key={s}
-                onClick={() => setStatusFilter(s)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
-                  isActive
-                    ? "bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm"
-                    : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-800"
-                }`}
-              >
-                {label}
-              </button>
-            );
-          })}
+        {/* Status Dropdown Filter */}
+        <div className="relative min-w-[180px]">
+          <select
+            value={statusFilter}
+            onChange={e => setStatusFilter(e.target.value)}
+            className="w-full px-3.5 py-2.5 text-sm font-semibold rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-400 transition-all shadow-sm cursor-pointer"
+          >
+            {FILTER_STATUSES.map(s => {
+              const cfg = STATUS_CONFIG[s];
+              const label = cfg ? cfg.label : s;
+              return (
+                <option key={s} value={s}>
+                  สถานะ: {label}
+                </option>
+              );
+            })}
+          </select>
         </div>
       </div>
 
@@ -299,6 +324,8 @@ export default function RepairListPage() {
           </div>
         )}
       </div>
+      </>
+      )}
     </div>
   );
 }

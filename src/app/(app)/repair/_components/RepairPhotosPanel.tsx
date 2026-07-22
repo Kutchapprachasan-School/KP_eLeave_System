@@ -287,6 +287,7 @@ function PhotoGroup({
 interface RepairPhotosPanelProps {
   repairId: string;
   repairStatus: string;
+  assigneeId?: string | null;
   photosData: {
     BEFORE: Photo[];
     AFTER: Photo[];
@@ -301,6 +302,7 @@ interface RepairPhotosPanelProps {
 export default function RepairPhotosPanel({
   repairId,
   repairStatus,
+  assigneeId,
   photosData,
   userId,
   userRole,
@@ -308,18 +310,20 @@ export default function RepairPhotosPanel({
   onRefresh,
 }: RepairPhotosPanelProps) {
   const isAdmin = userRole === "ADMIN" || userPosition === "แอดมิน";
-  const isTechnician = userPosition === "ช่าง";
+  const isTechnician = userPosition === "ช่าง" || userRole === "REPAIR_MANAGER";
+  const isAssignee = !!assigneeId && assigneeId === userId;
 
-  // ผู้แจ้ง: อัปโหลด BEFORE ได้เฉพาะตอน PENDING
-  // ช่าง/ADMIN: อัปโหลดได้ทุก type ตอน IN_PROGRESS
+  // ผู้แจ้ง: อัปโหลด BEFORE ได้เฉพาะตอน PENDING/ASSIGNED
+  // ช่าง/ADMIN/ผู้ได้รับมอบหมาย: อัปโหลดได้ทุก type ตอน ASSIGNED/IN_PROGRESS/COMPLETED
   const canUploadBefore =
-    (isAdmin || isTechnician) ||
-    (repairStatus === "PENDING" || repairStatus === "ASSIGNED");
+    isAdmin || isTechnician || isAssignee ||
+    repairStatus === "PENDING" || repairStatus === "ASSIGNED";
 
   const canUploadAfter =
-    (isAdmin || isTechnician) && repairStatus === "IN_PROGRESS";
+    (isAdmin || isTechnician || isAssignee) &&
+    (repairStatus === "ASSIGNED" || repairStatus === "IN_PROGRESS" || repairStatus === "COMPLETED");
 
-  const canDelete = isAdmin || isTechnician;
+  const canDelete = isAdmin || isTechnician || isAssignee;
 
   return (
     <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/50 dark:border-slate-800 shadow-[0_2px_12px_rgba(0,0,0,0.04)] p-5 space-y-5">

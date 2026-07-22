@@ -43,14 +43,19 @@ export async function uploadRepairPhotoAction(formData: FormData) {
     if (!repair) throw new Error("ไม่พบรายการแจ้งซ่อม");
 
     // ตรวจสอบความปลอดภัยเพิ่มเติม: ผู้แจ้ง (ไม่มีสิทธิ์ update) สามารถอัปโหลดได้เฉพาะรายการของตนเอง
-    const isTechnicianOrAdmin = hasRepairPermission(actor, "repair:update");
+    const isTechnicianOrAdmin =
+      hasRepairPermission(actor, "repair:update") ||
+      repair.assigneeId === actor.id ||
+      actor.role === "ADMIN" ||
+      actor.position === "ช่าง";
+
     if (!isTechnicianOrAdmin && repair.requesterId !== actor.id) {
       throw new Error("ไม่มีสิทธิ์อัปโหลดรูปภาพในรายการของผู้อื่น");
     }
 
-    // ผู้แจ้งอัปโหลดได้เฉพาะ BEFORE, ช่างอัปโหลดได้ทั้ง BEFORE/AFTER
+    // ผู้แจ้งอัปโหลดได้เฉพาะ BEFORE, ช่าง/ผู้ได้รับมอบหมายอัปโหลดได้ทั้ง BEFORE/AFTER
     if (photoType === "AFTER" && !isTechnicianOrAdmin) {
-      throw new Error("เฉพาะช่างเท่านั้นที่สามารถอัปโหลดรูปภาพ AFTER ได้");
+      throw new Error("เฉพาะช่างหรือผู้ได้รับมอบหมายเท่านั้นที่สามารถอัปโหลดรูปภาพ AFTER ได้");
     }
 
     const buffer = Buffer.from(await file.arrayBuffer());

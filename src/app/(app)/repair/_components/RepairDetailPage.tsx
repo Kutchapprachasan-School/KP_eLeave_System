@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft, Wrench, MapPin, User, Calendar,
   CheckCircle2, Clock, AlertCircle, XCircle,
-  Loader2, ChevronRight, FileText, Banknote, ClipboardList
+  Loader2, ChevronRight, FileText, Banknote, ClipboardList, Printer
 } from "lucide-react";
 import {
   getRepairDetailAction,
@@ -16,6 +16,7 @@ import {
   completeRepairAction,
   cancelRepairAction,
 } from "@/app/actions/repair/update";
+import { getAssignableTechniciansAction } from "@/app/actions/repair/user";
 import { getRepairPhotosAction } from "@/app/actions/repair/photo";
 import RepairPhotosPanel from "./RepairPhotosPanel";
 import { hasRepairPermission } from "@/lib/permissions";
@@ -66,6 +67,7 @@ function WorkflowPanel({ repair, user, onRefresh }: { repair: any; user: any; on
   const { showToast } = useToast();
   const [busy, setBusy] = useState(false);
   const [assigneeId, setAssigneeId] = useState("");
+  const [technicians, setTechnicians] = useState<{ id: string; name: string; position?: string }[]>([]);
   const [completeForm, setCompleteForm] = useState({ resolutionNote: "", cost: "", materialsUsed: "" });
   const [cancelReason, setCancelReason] = useState("");
 
@@ -75,6 +77,19 @@ function WorkflowPanel({ repair, user, onRefresh }: { repair: any; user: any; on
   const isAssignee  = repair.assigneeId === user.id;
   const isOwner     = repair.requesterId === user.id;
   const isAdmin     = user.role === "ADMIN" || user.position === "แอดมิน";
+
+  useEffect(() => {
+    if (canAssign && repair.status === "PENDING") {
+      getAssignableTechniciansAction().then(res => {
+        if (res.success && res.technicians) {
+          setTechnicians(res.technicians);
+          if (res.technicians.length > 0) {
+            setAssigneeId(res.technicians[0].id);
+          }
+        }
+      });
+    }
+  }, [canAssign, repair.status]);
 
   const wrap = async (fn: () => Promise<any>) => {
     try {
@@ -115,13 +130,21 @@ function WorkflowPanel({ repair, user, onRefresh }: { repair: any; user: any; on
           <p className="text-sm font-bold text-blue-700 dark:text-blue-300 flex items-center gap-2">
             <AlertCircle className="w-4 h-4" /> มอบหมายให้ช่าง
           </p>
-          <input
-            type="text"
-            placeholder="User ID ของช่าง (ชั่วคราว — Sprint 2 จะเป็น dropdown)"
+          <select
             value={assigneeId}
             onChange={e => setAssigneeId(e.target.value)}
-            className="w-full px-3 py-2 rounded-xl text-sm bg-white dark:bg-slate-900 border border-blue-200 dark:border-blue-500/30 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/30 transition-all"
-          />
+            className="w-full px-3 py-2 rounded-xl text-sm bg-white dark:bg-slate-900 border border-blue-200 dark:border-blue-500/30 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 transition-all cursor-pointer font-medium"
+          >
+            {technicians.length === 0 ? (
+              <option value="">-- ไม่พบรายชื่อช่าง --</option>
+            ) : (
+              technicians.map(t => (
+                <option key={t.id} value={t.id}>
+                  {t.name} {t.position ? `(${t.position})` : ""}
+                </option>
+              ))
+            )}
+          </select>
           <button
             disabled={busy || !assigneeId.trim()}
             onClick={() => wrap(async () => { await assignRepairAction(repair.id, assigneeId.trim(), repair.version); })}
@@ -275,20 +298,30 @@ export default function RepairDetailPage({ repairId }: { repairId: string }) {
     <div className="max-w-3xl mx-auto space-y-6 pb-12">
 
       {/* Header */}
-      <div className="flex items-center gap-3">
-        <button onClick={() => router.back()} className="p-2 rounded-xl text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
-          <ArrowLeft className="w-5 h-5" />
-        </button>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs font-mono font-semibold text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-lg">{repair.repairNo}</span>
-            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ring-1 ${cfg.color} ${cfg.bg} ${cfg.ring}`}>
-              <StatusIcon className="w-3.5 h-3.5" /> {cfg.label}
-            </span>
-            <span className={`px-2 py-0.5 rounded-lg text-xs font-semibold ${urg.cls}`}>{urg.label}</span>
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-3">
+          <button onClick={() => router.back()} className="p-2 rounded-xl text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs font-mono font-semibold text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-lg">{repair.repairNo}</span>
+              <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ring-1 ${cfg.color} ${cfg.bg} ${cfg.ring}`}>
+                <StatusIcon className="w-3.5 h-3.5" /> {cfg.label}
+              </span>
+              <span className={`px-2 py-0.5 rounded-lg text-xs font-semibold ${urg.cls}`}>{urg.label}</span>
+            </div>
+            <h1 className="text-xl font-bold text-slate-900 dark:text-white mt-1 line-clamp-2">{repair.title}</h1>
           </div>
-          <h1 className="text-xl font-bold text-slate-900 dark:text-white mt-1 line-clamp-2">{repair.title}</h1>
         </div>
+
+        <button
+          onClick={() => window.open(`/print/repair/${repair.id}`, "_blank")}
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 shadow-sm transition-all cursor-pointer shrink-0"
+        >
+          <Printer className="w-4 h-4 text-orange-500" />
+          พิมพ์ใบแจ้งซ่อม
+        </button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
@@ -347,6 +380,7 @@ export default function RepairDetailPage({ repairId }: { repairId: string }) {
           <RepairPhotosPanel
             repairId={repair.id}
             repairStatus={repair.status}
+            assigneeId={repair.assigneeId}
             photosData={photosData}
             userId={user.id}
             userRole={user.role ?? "TEACHER"}
