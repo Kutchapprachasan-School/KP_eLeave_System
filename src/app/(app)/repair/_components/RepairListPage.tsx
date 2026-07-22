@@ -1,3 +1,9 @@
+"use client";
+
+import { useState, useEffect, useCallback } from "react";
+import { useSession } from "@/lib/auth-client";
+import { useRouter } from "next/navigation";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   Wrench, Plus, Search, Filter, RefreshCw,
   Clock, CheckCircle2, XCircle, AlertTriangle,

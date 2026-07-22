@@ -247,6 +247,7 @@ export const syncAMSSDocumentsAutomatically = safeAction(async () => {
 
     let htmlContent = "";
     let successFetch = false;
+    let lastHttpStatus = 0;
 
     for (const fetchUrl of pathsToTry) {
       try {
@@ -259,6 +260,7 @@ export const syncAMSSDocumentsAutomatically = safeAction(async () => {
           }
         });
         clearTimeout(timeoutId);
+        lastHttpStatus = res.status;
         if (res.ok) {
           const buffer = await res.arrayBuffer();
           // Try UTF-8 first as modern AMSS++ versions use UTF-8
@@ -285,6 +287,9 @@ export const syncAMSSDocumentsAutomatically = safeAction(async () => {
     }
 
     if (!successFetch || !htmlContent) {
+      if (lastHttpStatus === 403) {
+        throw new Error("ระบบ AMSS++ ฝั่งสพท. มีมาตรการความปลอดภัย Cloudflare/Firewall บล็อกการเชื่อมต่อของเซิร์ฟเวอร์ (403 Forbidden) กรุณากดปุ่ม 'นำเข้าผ่านโค้ด HTML' บนระบบเพื่อนำเข้าได้ 100%");
+      }
       throw new Error("ไม่สามารถดึงรายการเอกสารรับจากระบบ AMSS++ ได้ (ตรวจสอบความถูกต้องของลิงก์หน้าแรกระบบของท่าน)");
     }
 

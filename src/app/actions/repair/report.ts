@@ -97,7 +97,7 @@ export async function getRepairDashboardStatsAction() {
     for (const r of allRequests) {
       if (r.assignee) {
         if (!techMap[r.assignee.id]) {
-          techMap[r.assignee.id] = { id: r.assignee.id, name: r.assignee.name, assigned: 0, completed: 0, totalHours: 0 };
+          techMap[r.assignee.id] = { id: r.assignee.id, name: r.assignee.name ?? "ไม่ระบุชื่อ", assigned: 0, completed: 0, totalHours: 0 };
         }
         techMap[r.assignee.id].assigned += 1;
         if (r.status === "COMPLETED" && r.finishedAt) {
