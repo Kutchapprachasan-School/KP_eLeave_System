@@ -151,6 +151,9 @@ function PhotoCard({
 
 // ─── Photo Group ─────────────────────────────────────────────────────────────
 
+import { compressImageInBrowser } from "@/lib/client-image-compression";
+import { uploadPhotoWithProgress } from "@/lib/upload-with-progress";
+
 function PhotoGroup({
   repairId,
   photoType,
@@ -164,6 +167,9 @@ function PhotoGroup({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+  const [uploadPct, setUploadPct] = useState(0);
+  const [uploadMsg, setUploadMsg] = useState("");
+  const activeCancelRef = useRef<(() => void) | null>(null);
 
   const isFull = photos.length >= limit;
   const typeLabel = photoType === "BEFORE" ? "ก่อนซ่อม" : "หลังซ่อม";
@@ -171,30 +177,69 @@ function PhotoGroup({
     ? "from-amber-500 to-orange-500"
     : "from-emerald-500 to-teal-500";
 
+  const handleCancelUpload = (e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    if (activeCancelRef.current) {
+      activeCancelRef.current();
+      activeCancelRef.current = null;
+    }
+    setUploading(false);
+    setUploadPct(0);
+    setUploadMsg("");
+    showToast("warning", "ยกเลิกการอัปโหลดแล้ว");
+  };
+
   const handleFiles = useCallback(async (files: FileList | null) => {
     if (!files || files.length === 0) return;
-    const file = files[0];
+    const rawFile = files[0];
     if (isFull) {
       showToast("error", `อัปโหลดได้สูงสุด ${limit} รูปต่อประเภท`);
       return;
     }
+
     try {
       setUploading(true);
+      setUploadPct(5);
+      setUploadMsg("กำลังปรับขนาดรูป...");
+
+      // 1. Compress image in browser (reduces 10MB-50MB photo to ~200-400KB in milliseconds)
+      const compressed = await compressImageInBrowser(rawFile);
+      setUploadPct(25);
+      setUploadMsg("กำลังส่งไฟล์...");
+
+      // 2. Prepare FormData
       const fd = new FormData();
       fd.append("repairId", repairId);
       fd.append("photoType", photoType);
-      fd.append("file", file);
+      fd.append("file", compressed);
       fd.append("currentCount", String(photos.length));
-      const res = await uploadRepairPhotoAction(fd);
+
+      // 3. Upload via XHR with progress tracking & abort capability
+      const { promise, cancel } = uploadPhotoWithProgress(fd, (info) => {
+        const pct = 25 + Math.round((info.percent / 100) * 75);
+        setUploadPct(pct);
+        setUploadMsg(`อัปโหลด ${info.percent}%`);
+      });
+
+      activeCancelRef.current = cancel;
+      const res = await promise;
+
       if (!res.success) {
         throw new Error(res.error || "อัปโหลดรูปภาพไม่สำเร็จ");
       }
+
+      setUploadPct(100);
       showToast("success", `อัปโหลดรูป${typeLabel}เรียบร้อย`);
       onRefresh();
     } catch (err: any) {
-      showToast("error", err?.message ?? "อัปโหลดไม่สำเร็จ");
+      if (err?.message !== "ยกเลิกการอัปโหลดเรียบร้อยแล้ว") {
+        showToast("error", err?.message ?? "อัปโหลดไม่สำเร็จ");
+      }
     } finally {
       setUploading(false);
+      setUploadPct(0);
+      setUploadMsg("");
+      activeCancelRef.current = null;
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
   }, [repairId, photoType, photos.length, isFull, limit, typeLabel, onRefresh, showToast]);
@@ -251,7 +296,25 @@ function PhotoGroup({
             }`}
           >
             {uploading ? (
-              <Loader2 className="w-6 h-6 text-orange-500 animate-spin" />
+              <div className="flex flex-col items-center justify-center gap-1.5 p-2 text-center w-full">
+                <Loader2 className="w-5 h-5 text-orange-500 animate-spin" />
+                <span className="text-[10px] font-bold text-slate-700 dark:text-slate-200">
+                  {uploadMsg || "กำลังอัปโหลด..."}
+                </span>
+                <div className="w-4/5 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-orange-500 transition-all duration-300 rounded-full"
+                    style={{ width: `${uploadPct}%` }}
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={handleCancelUpload}
+                  className="mt-1 px-2 py-0.5 rounded bg-red-500 hover:bg-red-600 text-[10px] font-bold text-white shadow-sm flex items-center gap-1 cursor-pointer"
+                >
+                  <X className="w-3 h-3" /> หยุด
+                </button>
+              </div>
             ) : (
               <>
                 <ImagePlus className="w-6 h-6 text-slate-400" />

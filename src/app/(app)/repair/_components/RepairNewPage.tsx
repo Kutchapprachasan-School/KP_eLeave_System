@@ -6,9 +6,11 @@ import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { Wrench, ArrowLeft, Send, Loader2, MapPin, AlertTriangle, Tag, Camera, ImagePlus, X } from "lucide-react";
 import { createRepairAction } from "@/app/actions/repair/create";
-import { uploadRepairPhotoAction } from "@/app/actions/repair/photo";
 import { RepairCategory, RepairUrgency } from "@prisma/client";
 import { useToast } from "@/components/toast-provider";
+import { compressImageInBrowser } from "@/lib/client-image-compression";
+import { uploadPhotoWithProgress } from "@/lib/upload-with-progress";
+import { useRef } from "react";
 
 const URGENCY_OPTIONS: { value: RepairUrgency; label: string; desc: string; color: string }[] = [
   { value: "NORMAL",      label: "ปกติ",       desc: "ไม่เร่งด่วน สามารถรอได้",        color: "border-slate-300 hover:border-slate-400" },
@@ -40,6 +42,9 @@ export default function RepairNewPage() {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [uploadProgress, setUploadProgress] = useState("");
+  const [progressPercent, setProgressPercent] = useState(0);
+
+  const activeCancelRef = useRef<(() => void) | null>(null);
 
   const set = (key: string, val: string) => setForm(f => ({ ...f, [key]: val }));
 
@@ -54,6 +59,17 @@ export default function RepairNewPage() {
     }
   };
 
+  const handleCancel = () => {
+    if (activeCancelRef.current) {
+      activeCancelRef.current();
+      activeCancelRef.current = null;
+    }
+    setSubmitting(false);
+    setUploadProgress("");
+    setProgressPercent(0);
+    showToast("warning", "ยกเลิกการส่งคำขอแล้ว");
+  };
+
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (submitting) return;
@@ -62,11 +78,27 @@ export default function RepairNewPage() {
       showToast("error", "กรุณากรอกข้อมูลให้ครบถ้วน (ชื่อรายการ, สถานที่, รายละเอียด)");
       return;
     }
+
     try {
       setSubmitting(true);
-      setUploadProgress("กำลังบันทึกข้อมูลคำขอ...");
-      
-      // 1. Create the repair request
+      setProgressPercent(5);
+      setUploadProgress("กำลังเตรียมบันทึกข้อมูล...");
+
+      // 1. Client-side Image Compression (Reduces any size photo to ~200-400KB)
+      const preparedFiles: File[] = [];
+      if (selectedFiles.length > 0) {
+        for (let i = 0; i < selectedFiles.length; i++) {
+          setUploadProgress(`กำลังปรับประมวลผลรูปภาพที่ ${i + 1}/${selectedFiles.length}...`);
+          setProgressPercent(5 + Math.round(((i + 1) / selectedFiles.length) * 15));
+          const compressed = await compressImageInBrowser(selectedFiles[i]);
+          preparedFiles.push(compressed);
+        }
+      }
+
+      // 2. Create the repair request record in DB
+      setUploadProgress("กำลังสร้างคำขอแจ้งซ่อม...");
+      setProgressPercent(25);
+
       const createRes = await createRepairAction({
         title: form.title.trim(),
         description: form.description.trim(),
@@ -81,21 +113,36 @@ export default function RepairNewPage() {
       }
       const repair = createRes.repair!;
 
-      // 2. Upload any selected BEFORE photos
-      if (selectedFiles.length > 0) {
+      // 3. Upload BEFORE photos via XHR with progress bar & cancel
+      if (preparedFiles.length > 0) {
         let uploadError = "";
-        for (let i = 0; i < selectedFiles.length; i++) {
-          setUploadProgress(`กำลังอัปโหลดรูปภาพที่ ${i + 1}/${selectedFiles.length}...`);
+        for (let i = 0; i < preparedFiles.length; i++) {
           const fd = new FormData();
           fd.append("repairId", repair.id);
           fd.append("photoType", "BEFORE");
-          fd.append("file", selectedFiles[i]);
+          fd.append("file", preparedFiles[i]);
           fd.append("currentCount", String(i));
-          
-          const uploadRes = await uploadRepairPhotoAction(fd);
-          if (!uploadRes.success) {
-            uploadError = uploadRes.error || `อัปโหลดรูปภาพที่ ${i + 1} ไม่สำเร็จ`;
+
+          const { promise, cancel } = uploadPhotoWithProgress(fd, (info) => {
+            const basePct = 30 + Math.round((i / preparedFiles.length) * 65);
+            const photoStepPct = Math.round((info.percent / 100) * (65 / preparedFiles.length));
+            setProgressPercent(basePct + photoStepPct);
+            setUploadProgress(`กำลังอัปโหลดรูปภาพที่ ${i + 1}/${preparedFiles.length} (${info.percent}%)...`);
+          });
+
+          activeCancelRef.current = cancel;
+
+          try {
+            const res = await promise;
+            if (!res.success) {
+              uploadError = res.error || `อัปโหลดรูปภาพที่ ${i + 1} ไม่สำเร็จ`;
+              break;
+            }
+          } catch (err: any) {
+            uploadError = err?.message || "ยกเลิกหรือเกิดข้อผิดพลาดในการอัปโหลด";
             break;
+          } finally {
+            activeCancelRef.current = null;
           }
         }
 
@@ -106,6 +153,8 @@ export default function RepairNewPage() {
         }
       }
 
+      setProgressPercent(100);
+      setUploadProgress("ส่งคำขอเรียบร้อย!");
       showToast("success", "ส่งคำขอแจ้งซ่อมเรียบร้อยแล้ว");
       router.push(`/repair/${repair.id}`);
     } catch (err: any) {
@@ -113,6 +162,7 @@ export default function RepairNewPage() {
     } finally {
       setSubmitting(false);
       setUploadProgress("");
+      setProgressPercent(0);
     }
   };
 
@@ -295,29 +345,68 @@ export default function RepairNewPage() {
           />
         </div>
 
+        {/* Progress Bar UI during Submission */}
+        {submitting && (
+          <div className="bg-orange-50/80 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-900/40 rounded-xl p-4 space-y-2">
+            <div className="flex items-center justify-between text-xs font-semibold text-orange-900 dark:text-orange-300">
+              <span className="flex items-center gap-1.5">
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-orange-500" />
+                {uploadProgress || "กำลังบันทึก..."}
+              </span>
+              <span className="font-mono font-bold text-orange-600 dark:text-orange-400">{progressPercent}%</span>
+            </div>
+            
+            {/* Visual Progress Bar */}
+            <div className="w-full h-2.5 bg-orange-100 dark:bg-orange-900/50 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-orange-500 to-amber-500 transition-all duration-300 rounded-full"
+                style={{ width: `${progressPercent}%` }}
+              />
+            </div>
+
+            <div className="pt-1 flex justify-end">
+              <button
+                type="button"
+                onClick={handleCancel}
+                className="text-xs font-bold text-red-600 dark:text-red-400 hover:text-red-700 hover:underline flex items-center gap-1"
+              >
+                <X className="w-3.5 h-3.5" />
+                หยุด / ยกเลิกการอัปโหลด
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Actions */}
         <div className="flex items-center gap-3 pt-2">
-          <button
-            type="button"
-            onClick={() => router.back()}
-            className="flex-1 py-3 rounded-xl text-sm font-semibold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
-          >
-            ยกเลิก
-          </button>
-          <motion.button
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            type="button"
-            onClick={() => handleSubmit()}
-            disabled={submitting}
-            className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold text-white bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 disabled:opacity-60 disabled:cursor-not-allowed shadow-lg shadow-orange-500/25 transition-all cursor-pointer"
-          >
-            {submitting ? (
-              <><Loader2 className="w-4 h-4 animate-spin" /> {uploadProgress || "กำลังส่ง..."}</>
-            ) : (
-              <><Send className="w-4 h-4" /> ส่งคำขอแจ้งซ่อม</>
-            )}
-          </motion.button>
+          {!submitting ? (
+            <>
+              <button
+                type="button"
+                onClick={() => router.back()}
+                className="flex-1 py-3 rounded-xl text-sm font-semibold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+              >
+                ยกเลิก
+              </button>
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                type="button"
+                onClick={() => handleSubmit()}
+                className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold text-white bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 shadow-lg shadow-orange-500/25 transition-all cursor-pointer"
+              >
+                <Send className="w-4 h-4" /> ส่งคำขอแจ้งซ่อม
+              </motion.button>
+            </>
+          ) : (
+            <button
+              type="button"
+              onClick={handleCancel}
+              className="w-full py-3 rounded-xl text-sm font-bold text-white bg-red-500 hover:bg-red-600 shadow-md shadow-red-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <X className="w-4 h-4" /> หยุด / ยกเลิกการส่งคำขอ
+            </button>
+          )}
         </div>
       </motion.form>
     </div>
