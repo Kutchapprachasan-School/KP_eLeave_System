@@ -55,10 +55,13 @@ export async function upsertMemoSection(
   prefix?: string,
   useThaiNumerals?: boolean,
   paddingDigits?: number,
-  yearFormat?: string
+  yearFormat?: string,
+  nextSeq?: number
 ) {
   await checkAuth();
   const codeUpper = code.trim().toUpperCase();
+  const targetCurrentSeq = nextSeq !== undefined ? Math.max(0, nextSeq - 1) : undefined;
+
   if (id) {
     const updated = await prisma.memoSection.update({
       where: { id },
@@ -72,7 +75,8 @@ export async function upsertMemoSection(
         prefix: prefix !== undefined ? prefix : `${codeUpper}`,
         useThaiNumerals: useThaiNumerals !== undefined ? useThaiNumerals : true,
         paddingDigits: paddingDigits !== undefined ? paddingDigits : 1,
-        yearFormat: yearFormat !== undefined ? yearFormat : "TH_BE"
+        yearFormat: yearFormat !== undefined ? yearFormat : "TH_BE",
+        ...(targetCurrentSeq !== undefined ? { currentSeq: targetCurrentSeq } : {})
       },
       create: {
         docType: "MEMO",
@@ -80,7 +84,8 @@ export async function upsertMemoSection(
         prefix: prefix !== undefined ? prefix : `${codeUpper}`,
         useThaiNumerals: useThaiNumerals !== undefined ? useThaiNumerals : true,
         paddingDigits: paddingDigits !== undefined ? paddingDigits : 1,
-        yearFormat: yearFormat !== undefined ? yearFormat : "TH_BE"
+        yearFormat: yearFormat !== undefined ? yearFormat : "TH_BE",
+        currentSeq: targetCurrentSeq !== undefined ? targetCurrentSeq : 0
       }
     });
     
@@ -98,7 +103,8 @@ export async function upsertMemoSection(
         prefix: prefix !== undefined ? prefix : `${codeUpper}`,
         useThaiNumerals: useThaiNumerals !== undefined ? useThaiNumerals : true,
         paddingDigits: paddingDigits !== undefined ? paddingDigits : 1,
-        yearFormat: yearFormat !== undefined ? yearFormat : "TH_BE"
+        yearFormat: yearFormat !== undefined ? yearFormat : "TH_BE",
+        currentSeq: targetCurrentSeq !== undefined ? targetCurrentSeq : 0
       }
     });
     
@@ -160,12 +166,20 @@ export async function saveDocumentConfig(
   prefix: string,
   useThaiNumerals: boolean,
   paddingDigits: number,
-  yearFormat: string
+  yearFormat: string,
+  nextSeq?: number
 ) {
   await checkAuth();
+  const targetCurrentSeq = nextSeq !== undefined ? Math.max(0, nextSeq - 1) : undefined;
   const updated = await prisma.documentConfig.update({
     where: { id },
-    data: { prefix, useThaiNumerals, paddingDigits, yearFormat }
+    data: {
+      prefix,
+      useThaiNumerals,
+      paddingDigits,
+      yearFormat,
+      ...(targetCurrentSeq !== undefined ? { currentSeq: targetCurrentSeq } : {})
+    }
   });
   safeRevalidatePath("/document/settings");
   return updated;
