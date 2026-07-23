@@ -146,6 +146,15 @@ ${daysLine}วันที่ลา: ${fStart} ถึง ${fEnd}
   }
 }
 
+const CATEGORY_THAI_MAP: Record<string, string> = {
+  ELECTRICAL: "ไฟฟ้า",
+  PLUMBING: "ประปา",
+  BUILDING: "อาคาร/โครงสร้าง",
+  IT: "อุปกรณ์ IT",
+  EQUIPMENT: "ครุภัณฑ์/เฟอร์นิเจอร์",
+  OTHER: "อื่น ๆ",
+};
+
 /**
  * Helper to send LINE notification for Repair requests.
  */
@@ -154,9 +163,11 @@ export async function sendRepairLineNotify(
   repair: {
     repairNo: string;
     title: string;
+    description?: string;
     location: string;
     requesterName?: string;
     category?: string;
+    categoryName?: string;
     urgency?: string;
     assigneeName?: string;
     resolutionNote?: string;
@@ -187,14 +198,18 @@ export async function sendRepairLineNotify(
       ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
       : "https://e-leave-system-kappa.vercel.app");
 
+  const catText = repair.categoryName || (repair.category ? CATEGORY_THAI_MAP[repair.category] || repair.category : "-");
+
   let msg = "";
   if (action === "CREATE") {
     msg = `🛠️ มีคำขอแจ้งซ่อมใหม่!
 ------------------
 เลขที่คำขอ: ${repair.repairNo}
 หัวข้อ: ${repair.title}
+ประเภท: ${catText}
 สถานที่/ห้อง: ${repair.location}
 ผู้แจ้ง: ${repair.requesterName || "-"}
+รายละเอียดปัญหา: ${repair.description || "-"}
 ความเร่งด่วน: ${repair.urgency || "ปกติ"}
 ------------------
 โปรดตรวจสอบและมอบหมายช่างในระบบ: ${appUrl}/repair`;
@@ -203,7 +218,9 @@ export async function sendRepairLineNotify(
 ------------------
 เลขที่คำขอ: ${repair.repairNo}
 หัวข้อ: ${repair.title}
+ประเภท: ${catText}
 สถานที่/ห้อง: ${repair.location}
+ผู้แจ้ง: ${repair.requesterName || "-"}
 ช่างผู้รับผิดชอบ: ${repair.assigneeName || "-"}
 สถานะ: มอบหมายงานเรียบร้อย
 ------------------
@@ -213,6 +230,7 @@ export async function sendRepairLineNotify(
 ------------------
 เลขที่คำขอ: ${repair.repairNo}
 หัวข้อ: ${repair.title}
+ผู้แจ้ง: ${repair.requesterName || "-"}
 ช่างผู้ซ่อม: ${repair.assigneeName || "-"}
 สถานะ: กำลังดำเนินการซ่อม
 ------------------`;
@@ -221,6 +239,7 @@ export async function sendRepairLineNotify(
 ------------------
 เลขที่คำขอ: ${repair.repairNo}
 หัวข้อ: ${repair.title}
+ผู้แจ้ง: ${repair.requesterName || "-"}
 ช่างผู้ซ่อม: ${repair.assigneeName || "-"}
 ผลการซ่อม: ${repair.resolutionNote || "เสร็จสิ้นเรียบร้อย"}
 สถานะ: เสร็จสิ้น
@@ -231,6 +250,7 @@ export async function sendRepairLineNotify(
 ------------------
 เลขที่คำขอ: ${repair.repairNo}
 หัวข้อ: ${repair.title}
+ผู้แจ้ง: ${repair.requesterName || "-"}
 เหตุผลที่ยกเลิก: ${repair.cancelReason || "-"}
 สถานะ: ยกเลิกคำขอ
 ------------------`;

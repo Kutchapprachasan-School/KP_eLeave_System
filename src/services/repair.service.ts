@@ -106,11 +106,21 @@ export async function createRepair(
     detail: repair.title,
   });
 
+  const requesterUser = await prisma.user.findUnique({
+    where: { id: actor.id },
+    select: { name: true, position: true },
+  });
+  const requesterName = requesterUser?.name
+    ? `${requesterUser.name}${requesterUser.position ? ` (${requesterUser.position})` : ""}`
+    : (actor as any).name || actor.position || actor.id;
+
   sendRepairLineNotify("CREATE", {
     repairNo: repair.repairNo,
     title: repair.title,
+    description: repair.description,
     location: repair.location,
-    requesterName: (repair as any).requester?.name || actor.position || actor.id,
+    category: repair.category,
+    requesterName,
     urgency: repair.urgency === "URGENT_MOST" ? "เร่งด่วนมาก" : repair.urgency === "URGENT" ? "เร่งด่วน" : "ปกติ",
   }).catch((e) => console.error("Failed to send LINE repair create notify:", e));
 
@@ -194,6 +204,8 @@ export async function assignRepair(
     repairNo: repair.repairNo,
     title: repair.title,
     location: repair.location,
+    category: repair.category,
+    requesterName: repair.requester?.name || undefined,
     assigneeName: assigneeUser?.name || assigneeId,
   }).catch((e) => console.error("Failed to send LINE repair assign notify:", e));
 
@@ -235,6 +247,8 @@ export async function startRepair(
     repairNo: repair.repairNo,
     title: repair.title,
     location: repair.location,
+    category: repair.category,
+    requesterName: repair.requester?.name || undefined,
     assigneeName: (repair as any).assignee?.name || actor.id,
   }).catch((e) => console.error("Failed to send LINE repair start notify:", e));
 
@@ -287,6 +301,8 @@ export async function completeRepair(
     repairNo: repair.repairNo,
     title: repair.title,
     location: repair.location,
+    category: repair.category,
+    requesterName: repair.requester?.name || undefined,
     assigneeName: (repair as any).assignee?.name || actor.id,
     resolutionNote: input.resolutionNote,
   }).catch((e) => console.error("Failed to send LINE repair complete notify:", e));
@@ -336,6 +352,8 @@ export async function cancelRepair(
     repairNo: repair.repairNo,
     title: repair.title,
     location: repair.location,
+    category: repair.category,
+    requesterName: repair.requester?.name || undefined,
     cancelReason,
   }).catch((e) => console.error("Failed to send LINE repair cancel notify:", e));
 
