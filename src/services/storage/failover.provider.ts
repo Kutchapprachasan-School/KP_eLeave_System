@@ -79,7 +79,7 @@ export class FailoverStorageProvider implements StorageProvider {
     }
   }
 
-  /** ลอง upload ตามลำดับ — failover เฉพาะ quota error */
+  /** ลอง upload ตามลำดับ — fallback ไปยัง provider ถัดไปเมื่อเจอ error ใด ๆ */
   async upload(params: {
     buffer: Buffer;
     mimeType: string;
@@ -102,20 +102,13 @@ export class FailoverStorageProvider implements StorageProvider {
         return;
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
-
-        if (isQuotaError(err)) {
-          console.warn(`[Storage] Provider ${i} เต็มหรือ quota หมด (${msg}) — สลับไป provider ${i + 1}`);
-          errors.push(`Provider ${i}: quota error — ${msg}`);
-          continue; // ลองตัวถัดไป
-        }
-
-        // Error ประเภทอื่น (auth, network) → throw ทันที ไม่ลอง fallback
-        throw err;
+        console.warn(`[Storage] Provider ${i} ขัดข้อง (${msg}) — ลองสลับไป provider ถัดไป`);
+        errors.push(`Provider ${i}: ${msg}`);
       }
     }
 
     throw new Error(
-      `[Storage Failover] ทุก provider ล้มเหลว:\n${errors.join("\n")}`
+      `อัปโหลดไม่สำเร็จ (ทุก Provider ขัดข้อง):\n${errors.join("\n")}`
     );
   }
 

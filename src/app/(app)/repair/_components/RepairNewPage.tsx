@@ -54,10 +54,12 @@ export default function RepairNewPage() {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (submitting) return;
+
     if (!form.title.trim() || !form.location.trim() || !form.description.trim()) {
-      showToast("error", "กรุณากรอกข้อมูลให้ครบถ้วน");
+      showToast("error", "กรุณากรอกข้อมูลให้ครบถ้วน (ชื่อรายการ, สถานที่, รายละเอียด)");
       return;
     }
     try {
@@ -305,9 +307,10 @@ export default function RepairNewPage() {
           <motion.button
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
-            type="submit"
+            type="button"
+            onClick={() => handleSubmit()}
             disabled={submitting}
-            className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold text-white bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 disabled:opacity-60 disabled:cursor-not-allowed shadow-lg shadow-orange-500/25 transition-all"
+            className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold text-white bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 disabled:opacity-60 disabled:cursor-not-allowed shadow-lg shadow-orange-500/25 transition-all cursor-pointer"
           >
             {submitting ? (
               <><Loader2 className="w-4 h-4 animate-spin" /> {uploadProgress || "กำลังส่ง..."}</>

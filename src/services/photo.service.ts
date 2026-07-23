@@ -25,10 +25,13 @@ import { findRepairById } from "@/repositories/repair.repository";
 
 const ALLOWED_MIME_TYPES = new Set([
   "image/jpeg",
+  "image/jpg",
   "image/png",
   "image/webp",
   "image/heic",
   "image/heif",
+  "image/pjpeg",
+  "image/x-png",
 ]);
 
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
@@ -89,9 +92,10 @@ export async function uploadRepairPhoto({
   currentPhotoCount,
 }: UploadPhotoParams) {
   // 1. Validate
-  if (!ALLOWED_MIME_TYPES.has(originalMimeType)) {
+  const normalizedMime = (originalMimeType || "").toLowerCase().trim();
+  if (normalizedMime && !ALLOWED_MIME_TYPES.has(normalizedMime) && !normalizedMime.startsWith("image/")) {
     throw new Error(
-      `ประเภทไฟล์ ${originalMimeType} ไม่รองรับ กรุณาอัปโหลดเป็น JPEG, PNG, WebP หรือ HEIC`
+      `ประเภทไฟล์ ${originalMimeType} ไม่รองรับ กรุณาอัปโหลดเป็นไฟล์รูปภาพ (JPEG, PNG, WebP หรือ HEIC)`
     );
   }
 
