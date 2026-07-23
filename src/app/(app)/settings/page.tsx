@@ -6699,7 +6699,7 @@ export default function SettingsPage() {
           showToast("success", lang === "en" ? "Repair settings saved successfully" : "บันทึกการตั้งค่าระบบแจ้งซ่อมสำเร็จ");
           setRolePermissions(updatedPermissions);
         } else {
-          showToast("error", "ไม่สามารถบันทึกการตั้งค่าได้");
+          showToast("error", (res as any)?.error || "ไม่สามารถบันทึกการตั้งค่าได้");
         }
       } catch (err: any) {
         showToast("error", err.message || "เกิดข้อผิดพลาด");

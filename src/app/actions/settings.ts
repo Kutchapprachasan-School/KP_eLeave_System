@@ -329,9 +329,9 @@ export async function updateDefaultInspector(defaultInspectorId: string | null) 
 
 export async function updateSystemSettings(data: {
 
-  schoolName: string;
+  schoolName?: string;
 
-  subheader: string;
+  subheader?: string;
 
   affiliation?: string;
 
@@ -386,143 +386,156 @@ export async function updateSystemSettings(data: {
   enableRepairLineNotify?: boolean;
 
 }) {
+  try {
+    const { session, isAdmin, isHR } = await requireAdminOrHR();
+    const user = session?.user as any;
+    const isRepairManager = user?.role === "REPAIR_MANAGER" || user?.position === "ผู้ดูแลระบบซ่อม";
 
-  await requireHROrAdmin();
-
-  await prisma.systemSettings.upsert({
-
-    where: { id: "default" },
-
-    update: {
-
-      schoolName: data.schoolName,
-
-      subheader: data.subheader,
-
-      affiliation: data.affiliation !== undefined ? data.affiliation : undefined,
-
-      logoUrl: data.logoUrl !== undefined ? (data.logoUrl === "" ? null : data.logoUrl) : undefined,
-
-      lineChannelAccessToken: data.lineChannelAccessToken !== undefined ? data.lineChannelAccessToken : undefined,
-
-      lineTargetGroupId: data.lineTargetGroupId !== undefined ? data.lineTargetGroupId : undefined,
-
-      enableLineNotify: data.enableLineNotify !== undefined ? data.enableLineNotify : undefined,
-
-      leaveRules: data.leaveRules !== undefined ? data.leaveRules : undefined,
-
-      requirePersonalAdvance: data.requirePersonalAdvance !== undefined ? data.requirePersonalAdvance : undefined,
-
-      memoThresholdTimes: data.memoThresholdTimes !== undefined ? data.memoThresholdTimes : undefined,
-
-      memoThresholdDays: data.memoThresholdDays !== undefined ? data.memoThresholdDays : undefined,
-
-      defaultInspectorId: data.defaultInspectorId !== undefined ? data.defaultInspectorId : undefined,
-
-      actingDirectorTitle: data.actingDirectorTitle !== undefined ? data.actingDirectorTitle : undefined,
-
-      finalApproverUserIds: data.finalApproverUserIds !== undefined ? data.finalApproverUserIds : undefined,
-
-      showActingDirectorTitle: data.showActingDirectorTitle !== undefined ? data.showActingDirectorTitle : undefined,
-
-      pdfFont: data.pdfFont !== undefined ? data.pdfFont : undefined,
-
-      googleDriveFormat: data.googleDriveFormat !== undefined ? data.googleDriveFormat : undefined,
-
-      googleDriveUploadUrl: data.googleDriveUploadUrl !== undefined ? data.googleDriveUploadUrl : undefined,
-
-      googleDriveSecret: data.googleDriveSecret !== undefined ? data.googleDriveSecret : undefined,
-
-      googleDriveFolderId: data.googleDriveFolderId !== undefined ? data.googleDriveFolderId : undefined,
-
-      lastLeaveMode: data.lastLeaveMode !== undefined ? data.lastLeaveMode : undefined,
-
-      quotaExceededAction: data.quotaExceededAction !== undefined ? data.quotaExceededAction : undefined,
-
-      rolePermissions: data.rolePermissions !== undefined ? data.rolePermissions : undefined,
-
-      timezone: data.timezone !== undefined ? data.timezone : undefined,
-
-      iappApiKey: data.iappApiKey !== undefined ? data.iappApiKey : undefined,
-      enableAttendance: data.enableAttendance !== undefined ? data.enableAttendance : undefined,
-      enableDocument: data.enableDocument !== undefined ? data.enableDocument : undefined,
-      enableRepair: data.enableRepair !== undefined ? data.enableRepair : undefined,
-      repairLineChannelAccessToken: data.repairLineChannelAccessToken !== undefined ? data.repairLineChannelAccessToken : undefined,
-      repairLineTargetGroupId: data.repairLineTargetGroupId !== undefined ? data.repairLineTargetGroupId : undefined,
-      enableRepairLineNotify: data.enableRepairLineNotify !== undefined ? data.enableRepairLineNotify : undefined,
-
-    },
-
-    create: {
-
-      id: "default",
-
-      schoolName: data.schoolName,
-
-      subheader: data.subheader,
-
-      affiliation: data.affiliation || "สำนักงานเขตพื้นที่การศึกษามัธยมศึกษาอุดรธานี",
-
-      logoUrl: data.logoUrl === "" ? null : data.logoUrl,
-
-      lineChannelAccessToken: data.lineChannelAccessToken,
-
-      lineTargetGroupId: data.lineTargetGroupId,
-
-      enableLineNotify: data.enableLineNotify !== undefined ? data.enableLineNotify : true,
-
-      leaveRules: data.leaveRules || "การลากิจต้องยื่นคำขอล่วงหน้าอย่างน้อย 3 วันทำการ\nการลาป่วยติดต่อกันเกิน 3 วัน ต้องแนบใบรับรองแพทย์\nระบบจะส่งแจ้งเตือนให้หัวหน้างานบุคคลของท่านพิจารณาเป็นลำดับแรก",
-
-      requirePersonalAdvance: data.requirePersonalAdvance !== undefined ? data.requirePersonalAdvance : true,
-
-      memoThresholdTimes: data.memoThresholdTimes !== undefined ? data.memoThresholdTimes : 6,
-
-      memoThresholdDays: data.memoThresholdDays !== undefined ? data.memoThresholdDays : 15,
-
-      defaultInspectorId: data.defaultInspectorId !== undefined ? data.defaultInspectorId : null,
-
-      actingDirectorTitle: data.actingDirectorTitle || "รักษาการในตำแหน่งผู้อำนวยการโรงเรียน",
-
-      finalApproverUserIds: data.finalApproverUserIds || "",
-
-      showActingDirectorTitle: data.showActingDirectorTitle !== undefined ? data.showActingDirectorTitle : true,
-
-      pdfFont: data.pdfFont || "Prompt",
-
-      googleDriveFormat: data.googleDriveFormat || "PDF",
-
-      googleDriveUploadUrl: data.googleDriveUploadUrl || null,
-
-      googleDriveSecret: data.googleDriveSecret || null,
-
-      googleDriveFolderId: data.googleDriveFolderId || null,
-
-      lastLeaveMode: data.lastLeaveMode || "SAME",
-
-      quotaExceededAction: data.quotaExceededAction || "ALLOW_WITH_MEMO",
-
-      rolePermissions: data.rolePermissions || "{\"calendar\":[\"ADMIN\",\"DIRECTOR\",\"HR\",\"INSPECTOR\",\"TEACHER\"],\"reports\":[\"ADMIN\",\"DIRECTOR\",\"HR\",\"INSPECTOR\"],\"approvals\":[\"ADMIN\",\"DIRECTOR\",\"HR\",\"INSPECTOR\"],\"logs\":[\"ADMIN\"],\"backups\":[\"ADMIN\"],\"users\":[\"ADMIN\"],\"settings\":[\"ADMIN\"]}",
-
-      timezone: data.timezone || "Asia/Bangkok",
-
-      footerText: "© 2006 Panchapon Getrat KP-school",
-
-      developerSecret: "admin1234",
-
-      iappApiKey: data.iappApiKey || "",
-      enableAttendance: data.enableAttendance !== undefined ? data.enableAttendance : false,
-      enableDocument: data.enableDocument !== undefined ? data.enableDocument : false,
-      enableRepair: data.enableRepair !== undefined ? data.enableRepair : false
-
+    if (!isAdmin && !isHR && !isRepairManager) {
+      throw new Error("ท่านไม่มีสิทธิ์ในการแก้ไขการตั้งค่าระบบ");
     }
 
-  });
+    await prisma.systemSettings.upsert({
 
-  revalidatePath("/settings");
+      where: { id: "default" },
 
-  revalidatePath("/");
+      update: {
 
-  return { success: true };
+        schoolName: data.schoolName !== undefined ? data.schoolName : undefined,
+
+        subheader: data.subheader !== undefined ? data.subheader : undefined,
+
+        affiliation: data.affiliation !== undefined ? data.affiliation : undefined,
+
+        logoUrl: data.logoUrl !== undefined ? (data.logoUrl === "" ? null : data.logoUrl) : undefined,
+
+        lineChannelAccessToken: data.lineChannelAccessToken !== undefined ? data.lineChannelAccessToken : undefined,
+
+        lineTargetGroupId: data.lineTargetGroupId !== undefined ? data.lineTargetGroupId : undefined,
+
+        enableLineNotify: data.enableLineNotify !== undefined ? data.enableLineNotify : undefined,
+
+        leaveRules: data.leaveRules !== undefined ? data.leaveRules : undefined,
+
+        requirePersonalAdvance: data.requirePersonalAdvance !== undefined ? data.requirePersonalAdvance : undefined,
+
+        memoThresholdTimes: data.memoThresholdTimes !== undefined ? data.memoThresholdTimes : undefined,
+
+        memoThresholdDays: data.memoThresholdDays !== undefined ? data.memoThresholdDays : undefined,
+
+        defaultInspectorId: data.defaultInspectorId !== undefined ? data.defaultInspectorId : undefined,
+
+        actingDirectorTitle: data.actingDirectorTitle !== undefined ? data.actingDirectorTitle : undefined,
+
+        finalApproverUserIds: data.finalApproverUserIds !== undefined ? data.finalApproverUserIds : undefined,
+
+        showActingDirectorTitle: data.showActingDirectorTitle !== undefined ? data.showActingDirectorTitle : undefined,
+
+        pdfFont: data.pdfFont !== undefined ? data.pdfFont : undefined,
+
+        googleDriveFormat: data.googleDriveFormat !== undefined ? data.googleDriveFormat : undefined,
+
+        googleDriveUploadUrl: data.googleDriveUploadUrl !== undefined ? data.googleDriveUploadUrl : undefined,
+
+        googleDriveSecret: data.googleDriveSecret !== undefined ? data.googleDriveSecret : undefined,
+
+        googleDriveFolderId: data.googleDriveFolderId !== undefined ? data.googleDriveFolderId : undefined,
+
+        lastLeaveMode: data.lastLeaveMode !== undefined ? data.lastLeaveMode : undefined,
+
+        quotaExceededAction: data.quotaExceededAction !== undefined ? data.quotaExceededAction : undefined,
+
+        rolePermissions: data.rolePermissions !== undefined ? data.rolePermissions : undefined,
+
+        timezone: data.timezone !== undefined ? data.timezone : undefined,
+
+        iappApiKey: data.iappApiKey !== undefined ? data.iappApiKey : undefined,
+        enableAttendance: data.enableAttendance !== undefined ? data.enableAttendance : undefined,
+        enableDocument: data.enableDocument !== undefined ? data.enableDocument : undefined,
+        enableRepair: data.enableRepair !== undefined ? data.enableRepair : undefined,
+        repairLineChannelAccessToken: data.repairLineChannelAccessToken !== undefined ? data.repairLineChannelAccessToken : undefined,
+        repairLineTargetGroupId: data.repairLineTargetGroupId !== undefined ? data.repairLineTargetGroupId : undefined,
+        enableRepairLineNotify: data.enableRepairLineNotify !== undefined ? data.enableRepairLineNotify : undefined,
+
+      },
+
+      create: {
+
+        id: "default",
+
+        schoolName: data.schoolName || "โรงเรียน",
+
+        subheader: data.subheader || "ระบบจัดการลา",
+
+        affiliation: data.affiliation || "สำนักงานเขตพื้นที่การศึกษามัธยมศึกษาอุดรธานี",
+
+        logoUrl: data.logoUrl === "" ? null : data.logoUrl,
+
+        lineChannelAccessToken: data.lineChannelAccessToken,
+
+        lineTargetGroupId: data.lineTargetGroupId,
+
+        enableLineNotify: data.enableLineNotify !== undefined ? data.enableLineNotify : true,
+
+        leaveRules: data.leaveRules || "การลากิจต้องยื่นคำขอล่วงหน้าอย่างน้อย 3 วันทำการ\nการลาป่วยติดต่อกันเกิน 3 วัน ต้องแนบใบรับรองแพทย์\nระบบจะส่งแจ้งเตือนให้หัวหน้างานบุคคลของท่านพิจารณาเป็นลำดับแรก",
+
+        requirePersonalAdvance: data.requirePersonalAdvance !== undefined ? data.requirePersonalAdvance : true,
+
+        memoThresholdTimes: data.memoThresholdTimes !== undefined ? data.memoThresholdTimes : 6,
+
+        memoThresholdDays: data.memoThresholdDays !== undefined ? data.memoThresholdDays : 15,
+
+        defaultInspectorId: data.defaultInspectorId !== undefined ? data.defaultInspectorId : null,
+
+        actingDirectorTitle: data.actingDirectorTitle || "รักษาการในตำแหน่งผู้อำนวยการโรงเรียน",
+
+        finalApproverUserIds: data.finalApproverUserIds || "",
+
+        showActingDirectorTitle: data.showActingDirectorTitle !== undefined ? data.showActingDirectorTitle : true,
+
+        pdfFont: data.pdfFont || "Prompt",
+
+        googleDriveFormat: data.googleDriveFormat || "PDF",
+
+        googleDriveUploadUrl: data.googleDriveUploadUrl || null,
+
+        googleDriveSecret: data.googleDriveSecret || null,
+
+        googleDriveFolderId: data.googleDriveFolderId || null,
+
+        lastLeaveMode: data.lastLeaveMode || "SAME",
+
+        quotaExceededAction: data.quotaExceededAction || "ALLOW_WITH_MEMO",
+
+        rolePermissions: data.rolePermissions || "{\"calendar\":[\"ADMIN\",\"DIRECTOR\",\"HR\",\"INSPECTOR\",\"TEACHER\"],\"reports\":[\"ADMIN\",\"DIRECTOR\",\"HR\",\"INSPECTOR\"],\"approvals\":[\"ADMIN\",\"DIRECTOR\",\"HR\",\"INSPECTOR\"],\"logs\":[\"ADMIN\"],\"backups\":[\"ADMIN\"],\"users\":[\"ADMIN\"],\"settings\":[\"ADMIN\"]}",
+
+        timezone: data.timezone || "Asia/Bangkok",
+
+        footerText: "© 2006 Panchapon Getrat KP-school",
+
+        developerSecret: "admin1234",
+
+        iappApiKey: data.iappApiKey || "",
+        enableAttendance: data.enableAttendance !== undefined ? data.enableAttendance : false,
+        enableDocument: data.enableDocument !== undefined ? data.enableDocument : false,
+        enableRepair: data.enableRepair !== undefined ? data.enableRepair : false,
+        repairLineChannelAccessToken: data.repairLineChannelAccessToken || null,
+        repairLineTargetGroupId: data.repairLineTargetGroupId || null,
+        enableRepairLineNotify: data.enableRepairLineNotify !== undefined ? data.enableRepairLineNotify : true,
+
+      }
+
+    });
+
+    revalidatePath("/settings");
+
+    revalidatePath("/");
+
+    return { success: true };
+  } catch (err: any) {
+    console.error("updateSystemSettings error:", err);
+    return { success: false, error: err.message || "เกิดข้อผิดพลาดในการบันทึกการตั้งค่า" };
+  }
 
 }
 
