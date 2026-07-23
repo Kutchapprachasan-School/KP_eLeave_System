@@ -66,6 +66,8 @@ function computeSlaStatus(
 
 // ─── Create ───────────────────────────────────────────────────────────────────
 
+import { sendRepairLineNotify } from "@/lib/line-notify";
+
 export async function createRepair(
   actor: SessionUser,
   input: {
@@ -102,6 +104,14 @@ export async function createRepair(
     action: REPAIR_ACTIONS.REPAIR_CREATED,
     detail: repair.title,
   });
+
+  sendRepairLineNotify("CREATE", {
+    repairNo: repair.repairNo,
+    title: repair.title,
+    location: repair.location,
+    requesterName: (repair as any).requester?.name || actor.position || actor.id,
+    urgency: repair.urgency === "URGENT_MOST" ? "เร่งด่วนมาก" : repair.urgency === "URGENT" ? "เร่งด่วน" : "ปกติ",
+  }).catch((e) => console.error("Failed to send LINE repair create notify:", e));
 
   return repair;
 }
@@ -177,6 +187,15 @@ export async function assignRepair(
     detail: `มอบหมายให้ ${assigneeId}`,
   });
 
+  const assigneeUser = await prisma.user.findUnique({ where: { id: assigneeId }, select: { name: true } });
+
+  sendRepairLineNotify("ASSIGN", {
+    repairNo: repair.repairNo,
+    title: repair.title,
+    location: repair.location,
+    assigneeName: assigneeUser?.name || assigneeId,
+  }).catch((e) => console.error("Failed to send LINE repair assign notify:", e));
+
   return updated;
 }
 
@@ -210,6 +229,13 @@ export async function startRepair(
     actorId: actor.id,
     action: REPAIR_ACTIONS.REPAIR_STARTED,
   });
+
+  sendRepairLineNotify("START", {
+    repairNo: repair.repairNo,
+    title: repair.title,
+    location: repair.location,
+    assigneeName: (repair as any).assignee?.name || actor.id,
+  }).catch((e) => console.error("Failed to send LINE repair start notify:", e));
 
   return updated;
 }
@@ -256,6 +282,14 @@ export async function completeRepair(
     detail: input.resolutionNote,
   });
 
+  sendRepairLineNotify("COMPLETE", {
+    repairNo: repair.repairNo,
+    title: repair.title,
+    location: repair.location,
+    assigneeName: (repair as any).assignee?.name || actor.id,
+    resolutionNote: input.resolutionNote,
+  }).catch((e) => console.error("Failed to send LINE repair complete notify:", e));
+
   return updated;
 }
 
@@ -296,6 +330,13 @@ export async function cancelRepair(
     action: REPAIR_ACTIONS.REPAIR_CANCELLED,
     detail: cancelReason,
   });
+
+  sendRepairLineNotify("CANCEL", {
+    repairNo: repair.repairNo,
+    title: repair.title,
+    location: repair.location,
+    cancelReason,
+  }).catch((e) => console.error("Failed to send LINE repair cancel notify:", e));
 
   return updated;
 }

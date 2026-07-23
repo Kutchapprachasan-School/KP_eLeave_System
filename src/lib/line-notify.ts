@@ -145,3 +145,80 @@ ${daysLine}วันที่ลา: ${fStart} ถึง ${fEnd}
 ------------------`;
   }
 }
+
+/**
+ * Helper to send LINE notification for Repair requests.
+ */
+export async function sendRepairLineNotify(
+  action: "CREATE" | "ASSIGN" | "START" | "COMPLETE" | "CANCEL",
+  repair: {
+    repairNo: string;
+    title: string;
+    location: string;
+    requesterName?: string;
+    category?: string;
+    urgency?: string;
+    assigneeName?: string;
+    resolutionNote?: string;
+    cancelReason?: string;
+  }
+) {
+  const appUrl =
+    process.env.NEXT_PUBLIC_APP_URL ||
+    (process.env.VERCEL_PROJECT_PRODUCTION_URL
+      ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+      : "https://e-leave-system-kappa.vercel.app");
+
+  let msg = "";
+  if (action === "CREATE") {
+    msg = `🛠️ มีคำขอแจ้งซ่อมใหม่!
+------------------
+เลขที่คำขอ: ${repair.repairNo}
+หัวข้อ: ${repair.title}
+สถานที่/ห้อง: ${repair.location}
+ผู้แจ้ง: ${repair.requesterName || "-"}
+ความเร่งด่วน: ${repair.urgency || "ปกติ"}
+------------------
+โปรดตรวจสอบและมอบหมายช่างในระบบ: ${appUrl}/repair`;
+  } else if (action === "ASSIGN") {
+    msg = `👨‍🔧 อัปเดตการมอบหมายงานซ่อม!
+------------------
+เลขที่คำขอ: ${repair.repairNo}
+หัวข้อ: ${repair.title}
+สถานที่/ห้อง: ${repair.location}
+ช่างผู้รับผิดชอบ: ${repair.assigneeName || "-"}
+สถานะ: มอบหมายงานเรียบร้อย
+------------------
+เข้าดูรายการซ่อม: ${appUrl}/repair`;
+  } else if (action === "START") {
+    msg = `🔧 ช่างเริ่มดำเนินการซ่อมแซมแล้ว!
+------------------
+เลขที่คำขอ: ${repair.repairNo}
+หัวข้อ: ${repair.title}
+ช่างผู้ซ่อม: ${repair.assigneeName || "-"}
+สถานะ: กำลังดำเนินการซ่อม
+------------------`;
+  } else if (action === "COMPLETE") {
+    msg = `✅ ดำเนินการซ่อมแซมเสร็จสิ้น!
+------------------
+เลขที่คำขอ: ${repair.repairNo}
+หัวข้อ: ${repair.title}
+ช่างผู้ซ่อม: ${repair.assigneeName || "-"}
+ผลการซ่อม: ${repair.resolutionNote || "เสร็จสิ้นเรียบร้อย"}
+สถานะ: เสร็จสิ้น
+------------------
+ดูรายละเอียดในระบบ: ${appUrl}/repair`;
+  } else if (action === "CANCEL") {
+    msg = `🚫 ยกเลิกคำขอแจ้งซ่อม
+------------------
+เลขที่คำขอ: ${repair.repairNo}
+หัวข้อ: ${repair.title}
+เหตุผลที่ยกเลิก: ${repair.cancelReason || "-"}
+สถานะ: ยกเลิกคำขอ
+------------------`;
+  }
+
+  if (msg) {
+    await sendLineNotify(msg);
+  }
+}
