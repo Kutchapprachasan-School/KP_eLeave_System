@@ -92,6 +92,19 @@ export const scrapeAMSSDocument = safeAction(async (urlStr: string) => {
   };
 });
 
+function normalizeAmssUrl(rawUrl: string): string {
+  const trimmed = rawUrl.trim().replace(/\/+$/, "");
+  const parsed = new URL(trimmed);
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw new Error("โปรโตคอล URL ต้องเป็น HTTP หรือ HTTPS");
+  }
+  let cleanUrl = parsed.origin + parsed.pathname;
+  if (cleanUrl.endsWith("/index.php")) {
+    cleanUrl = cleanUrl.substring(0, cleanUrl.lastIndexOf("/index.php"));
+  }
+  return cleanUrl || parsed.origin;
+}
+
 // Save or update AMSS credentials for current user
 export const saveAMSSCredentials = safeAction(async (data: {
   url: string;
@@ -100,14 +113,9 @@ export const saveAMSSCredentials = safeAction(async (data: {
 }) => {
   const user = await getSessionUser();
   
-  const normalizedUrl = data.url.trim().replace(/\/+$/, "");
-
-  // URL Validation
+  let normalizedUrl = "";
   try {
-    const parsed = new URL(normalizedUrl);
-    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-      throw new Error("โปรโตคอล URL ต้องเป็น HTTP หรือ HTTPS");
-    }
+    normalizedUrl = normalizeAmssUrl(data.url);
   } catch (err: any) {
     throw new Error("ลิงก์ URL ไม่ถูกต้อง: " + (err.message || ""));
   }
@@ -167,14 +175,9 @@ export const testAMSSConnection = safeAction(async (data: {
   const user = await getSessionUser();
   let passwordToUse = "";
 
-  const normalizedUrl = data.url.trim().replace(/\/+$/, "");
-
-  // URL Validation
+  let normalizedUrl = "";
   try {
-    const parsed = new URL(normalizedUrl);
-    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-      throw new Error("โปรโตคอล URL ต้องเป็น HTTP หรือ HTTPS");
-    }
+    normalizedUrl = normalizeAmssUrl(data.url);
   } catch (err: any) {
     throw new Error("ลิงก์ URL ไม่ถูกต้อง: " + (err.message || ""));
   }
