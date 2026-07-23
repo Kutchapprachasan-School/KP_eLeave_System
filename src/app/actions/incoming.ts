@@ -206,7 +206,9 @@ export const testAMSSConnection = safeAction(async (data: {
 });
 
 // Sync AMSS Documents Automatically
-export const syncAMSSDocumentsAutomatically = safeAction(async () => {
+export const syncAMSSDocumentsAutomatically = safeAction(async (
+  dateRange: "this_week" | "this_month" | "this_year" | "all" = "all"
+) => {
   const user = await getSessionUser();
 
   // Server-side lock to prevent concurrent sync operations per user
@@ -333,7 +335,7 @@ export const syncAMSSDocumentsAutomatically = safeAction(async () => {
     }
 
     // Run the list sync
-    const syncResult = await syncAMSSDocumentsFromHtml(htmlContent);
+    const syncResult = await syncAMSSDocumentsFromHtml(htmlContent, dateRange);
 
     // Save successful sync timestamp
     const durationMs = Date.now() - startTime;

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { RefreshCw, CheckCircle2, AlertCircle, ExternalLink, Zap } from "lucide-react";
-import { syncAMSSDocumentsFromHtml, getAMSSCredentials } from "@/app/actions/incoming";
+import { syncAMSSDocumentsFromHtml, syncAMSSDocumentsAutomatically, getAMSSCredentials } from "@/app/actions/incoming";
 
 type AmssAutoBrowserSyncProps = {
   onSuccess?: (count: number) => void;
@@ -60,7 +60,7 @@ export default function AmssAutoBrowserSync({ onSuccess, showToast, autoTrigger 
 
   useEffect(() => {
     if (autoTrigger) {
-      handleAutoBrowserSync();
+      handleDirectOneClickSync();
     }
   }, [autoTrigger]);
 
@@ -120,6 +120,49 @@ export default function AmssAutoBrowserSync({ onSuccess, showToast, autoTrigger 
     }
   };
 
+  const handleDirectOneClickSync = async () => {
+    setSyncing(true);
+    setStatusMsg("กำลังเชื่อมต่อเซิร์ฟเวอร์ AMSS++ และดึงหนังสือรับ...");
+
+    try {
+      const res = await syncAMSSDocumentsAutomatically(dateRange);
+      if (!res.success) {
+        const errorMsg = res.error || "เกิดข้อผิดพลาดในการดึงข้อมูลจาก AMSS++";
+        if (errorMsg.includes("Cloudflare") || errorMsg.includes("CAPTCHA") || errorMsg.includes("403")) {
+          setStatusMsg("ระบบ AMSS++ ฝั่งสพท. บล็อกการเชื่อมต่ออัตโนมัติ กำลังเปิด Popup ช่วยดึงข้อมูล...");
+          await handleAutoBrowserSync();
+        } else {
+          if (showToast) showToast(errorMsg, "error");
+          setSyncing(false);
+          setStatusMsg(null);
+        }
+        return;
+      }
+
+      const { importedCount, duplicatesCount } = res.data;
+      if (importedCount === 0 && duplicatesCount > 0) {
+        if (showToast) {
+          showToast(`ข้อมูลเป็นปัจจุบันแล้ว (ไม่มีหนังสือใหม่ ข้ามข้อมูลซ้ำ ${duplicatesCount} เรื่อง)`, "success");
+        }
+      } else {
+        if (showToast) {
+          showToast(
+            `⚡ ดึงข้อมูลจาก AMSS++ สำเร็จ! นำเข้าหนังสือใหม่ ${importedCount} เรื่อง` +
+              (duplicatesCount > 0 ? ` (ข้ามข้อมูลซ้ำ ${duplicatesCount} เรื่อง)` : ""),
+            "success"
+          );
+        }
+      }
+      if (onSuccess) onSuccess(importedCount);
+      setSyncing(false);
+      setStatusMsg(null);
+    } catch (err: any) {
+      if (showToast) showToast(err.message || "เกิดข้อผิดพลาดในการดึงข้อมูล", "error");
+      setSyncing(false);
+      setStatusMsg(null);
+    }
+  };
+
   return (
     <div className="flex items-center gap-2 flex-wrap">
       <select
@@ -136,7 +179,7 @@ export default function AmssAutoBrowserSync({ onSuccess, showToast, autoTrigger 
       </select>
 
       <button
-        onClick={handleAutoBrowserSync}
+        onClick={handleDirectOneClickSync}
         disabled={syncing}
         className="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-sm transition cursor-pointer disabled:opacity-50"
       >
