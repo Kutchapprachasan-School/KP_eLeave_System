@@ -14,6 +14,49 @@ export default function AmssAutoBrowserSync({ onSuccess, showToast, autoTrigger 
   const [syncing, setSyncing] = useState(false);
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
   const [dateRange, setDateRange] = useState<"this_week" | "this_month" | "this_year" | "all">("this_year");
+  const lastProcessedTextRef = useState<{ current: string }>({ current: "" })[0];
+
+  // Auto Clipboard Listener on Window Focus
+  useEffect(() => {
+    const handleFocus = async () => {
+      try {
+        if (!navigator.clipboard || syncing) return;
+        const text = await navigator.clipboard.readText();
+        if (
+          text &&
+          text.trim().length > 50 &&
+          (text.includes("bookdetail") ||
+            text.includes("onclick=\"check") ||
+            text.includes("หนังสือรับ") ||
+            text.includes("ศธ") ||
+            text.includes("สารบรรณ"))
+        ) {
+          if (lastProcessedTextRef.current === text.trim()) return;
+          lastProcessedTextRef.current = text.trim();
+
+          setSyncing(true);
+          setStatusMsg("พบข้อมูล AMSS++ จากเบราว์เซอร์! กำลังซิงค์เข้าตารางทะเบียนรับ...");
+
+          const res = await syncAMSSDocumentsFromHtml(text, dateRange);
+          setSyncing(false);
+          setStatusMsg(null);
+
+          if (showToast) {
+            showToast(
+              `⚡ ซิงค์หนังสือรับสำเร็จ! นำเข้าใหม่ ${res.importedCount} รายการ, อัปเดต ${res.updatedCount || 0} รายการ`,
+              "success"
+            );
+          }
+          if (onSuccess) onSuccess(res.importedCount);
+        }
+      } catch (err) {
+        // Clipboard read permission might require focus or user interaction
+      }
+    };
+
+    window.addEventListener("focus", handleFocus);
+    return () => window.removeEventListener("focus", handleFocus);
+  }, [dateRange, onSuccess, showToast, syncing]);
 
   useEffect(() => {
     if (autoTrigger) {
@@ -23,10 +66,9 @@ export default function AmssAutoBrowserSync({ onSuccess, showToast, autoTrigger 
 
   const handleAutoBrowserSync = async () => {
     setSyncing(true);
-    setStatusMsg("กำลังดึงรหัสผ่านและสร้างช่องทางเชื่อมต่อ AMSS++...");
+    setStatusMsg("กำลังดึงรหัสผ่านและเปิดช่องทาง AMSS++...");
 
     try {
-      // Fetch saved credentials
       const credsRes = await getAMSSCredentials();
       if (!credsRes.success || !credsRes.data) {
         if (showToast) showToast("ยังไม่ได้ตั้งค่าบัญชี AMSS++ กรุณาตั้งค่ารหัสผ่านก่อน", "error");
@@ -39,11 +81,9 @@ export default function AmssAutoBrowserSync({ onSuccess, showToast, autoTrigger 
         ? `${amssUrl}index.php?option=book&task=main/receive`
         : `${amssUrl}/index.php?option=book&task=main/receive`;
 
-      setStatusMsg("เปิดช่องทางเชื่อมต่อ AMSS++ บนเบราว์เซอร์อัตโนมัติ...");
-
-      // Open a small background popup window
-      const width = 500;
-      const height = 600;
+      // Open background popup window
+      const width = 550;
+      const height = 650;
       const left = window.screen.width / 2 - width / 2;
       const top = window.screen.height / 2 - height / 2;
 
@@ -54,74 +94,29 @@ export default function AmssAutoBrowserSync({ onSuccess, showToast, autoTrigger 
       );
 
       if (!popup) {
-        if (showToast) showToast("เบราว์เซอร์บล็อก Popup กรุณากดอนุญาต Pop-up Window สำหรับระบบนี้", "error");
+        if (showToast) showToast("เบราว์เซอร์บล็อก Popup กรุณากดอนุญาต Pop-up Window", "error");
         setSyncing(false);
         return;
       }
 
-      setStatusMsg("กำลังดึงข้อมูลตารางหนังสือรับอัตโนมัติ (กรุณารอ 3-5 วินาที)...");
+      setStatusMsg("💡 หน้าต่าง AMSS++ เปิดแล้ว! กด Ctrl+A -> Ctrl+C ในหน้าต่างนั้นแล้วกลับมาหน้านี้ ข้อมูลจะซิงค์ให้อัตโนมัติทันที");
 
+      // Check if user copied or popup reloaded
       let attempts = 0;
-      const maxAttempts = 15;
+      const maxAttempts = 30; // 30 seconds
 
       const interval = setInterval(async () => {
         attempts++;
-        try {
-          if (popup.closed) {
-            clearInterval(interval);
-            setSyncing(false);
-            setStatusMsg(null);
-            return;
-          }
-
-          let pageHtml = "";
-          try {
-            pageHtml = popup.document.body.innerHTML;
-          } catch (e) {
-            // cross-origin restriction
-          }
-
-          if (
-            pageHtml &&
-            (pageHtml.includes("bookdetail") ||
-              pageHtml.includes("onclick=\"check") ||
-              pageHtml.includes("หนังสือรับ") ||
-              pageHtml.includes("saraban_index"))
-          ) {
-            clearInterval(interval);
-            setStatusMsg("พบบันทึกหนังสือรับแล้ว กำลังซิงค์และอัปเดตลงฐานข้อมูล...");
-
-            const result = await syncAMSSDocumentsFromHtml(pageHtml, dateRange);
-            popup.close();
-
-            setSyncing(false);
-            setStatusMsg(null);
-            if (showToast) {
-              showToast(
-                `ซิงค์หนังสือรับสำเร็จ! นำเข้าใหม่ ${result.importedCount} รายการ, อัปเดต ${result.updatedCount || 0} รายการ`,
-                "success"
-              );
-            }
-            if (onSuccess) onSuccess(result.importedCount);
-            return;
-          }
-        } catch (err) {
-          // ignore cross-origin security warnings
-        }
-
-        if (attempts >= maxAttempts) {
+        if (popup.closed || attempts >= maxAttempts) {
           clearInterval(interval);
           setSyncing(false);
           setStatusMsg(null);
-          if (showToast) {
-            showToast("หมดเวลาเชื่อมต่ออัตโนมัติ กรุณาล็อกอิน AMSS++ บนเบราว์เซอร์แล้วลองอีกครั้ง", "error");
-          }
         }
       }, 1000);
     } catch (err: any) {
       setSyncing(false);
       setStatusMsg(null);
-      if (showToast) showToast(err.message || "เกิดข้อผิดพลาดในการซิงค์อัตโนมัติ", "error");
+      if (showToast) showToast(err.message || "เกิดข้อผิดพลาดในการเปิด AMSS++", "error");
     }
   };
 
