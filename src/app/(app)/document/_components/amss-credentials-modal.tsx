@@ -252,7 +252,7 @@ export default function AmssCredentialsModal({
     try {
       const res = await deleteAMSSCredentials();
       if (res.success) {
-        showToast("ลบข้อมูลการตั้งค่าเชื่อมต่อแล้ว", "success");
+        notify("ลบข้อมูลการตั้งค่าเชื่อมต่อแล้ว", "success");
         setUrl("");
         setUsername("");
         setPassword("");
@@ -261,10 +261,10 @@ export default function AmssCredentialsModal({
         setHasTested(false);
         onSaved();
       } else {
-        showToast(res.error || "ลบข้อมูลล้มเหลว", "error");
+        notify(res.error || "ลบข้อมูลล้มเหลว", "error");
       }
     } catch (err: any) {
-      showToast(err.message || "เกิดข้อผิดพลาดในการลบข้อมูล", "error");
+      notify(err.message || "เกิดข้อผิดพลาดในการลบข้อมูล", "error");
     } finally {
       setDeleting(false);
     }
