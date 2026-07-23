@@ -36,6 +36,7 @@ import { useSession } from "@/lib/auth-client";
 import { useToast } from "@/components/toast-provider";
 import AmssImportModal from "@/components/AmssImportModal";
 import AmssCredentialsModal from "./_components/amss-credentials-modal";
+import AmssAutoBrowserSync from "./_components/amss-auto-browser-sync";
 import CertGenerator from "./_components/cert-generator";
 
 // Import atomic components
@@ -620,11 +621,15 @@ function DocumentPageContent() {
 
               <div className="flex flex-wrap items-center gap-2">
                 <GuardedAction requiredPermission="sarabun:amss:sync">
+                  <AmssAutoBrowserSync onSuccess={loadData} showToast={showToast} />
+                </GuardedAction>
+
+                <GuardedAction requiredPermission="sarabun:amss:sync">
                   <button
                     onClick={() => setShowAmssCredentialsModal(true)}
                     className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold transition cursor-pointer"
                   >
-                    ⚙️ ตั้งค่าเชื่อมต่อ AMSS++
+                    ⚙️ ตั้งค่าเชื่อมต่อ
                   </button>
                 </GuardedAction>
 
@@ -632,20 +637,9 @@ function DocumentPageContent() {
                   <button
                     onClick={() => setShowAmssImportModal(true)}
                     className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 text-xs font-bold border border-indigo-200/60 dark:border-indigo-800/60 transition cursor-pointer"
-                    title="นำเข้าหนังสือรับโดยคัดลอกซอร์สโค้ด HTML จากหน้าเว็บ AMSS++ เหมาะสำหรับเมื่อระบบคลาวด์ถูกบล็อก 403"
+                    title="นำเข้าหนังสือรับโดยคัดลอกซอร์สโค้ด HTML หรือวางข้อความ"
                   >
-                    📋 นำเข้าผ่านโค้ด HTML
-                  </button>
-                </GuardedAction>
-
-                <GuardedAction requiredPermission="sarabun:amss:sync">
-                  <button
-                    onClick={handleAmssAutoSync}
-                    disabled={amssSyncing}
-                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-sm transition cursor-pointer disabled:opacity-50"
-                  >
-                    <RefreshCw className={`w-3.5 h-3.5 ${amssSyncing ? "animate-spin" : ""}`} />
-                    {amssSyncing ? "กำลังซิงค์..." : "ซิงค์หนังสือรับทันที"}
+                    📋 วางข้อความ / HTML
                   </button>
                 </GuardedAction>
               </div>
