@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Save, Sparkles, Settings, ChevronDown } from "lucide-react";
 
 type MemoSection = { id: string; name: string; code: string; color?: string };
@@ -75,6 +75,24 @@ export default function OutboundForm({
     department: department || "",
     connectBudget: false,
   });
+
+  // Sync props when sections or user profile finish loading asynchronously
+  useEffect(() => {
+    if (sections.length > 0 && !formData.memoSectionId) {
+      setFormData(prev => ({ ...prev, memoSectionId: sections[0].id }));
+    }
+  }, [sections]);
+
+  useEffect(() => {
+    if (username || department) {
+      setFormData(prev => ({
+        ...prev,
+        requester: prev.requester || username || "",
+        origin: (prev.origin === "งานสารบรรณ" || !prev.origin) ? (username || department || "งานสารบรรณ") : prev.origin,
+        department: prev.department || department || ""
+      }));
+    }
+  }, [username, department]);
 
   const [showTitlePresets, setShowTitlePresets] = useState(false);
   const [showToPresets, setShowToPresets] = useState(false);

@@ -125,10 +125,10 @@ function DocumentPageContent() {
   const [selectedStatus, setSelectedStatus] = useState("");
 
   // URL searchParams sync
-  const paramView = searchParams.get("view");
-  const paramTab = searchParams.get("tab");
-  const paramDocType = searchParams.get("docType");
-  const paramStatus = searchParams.get("status");
+  const paramView = searchParams?.get("view") ?? null;
+  const paramTab = searchParams?.get("tab") ?? null;
+  const paramDocType = searchParams?.get("docType") ?? null;
+  const paramStatus = searchParams?.get("status") ?? null;
 
   useEffect(() => {
     if (paramView === "inbound" || paramView === "outbound_history" || paramView === "issue" || paramView === "cert") {
