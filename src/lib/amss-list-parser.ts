@@ -7,6 +7,15 @@ interface AMSSParsedRow {
   dateText: string;
 }
 
+export function buildAmssBookDetailUrl(baseUrl: string, amssId: string): string {
+  try {
+    const origin = new URL(baseUrl).origin;
+    return `${origin}/modules/book/main/bookdetail_school_saraban.php?b_id=${amssId}`;
+  } catch (e) {
+    return `https://amss.sesaud.go.th/modules/book/main/bookdetail_school_saraban.php?b_id=${amssId}`;
+  }
+}
+
 export function parseAMSSListHtml(input: string, baseUrl?: string): AMSSParsedRow[] {
   const documents: AMSSParsedRow[] = [];
   if (!input || typeof input !== "string") return documents;
@@ -60,23 +69,18 @@ export function parseAMSSListHtml(input: string, baseUrl?: string): AMSSParsedRo
     // Filter out header rows
     if (tds.some((t) => isHeaderCell(t))) continue;
 
-    // Look for standard href or onclick check(...) link
-    let amssLink = "";
-    const hrefMatch =
-      rowContent.match(/href=["']([^"']*(?:id=\d+|receive_detail|bookdetail)[^"']*)["']/i) ||
-      rowContent.match(/href=["']([^"']+)["']/i);
+    // Extract numeric AMSS ID from row (onclick check('...',169618,11) or b_id=169618 or id=169618 or tds[0])
+    let amssId = "";
+    const idMatch = rowContent.match(/(?:b_id|id)=(\d+)/i) || rowContent.match(/check\([^,]+,\s*['"]?(\d+)['"]?/i);
+    if (idMatch && idMatch[1]) {
+      amssId = idMatch[1];
+    } else if (tds[0] && tds[0].match(/^\d{4,9}$/)) {
+      amssId = tds[0];
+    }
 
-    if (hrefMatch && hrefMatch[1] && !hrefMatch[1].startsWith("#") && !hrefMatch[1].startsWith("javascript:")) {
-      amssLink = hrefMatch[1];
-    } else {
-      const onclickMatch =
-        rowContent.match(/check\(['"]([^'"]+)['"]\s*,\s*['"]?(\d+)['"]?/i) ||
-        rowContent.match(/open\(['"]([^'"]+)['"]\s*,\s*['"]?(\d+)['"]?/i);
-      if (onclickMatch) {
-        const page = onclickMatch[1];
-        const b_id = onclickMatch[2];
-        amssLink = `index.php?option=book&task=main/${page}&id=${b_id}`;
-      }
+    let amssLink = "";
+    if (amssId) {
+      amssLink = buildAmssBookDetailUrl(cleanBaseUrl, amssId);
     }
 
     if (tds.length >= 7) {
@@ -95,16 +99,8 @@ export function parseAMSSListHtml(input: string, baseUrl?: string): AMSSParsedRo
       const senderOrg = tds[5] || "";
 
       if (!amssLink) {
-        const amssId = receiveNo.match(/^\d{4,9}$/) ? receiveNo : Date.now().toString();
-        amssLink = `index.php?option=book&task=main/receive_detail&id=${amssId}`;
-      }
-
-      if (cleanBaseUrl && !amssLink.startsWith("http://") && !amssLink.startsWith("https://")) {
-        try {
-          amssLink = new URL(amssLink.replace(/^\/+/, ""), cleanBaseUrl).toString();
-        } catch (e) {
-          amssLink = cleanBaseUrl + amssLink;
-        }
+        const idVal = receiveNo.match(/^\d{4,9}$/) ? receiveNo : Date.now().toString();
+        amssLink = buildAmssBookDetailUrl(cleanBaseUrl, idVal);
       }
 
       if (title && title.length > 2 && (docRefNo || receiveNo)) {
@@ -120,16 +116,8 @@ export function parseAMSSListHtml(input: string, baseUrl?: string): AMSSParsedRo
       const dateText = cleanTds[4] || "";
 
       if (!amssLink) {
-        const amssId = receiveNo.match(/^\d{4,9}$/) ? receiveNo : Date.now().toString();
-        amssLink = `index.php?option=book&task=main/receive_detail&id=${amssId}`;
-      }
-
-      if (cleanBaseUrl && !amssLink.startsWith("http://") && !amssLink.startsWith("https://")) {
-        try {
-          amssLink = new URL(amssLink.replace(/^\/+/, ""), cleanBaseUrl).toString();
-        } catch (e) {
-          amssLink = cleanBaseUrl + amssLink;
-        }
+        const idVal = receiveNo.match(/^\d{4,9}$/) ? receiveNo : Date.now().toString();
+        amssLink = buildAmssBookDetailUrl(cleanBaseUrl, idVal);
       }
 
       if (title && title.length > 2) {
@@ -207,7 +195,7 @@ export function parseAMSSListHtml(input: string, baseUrl?: string): AMSSParsedRo
       if (title && title.length > 2) {
         const amssIdMatch = receiveNo.match(/^\d{4,9}$/);
         const amssId = amssIdMatch ? amssIdMatch[0] : Date.now().toString();
-        const amssLink = `${cleanBaseUrl}index.php?option=book&task=main/receive_detail&id=${amssId}`;
+        const amssLink = buildAmssBookDetailUrl(cleanBaseUrl, amssId);
         documents.push({ amssLink, receiveNo, docRefNo, title, senderOrg, dateText });
       }
     }
