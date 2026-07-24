@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react";
 import Link from "next/link";
-import { Search, RefreshCw, X, FolderOpen, Eye, Ban, ShieldAlert, AlertTriangle } from "lucide-react";
+import { Search, RefreshCw, X, FolderOpen, Eye, Ban, ShieldAlert, AlertTriangle, Link2, Copy } from "lucide-react";
 
 type MemoSection = { id: string; name: string; code: string; color?: string };
 
@@ -375,9 +375,25 @@ export default function DocumentTable({
                       </td>
                       <td className="py-3 px-4 text-right">
                         <div className="flex gap-1.5 justify-end">
+                          {(d.amssLink || d.attachmentUrl) && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const urlToCopy = d.amssLink || d.attachmentUrl;
+                                navigator.clipboard.writeText(urlToCopy);
+                                window.open(urlToCopy, "_blank");
+                              }}
+                              className="w-7 h-7 rounded-lg border border-indigo-200 dark:border-indigo-800/80 bg-indigo-50/50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition flex items-center justify-center cursor-pointer"
+                              title="คัดลอกลิงก์ URL และเปิดดูเอกสาร"
+                            >
+                              <Link2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                           <Link
                             href={`/document/incoming/${d.id}`}
                             className="w-7 h-7 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition flex items-center justify-center"
+                            title="ดูรายละเอียด"
                           >
                             <Eye className="w-3.5 h-3.5" />
                           </Link>

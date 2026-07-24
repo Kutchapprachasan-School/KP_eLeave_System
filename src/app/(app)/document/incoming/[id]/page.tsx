@@ -238,7 +238,21 @@ export default function IncomingDocDetailPage() {
           </div>
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
+          {(doc.amssLink || doc.attachmentUrl) && (
+            <button
+              type="button"
+              onClick={() => {
+                const targetUrl = doc.amssLink || doc.attachmentUrl || "";
+                navigator.clipboard.writeText(targetUrl);
+                showToast("คัดลอก URL ลิงก์เอกสารสำเร็จ!", "success");
+              }}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 text-xs font-bold border border-indigo-200/80 dark:border-indigo-800/80 shadow-sm cursor-pointer"
+            >
+              <Link2 className="w-4 h-4" />
+              ก๊อปปี้ URL ลิงก์เอกสาร
+            </button>
+          )}
           {doc.amssLink && (
             <a
               href={doc.amssLink}
@@ -306,6 +320,32 @@ export default function IncomingDocDetailPage() {
                   <span className="font-medium">{doc.memoSection?.name || "ไม่ได้ระบุ"}</span>
                 </div>
               </div>
+
+              {/* URL Link Box */}
+              {(doc.amssLink || doc.attachmentUrl) && (
+                <div className="pt-3 border-t border-slate-100 dark:border-slate-750">
+                  <span className="font-semibold text-slate-400 block text-xs mb-1.5">🔗 ลิงก์ URL เอกสารอ้างอิง (AMSS++)</span>
+                  <div className="flex items-center gap-2 p-2 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
+                    <input
+                      type="text"
+                      readOnly
+                      value={doc.amssLink || doc.attachmentUrl || ""}
+                      className="flex-1 bg-transparent text-xs font-mono text-indigo-600 dark:text-indigo-400 truncate outline-none select-all px-1"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const targetUrl = doc.amssLink || doc.attachmentUrl || "";
+                        navigator.clipboard.writeText(targetUrl);
+                        showToast("คัดลอก URL ลิงก์เรียบร้อยแล้ว!", "success");
+                      }}
+                      className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shrink-0 shadow-sm cursor-pointer transition"
+                    >
+                      ก๊อปปี้ URL
+                    </button>
+                  </div>
+                </div>
+              )}
               {doc.note && (
                 <div className="pt-2 border-t border-slate-50 dark:border-slate-750">
                   <span className="font-semibold text-slate-400 block text-xs">บันทึกช่วยจำ</span>
