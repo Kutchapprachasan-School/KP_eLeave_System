@@ -13,6 +13,24 @@ export function parseAMSSListHtml(input: string, baseUrl?: string): AMSSParsedRo
 
   const cleanBaseUrl = baseUrl ? (baseUrl.endsWith("/") ? baseUrl : baseUrl + "/") : "https://amss.sesaud.go.th/";
 
+  // Helper to check if a string is header text
+  const isHeaderCell = (str: string) => {
+    const s = str.trim();
+    return (
+      s === "ที่" ||
+      s === "เลขหนังสือ" ||
+      s === "เลขทะเบียนรับ" ||
+      s === "เรื่อง" ||
+      s === "จาก" ||
+      s === "จากหน่วยงาน" ||
+      s === "ลงวันที่" ||
+      s === "รายละเอียด" ||
+      s === "อ้างอิงหนังสือ (ที่)" ||
+      s === "วันเวลาที่ส่ง" ||
+      s === "จัดการ"
+    );
+  };
+
   // 1. Try HTML Table Parsing
   const rowRegex = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
   let match;
@@ -22,8 +40,8 @@ export function parseAMSSListHtml(input: string, baseUrl?: string): AMSSParsedRo
     hasTrMatch = true;
     const rowContent = match[1];
 
-    // Extract td contents
-    const tdRegex = /<td[^>]*>([\s\S]*?)<\/td>/gi;
+    // Extract td / th contents
+    const tdRegex = /<(?:td|th)[^>]*>([\s\S]*?)<\/(?:td|th)>/gi;
     const tds: string[] = [];
     let tdMatch;
 
@@ -38,6 +56,9 @@ export function parseAMSSListHtml(input: string, baseUrl?: string): AMSSParsedRo
     }
 
     if (tds.length < 3) continue;
+
+    // Filter out header rows
+    if (tds.some((t) => isHeaderCell(t))) continue;
 
     // Look for standard href or onclick check(...) link
     let amssLink = "";
@@ -58,52 +79,60 @@ export function parseAMSSListHtml(input: string, baseUrl?: string): AMSSParsedRo
       }
     }
 
-    // Fallback amssLink using AMSS ID in tds[0] if no explicit link found
-    if (!amssLink) {
-      const amssIdMatch = rowContent.match(/id=(\d+)/i) || (tds[0] && tds[0].match(/^\d{4,9}$/));
-      const amssId = amssIdMatch ? (typeof amssIdMatch === "string" ? amssIdMatch : amssIdMatch[1]) : tds[0];
-      if (amssId) {
-        amssLink = `index.php?option=book&task=main/receive_detail&id=${amssId}`;
-      } else {
-        amssLink = `index.php?option=book&task=main/receive_detail&id=${Date.now()}`;
-      }
-    }
-
-    // Format relative URL to absolute URL
-    if (cleanBaseUrl && !amssLink.startsWith("http://") && !amssLink.startsWith("https://")) {
-      try {
-        amssLink = new URL(amssLink.replace(/^\/+/, ""), cleanBaseUrl).toString();
-      } catch (e) {
-        amssLink = cleanBaseUrl + amssLink;
-      }
-    }
-
     if (tds.length >= 7) {
-      // 7-column layout (Standard AMSS++ receive list)
-      // Index 0: AMSS ID / Receive No (e.g. 169346)
-      // Index 1: Doc Ref No (e.g. ที่ ศธ 04349/ว3194)
-      // Index 2: Title / Subject (e.g. ประกาศรายชื่อโรงเรียน...)
-      // Index 3: Click details
-      // Index 4: Date (e.g. 21 กค 2569)
-      // Index 5: Sender Org (e.g. กลุ่มนิเทศ ติดตาม...)
+      // Standard 7-column AMSS++ receive list:
+      // [0] AMSS ID (e.g. 169618)
+      // [1] Doc Ref No (e.g. ที่ ศธ 04349/ว3270)
+      // [2] Title / Subject
+      // [3] Click details ("คลิก")
+      // [4] Date (e.g. 23 กค 2569)
+      // [5] Sender Org (e.g. กลุ่มนิเทศ ติดตาม...)
+      // [6] Sent Time (e.g. 23 กค 2569 15:15:37 น.)
       const receiveNo = tds[0] || "";
       const docRefNo = tds[1] || "";
       const title = tds[2] || "";
-      const dateText = tds[4] || tds[6] || "";
-      const senderOrg = tds[5] || tds[3] || "";
+      const dateText = tds[4] || "";
+      const senderOrg = tds[5] || "";
 
-      if (title && title !== "เรื่อง" && (docRefNo || receiveNo)) {
+      if (!amssLink) {
+        const amssId = receiveNo.match(/^\d{4,9}$/) ? receiveNo : Date.now().toString();
+        amssLink = `index.php?option=book&task=main/receive_detail&id=${amssId}`;
+      }
+
+      if (cleanBaseUrl && !amssLink.startsWith("http://") && !amssLink.startsWith("https://")) {
+        try {
+          amssLink = new URL(amssLink.replace(/^\/+/, ""), cleanBaseUrl).toString();
+        } catch (e) {
+          amssLink = cleanBaseUrl + amssLink;
+        }
+      }
+
+      if (title && title.length > 2 && (docRefNo || receiveNo)) {
         documents.push({ amssLink, receiveNo, docRefNo, title, senderOrg, dateText });
       }
     } else if (tds.length >= 4) {
       // 4-6 column fallback layout
-      const receiveNo = tds[0] || "";
-      const docRefNo = tds[1] || "";
-      const title = tds[2] || "";
-      const senderOrg = tds[3] || "";
-      const dateText = tds[4] || "";
+      const cleanTds = tds.filter((t) => t !== "คลิก" && t !== "รายละเอียด");
+      const receiveNo = cleanTds[0] || "";
+      const docRefNo = cleanTds[1] || "";
+      const title = cleanTds[2] || "";
+      const senderOrg = cleanTds[3] || "";
+      const dateText = cleanTds[4] || "";
 
-      if (title && title !== "เรื่อง") {
+      if (!amssLink) {
+        const amssId = receiveNo.match(/^\d{4,9}$/) ? receiveNo : Date.now().toString();
+        amssLink = `index.php?option=book&task=main/receive_detail&id=${amssId}`;
+      }
+
+      if (cleanBaseUrl && !amssLink.startsWith("http://") && !amssLink.startsWith("https://")) {
+        try {
+          amssLink = new URL(amssLink.replace(/^\/+/, ""), cleanBaseUrl).toString();
+        } catch (e) {
+          amssLink = cleanBaseUrl + amssLink;
+        }
+      }
+
+      if (title && title.length > 2) {
         documents.push({ amssLink, receiveNo, docRefNo, title, senderOrg, dateText });
       }
     }
@@ -114,26 +143,72 @@ export function parseAMSSListHtml(input: string, baseUrl?: string): AMSSParsedRo
     const lines = input.split(/\r?\n/);
     for (const line of lines) {
       const trimmed = line.trim();
-      if (!trimmed || trimmed.startsWith("ที่") && trimmed.includes("เรื่อง")) continue;
+      if (!trimmed) continue;
 
       // Split by tab (\t) or 2+ consecutive spaces
-      const parts = trimmed.split(/\t+|\s{2,}/).map((p) => p.trim()).filter(Boolean);
-      if (parts.length >= 4) {
-        // Find part with ศธ or doc ref
-        const receiveNo = parts[0] || "";
-        const docRefNo = parts.find((p) => p.includes("ศธ") || p.includes("ที่")) || parts[1] || "";
-        const titleIndex = parts.findIndex((p) => p !== receiveNo && p !== docRefNo && p.length > 5);
-        const title = titleIndex !== -1 ? parts[titleIndex] : parts[2] || "";
-        const dateText = parts.find((p) => /\d{1,2}\s+[ก-ฮ].*\s+\d{4}/.test(p)) || "";
-        const senderOrg = parts.find((p) => p.includes("กลุ่ม") || p.includes("สพ") || p.includes("สำนักงาน") || p.includes("งาน")) || "";
+      const rawParts = trimmed.split(/\t+|\s{2,}/).map((p) => p.trim()).filter(Boolean);
+      
+      // Filter out header cells and "คลิก"
+      const parts = rawParts.filter((p) => !isHeaderCell(p) && p !== "คลิก" && p !== "รายละเอียด");
+      if (parts.length < 3) continue;
 
+      let receiveNo = "";
+      let docRefNo = "";
+      let title = "";
+      let senderOrg = "";
+      let dateText = "";
+
+      // Check if parts match standard 6/7 column copied AMSS++ row:
+      // [0] AMSS ID (e.g. 169618)
+      // [1] Doc Ref (e.g. ที่ ศธ 04349/ว3270)
+      // [2] Title (e.g. เลื่อนกำหนดการ...)
+      // [3] Date (e.g. 23 กค 2569)
+      // [4] Sender Org (e.g. กลุ่มนิเทศ...)
+      if (parts[0].match(/^\d{4,9}$/) && (parts[1].includes("ที่") || parts[1].includes("/"))) {
+        receiveNo = parts[0];
+        docRefNo = parts[1];
+        title = parts[2];
+        
+        // Find date part (e.g. 23 กค 2569)
+        const dateIdx = parts.findIndex((p, idx) => idx > 2 && /\d{1,2}\s+[ก-ฮ]/.test(p));
+        if (dateIdx !== -1) {
+          dateText = parts[dateIdx];
+          senderOrg = parts.filter((_, idx) => idx > 2 && idx !== dateIdx).join(" ");
+        } else {
+          senderOrg = parts[3] || "";
+          dateText = parts[4] || "";
+        }
+      } else {
+        // Fallback robust identification
+        const refIdx = parts.findIndex((p) => /^ที่\s*ศธ/i.test(p) || (p.startsWith("ที่") && p.includes("/")));
+        if (refIdx !== -1) {
+          docRefNo = parts[refIdx];
+          if (refIdx > 0 && parts[0] !== docRefNo) {
+            receiveNo = parts[0];
+          }
+        } else {
+          receiveNo = parts[0];
+          docRefNo = parts[1] || "";
+        }
+
+        const dateIdx = parts.findIndex((p) => /\d{1,2}\s+[ก-ฮ].*\s+\d{4}/.test(p));
+        if (dateIdx !== -1) {
+          dateText = parts[dateIdx];
+        }
+
+        const remaining = parts.filter((p) => p !== receiveNo && p !== docRefNo && p !== dateText);
+        if (remaining.length > 0) {
+          const titleCandidates = [...remaining].sort((a, b) => b.length - a.length);
+          title = titleCandidates[0];
+          senderOrg = remaining.filter((p) => p !== title).join(" ");
+        }
+      }
+
+      if (title && title.length > 2) {
         const amssIdMatch = receiveNo.match(/^\d{4,9}$/);
         const amssId = amssIdMatch ? amssIdMatch[0] : Date.now().toString();
         const amssLink = `${cleanBaseUrl}index.php?option=book&task=main/receive_detail&id=${amssId}`;
-
-        if (title && title.length > 3) {
-          documents.push({ amssLink, receiveNo, docRefNo, title, senderOrg, dateText });
-        }
+        documents.push({ amssLink, receiveNo, docRefNo, title, senderOrg, dateText });
       }
     }
   }
