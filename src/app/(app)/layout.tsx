@@ -568,7 +568,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
     const Icon = item.icon;
     return (
       <Link key={item.href} href={item.href}>
-        <div className={`relative flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11.5px] font-medium transition-all duration-300 group overflow-hidden ${
+        <div className={`relative flex items-center gap-2.5 px-3 py-2 rounded-xl text-[13.5px] font-medium transition-all duration-300 group overflow-hidden ${
           isActive 
             ? "text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-500/10 font-bold" 
             : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-800/50"
@@ -579,7 +579,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
           <Icon className={`w-4 h-4 transition-transform duration-300 ${isActive ? "scale-110" : "group-hover:scale-110"}`} />
           <span className="flex-1 truncate">{item.label}</span>
           {item.badge !== undefined && item.badge > 0 && (
-            <span className="flex items-center justify-center min-w-4 h-4 px-1 rounded-full bg-red-500 text-white text-[9px] font-bold">
+            <span className="flex items-center justify-center min-w-4 h-4 px-1 rounded-full bg-red-500 text-white text-[10px] font-bold">
               {item.badge}
             </span>
           )}
@@ -672,7 +672,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
               </div>
             )}
             <div className="flex-1 min-w-0">
-              <h1 className="text-[12px] font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-slate-900 to-slate-600 dark:from-white dark:to-slate-300 leading-tight truncate">{brandName}</h1>
+              <h1 className="text-[13.5px] font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-slate-900 to-slate-600 dark:from-white dark:to-slate-300 leading-tight truncate">{brandName}</h1>
             </div>
           </div>
         </div>
@@ -681,7 +681,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
         <nav className="flex-1 px-3 py-3 space-y-1 overflow-y-auto custom-scrollbar">
           {/* Dashboard (Top level) */}
           <Link href="/dashboard">
-            <div className={`relative flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11.5px] font-medium transition-all duration-300 group overflow-hidden ${
+            <div className={`relative flex items-center gap-2.5 px-3 py-2 rounded-xl text-[13.5px] font-medium transition-all duration-300 group overflow-hidden ${
               pathname === "/dashboard" 
                 ? "text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-500/10 font-bold" 
                 : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-800/50"
@@ -697,7 +697,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
           {/* Category: งานทั่วไป */}
           {generalNavItems.length > 0 && (
             <div className="pt-1.5 space-y-1">
-              <div className="px-3 pb-0.5 text-[9.5px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+              <div className="px-3 pb-0.5 text-[11.5px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
                 {lang === "en" ? "General" : "งานทั่วไป"}
               </div>
               {generalNavItems.map(renderNavItem)}
@@ -707,7 +707,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
           {/* Category: งานบุคคล */}
           {hrNavItems.length > 0 && (
             <div className="pt-1.5 space-y-1">
-              <div className="px-3 pb-0.5 text-[9.5px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+              <div className="px-3 pb-0.5 text-[11.5px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
                 {lang === "en" ? "HR System" : "งานบุคคล"}
               </div>
               {hrNavItems.map(renderNavItem)}
@@ -716,7 +716,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
 
           {/* Category: ลาออนไลน์ */}
           <div className="pt-1.5 space-y-1">
-            <div className="px-3 pb-0.5 text-[9.5px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+            <div className="px-3 pb-0.5 text-[11.5px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
               {lang === "en" ? "Online Leave" : "ลาออนไลน์"}
             </div>
             {leaveNavItems.map(renderNavItem)}
@@ -725,16 +725,16 @@ function AppContent({ children }: { children: React.ReactNode }) {
           {/* Category: ตั้งค่า */}
           {settingsNavItems.length > 0 && (
             <div className="pt-1.5 space-y-1">
-              <div className="px-3 pb-0.5 text-[9.5px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+              <div className="px-3 pb-0.5 text-[11.5px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
                 {lang === "en" ? "Settings" : "ตั้งค่า"}
               </div>
               {settingsNavItems.map(renderNavItem)}
             </div>
           )}
 
-          <div className="px-3 pt-4 pb-1 text-[9.5px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">{t("accountMenu")}</div>
+          <div className="px-3 pt-4 pb-1 text-[11.5px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">{t("accountMenu")}</div>
           <Link href="/profile">
-            <div className={`relative flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11.5px] font-medium transition-all duration-300 group overflow-hidden ${
+            <div className={`relative flex items-center gap-2.5 px-3 py-2 rounded-xl text-[13.5px] font-medium transition-all duration-300 group overflow-hidden ${
               pathname === "/profile" 
                 ? "text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-500/10 font-bold" 
                 : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-800/50"
@@ -760,8 +760,8 @@ function AppContent({ children }: { children: React.ReactNode }) {
                 </div>
               )}
               <div className="flex-1 min-w-0">
-                <p className="text-[11.5px] font-bold text-slate-900 dark:text-white truncate leading-snug">{user.name}</p>
-                <p className="text-[9.5px] text-slate-500 dark:text-slate-400 truncate">{user.position || t("staff")}</p>
+                <p className="text-[13.5px] font-bold text-slate-900 dark:text-white truncate leading-snug">{user.name}</p>
+                <p className="text-[11.5px] text-slate-500 dark:text-slate-400 truncate">{user.position || t("staff")}</p>
               </div>
             </div>
             <button
@@ -769,7 +769,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
                 await signOut();
                 router.push("/login");
               }}
-              className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-900/50 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-500/10 dark:hover:text-red-400 text-[11px] font-medium text-slate-600 dark:text-slate-300 transition-colors"
+              className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-900/50 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-500/10 dark:hover:text-red-400 text-[12.5px] font-medium text-slate-600 dark:text-slate-300 transition-colors"
             >
               <LogOut className="w-3.5 h-3.5" />
               {t("logout")}
