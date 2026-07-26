@@ -57,6 +57,7 @@ export interface IncomingDoc {
   createdById?: string;
   memoSectionId?: string | null;
   memoSection?: MemoSectionDTO | null;
+  routingSteps?: any[];
   createdAt?: Date;
   updatedAt?: Date;
 }

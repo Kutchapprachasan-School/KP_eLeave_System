@@ -49,7 +49,7 @@ export function InboundView({
   currentUserId,
 }: InboundViewProps) {
   const myPendingDocs = inboundDocs.filter(
-    (d) => d.routingSteps?.some((s) => s.status === "PENDING" && s.assigneeId === currentUserId)
+    (d) => d.routingSteps?.some((s: any) => s.status === "PENDING" && s.assigneeId === currentUserId)
   );
 
   return (
