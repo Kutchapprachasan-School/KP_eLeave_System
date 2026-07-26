@@ -613,12 +613,12 @@ function AppContent({ children }: { children: React.ReactNode }) {
   }
   leaveSubItems.push({ href: "/manual", label: t("userManual"), icon: BookOpen });
 
-  // Sub-items for Document System (ระบบสารบรรณ / เอกสาร - แยกออกเป็นคนละหน้า)
+  // Sub-items for Document System (ระบบสารบรรณ / เอกสาร)
   const documentSubItems = showDocument
     ? [
-        { href: "/document?view=issue", label: "ขอออกเลขหนังสือ (ส่ง/บันทึก)", icon: FileText },
-        { href: "/document?view=inbound", label: "ทะเบียนหนังสือรับ (AMSS++)", icon: Archive },
-        { href: "/document?view=cert", label: "ออกเกียรติบัตรออนไลน์", icon: ClipboardList },
+        { href: "/document?view=issue", label: "ขอเลขหนังสือ", icon: FileText },
+        { href: "/document?view=inbound", label: "AMSS++", icon: Archive },
+        { href: "/document?view=cert", label: "เกียรติบัตร", icon: ClipboardList },
       ]
     : [];
 
@@ -627,7 +627,6 @@ function AppContent({ children }: { children: React.ReactNode }) {
     ? [
         { href: "/repair", label: "รายการแจ้งซ่อมทั้งหมด", icon: Wrench },
         { href: "/repair/new", label: "แจ้งซ่อมรายการใหม่", icon: Plus },
-        { href: "/repair/dashboard", label: "แดชบอร์ดงานซ่อม", icon: Activity },
       ]
     : [];
 

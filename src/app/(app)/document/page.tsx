@@ -70,12 +70,35 @@ function DocumentPageContent() {
     }
   };
 
+  const getHeaderInfo = () => {
+    switch (filters.view) {
+      case "inbound":
+        return {
+          title: "AMSS++",
+          description: "นำเข้าและตรวจสอบประวัติหนังสือรับจากระบบ AMSS++",
+        };
+      case "cert":
+        return {
+          title: "เกียรติบัตร",
+          description: "สร้างและพิมพ์เกียรติบัตรออนไลน์",
+        };
+      case "issue":
+      default:
+        return {
+          title: "ขอเลขหนังสือ",
+          description: "ขอออกเลขทะเบียนหนังสือส่ง บันทึกข้อความ และคำสั่ง",
+        };
+    }
+  };
+
+  const currentHeader = getHeaderInfo();
+
   if (data.loading && data.outboundDocs.length === 0) {
     return (
       <div className="space-y-6 max-w-7xl mx-auto px-1">
         <PageHeader
-          title="ระบบงานสารบรรณ (Sarabun System)"
-          description="ขอออกเลขทะเบียนหนังสือส่ง บันทึกข้อความ คำสั่ง และตรวจสอบประวัติทะเบียนคุมหนังสือรับ-ส่ง"
+          title={currentHeader.title}
+          description={currentHeader.description}
           icon={ClipboardList}
           gradient="from-orange-600 to-amber-600"
         />
@@ -87,8 +110,8 @@ function DocumentPageContent() {
   return (
     <div className="space-y-6 max-w-7xl mx-auto px-1">
       <PageHeader
-        title="ระบบงานสารบรรณ (Sarabun System)"
-        description="ขอออกเลขทะเบียนหนังสือส่ง บันทึกข้อความ คำสั่ง และตรวจสอบประวัติทะเบียนคุมหนังสือรับ-ส่ง"
+        title={currentHeader.title}
+        description={currentHeader.description}
         icon={ClipboardList}
         gradient="from-orange-600 to-amber-600"
         action={
@@ -111,25 +134,6 @@ function DocumentPageContent() {
           </div>
         }
       />
-
-      {/* Navigation Tabs */}
-      <div className="flex border border-slate-200/80 dark:border-slate-800 bg-slate-100/70 dark:bg-slate-950/60 p-1.5 rounded-xl gap-1.5 shadow-xs max-w-3xl overflow-x-auto">
-        {DOCUMENT_NAV_ITEMS.map((item) => (
-          <button
-            key={item.id}
-            onClick={() => {
-              filters.setNav(item.view as any, item.activeTab as any);
-            }}
-            className={`px-4 py-2 text-center rounded-lg text-sm transition-all cursor-pointer whitespace-nowrap ${
-              filters.view === item.view
-                ? "bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-xs font-bold"
-                : "text-slate-600 dark:text-slate-400 font-medium hover:text-slate-900 dark:hover:text-slate-200"
-            }`}
-          >
-            {item.label}
-          </button>
-        ))}
-      </div>
 
       {/* Views */}
       {filters.view === "cert" ? (
