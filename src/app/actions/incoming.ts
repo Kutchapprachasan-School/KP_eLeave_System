@@ -974,70 +974,85 @@ export async function fetchAmssPreviewDocs(options: {
   const allParsedDocs: any[] = [];
   const seenAmssLinks = new Set<string>();
 
+  const urlCandidates = [
+    (p: number) => `${origin}/index.php?option=book&task=main/receive&select_year=${targetYear}&page=${p}`,
+    (p: number) => `${origin}/index.php?option=book&task=main/receive_sch&select_year=${targetYear}&page=${p}`,
+    (p: number) => `${origin}/receive_sch.php?select_year=${targetYear}&page=${p}`
+  ];
+
   for (let page = 1; page <= maxPages; page++) {
-    const pageUrl = `${origin}/index.php?option=book&task=main/receive&select_year=${targetYear}&page=${page}`;
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 8000);
-      const res = await fetchWithTlsFallback(pageUrl, {
-        signal: controller.signal,
-        headers: { "Cookie": cookies }
-      });
-      clearTimeout(timeoutId);
+    let pageDocs: any[] = [];
+    
+    for (const getUrl of urlCandidates) {
+      const pageUrl = getUrl(page);
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 8000);
+        const res = await fetchWithTlsFallback(pageUrl, {
+          signal: controller.signal,
+          headers: { "Cookie": cookies }
+        });
+        clearTimeout(timeoutId);
 
-      if (res.ok) {
-        const buffer = await res.arrayBuffer();
-        let text = new TextDecoder("utf-8").decode(buffer);
-        if (text.includes("เธ") || text.includes("เธช")) {
-          text = new TextDecoder("windows-874").decode(buffer);
-        }
+        if (res.ok) {
+          const buffer = await res.arrayBuffer();
+          let text = new TextDecoder("utf-8").decode(buffer);
+          if (text.includes("เธ") || text.includes("เธช") || text.includes("")) {
+            text = new TextDecoder("windows-874").decode(buffer);
+          }
 
-        const docs = parseAMSSListHtml(text, origin);
-        if (docs.length === 0) break;
-
-        for (const doc of docs) {
-          if (!seenAmssLinks.has(doc.amssLink)) {
-            seenAmssLinks.add(doc.amssLink);
-
-            let include = true;
-            let docYearBE: number | null = null;
-            let docMonth: number | null = null;
-
-            const parts = doc.dateText.trim().split(/\s+/);
-            if (parts.length >= 3) {
-              const thaiShortMonthMap: Record<string, number> = {
-                "มค": 1, "กพ": 2, "มีค": 3, "เมย": 4, "พค": 5, "มิย": 6,
-                "กค": 7, "สค": 8, "กย": 9, "ตค": 10, "พย": 11, "ธค": 12,
-                "มกราคม": 1, "กุมภาพันธ์": 2, "มีนาคม": 3, "เมษายน": 4,
-                "พฤษภาคม": 5, "มิถุนายน": 6, "กรกฎาคม": 7, "สิงหาคม": 8,
-                "กันยายน": 9, "ตุลาคม": 10, "พฤศจิกายน": 11, "ธันวาคม": 12
-              };
-              const mClean = parts[1].replace(/\./g, "").trim();
-              docMonth = thaiShortMonthMap[mClean] || null;
-
-              let year = parseInt(parts[2], 10);
-              if (!isNaN(year)) {
-                if (year < 100) year = year + 2500;
-                else if (year < 2400) year = year + 543;
-                docYearBE = year;
-              }
-            }
-
-            if (options.yearFilter && docYearBE && docYearBE !== options.yearFilter) {
-              include = false;
-            }
-            if (options.monthFilter && options.monthFilter > 0 && docMonth && docMonth !== options.monthFilter) {
-              include = false;
-            }
-
-            if (include) {
-              allParsedDocs.push(doc);
-            }
+          const docs = parseAMSSListHtml(text, origin);
+          if (docs.length > 0) {
+            pageDocs = docs;
+            break; // Found documents on this candidate URL
           }
         }
+      } catch (e) {
+        // Retry next candidate
       }
-    } catch (e) {
-      // Continue next page
+    }
+
+    if (pageDocs.length === 0) break;
+
+    for (const doc of pageDocs) {
+      if (!seenAmssLinks.has(doc.amssLink)) {
+        seenAmssLinks.add(doc.amssLink);
+
+        let include = true;
+        let docYearBE: number | null = null;
+        let docMonth: number | null = null;
+
+        const parts = doc.dateText.trim().split(/\s+/);
+        if (parts.length >= 3) {
+          const thaiShortMonthMap: Record<string, number> = {
+            "มค": 1, "กพ": 2, "มีค": 3, "เมย": 4, "พค": 5, "มิย": 6,
+            "กค": 7, "สค": 8, "กย": 9, "ตค": 10, "พย": 11, "ธค": 12,
+            "มกราคม": 1, "กุมภาพันธ์": 2, "มีนาคม": 3, "เมษายน": 4,
+            "พฤษภาคม": 5, "มิถุนายน": 6, "กรกฎาคม": 7, "สิงหาคม": 8,
+            "กันยายน": 9, "ตุลาคม": 10, "พฤศจิกายน": 11, "ธันวาคม": 12
+          };
+          const mClean = parts[1].replace(/\./g, "").trim();
+          docMonth = thaiShortMonthMap[mClean] || null;
+
+          let year = parseInt(parts[2], 10);
+          if (!isNaN(year)) {
+            if (year < 100) year = year + 2500;
+            else if (year < 2400) year = year + 543;
+            docYearBE = year;
+          }
+        }
+
+        if (options.yearFilter && docYearBE && docYearBE !== options.yearFilter) {
+          include = false;
+        }
+        if (options.monthFilter && options.monthFilter > 0 && docMonth && docMonth !== options.monthFilter) {
+          include = false;
+        }
+
+        if (include) {
+          allParsedDocs.push(doc);
+        }
+      }
     }
   }
 

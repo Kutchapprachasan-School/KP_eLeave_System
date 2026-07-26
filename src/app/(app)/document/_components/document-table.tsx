@@ -146,17 +146,17 @@ export default function DocumentTable({
     <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl p-5 md:p-6 shadow-xs space-y-4">
       {/* Table Title and Toolbar */}
       <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3 flex-wrap gap-2">
-        <h3 className="text-sm font-bold text-slate-800 dark:text-white flex items-center gap-2">
-          <FolderOpen className="w-4 h-4 text-indigo-600" />
+        <h3 className="text-base font-bold text-slate-800 dark:text-white flex items-center gap-2">
+          <FolderOpen className="w-4.5 h-4.5 text-indigo-600" />
           ประวัติและทะเบียน{activeTab === "outbound" ? "ออกเลข" : "รับหนังสือ"}
         </h3>
         
         <button
           type="button"
           onClick={onRefresh}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-xs font-semibold text-slate-600 dark:text-slate-400 transition"
+          className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-sm font-semibold text-slate-600 dark:text-slate-400 transition"
         >
-          <RefreshCw className="w-3.5 h-3.5" />
+          <RefreshCw className="w-4 h-4" />
           รีเฟรช
         </button>
       </div>
@@ -170,14 +170,14 @@ export default function DocumentTable({
             placeholder={activeTab === "outbound" ? "ค้นหาเลขเดิม/เรื่อง/ผู้ขอ..." : "ค้นหาเลขรับ/อ้างอิง/เรื่อง/ผู้ส่ง..."}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full h-10 pl-10 pr-4 rounded-xl border border-slate-200 dark:border-slate-750 bg-slate-50/50 dark:bg-slate-950/50 text-xs focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white dark:focus:bg-slate-900 transition-all outline-none"
+            className="w-full h-10 pl-10 pr-4 rounded-xl border border-slate-200 dark:border-slate-750 bg-slate-50/50 dark:bg-slate-950/50 text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white dark:focus:bg-slate-900 transition-all outline-none"
           />
         </div>
 
         <select
           value={selectedDocType}
           onChange={(e) => setSelectedDocType(e.target.value)}
-          className="h-10 px-3.5 rounded-xl border border-slate-200 dark:border-slate-750 bg-slate-50/50 dark:bg-slate-950/50 text-xs cursor-pointer focus:ring-2 focus:ring-indigo-500/20 outline-none"
+          className="h-10 px-3.5 rounded-xl border border-slate-200 dark:border-slate-750 bg-slate-50/50 dark:bg-slate-950/50 text-sm cursor-pointer focus:ring-2 focus:ring-indigo-500/20 outline-none"
         >
           <option value="">ประเภททั้งหมด</option>
           {activeTab === "outbound" ? (
@@ -205,7 +205,7 @@ export default function DocumentTable({
         <select
           value={selectedTimeRange}
           onChange={(e) => setSelectedTimeRange(e.target.value)}
-          className="h-10 px-3.5 rounded-xl border border-slate-200 dark:border-slate-750 bg-slate-50/50 dark:bg-slate-950/50 text-xs cursor-pointer focus:ring-2 focus:ring-indigo-500/20 outline-none font-medium"
+          className="h-10 px-3.5 rounded-xl border border-slate-200 dark:border-slate-750 bg-slate-50/50 dark:bg-slate-950/50 text-sm cursor-pointer focus:ring-2 focus:ring-indigo-500/20 outline-none font-medium"
         >
           <option value="">ช่วงเวลาทั้งหมด</option>
           <option value="this_week">สัปดาห์นี้</option>
@@ -216,7 +216,7 @@ export default function DocumentTable({
         <select
           value={selectedYear}
           onChange={(e) => setSelectedYear(e.target.value)}
-          className="h-10 px-3.5 rounded-xl border border-slate-200 dark:border-slate-750 bg-slate-50/50 dark:bg-slate-950/50 text-xs cursor-pointer focus:ring-2 focus:ring-indigo-500/20 outline-none font-medium"
+          className="h-10 px-3.5 rounded-xl border border-slate-200 dark:border-slate-750 bg-slate-50/50 dark:bg-slate-950/50 text-sm cursor-pointer focus:ring-2 focus:ring-indigo-500/20 outline-none font-medium"
         >
           <option value="">ปี พ.ศ. ทั้งหมด</option>
           <option value="2569">2569</option>
@@ -227,9 +227,9 @@ export default function DocumentTable({
         {(searchQuery || selectedDocType || selectedYear || selectedTimeRange || selectedStatus) && (
           <button
             onClick={clearFilters}
-            className="flex items-center gap-1 px-3 h-10 rounded-xl text-xs font-semibold text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/20 transition-colors cursor-pointer"
+            className="flex items-center gap-1 px-3 h-10 rounded-xl text-sm font-semibold text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/20 transition-colors cursor-pointer"
           >
-            <X className="w-3.5 h-3.5" />
+            <X className="w-4 h-4" />
             ล้างตัวกรอง
           </button>
         )}
@@ -237,7 +237,7 @@ export default function DocumentTable({
 
       {/* Data Table */}
       <div className="overflow-x-auto border border-slate-200/80 dark:border-slate-800 rounded-2xl">
-        <table className="w-full text-xs text-left">
+        <table className="w-full text-sm text-left">
           <thead className="bg-slate-50/80 dark:bg-slate-950/50 text-slate-600 dark:text-slate-400 font-bold border-b border-slate-100 dark:border-slate-800">
             {activeTab === "outbound" ? (
               <tr>

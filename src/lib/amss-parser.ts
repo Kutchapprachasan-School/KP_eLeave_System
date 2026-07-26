@@ -419,13 +419,19 @@ export async function loginToAMSS(baseUrl: string, username: string, passwordSec
     // Determine login post URL relative to base path
     const postUrl = `${basePath}index.php`;
     
-    // Build payload using 'pass', 'user_os', and 'login_submit'
+    // Build payload using all common AMSS++ form field names (username, user_name, pass, user_pwd, etc.)
     const payload = new URLSearchParams({
       ...hiddenInputs,
       username: username,
+      user_name: username,
+      user: username,
       pass: passwordSecret,
+      user_pwd: passwordSecret,
+      password: passwordSecret,
+      pwd: passwordSecret,
       user_os: "desktop",
       login_submit: "Login",
+      submit: "Login",
     });
     
     const postController = new AbortController();

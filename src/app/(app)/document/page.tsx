@@ -499,7 +499,7 @@ function DocumentPageContent() {
             <GuardedAction requiredPermission="sarabun:settings:edit">
               <Link
                 href="/settings?tab=document-settings"
-                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 text-xs font-bold border border-indigo-200/60 dark:border-indigo-800/60 transition cursor-pointer shadow-sm"
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 text-sm font-bold border border-indigo-200/60 dark:border-indigo-800/60 transition cursor-pointer shadow-sm"
               >
                 ⚙️ ตั้งค่าระบบเอกสารรับ-ส่ง
               </Link>
@@ -517,13 +517,13 @@ function DocumentPageContent() {
       />
 
       {/* ── Sub Navigation Tabs ── */}
-      <div className="flex border border-slate-200/80 dark:border-slate-800 bg-slate-100/70 dark:bg-slate-950/60 p-1 rounded-xl gap-1 shadow-xs max-w-3xl overflow-x-auto">
+      <div className="flex border border-slate-200/80 dark:border-slate-800 bg-slate-100/70 dark:bg-slate-950/60 p-1.5 rounded-xl gap-1.5 shadow-xs max-w-3xl overflow-x-auto">
         <button
           onClick={() => {
             setView("issue");
             setActiveTab("outbound");
           }}
-          className={`px-3.5 py-1.5 text-center rounded-lg text-xs transition-all cursor-pointer whitespace-nowrap ${
+          className={`px-4 py-2 text-center rounded-lg text-sm transition-all cursor-pointer whitespace-nowrap ${
             view === "issue"
               ? "bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-xs font-bold"
               : "text-slate-600 dark:text-slate-400 font-medium hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-200/50 dark:hover:bg-slate-800/50"
@@ -539,7 +539,7 @@ function DocumentPageContent() {
             setSelectedStatus("");
             setSelectedDocType("");
           }}
-          className={`px-3.5 py-1.5 text-center rounded-lg text-xs transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+          className={`px-4 py-2 text-center rounded-lg text-sm transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
             view === "inbound"
               ? "bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-xs font-bold"
               : "text-slate-600 dark:text-slate-400 font-medium hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-200/50 dark:hover:bg-slate-800/50"
@@ -548,7 +548,7 @@ function DocumentPageContent() {
           <span>📥</span>
           หนังสือรับ (AMSS++)
           {filteredInboundDocs.length > 0 && (
-            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+            <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
               view === "inbound" ? "bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300" : "bg-slate-200/80 dark:bg-slate-800 text-slate-600 dark:text-slate-400"
             }`}>
               {filteredInboundDocs.length}
@@ -560,7 +560,7 @@ function DocumentPageContent() {
           onClick={() => {
             setView("cert");
           }}
-          className={`px-3.5 py-1.5 text-center rounded-lg text-xs transition-all cursor-pointer whitespace-nowrap ${
+          className={`px-4 py-2 text-center rounded-lg text-sm transition-all cursor-pointer whitespace-nowrap ${
             view === "cert"
               ? "bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-xs font-bold"
               : "text-slate-600 dark:text-slate-400 font-medium hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-200/50 dark:hover:bg-slate-800/50"
@@ -577,10 +577,10 @@ function DocumentPageContent() {
         /* ───────────────── REQUEST DOCUMENT NUMBER VIEW ───────────────── */
         <div className="space-y-6 animate-in fade-in duration-200">
           <div className="border-b border-slate-100 dark:border-slate-800/80 pb-3">
-            <h2 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+            <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
               <span>📝</span> ขอเลขทะเบียนเอกสารใหม่
             </h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
               กรอกข้อมูลเพื่อขอออกเลขทะเบียนหนังสือส่ง บันทึกข้อความ หรือคำสั่งโรงเรียน
             </p>
           </div>
