@@ -41,7 +41,6 @@ import CertGenerator from "./_components/cert-generator";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatCard } from "@/components/ui/stat-card";
 import { TableSkeleton } from "@/components/ui/skeletons";
-import DocumentSettingsModal from "./_components/document-settings-modal";
 
 // Import atomic components
 import DocumentStats from "./_components/document-stats";
@@ -192,7 +191,6 @@ function DocumentPageContent() {
 
   // AMSS Sync & Doc Settings states
   const [showAmssCredentialsModal, setShowAmssCredentialsModal] = useState(false);
-  const [showDocSettingsModal, setShowDocSettingsModal] = useState(false);
   const [amssSyncing, setAmssSyncing] = useState(false);
   const [amssCredsExist, setAmssCredsExist] = useState<boolean | null>(null); // null = checking
   const [lastSyncAt, setLastSyncAt] = useState<Date | null>(null);
@@ -499,12 +497,12 @@ function DocumentPageContent() {
         action={
           <div className="flex items-center gap-2">
             <GuardedAction requiredPermission="sarabun:settings:edit">
-              <button
-                onClick={() => setShowDocSettingsModal(true)}
+              <Link
+                href="/settings?tab=document-settings"
                 className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 text-xs font-bold border border-indigo-200/60 dark:border-indigo-800/60 transition cursor-pointer shadow-sm"
               >
-                ⚙️ ตั้งค่าขอเลข & บันทึกข้อความ
-              </button>
+                ⚙️ ตั้งค่าระบบเอกสารรับ-ส่ง
+              </Link>
             </GuardedAction>
 
             <Link
@@ -931,14 +929,6 @@ function DocumentPageContent() {
           </div>
         )}
       </AnimatePresence>
-
-      {/* Document Settings & Starting Number Modal */}
-      <DocumentSettingsModal
-        isOpen={showDocSettingsModal}
-        onClose={() => setShowDocSettingsModal(false)}
-        onSuccess={loadData}
-        showToast={showToast}
-      />
     </motion.div>
   );
 }

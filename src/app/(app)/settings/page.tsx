@@ -8521,6 +8521,7 @@ function DocPatternBuilderTab({
   const [localPadding, setLocalPadding] = useState(1);
   const [localUseThai, setLocalUseThai] = useState(true);
   const [localYearFormat, setLocalYearFormat] = useState("TH_BE");
+  const [localNextSeq, setLocalNextSeq] = useState<number>(1);
   const [saving, setSaving] = useState(false);
 
   const startEdit = (c: DocConfig) => {
@@ -8529,6 +8530,7 @@ function DocPatternBuilderTab({
     setLocalPadding(c.paddingDigits);
     setLocalUseThai(c.useThaiNumerals);
     setLocalYearFormat(c.yearFormat);
+    setLocalNextSeq((c.currentSeq || 0) + 1);
   };
 
   const cancelEdit = () => setEditingConfig(null);
@@ -8542,7 +8544,8 @@ function DocPatternBuilderTab({
         localPrefix,
         localUseThai,
         localPadding,
-        localYearFormat
+        localYearFormat,
+        localNextSeq
       );
       showToast("บันทึกรูปแบบเลขสำเร็จ", "success");
       cancelEdit();
@@ -8686,7 +8689,7 @@ function DocPatternBuilderTab({
 
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <label className="text-xs font-semibold text-slate-555 text-slate-500 dark:text-slate-400 mb-1 block">
+                        <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1 block">
                           หลักเลข (Padding)
                         </label>
                         <select
@@ -8704,7 +8707,7 @@ function DocPatternBuilderTab({
                         </select>
                       </div>
                       <div>
-                        <label className="text-xs font-semibold text-slate-555 text-slate-500 dark:text-slate-400 mb-1 block">
+                        <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1 block">
                           รูปแบบปี
                         </label>
                         <select
@@ -8716,6 +8719,25 @@ function DocPatternBuilderTab({
                           <option value="AD">ค.ศ. (2026)</option>
                         </select>
                       </div>
+                    </div>
+
+                    <div>
+                      <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1 block flex items-center justify-between">
+                        <span>เลขรันถัดไปที่จะออก (Next Sequence)</span>
+                        <span className="text-[11px] text-purple-600 dark:text-purple-400 font-mono">
+                          (ปัจจุบันรันถึง: {c.currentSeq || 0})
+                        </span>
+                      </label>
+                      <input
+                        type="number"
+                        min={1}
+                        value={localNextSeq}
+                        onChange={(e) => setLocalNextSeq(Math.max(1, parseInt(e.target.value) || 1))}
+                        className="w-full h-11 px-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-sm font-mono font-bold text-indigo-600 dark:text-indigo-400 focus:ring-2 focus:ring-purple-500/30 focus:border-purple-400 transition-all"
+                      />
+                      <p className="text-[11px] text-slate-400 mt-1">
+                        กำหนดเลขถัดไปที่ต้องการให้ออกเลขสำหรับประเภทนี้ (เช่น กำหนดให้เริ่มที่ 101)
+                      </p>
                     </div>
 
                     <div className="flex items-center gap-3">
