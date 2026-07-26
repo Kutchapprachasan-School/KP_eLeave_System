@@ -141,44 +141,7 @@ export default function OutboundForm({
   };
 
   return (
-    <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 md:p-6 shadow-xs relative space-y-4">
-      {/* Newly Issued Document Celebratory Green Card */}
-      {lastIssuedDoc && (
-        <div className="bg-emerald-50 dark:bg-emerald-950/70 border-2 border-emerald-500/60 dark:border-emerald-600/60 rounded-2xl p-4 space-y-2 text-center shadow-md animate-in zoom-in-95 duration-200">
-          <div className="flex items-center justify-center gap-1.5 text-xs font-black text-emerald-700 dark:text-emerald-300">
-            <span className="text-base">🎉</span>
-            ออกเลขหนังสือของคุณสำเร็จเรียบร้อย!
-          </div>
-          <div className="text-2xl sm:text-3xl font-black font-mono text-emerald-600 dark:text-emerald-400">
-            ที่ {lastIssuedDoc.docNo}
-          </div>
-          <div className="text-xs font-bold text-slate-800 dark:text-slate-100 line-clamp-1">
-            เรื่อง: {lastIssuedDoc.title}
-          </div>
-          <div className="text-[11px] text-slate-600 dark:text-slate-400 flex items-center justify-center gap-3">
-            <span>ถึง: {lastIssuedDoc.to}</span>
-            <span>•</span>
-            <span>วันที่: {new Date(lastIssuedDoc.date).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" })}</span>
-          </div>
-          <div className="pt-1 flex items-center justify-center gap-2">
-            <button
-              type="button"
-              onClick={() => navigator.clipboard.writeText(`ที่ ${lastIssuedDoc.docNo}`)}
-              className="px-3.5 py-1.5 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 text-xs font-bold transition flex items-center gap-1.5 shadow-xs cursor-pointer active:scale-95"
-            >
-              📋 คัดลอกเลขหนังสือ
-            </button>
-            <button
-              type="button"
-              onClick={() => setLastIssuedDoc(null)}
-              className="px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 text-xs font-semibold transition cursor-pointer"
-            >
-              ออกเลขฉบับต่อไป
-            </button>
-          </div>
-        </div>
-      )}
-
+    <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 md:p-6 shadow-xs relative">
       <div className="lg:grid lg:grid-cols-12 lg:gap-8 space-y-6 lg:space-y-0 items-start">
         {/* Left Column (5 cols on lg): The Input Form (+ ออกเลขหนังสือใหม่) */}
         <form onSubmit={handleSubmit} className="lg:col-span-5 space-y-4">
@@ -350,20 +313,56 @@ export default function OutboundForm({
             </div>
           </div>
 
-          {/* Reference Info Card (แสดงเลขล่าสุดที่เคยถูกขอในหมวดนี้ เพื่อใช้อ้างอิง) */}
-          <div className="bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200/70 dark:border-amber-800/50 rounded-xl p-3.5 space-y-1 text-center shadow-2xs">
-            <span className="text-[11px] font-bold text-amber-800 dark:text-amber-300 flex items-center justify-center gap-1">
-              📌 เลขล่าสุดที่ถูกขอในหมวดนี้ (อ้างอิง)
-            </span>
-            <div className="text-lg sm:text-xl font-black font-mono text-amber-900 dark:text-amber-200">
-              {latestCategoryDoc ? `ที่ ${latestCategoryDoc.docNo}` : "ยังไม่มีประวัติในหมวดนี้"}
+          {/* Card Slot: Show Green Success Card if lastIssuedDoc exists, otherwise show Amber Reference Card */}
+          {lastIssuedDoc ? (
+            <div className="bg-emerald-50 dark:bg-emerald-950/70 border-2 border-emerald-500/60 dark:border-emerald-600/60 rounded-xl p-3.5 space-y-2 text-center shadow-md animate-in zoom-in-95 duration-200">
+              <div className="flex items-center justify-center gap-1.5 text-xs font-black text-emerald-700 dark:text-emerald-300">
+                <span className="text-base">🎉</span>
+                ออกเลขหนังสือของคุณสำเร็จเรียบร้อย!
+              </div>
+              <div className="text-xl sm:text-2xl font-black font-mono text-emerald-600 dark:text-emerald-400">
+                ที่ {lastIssuedDoc.docNo}
+              </div>
+              <div className="text-xs font-bold text-slate-800 dark:text-slate-100 line-clamp-1">
+                เรื่อง: {lastIssuedDoc.title}
+              </div>
+              <div className="text-[11px] text-slate-600 dark:text-slate-400 flex items-center justify-center gap-2">
+                <span>ถึง: {lastIssuedDoc.to}</span>
+                <span>•</span>
+                <span>วันที่: {new Date(lastIssuedDoc.date).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" })}</span>
+              </div>
+              <div className="pt-1 flex items-center justify-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => navigator.clipboard.writeText(`ที่ ${lastIssuedDoc.docNo}`)}
+                  className="px-3.5 py-1.5 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 text-xs font-bold transition flex items-center gap-1.5 shadow-xs cursor-pointer active:scale-95"
+                >
+                  📋 คัดลอกเลขหนังสือ
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLastIssuedDoc(null)}
+                  className="px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 text-xs font-semibold transition cursor-pointer"
+                >
+                  ออกเลขฉบับต่อไป
+                </button>
+              </div>
             </div>
-            {latestDocDateStr && (
-              <span className="text-[11px] font-semibold text-amber-700/90 dark:text-amber-400/90 block pt-0.5">
-                📅 ออกเมื่อวันที่: {latestDocDateStr}
+          ) : (
+            <div className="bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200/70 dark:border-amber-800/50 rounded-xl p-3.5 space-y-1 text-center shadow-2xs">
+              <span className="text-[11px] font-bold text-amber-800 dark:text-amber-300 flex items-center justify-center gap-1">
+                📌 เลขล่าสุดที่ถูกขอในหมวดนี้ (อ้างอิง)
               </span>
-            )}
-          </div>
+              <div className="text-lg sm:text-xl font-black font-mono text-amber-900 dark:text-amber-200">
+                {latestCategoryDoc ? `ที่ ${latestCategoryDoc.docNo}` : "ยังไม่มีประวัติในหมวดนี้"}
+              </div>
+              {latestDocDateStr && (
+                <span className="text-[11px] font-semibold text-amber-700/90 dark:text-amber-400/90 block pt-0.5">
+                  📅 ออกเมื่อวันที่: {latestDocDateStr}
+                </span>
+              )}
+            </div>
+          )}
 
           {/* Anti-backdating Warning */}
           {isBackdatedError && (
