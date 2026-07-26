@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
-import { Search, RefreshCw, X, FolderOpen, Eye, Ban, ShieldAlert, AlertTriangle, Link2, Copy } from "lucide-react";
+import { Search, RefreshCw, X, FolderOpen, Eye, Ban, ShieldAlert, AlertTriangle, Link2, Copy, ChevronLeft, ChevronRight } from "lucide-react";
 
 type MemoSection = { id: string; name: string; code: string; color?: string };
 
@@ -39,8 +39,14 @@ export default function DocumentTable({
   selectedStatus,
   setSelectedStatus,
 }: DocumentTableProps) {
-  const [showAllRows, setShowAllRows] = useState(false);
   const [selectedTimeRange, setSelectedTimeRange] = useState<string>("");
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(10);
+
+  // Reset pagination when active tab or filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeTab, searchQuery, selectedDocType, selectedYear, selectedTimeRange, selectedStatus]);
 
   // Filters logic
   const filteredData = useMemo(() => {
@@ -120,11 +126,13 @@ export default function DocumentTable({
     }
   }, [activeTab, outboundDocs, inboundDocs, searchQuery, selectedDocType, selectedYear, selectedTimeRange, selectedStatus]);
 
-  // Paginated/shown rows
-  const visibleRows = useMemo(() => {
-    if (showAllRows) return filteredData;
-    return filteredData.slice(0, 10);
-  }, [filteredData, showAllRows]);
+  // Paginated rows
+  const totalPages = Math.max(1, Math.ceil(filteredData.length / pageSize));
+  
+  const paginatedRows = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredData.slice(start, start + pageSize);
+  }, [filteredData, currentPage, pageSize]);
 
   const clearFilters = () => {
     setSearchQuery("");
@@ -135,10 +143,10 @@ export default function DocumentTable({
   };
 
   return (
-    <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl p-5 md:p-6 shadow-sm space-y-4">
+    <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl p-5 md:p-6 shadow-xs space-y-4">
       {/* Table Title and Toolbar */}
-      <div className="flex justify-between items-center border-b border-slate-50 dark:border-slate-800 pb-3 flex-wrap gap-2">
-        <h3 className="text-sm font-extrabold text-slate-850 dark:text-white flex items-center gap-2">
+      <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3 flex-wrap gap-2">
+        <h3 className="text-sm font-bold text-slate-800 dark:text-white flex items-center gap-2">
           <FolderOpen className="w-4 h-4 text-indigo-600" />
           ประวัติและทะเบียน{activeTab === "outbound" ? "ออกเลข" : "รับหนังสือ"}
         </h3>
@@ -156,20 +164,20 @@ export default function DocumentTable({
       {/* Toolbar filters */}
       <div className="flex flex-wrap gap-3 items-center">
         <div className="relative flex-1 min-w-[200px]">
-          <Search className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-400" />
+          <Search className="absolute left-3.5 top-3 w-4 h-4 text-slate-400" />
           <input
             type="text"
             placeholder={activeTab === "outbound" ? "ค้นหาเลขเดิม/เรื่อง/ผู้ขอ..." : "ค้นหาเลขรับ/อ้างอิง/เรื่อง/ผู้ส่ง..."}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full h-10 pl-10 pr-4 rounded-xl border border-slate-200 dark:border-slate-750 bg-slate-50 dark:bg-slate-950 text-xs focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none"
+            className="w-full h-10 pl-10 pr-4 rounded-xl border border-slate-200 dark:border-slate-750 bg-slate-50/50 dark:bg-slate-950/50 text-xs focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white dark:focus:bg-slate-900 transition-all outline-none"
           />
         </div>
 
         <select
           value={selectedDocType}
           onChange={(e) => setSelectedDocType(e.target.value)}
-          className="h-10 px-3.5 rounded-xl border border-slate-200 dark:border-slate-750 bg-slate-50 dark:bg-slate-950 text-xs cursor-pointer focus:ring-2 focus:ring-indigo-500/20 outline-none"
+          className="h-10 px-3.5 rounded-xl border border-slate-200 dark:border-slate-750 bg-slate-50/50 dark:bg-slate-950/50 text-xs cursor-pointer focus:ring-2 focus:ring-indigo-500/20 outline-none"
         >
           <option value="">ประเภททั้งหมด</option>
           {activeTab === "outbound" ? (
@@ -197,29 +205,29 @@ export default function DocumentTable({
         <select
           value={selectedTimeRange}
           onChange={(e) => setSelectedTimeRange(e.target.value)}
-          className="h-10 px-3.5 rounded-xl border border-slate-200 dark:border-slate-750 bg-slate-50 dark:bg-slate-950 text-xs cursor-pointer focus:ring-2 focus:ring-indigo-500/20 outline-none font-medium"
+          className="h-10 px-3.5 rounded-xl border border-slate-200 dark:border-slate-750 bg-slate-50/50 dark:bg-slate-950/50 text-xs cursor-pointer focus:ring-2 focus:ring-indigo-500/20 outline-none font-medium"
         >
-          <option value="">ทุกช่วงเวลา</option>
-          <option value="this_week">📅 สัปดาห์นี้</option>
-          <option value="this_month">📅 เดือนนี้</option>
-          <option value="this_year">📅 ปีนี้ (2569)</option>
+          <option value="">ช่วงเวลาทั้งหมด</option>
+          <option value="this_week">สัปดาห์นี้</option>
+          <option value="this_month">เดือนนี้</option>
+          <option value="this_year">ปีนี้</option>
         </select>
 
         <select
           value={selectedYear}
           onChange={(e) => setSelectedYear(e.target.value)}
-          className="h-10 px-3.5 rounded-xl border border-slate-200 dark:border-slate-750 bg-slate-50 dark:bg-slate-950 text-xs cursor-pointer focus:ring-2 focus:ring-indigo-500/20 outline-none"
+          className="h-10 px-3.5 rounded-xl border border-slate-200 dark:border-slate-750 bg-slate-50/50 dark:bg-slate-950/50 text-xs cursor-pointer focus:ring-2 focus:ring-indigo-500/20 outline-none font-medium"
         >
-          <option value="">ทุกปีการศึกษา</option>
-          <option value="2569">ปีการศึกษา 2569</option>
-          <option value="2568">ปีการศึกษา 2568</option>
-          <option value="2567">ปีการศึกษา 2567</option>
+          <option value="">ปี พ.ศ. ทั้งหมด</option>
+          <option value="2569">2569</option>
+          <option value="2568">2568</option>
+          <option value="2567">2567</option>
         </select>
 
         {(searchQuery || selectedDocType || selectedYear || selectedTimeRange || selectedStatus) && (
           <button
             onClick={clearFilters}
-            className="flex items-center gap-1 px-3 h-10 rounded-xl text-xs font-bold text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/20 transition-colors cursor-pointer"
+            className="flex items-center gap-1 px-3 h-10 rounded-xl text-xs font-semibold text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/20 transition-colors cursor-pointer"
           >
             <X className="w-3.5 h-3.5" />
             ล้างตัวกรอง
@@ -228,9 +236,9 @@ export default function DocumentTable({
       </div>
 
       {/* Data Table */}
-      <div className="overflow-x-auto border border-slate-100 dark:border-slate-800 rounded-2xl">
+      <div className="overflow-x-auto border border-slate-200/80 dark:border-slate-800 rounded-2xl">
         <table className="w-full text-xs text-left">
-          <thead className="bg-slate-50/80 dark:bg-slate-950/50 text-slate-500 dark:text-slate-400 font-bold border-b border-slate-100 dark:border-slate-800">
+          <thead className="bg-slate-50/80 dark:bg-slate-950/50 text-slate-600 dark:text-slate-400 font-bold border-b border-slate-100 dark:border-slate-800">
             {activeTab === "outbound" ? (
               <tr>
                 <th className="py-3.5 px-4 font-semibold">เลขที่</th>
@@ -251,95 +259,48 @@ export default function DocumentTable({
               </tr>
             )}
           </thead>
-          <tbody className="divide-y divide-slate-50 dark:divide-slate-800/50">
-            {visibleRows.length === 0 ? (
+          <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
+            {paginatedRows.length === 0 ? (
               <tr>
-                <td colSpan={6} className="text-center py-12 text-slate-450 dark:text-slate-500 font-semibold">
+                <td colSpan={6} className="text-center py-12 text-slate-400 dark:text-slate-500 font-medium">
                   <FolderOpen className="w-10 h-10 mx-auto mb-2 opacity-30 text-slate-400" />
                   ไม่พบรายการเอกสารในหน้านี้
                 </td>
               </tr>
             ) : (
-              visibleRows.map((d) => {
+              paginatedRows.map((d) => {
                 if (activeTab === "outbound") {
                   return (
-                    <tr
-                      key={d.id}
-                      className="hover:bg-slate-50 dark:hover:bg-slate-950/20 transition-colors"
-                    >
-                      <td className="py-3 px-4 font-bold font-mono text-indigo-600 dark:text-indigo-400">
-                        {d.docNo ? (
-                          <Link href={`/document/${d.id}`} className="hover:underline">
-                            {d.docNo}
-                          </Link>
-                        ) : (
-                          <span className="text-slate-400 italic">DRAFT</span>
-                        )}
+                    <tr key={d.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition">
+                      <td className="py-3 px-4 font-mono font-bold text-indigo-600 dark:text-indigo-400">
+                        {d.docNo}
                       </td>
-                      <td className="py-3 px-4">
-                        {d.docType === "MEMO" ? (
-                          <span
-                            className="px-2 py-0.5 rounded text-[10px] font-bold border"
-                            style={d.memoSection?.color ? {
-                              backgroundColor: `${d.memoSection.color}15`,
-                              color: d.memoSection.color,
-                              borderColor: `${d.memoSection.color}30`,
-                            } : {
-                              backgroundColor: 'rgb(239 246 255)',
-                              color: 'rgb(37 99 235)',
-                              borderColor: 'rgb(219 234 254)',
-                            }}
-                          >
-                            บันทึกข้อความ {d.memoSection ? `(${d.memoSection.code})` : ""}
-                          </span>
-                        ) : d.docType === "COMMAND" ? (
-                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-50 text-purple-600 border border-purple-100 dark:bg-purple-950/20 dark:text-purple-400 dark:border-transparent">
-                            คำสั่ง
-                          </span>
-                        ) : d.docType === "ANNOUNCEMENT" ? (
-                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-600 border border-rose-100 dark:bg-rose-950/20 dark:text-rose-400 dark:border-transparent">
-                            ประกาศ
-                          </span>
-                        ) : d.docType.startsWith("OUTGOING") || d.docType === "OUTGOING" ? (
-                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-600 border border-amber-100 dark:bg-amber-950/20 dark:text-amber-400 dark:border-transparent">
-                            {d.docType === "OUTGOING_CIRCULAR" ? "หนังสือส่ง (จดหมายเวียน)" : "หนังสือส่ง (ปกติ)"}
-                          </span>
-                        ) : (
-                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-transparent">
-                            {d.docType}
-                          </span>
-                        )}
+                      <td className="py-3 px-4 text-slate-600 dark:text-slate-400 font-medium">
+                        {d.docType === "MEMO" ? (d.memoSection?.name || "บันทึกข้อความ") : d.docType}
                       </td>
-                      <td className="py-3 px-4 font-bold text-slate-800 dark:text-slate-200 max-w-xs truncate" title={d.title}>
+                      <td className="py-3 px-4 font-semibold text-slate-800 dark:text-slate-200 max-w-xs truncate" title={d.title}>
                         {d.title}
                       </td>
-                      <td className="py-3 px-4 text-slate-650 dark:text-slate-400">
-                        {d.requester || "-"}
+                      <td className="py-3 px-4 text-slate-600 dark:text-slate-400">
+                        {d.requester || d.origin || "-"}
                       </td>
-                      <td className="py-3 px-4 text-slate-500">
-                        {new Date(d.date).toLocaleDateString("th-TH", {
+                      <td className="py-3 px-4 text-slate-500 font-medium">
+                        {d.date ? new Date(d.date).toLocaleDateString("th-TH", {
                           year: "numeric",
                           month: "short",
                           day: "numeric",
-                        })}
+                        }) : "-"}
                       </td>
                       <td className="py-3 px-4 text-right">
                         <div className="flex gap-1.5 justify-end">
-                          <Link
-                            href={`/document/${d.id}`}
-                            className="w-7 h-7 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition flex items-center justify-center"
-                          >
-                            <Eye className="w-3.5 h-3.5" />
-                          </Link>
-                          
                           {d.status !== "CANCELLED" && (
                             <button
                               type="button"
                               onClick={() => onCancelDocClick(d.id)}
-                              className="w-7 h-7 rounded-lg border border-rose-200 dark:border-rose-900/40 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/20 transition flex items-center justify-center cursor-pointer"
-                              title="ยกเลิกเลข"
+                              className="px-2 py-1 rounded-lg border border-rose-200 dark:border-rose-900/60 bg-rose-50/50 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400 hover:bg-rose-100 transition text-[11px] font-semibold cursor-pointer"
+                              title="ยกเลิกเลขทะเบียนนี้"
                             >
-                              <Ban className="w-3.5 h-3.5" />
+                              ยกเลิกเลข
                             </button>
                           )}
                         </div>
@@ -348,25 +309,20 @@ export default function DocumentTable({
                   );
                 } else {
                   return (
-                    <tr
-                      key={d.id}
-                      className="hover:bg-slate-50 dark:hover:bg-slate-950/20 transition-colors"
-                    >
-                      <td className="py-3 px-4 font-bold font-mono text-indigo-600 dark:text-indigo-400">
-                        <Link href={`/document/incoming/${d.id}`} className="hover:underline">
-                          {d.receiveNo}
-                        </Link>
+                    <tr key={d.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition">
+                      <td className="py-3 px-4 font-mono font-bold text-slate-900 dark:text-white">
+                        {d.receiveNo}
                       </td>
                       <td className="py-3 px-4 text-slate-600 dark:text-slate-400 font-mono">
                         {d.docRefNo || <span className="text-slate-400 italic">ไม่มีเลข</span>}
                       </td>
-                      <td className="py-3 px-4 font-bold text-slate-800 dark:text-slate-200 max-w-xs truncate" title={d.title}>
+                      <td className="py-3 px-4 font-semibold text-slate-800 dark:text-slate-200 max-w-xs truncate" title={d.title}>
                         {d.title}
                       </td>
-                      <td className="py-3 px-4 text-slate-650 dark:text-slate-400">
+                      <td className="py-3 px-4 text-slate-600 dark:text-slate-400">
                         {d.senderOrg}
                       </td>
-                      <td className="py-3 px-4 text-slate-500">
+                      <td className="py-3 px-4 text-slate-500 font-medium">
                         {new Date(d.receiveDate).toLocaleDateString("th-TH", {
                           year: "numeric",
                           month: "short",
@@ -408,18 +364,55 @@ export default function DocumentTable({
         </table>
       </div>
 
-      {/* Pagination "แสดงทั้งหมด" */}
-      {filteredData.length > 10 && (
-        <div className="flex justify-center pt-2">
+      {/* Full Enterprise Pagination Controls */}
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-slate-100 dark:border-slate-800 text-xs">
+        <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 font-medium">
+          <span>แสดง</span>
+          <select
+            value={pageSize}
+            onChange={(e) => {
+              setPageSize(Number(e.target.value));
+              setCurrentPage(1);
+            }}
+            className="h-8 px-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-bold text-slate-800 dark:text-slate-200 outline-none cursor-pointer"
+          >
+            <option value={10}>10</option>
+            <option value={20}>20</option>
+            <option value={50}>50</option>
+            <option value={100}>100</option>
+          </select>
+          <span>รายการ/หน้า</span>
+          <span className="ml-2 text-slate-400 font-mono">
+            ({filteredData.length > 0 ? `${(currentPage - 1) * pageSize + 1} - ${Math.min(currentPage * pageSize, filteredData.length)} จาก ${filteredData.length}` : "0 จาก 0"} รายการ)
+          </span>
+        </div>
+
+        <div className="flex items-center gap-1.5">
           <button
             type="button"
-            onClick={() => setShowAllRows(!showAllRows)}
-            className="px-5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-750 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-350 hover:bg-slate-50 dark:hover:bg-slate-800 text-xs font-bold transition shadow-sm cursor-pointer"
+            disabled={currentPage === 1}
+            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+            className="h-8 px-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 font-bold disabled:opacity-40 disabled:pointer-events-none transition cursor-pointer flex items-center gap-1"
           >
-            {showAllRows ? "แสดงย่อ (10 รายการ)" : `แสดงผลทั้งหมด (${filteredData.length} รายการ)`}
+            <ChevronLeft className="w-3.5 h-3.5" />
+            ย้อนกลับ
+          </button>
+
+          <span className="px-3 text-slate-600 dark:text-slate-400 font-bold font-mono">
+            หน้า {currentPage} / {totalPages}
+          </span>
+
+          <button
+            type="button"
+            disabled={currentPage >= totalPages}
+            onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+            className="h-8 px-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 font-bold disabled:opacity-40 disabled:pointer-events-none transition cursor-pointer flex items-center gap-1"
+          >
+            ถัดไป
+            <ChevronRight className="w-3.5 h-3.5" />
           </button>
         </div>
-      )}
+      </div>
     </div>
   );
 }

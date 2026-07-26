@@ -531,7 +531,7 @@ function DocumentPageContent() {
               : "text-slate-600 dark:text-slate-400 font-medium hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-200/50 dark:hover:bg-slate-800/50"
           }`}
         >
-          📝 ขอเลขเอกสาร
+          📝 ขอเลขเอกสาร & ประวัติทะเบียน
         </button>
 
         <button
@@ -560,22 +560,6 @@ function DocumentPageContent() {
 
         <button
           onClick={() => {
-            setView("outbound_history");
-            setActiveTab("outbound");
-            setSelectedStatus("");
-            setSelectedDocType("");
-          }}
-          className={`px-3.5 py-1.5 text-center rounded-lg text-xs transition-all cursor-pointer whitespace-nowrap ${
-            view === "outbound_history"
-              ? "bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-xs font-bold"
-              : "text-slate-600 dark:text-slate-400 font-medium hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-200/50 dark:hover:bg-slate-800/50"
-          }`}
-        >
-          📋 ทะเบียนหนังสือส่ง/คำสั่ง
-        </button>
-
-        <button
-          onClick={() => {
             setView("cert");
           }}
           className={`px-3.5 py-1.5 text-center rounded-lg text-xs transition-all cursor-pointer whitespace-nowrap ${
@@ -594,24 +578,13 @@ function DocumentPageContent() {
       ) : view === "issue" ? (
         /* ───────────────── REQUEST DOCUMENT NUMBER VIEW ───────────────── */
         <div className="space-y-6 animate-in fade-in duration-200">
-          <div className="border-b border-slate-100 dark:border-slate-800/80 pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div>
-              <h2 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                <span>📝</span> ขอเลขทะเบียนเอกสารใหม่
-              </h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                กรอกข้อมูลเพื่อขอออกเลขทะเบียนหนังสือส่ง บันทึกข้อความ หรือคำสั่งโรงเรียน
-              </p>
-            </div>
-            <button
-              onClick={() => {
-                setView("outbound_history");
-                setActiveTab("outbound");
-              }}
-              className="px-3.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 text-white text-xs font-semibold shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap self-start sm:self-auto"
-            >
-              <span>📋</span> ดูทะเบียนเอกสารทั้งหมด ({outboundDocs.length})
-            </button>
+          <div className="border-b border-slate-100 dark:border-slate-800/80 pb-3">
+            <h2 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              <span>📝</span> ขอเลขทะเบียนเอกสารใหม่
+            </h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+              กรอกข้อมูลเพื่อขอออกเลขทะเบียนหนังสือส่ง บันทึกข้อความ หรือคำสั่งโรงเรียน
+            </p>
           </div>
 
           <OutboundForm
@@ -730,38 +703,6 @@ function DocumentPageContent() {
           {/* Inbound Document History Table */}
           <DocumentTable
             activeTab="inbound"
-            outboundDocs={filteredOutboundDocs}
-            inboundDocs={filteredInboundDocs}
-            sections={sections}
-            onRefresh={loadData}
-            onCancelDocClick={(id) => {
-              setDocToCancel(id);
-              setShowCancelModal(true);
-            }}
-            searchQuery={searchQuery}
-            setSearchQuery={setSearchQuery}
-            selectedDocType={selectedDocType}
-            setSelectedDocType={setSelectedDocType}
-            selectedYear={selectedYearTable}
-            setSelectedYear={setSelectedYearTable}
-            selectedStatus={selectedStatus}
-            setSelectedStatus={setSelectedStatus}
-          />
-        </div>
-      ) : view === "outbound_history" ? (
-        /* ───────────────── OUTBOUND HISTORY VIEW (SEPARATE PAGE) ───────────────── */
-        <div className="space-y-6 animate-in fade-in duration-200">
-          <div className="border-b border-slate-100 dark:border-slate-800/80 pb-4">
-            <h2 className="text-base font-bold text-slate-900 dark:text-white">
-              ทะเบียนคุมหนังสือส่งและคำสั่งโรงเรียน
-            </h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-              ตรวจสอบประวัติการขอออกเลขทะเบียนส่ง บันทึกข้อความ และคำสั่งโรงเรียน
-            </p>
-          </div>
-
-          <DocumentTable
-            activeTab="outbound"
             outboundDocs={filteredOutboundDocs}
             inboundDocs={filteredInboundDocs}
             sections={sections}
