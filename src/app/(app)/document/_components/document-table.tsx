@@ -149,6 +149,32 @@ export default function DocumentTable({
     return filteredData.slice(start, start + pageSize);
   }, [filteredData, currentPage, pageSize]);
 
+  const getActiveDocTypeTitle = () => {
+    if (localTab !== "outbound") {
+      return `ทะเบียนรับหนังสือราชการ (${filteredData.length} รายการ)`;
+    }
+    if (!selectedDocType) {
+      return `ทะเบียนออกเลขหนังสือทั้งหมด (${filteredData.length} รายการ)`;
+    }
+    if (selectedDocType === "MEMO") {
+      return `ทะเบียนออกเลขบันทึกข้อความ (${filteredData.length} รายการ)`;
+    }
+    if (selectedDocType === "OUTGOING" || selectedDocType.startsWith("OUTGOING")) {
+      return `ทะเบียนออกเลขหนังสือส่ง (${filteredData.length} รายการ)`;
+    }
+    if (selectedDocType === "COMMAND") {
+      return `ทะเบียนออกเลขคำสั่ง (${filteredData.length} รายการ)`;
+    }
+    if (selectedDocType === "ANNOUNCEMENT") {
+      return `ทะเบียนออกเลขประกาศ (${filteredData.length} รายการ)`;
+    }
+    const sec = sections.find((s) => s.id === selectedDocType);
+    if (sec) {
+      return `ทะเบียนออกเลขบันทึกข้อความ - ${sec.name} (${filteredData.length} รายการ)`;
+    }
+    return `ทะเบียนออกเลขหนังสือ (${filteredData.length} รายการ)`;
+  };
+
   const clearFilters = () => {
     setSearchQuery("");
     setSelectedDocType("");
@@ -161,12 +187,10 @@ export default function DocumentTable({
     <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl p-5 md:p-6 shadow-xs space-y-4">
       {/* Table Title and Toolbar */}
       <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3 flex-wrap gap-2">
-        <div className="flex items-center gap-2">
-          <FolderOpen className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
-          <h3 className="text-sm font-bold text-slate-850 dark:text-white">
-            {localTab === "outbound"
-              ? `📋 ทะเบียนออกเลขส่ง (${outboundDocs.length} รายการ)`
-              : `📥 ทะเบียนรับหนังสือราชการ (${inboundDocs.length} รายการ)`}
+        <div className="flex items-center gap-2.5 bg-indigo-50/80 dark:bg-indigo-950/50 px-3.5 py-1.5 rounded-xl border border-indigo-100 dark:border-indigo-900/60">
+          <FolderOpen className="w-4.5 h-4.5 text-indigo-600 dark:text-indigo-400" />
+          <h3 className="text-sm font-extrabold text-indigo-950 dark:text-indigo-200">
+            {getActiveDocTypeTitle()}
           </h3>
         </div>
         
@@ -206,9 +230,8 @@ export default function DocumentTable({
           {activeTab === "outbound" ? (
             <>
               <option value="MEMO">บันทึกข้อความ</option>
+              <option value="OUTGOING">หนังสือส่ง</option>
               <option value="COMMAND">คำสั่ง</option>
-              <option value="OUTGOING_NORMAL">หนังสือส่ง (ปกติ)</option>
-              <option value="OUTGOING_CIRCULAR">หนังสือส่ง (จดหมายเวียน)</option>
               <option value="ANNOUNCEMENT">ประกาศ</option>
               {sections.map(s => (
                 <option key={s.id} value={s.id}>{s.name} ({s.code})</option>
