@@ -454,7 +454,7 @@ export async function getDashboardStats(
       "ผู้ตรวจสอบ",
       "แอดมิน"
     ];
-    const canViewOverview = user.role === "ADMIN" || allowedOverviewPositions.includes(user.position) || isFinalApprover;
+    const canViewOverview = user.role === "ADMIN" || user.isActualAdmin === true || allowedOverviewPositions.includes(user.position) || isFinalApprover;
 
     // We only show school overview if they are allowed AND they chose "school" mode
     const showSchoolOverview = canViewOverview && viewMode === "school";
