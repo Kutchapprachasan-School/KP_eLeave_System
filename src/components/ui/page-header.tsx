@@ -1,7 +1,8 @@
 "use client";
 
 import React from "react";
-import { LucideIcon } from "lucide-react";
+import { LucideIcon, ArrowLeft } from "lucide-react";
+import Link from "next/link";
 
 export interface PageHeaderProps {
   title: string;
@@ -9,6 +10,8 @@ export interface PageHeaderProps {
   badge?: string;
   icon?: LucideIcon;
   gradient?: string;
+  backUrl?: string;
+  onBack?: () => void;
   action?: React.ReactNode;
 }
 
@@ -16,6 +19,8 @@ export function PageHeader({
   title,
   description,
   badge,
+  backUrl,
+  onBack,
   action,
 }: PageHeaderProps) {
   return (
@@ -26,9 +31,29 @@ export function PageHeader({
             {badge}
           </span>
         )}
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
-          {title}
-        </h1>
+        <div className="flex items-center gap-2.5">
+          {backUrl && (
+            <Link
+              href={backUrl}
+              className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 flex items-center justify-center transition shrink-0"
+              title="ย้อนกลับ"
+            >
+              <ArrowLeft className="w-4 h-4 text-slate-700 dark:text-slate-200" />
+            </Link>
+          )}
+          {onBack && (
+            <button
+              onClick={onBack}
+              className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 flex items-center justify-center transition shrink-0 cursor-pointer"
+              title="ย้อนกลับ"
+            >
+              <ArrowLeft className="w-4 h-4 text-slate-700 dark:text-slate-200" />
+            </button>
+          )}
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
+            {title}
+          </h1>
+        </div>
         {description && (
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
             {description}
@@ -40,3 +65,4 @@ export function PageHeader({
     </div>
   );
 }
+

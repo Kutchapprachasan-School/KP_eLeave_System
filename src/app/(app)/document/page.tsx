@@ -2,7 +2,7 @@
 
 import { useState, useCallback, Suspense } from "react";
 import Link from "next/link";
-import { ClipboardList, ArrowLeft, RefreshCw } from "lucide-react";
+import { ClipboardList, RefreshCw } from "lucide-react";
 
 import { quickIssueDoc, cancelDoc } from "@/app/actions/document";
 import { useSession } from "@/lib/auth-client";
@@ -114,17 +114,6 @@ function DocumentPageContent() {
         description={currentHeader.description}
         icon={ClipboardList}
         gradient="from-orange-600 to-amber-600"
-        action={
-          <div className="flex items-center gap-2">
-            <Link
-              href="/dashboard"
-              className="w-9 h-9 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-center hover:bg-slate-50 dark:hover:bg-slate-800 transition shadow-xs"
-              title="กลับหน้าหลัก"
-            >
-              <ArrowLeft className="w-4 h-4 text-slate-700 dark:text-slate-300" />
-            </Link>
-          </div>
-        }
       />
 
       {/* Views */}
