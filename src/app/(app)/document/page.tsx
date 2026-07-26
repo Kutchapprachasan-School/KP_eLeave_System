@@ -613,7 +613,10 @@ function DocumentPageContent() {
               inboundDocs={inboundDocs}
               sections={sections}
               onRefresh={loadData}
-              onCancelDocClick={handleCancelDoc}
+              onCancelDocClick={(id) => {
+                setDocToCancel(id);
+                setShowCancelModal(true);
+              }}
               searchQuery={searchQuery}
               setSearchQuery={setSearchQuery}
               selectedDocType={selectedDocType}
