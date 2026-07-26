@@ -132,6 +132,14 @@ export default function OutboundForm({
 
   const latestCategoryDoc = selectedCategoryDocs[0];
 
+  const latestDocDateFormatted = latestCategoryDoc?.date
+    ? new Date(latestCategoryDoc.date).toLocaleDateString('th-TH', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric'
+      })
+    : null;
+
   return (
     <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 md:p-6 shadow-xs relative">
       <div className="lg:grid lg:grid-cols-12 lg:gap-8 space-y-6 lg:space-y-0 items-start">
@@ -366,32 +374,60 @@ export default function OutboundForm({
           </button>
         </form>
 
-        {/* Right Column (5 cols): Quick Status & 10 Recent Items Panel */}
+        {/* Right Column (5 cols): Prominent Category Status & 10 Recent Items Panel */}
         <div className="lg:col-span-5 bg-slate-50/60 dark:bg-slate-950/40 border border-slate-200/60 dark:border-slate-800/60 rounded-xl p-4 space-y-3.5">
-          {/* Status Banner */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-xl p-3.5 shadow-xs space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
-                <span>📌</span> สถานะหมวดหมู่:
-              </span>
-              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
-                {formData.docType === "MEMO" ? (selectedSection ? `${selectedSection.name}` : "บันทึกข้อความ") : (DOC_TYPE_NAMES[formData.docType] || formData.docType)}
-              </span>
-            </div>
+          {/* Hero Category Status Card (Top of Right Column) */}
+          <div className="bg-gradient-to-br from-indigo-900 via-slate-900 to-purple-950 text-white rounded-2xl p-4 shadow-lg border border-indigo-800/50 relative overflow-hidden space-y-3">
+            {/* Background Glow Effect */}
+            <div className="absolute -right-8 -top-8 w-28 h-28 bg-indigo-500/20 rounded-full blur-xl pointer-events-none" />
+            <div className="absolute -left-8 -bottom-8 w-28 h-28 bg-purple-500/20 rounded-full blur-xl pointer-events-none" />
 
-            <div className="pt-2 flex items-baseline justify-between border-t border-slate-100 dark:border-slate-800/80">
-              <div>
-                <span className="text-[10px] text-slate-400 block font-medium">เลขล่าสุดในระบบ</span>
-                <span className="text-sm font-bold text-slate-900 dark:text-white font-mono">
-                  {latestCategoryDoc ? latestCategoryDoc.docNo : "ยังไม่มีการออกเลข"}
+            <div className="relative z-10 space-y-2.5">
+              {/* Header Badge */}
+              <div className="flex items-center justify-between gap-2">
+                <span className="px-2.5 py-1 rounded-lg bg-indigo-500/20 text-indigo-200 text-xs font-bold border border-indigo-400/20 flex items-center gap-1.5 shrink-0">
+                  📌 สถานะหมวดหมู่
+                </span>
+                <span className="text-xs font-semibold text-slate-300 truncate">
+                  {formData.docType === "MEMO" ? (selectedSection ? selectedSection.name : "บันทึกข้อความ") : (DOC_TYPE_NAMES[formData.docType] || formData.docType)}
                 </span>
               </div>
-              <div className="text-right">
-                <span className="text-[10px] text-slate-400 block font-medium">ออกแล้วในปีนี้</span>
-                <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400 font-mono">
+
+              {/* Prominent Latest Number Display */}
+              <div className="bg-slate-900/90 backdrop-blur-md rounded-xl p-3.5 border border-indigo-500/30 text-center space-y-1">
+                <span className="text-[10px] text-indigo-300 font-bold uppercase tracking-wider block">
+                  🔥 เลขล่าสุดที่ถูกขอในหมวดนี้
+                </span>
+                <div className="text-2xl sm:text-3xl font-black font-mono tracking-tight text-white drop-shadow-md">
+                  {latestCategoryDoc ? latestCategoryDoc.docNo : "ยังไม่มีการออกเลข"}
+                </div>
+
+                {latestDocDateFormatted ? (
+                  <div className="flex items-center justify-center gap-1 text-xs text-amber-300 font-medium pt-1">
+                    <span>📅 ขอออกเมื่อวันที่:</span>
+                    <strong className="text-white bg-amber-500/20 px-2 py-0.5 rounded border border-amber-400/30 font-bold">
+                      {latestDocDateFormatted}
+                    </strong>
+                  </div>
+                ) : null}
+              </div>
+
+              {/* Summary Count & Backdate Warning */}
+              <div className="flex items-center justify-between text-[11px] text-slate-300 pt-0.5">
+                <span>ออกแล้วในปีนี้:</span>
+                <span className="font-mono font-bold text-indigo-300 bg-indigo-950/80 px-2 py-0.5 rounded border border-indigo-800/60">
                   {selectedCategoryDocs.length} ฉบับ
                 </span>
               </div>
+
+              {latestDocDateFormatted && (
+                <div className="bg-amber-950/50 border border-amber-500/30 rounded-xl p-2.5 flex items-start gap-2 text-[11px] text-amber-200 leading-relaxed">
+                  <span className="text-sm shrink-0">⚠️</span>
+                  <span>
+                    <strong>คำแนะนำออกเลข:</strong> ไม่ควรระบุวันที่ขอย้อนหลังเกินวันที่ <strong className="text-amber-300 underline decoration-amber-400">{latestDocDateFormatted}</strong> เพื่อป้องกันลำดับวันที่ซ้ำซ้อนในทะเบียนคุม
+                  </span>
+                </div>
+              )}
             </div>
           </div>
 
