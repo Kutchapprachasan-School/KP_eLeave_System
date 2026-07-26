@@ -602,53 +602,53 @@ function AppContent({ children }: { children: React.ReactNode }) {
 
   // Sub-items for Leave System (ระบบการลา)
   const leaveSubItems = [
-    { href: "/request", label: "📝 ขอลาออนไลน์", icon: FileText },
-    { href: "/history", label: "📜 ประวัติการลา", icon: History },
+    { href: "/request", label: "ขอลาออนไลน์", icon: FileText },
+    { href: "/history", label: "ประวัติการลา", icon: History },
   ];
   if (activePermissions.approvals?.includes(userRole)) {
-    leaveSubItems.push({ href: "/approvals", label: "✍️ พิจารณาอนุมัติลา", icon: CheckSquare });
+    leaveSubItems.push({ href: "/approvals", label: "พิจารณาอนุมัติลา", icon: CheckSquare });
   }
   if (activePermissions.reports?.includes(userRole)) {
-    leaveSubItems.push({ href: "/reports", label: "📊 รายงานและสถิติ", icon: FileSpreadsheet });
+    leaveSubItems.push({ href: "/reports", label: "รายงานและสถิติ", icon: FileSpreadsheet });
   }
   leaveSubItems.push({ href: "/manual", label: t("userManual"), icon: BookOpen });
 
   // Sub-items for Document System (ระบบสารบรรณ / เอกสาร - แยกออกเป็นคนละหน้า)
   const documentSubItems = showDocument
     ? [
-        { href: "/document?view=issue", label: "📝 ขอออกเลขหนังสือ (ส่ง/บันทึก)", icon: FileText },
-        { href: "/document?view=inbound", label: "📥 ทะเบียนหนังสือรับ (AMSS++)", icon: Archive },
-        { href: "/document?view=cert", label: "📜 ออกเกียรติบัตรออนไลน์", icon: ClipboardList },
+        { href: "/document?view=issue", label: "ขอออกเลขหนังสือ (ส่ง/บันทึก)", icon: FileText },
+        { href: "/document?view=inbound", label: "ทะเบียนหนังสือรับ (AMSS++)", icon: Archive },
+        { href: "/document?view=cert", label: "ออกเกียรติบัตรออนไลน์", icon: ClipboardList },
       ]
     : [];
 
   // Sub-items for Repair System (ระบบแจ้งซ่อม)
   const repairSubItems = (showRepair && (hasRepairPermission(user, "repair:view.own") || hasRepairPermission(user, "repair:view.all")))
     ? [
-        { href: "/repair", label: "🔧 รายการแจ้งซ่อมทั้งหมด", icon: Wrench },
-        { href: "/repair/new", label: "➕ แจ้งซ่อมรายการใหม่", icon: Plus },
-        { href: "/repair/dashboard", label: "📊 แดชบอร์ดงานซ่อม", icon: Activity },
+        { href: "/repair", label: "รายการแจ้งซ่อมทั้งหมด", icon: Wrench },
+        { href: "/repair/new", label: "แจ้งซ่อมรายการใหม่", icon: Plus },
+        { href: "/repair/dashboard", label: "แดชบอร์ดงานซ่อม", icon: Activity },
       ]
     : [];
 
   // Sub-items for HR & Attendance System (งานบุคคล / ลงเวลา)
   const hrSubItems = [];
   if (showAttendance) {
-    hrSubItems.push({ href: "/attendance", label: "⏰ ลงเวลาปฏิบัติราชการ", icon: Clock });
+    hrSubItems.push({ href: "/attendance", label: "ลงเวลาปฏิบัติราชการ", icon: Clock });
   }
   if (activePermissions.users?.includes(userRole)) {
-    hrSubItems.push({ href: "/users", label: "👥 จัดการบุคลากร", icon: Users });
+    hrSubItems.push({ href: "/users", label: "จัดการบุคลากร", icon: Users });
   }
 
   // Sub-items for Settings (ตั้งค่าระบบ)
   const settingsSubItems = [];
   if (activePermissions.settings?.includes(userRole)) {
-    settingsSubItems.push({ href: "/settings", label: "⚙️ ตั้งค่าระบบหลัก", icon: Settings });
+    settingsSubItems.push({ href: "/settings", label: "ตั้งค่าระบบหลัก", icon: Settings });
   } else if (activePermissions.manual_import?.includes(userRole)) {
-    settingsSubItems.push({ href: "/settings?section=manual-import", label: "📋 กรอกข้อมูลใบลาเอง", icon: Plus });
+    settingsSubItems.push({ href: "/settings?section=manual-import", label: "กรอกข้อมูลใบลาเอง", icon: Plus });
   }
   if (activePermissions.logs?.includes(userRole)) {
-    settingsSubItems.push({ href: "/logs", label: "📜 บันทึกกิจกรรม (Logs)", icon: Activity });
+    settingsSubItems.push({ href: "/logs", label: "บันทึกกิจกรรม (Logs)", icon: Activity });
   }
 
   const renderNavItem = (item: any, isSubItem: boolean = false) => {
