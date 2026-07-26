@@ -63,10 +63,11 @@ const REPAIR_PERMISSION_MATRIX: Record<RepairRole, RepairPermission[]> = {
 };
 
 /** Derive repair role from a user's position and role fields */
-export function getRepairRole(user: {
-  role: string;
+export function getRepairRole(user?: {
+  role?: string | null;
   position?: string | null;
-}): RepairRole {
+} | null): RepairRole {
+  if (!user) return "TEACHER";
   if (user.role === "ADMIN" || user.position === "แอดมิน") return "ADMIN";
   if (user.role === "REPAIR_MANAGER" || user.position === "ผู้จัดการเรื่องระบบซ่อม") return "REPAIR_MANAGER";
   if (user.role === "TECHNICIAN" || user.position === "ช่าง") return "TECHNICIAN";
@@ -81,11 +82,13 @@ export function getRepairRole(user: {
 
 /** Check if a user has a specific repair permission */
 export function hasRepairPermission(
-  user: { role: string; position?: string | null },
-  permission: RepairPermission
+  user?: { role?: string | null; position?: string | null } | null,
+  permission?: RepairPermission
 ): boolean {
+  if (!user || !permission) return false;
   const repairRole = getRepairRole(user);
-  return REPAIR_PERMISSION_MATRIX[repairRole].includes(permission);
+  const matrix = REPAIR_PERMISSION_MATRIX[repairRole];
+  return matrix ? matrix.includes(permission) : false;
 }
 
 /** Assert a permission — throws an error if the user doesn't have it */

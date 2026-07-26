@@ -20,25 +20,38 @@ export default async function DashboardPage({
 }: {
   searchParams: Promise<{ system?: string }>;
 }) {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
+  let session = null;
+  try {
+    session = await auth.api.getSession({
+      headers: await headers(),
+    });
+  } catch (err) {
+    console.error("Dashboard auth session fetch error:", err);
+  }
 
   if (!session?.user) {
     redirect("/login");
   }
 
-  // Get system settings
-  const systemSettings = await getSystemSettings();
+  // Get system settings — wrapped in try/catch so DB failure doesn't crash the entire page
+  let systemSettings: any = null;
+  try {
+    systemSettings = await getSystemSettings();
+  } catch (err) {
+    console.error("Failed to load system settings on dashboard:", err);
+  }
 
-  // Derive repair dashboard permissions
-  // Admin always sees repair dashboard (to manage it even when disabled for others)
-  const userRole = (session.user as any).role;
+  // Safe-access settings with fallback defaults
+  const enableRepair = systemSettings?.enableRepair ?? false;
+
+  // Derive repair dashboard permissions safely
+  const currentUser = session.user as any;
+  const userRole = currentUser?.role ?? "TEACHER";
   const canViewRepairDash =
-    hasRepairPermission(session.user as any, "repair:dashboard") &&
-    (userRole === "ADMIN" || !!systemSettings.enableRepair);
+    hasRepairPermission(currentUser, "repair:dashboard") &&
+    (userRole === "ADMIN" || !!enableRepair);
 
-  const canViewCost = hasRepairPermission(session.user as any, "repair:view.cost");
+  const canViewCost = hasRepairPermission(currentUser, "repair:view.cost");
 
   // Define available dashboard tabs based on permissions & features enabled
   const availableSystems = [
@@ -49,8 +62,15 @@ export default async function DashboardPage({
       : []),
   ];
 
-  // Validate search param
-  const rawSystem = (await searchParams).system;
+  // Validate search param safely
+  let rawSystem: string | undefined;
+  try {
+    const resolvedParams = searchParams ? await searchParams : {};
+    rawSystem = resolvedParams?.system;
+  } catch (err) {
+    console.error("Failed to resolve searchParams on dashboard:", err);
+  }
+
   const activeSystem = availableSystems.some((s) => s.id === rawSystem)
     ? rawSystem!
     : "leave";
