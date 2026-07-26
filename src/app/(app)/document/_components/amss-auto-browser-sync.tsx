@@ -366,9 +366,56 @@ export default function AmssAutoBrowserSync({ onSuccess, showToast, autoTrigger 
       </div>
 
       {statusMsg && (
-        <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-bold animate-pulse block px-1">
-          {statusMsg}
-        </span>
+        <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 rounded-2xl p-3.5 space-y-2.5 animate-in fade-in">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs font-bold text-amber-900 dark:text-amber-200 flex items-center gap-1.5">
+              <Zap className="w-4 h-4 text-amber-600 animate-pulse" />
+              {statusMsg}
+            </span>
+            <button
+              type="button"
+              onClick={handleAutoBrowserSync}
+              className="px-2.5 py-1 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-[11px] font-bold transition cursor-pointer"
+            >
+              🌐 เปิด AMSS++ ซ้ำ
+            </button>
+          </div>
+
+          <div className="text-xs text-amber-800 dark:text-amber-300 font-medium space-y-1 bg-white/70 dark:bg-slate-900/60 p-2.5 rounded-xl border border-amber-200/60 dark:border-amber-900/40">
+            <p><strong>💡 ขั้นตอนการดึงข้อมูลจากหน้าต่าง AMSS++ ที่เปิดอยู่:</strong></p>
+            <p>1. ไปที่หน้าต่าง AMSS++ แล้วกด <kbd className="px-1.5 py-0.5 bg-amber-100 dark:bg-amber-900 rounded font-mono font-bold">Ctrl + A</kbd> เพื่อเลือกทั้งหมด แล้วกด <kbd className="px-1.5 py-0.5 bg-amber-100 dark:bg-amber-900 rounded font-mono font-bold">Ctrl + C</kbd> เพื่อคัดลอก</p>
+            <p>2. สลับกลับมาหน้านี้ ระบบจะอ่านและซิงค์หนังสือรับให้อัตโนมัติ หรือคลิกวางข้อความในช่องด้านล่างนี้:</p>
+            
+            <div className="pt-1.5 flex gap-2">
+              <input
+                type="text"
+                placeholder="คลิกที่นี่แล้วกด Ctrl+V เพื่อวางข้อความจาก AMSS++ ทันที..."
+                onChange={async (e) => {
+                  const text = e.target.value;
+                  if (text && text.trim().length > 30) {
+                    setSyncing(true);
+                    setStatusMsg("กำลังประมวลผลข้อความ AMSS++...");
+                    try {
+                      const res = await syncAMSSDocumentsFromHtml(text, "all");
+                      setSyncing(false);
+                      setStatusMsg(null);
+                      if (showToast) {
+                        showToast(`⚡ ซิงค์สำเร็จ! นำเข้าหนังสือใหม่ ${res.importedCount} รายการ`, "success");
+                      }
+                      if (onSuccess) onSuccess(res.importedCount);
+                      e.target.value = "";
+                    } catch (err: any) {
+                      setSyncing(false);
+                      setStatusMsg(null);
+                      if (showToast) showToast(err.message || "เกิดข้อผิดพลาดในการอ่านข้อความ", "error");
+                    }
+                  }
+                }}
+                className="flex-1 h-9 px-3 rounded-xl border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-950 text-xs font-bold text-slate-800 dark:text-slate-200 outline-none placeholder:font-normal"
+              />
+            </div>
+          </div>
+        </div>
       )}
 
       {/* ── Preview & Selection Modal ─────────────────────────────────── */}
