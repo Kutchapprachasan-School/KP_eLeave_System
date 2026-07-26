@@ -16,6 +16,7 @@ import { GuardedAction } from "./_components/guarded-action";
 import { useDocumentData } from "@/features/document/ui/hooks/use-document-data";
 import { useDocumentFilters } from "@/features/document/ui/hooks/use-document-filters";
 import { OutboundView } from "@/features/document/ui/views/outbound-view";
+import { OutboundHistoryView } from "@/features/document/ui/views/outbound-history-view";
 import { InboundView } from "@/features/document/ui/views/inbound-view";
 import { CertView } from "@/features/document/ui/views/cert-view";
 import { CancelDocModal } from "@/features/document/ui/modals/cancel-doc-modal";
@@ -28,13 +29,14 @@ function DocumentPageContent() {
     originalShowToast(type, msg);
   }, [originalShowToast]);
 
-  const data = useDocumentData();
-  const filters = useDocumentFilters(data.outboundDocs, data.inboundDocs);
-
-  const [issuing, setIssuing] = useState(false);
   const [docToCancel, setDocToCancel] = useState<string | null>(null);
   const [showAmssCredentialsModal, setShowAmssCredentialsModal] = useState(false);
   const [showAmssImportModal, setShowAmssImportModal] = useState(false);
+  const [issuing, setIssuing] = useState(false);
+
+  const data = useDocumentData();
+  const filters = useDocumentFilters(data.outboundDocs, data.inboundDocs);
+
   const [autoBrowserTrigger, setAutoBrowserTrigger] = useState(false);
 
   const handleFormIssue = async (formData: any) => {
@@ -44,11 +46,14 @@ function DocumentPageContent() {
       if (res.success) {
         showToast("ออกเลขเอกสารสำเร็จ: " + res.data.docNo, "success");
         await data.loadData();
+        return res.data;
       } else {
         showToast(res.error || "ออกเลขเอกสารล้มเหลว", "error");
+        return null;
       }
     } catch (err: any) {
       showToast(err.message || "ออกเลขเอกสารล้มเหลว", "error");
+      return null;
     } finally {
       setIssuing(false);
     }
@@ -72,6 +77,11 @@ function DocumentPageContent() {
 
   const getHeaderInfo = () => {
     switch (filters.view) {
+      case "outbound_history":
+        return {
+          title: "ประวัติและทะเบียนออกเลขหนังสือ",
+          description: "รายการประวัติและทะเบียนคุมหนังสือส่ง บันทึกข้อความ และคำสั่งโรงเรียนทั้งหมด",
+        };
       case "inbound":
         return {
           title: "AMSS++",
@@ -119,17 +129,13 @@ function DocumentPageContent() {
       {/* Views */}
       {filters.view === "cert" ? (
         <CertView onBack={() => filters.setView("inbound")} />
-      ) : filters.view === "issue" ? (
-        <OutboundView
+      ) : filters.view === "outbound_history" ? (
+        <OutboundHistoryView
           sections={data.sections}
           outboundDocs={data.outboundDocs}
           inboundDocs={data.inboundDocs}
-          issuing={issuing}
-          onIssueSubmit={handleFormIssue}
           onRefresh={data.loadData}
           onCancelDocClick={(id) => setDocToCancel(id)}
-          username={session?.user?.name || ""}
-          department={(session?.user as any)?.subjectGroup || ""}
           searchQuery={filters.searchQuery}
           setSearchQuery={filters.setSearchQuery}
           selectedDocType={filters.selectedDocType}
@@ -138,6 +144,17 @@ function DocumentPageContent() {
           setSelectedYear={filters.setSelectedYearTable}
           selectedStatus={filters.selectedStatus}
           setSelectedStatus={filters.setSelectedStatus}
+        />
+      ) : filters.view === "issue" ? (
+        <OutboundView
+          sections={data.sections}
+          outboundDocs={data.outboundDocs}
+          issuing={issuing}
+          onIssueSubmit={handleFormIssue}
+          onRefresh={data.loadData}
+          username={session?.user?.name || ""}
+          department={(session?.user as any)?.subjectGroup || ""}
+          onGoToHistory={() => filters.setView("outbound_history")}
         />
       ) : filters.view === "inbound" ? (
         <InboundView

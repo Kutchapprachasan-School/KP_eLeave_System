@@ -18,11 +18,12 @@ type OutboundFormProps = {
     requester: string;
     date: string;
     department?: string;
-  }) => Promise<void>;
+  }) => Promise<any>;
   username?: string;
   department?: string;
   outboundDocs?: any[];
   onRefresh?: () => void;
+  onGoToHistory?: () => void;
 };
 
 const DOC_TYPE_NAMES: Record<string, string> = {
@@ -49,6 +50,7 @@ export default function OutboundForm({
   department = "",
   outboundDocs = [],
   onRefresh,
+  onGoToHistory,
 }: OutboundFormProps) {
   // Default "จากหน่วยงาน" to requester's name
   const [formData, setFormData] = useState({
@@ -64,6 +66,7 @@ export default function OutboundForm({
   });
 
   const [selectedPreviewDoc, setSelectedPreviewDoc] = useState<any | null>(null);
+  const [lastIssuedDoc, setLastIssuedDoc] = useState<any | null>(null);
 
   // Sync props when sections or user profile finish loading asynchronously
   useEffect(() => {
@@ -106,13 +109,13 @@ export default function OutboundForm({
 
   const isBackdatedError = latestDateMs > 0 && selectedDateMs < latestDateMs;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (issuing || isBackdatedError) return;
     
     const activeDocType = formData.docType === "OUTGOING" ? formData.outgoingSubtype : formData.docType;
 
-    onSubmit({
+    const resultDoc = await onSubmit({
       docType: activeDocType,
       memoSectionId: formData.docType === "MEMO" ? formData.memoSectionId : undefined,
       origin: formData.origin.trim(),
@@ -122,6 +125,10 @@ export default function OutboundForm({
       date: formData.date,
       department: (department || formData.department || "").trim() || undefined,
     });
+
+    if (resultDoc && resultDoc.docNo) {
+      setLastIssuedDoc(resultDoc);
+    }
   };
 
   // Get the selected memo section for color display
@@ -134,7 +141,44 @@ export default function OutboundForm({
   };
 
   return (
-    <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 md:p-6 shadow-xs relative">
+    <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 md:p-6 shadow-xs relative space-y-4">
+      {/* Newly Issued Document Celebratory Green Card */}
+      {lastIssuedDoc && (
+        <div className="bg-emerald-50 dark:bg-emerald-950/70 border-2 border-emerald-500/60 dark:border-emerald-600/60 rounded-2xl p-4 space-y-2 text-center shadow-md animate-in zoom-in-95 duration-200">
+          <div className="flex items-center justify-center gap-1.5 text-xs font-black text-emerald-700 dark:text-emerald-300">
+            <span className="text-base">🎉</span>
+            ออกเลขหนังสือของคุณสำเร็จเรียบร้อย!
+          </div>
+          <div className="text-2xl sm:text-3xl font-black font-mono text-emerald-600 dark:text-emerald-400">
+            ที่ {lastIssuedDoc.docNo}
+          </div>
+          <div className="text-xs font-bold text-slate-800 dark:text-slate-100 line-clamp-1">
+            เรื่อง: {lastIssuedDoc.title}
+          </div>
+          <div className="text-[11px] text-slate-600 dark:text-slate-400 flex items-center justify-center gap-3">
+            <span>ถึง: {lastIssuedDoc.to}</span>
+            <span>•</span>
+            <span>วันที่: {new Date(lastIssuedDoc.date).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" })}</span>
+          </div>
+          <div className="pt-1 flex items-center justify-center gap-2">
+            <button
+              type="button"
+              onClick={() => navigator.clipboard.writeText(`ที่ ${lastIssuedDoc.docNo}`)}
+              className="px-3.5 py-1.5 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 text-xs font-bold transition flex items-center gap-1.5 shadow-xs cursor-pointer active:scale-95"
+            >
+              📋 คัดลอกเลขหนังสือ
+            </button>
+            <button
+              type="button"
+              onClick={() => setLastIssuedDoc(null)}
+              className="px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 text-xs font-semibold transition cursor-pointer"
+            >
+              ออกเลขฉบับต่อไป
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="lg:grid lg:grid-cols-12 lg:gap-8 space-y-6 lg:space-y-0 items-start">
         {/* Left Column (5 cols on lg): The Input Form (+ ออกเลขหนังสือใหม่) */}
         <form onSubmit={handleSubmit} className="lg:col-span-5 space-y-4">
@@ -370,54 +414,70 @@ export default function OutboundForm({
               ยังไม่มีประวัติการขอออกเลขหนังสือ
             </div>
           ) : (
-            <div className="overflow-x-auto custom-scrollbar">
-              <table className="w-full text-left text-xs border-collapse">
-                <thead>
-                  <tr className="border-b border-slate-100 dark:border-slate-800 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                    <th className="py-2 px-2.5">เลขที่</th>
-                    <th className="py-2 px-2">ประเภท</th>
-                    <th className="py-2 px-2.5">เรื่อง</th>
-                    <th className="py-2 px-2">ผู้ขอ</th>
-                    <th className="py-2 px-2 text-right">เวลา</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
-                  {outboundDocs.slice(0, 10).map((doc, idx) => {
-                    const badge = getDocBadge(doc.docType);
-                    const formattedDate = doc.date ? new Date(doc.date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' }) : '';
-                    const formattedTime = doc.createdAt ? new Date(doc.createdAt).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) : '';
-                    
-                    return (
-                      <tr
-                        key={doc.id || idx}
-                        onClick={() => setSelectedPreviewDoc(doc)}
-                        className="hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition cursor-pointer group"
-                      >
-                        <td className="py-3 px-2.5 font-mono font-bold text-slate-900 dark:text-white group-hover:text-purple-600 dark:group-hover:text-purple-400 whitespace-nowrap">
-                          {doc.docNo}
-                        </td>
-                        <td className="py-3 px-2 whitespace-nowrap">
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${badge.bg}`}>
-                            {badge.text}
-                          </span>
-                        </td>
-                        <td className="py-3 px-2.5 max-w-[200px] truncate text-slate-700 dark:text-slate-300 font-medium">
-                          {doc.title}
-                        </td>
-                        <td className="py-3 px-2 text-slate-600 dark:text-slate-400 whitespace-nowrap">
-                          {doc.requester || doc.origin || '-'}
-                        </td>
-                        <td className="py-3 px-2 text-right whitespace-nowrap text-[10px] text-slate-400">
-                          <div>{formattedTime}</div>
-                          <div>{formattedDate}</div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-              <div className="pt-2.5 text-right text-[11px] text-slate-400 dark:text-slate-500 font-medium border-t border-slate-100 dark:border-slate-800/80">
-                📌 แสดงเฉพาะ 10 รายการล่าสุด (สามารถดูประวัติทั้งหมดได้ที่ตารางประวัติด้านล่าง)
+            <div className="space-y-3">
+              <div className="overflow-x-auto custom-scrollbar">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="border-b border-slate-100 dark:border-slate-800 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                      <th className="py-2 px-2.5">เลขที่</th>
+                      <th className="py-2 px-2">ประเภท</th>
+                      <th className="py-2 px-2.5">เรื่อง</th>
+                      <th className="py-2 px-2">ผู้ขอ</th>
+                      <th className="py-2 px-2 text-right">เวลา</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
+                    {outboundDocs.slice(0, 10).map((doc, idx) => {
+                      const badge = getDocBadge(doc.docType);
+                      const formattedDate = doc.date ? new Date(doc.date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' }) : '';
+                      const formattedTime = doc.createdAt ? new Date(doc.createdAt).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) : '';
+                      
+                      return (
+                        <tr
+                          key={doc.id || idx}
+                          onClick={() => setSelectedPreviewDoc(doc)}
+                          className="hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition cursor-pointer group"
+                        >
+                          <td className="py-3 px-2.5 font-mono font-bold text-slate-900 dark:text-white group-hover:text-purple-600 dark:group-hover:text-purple-400 whitespace-nowrap">
+                            {doc.docNo}
+                          </td>
+                          <td className="py-3 px-2 whitespace-nowrap">
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${badge.bg}`}>
+                              {badge.text}
+                            </span>
+                          </td>
+                          <td className="py-3 px-2.5 max-w-[200px] truncate text-slate-700 dark:text-slate-300 font-medium">
+                            {doc.title}
+                          </td>
+                          <td className="py-3 px-2 text-slate-600 dark:text-slate-400 whitespace-nowrap">
+                            {doc.requester || doc.origin || '-'}
+                          </td>
+                          <td className="py-3 px-2 text-right whitespace-nowrap text-[10px] text-slate-400">
+                            <div>{formattedTime}</div>
+                            <div>{formattedDate}</div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Footer subtext & shortcut button to full history */}
+              <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-2 text-[11px]">
+                <span className="text-slate-400 dark:text-slate-500 font-medium">
+                  📌 แสดงเฉพาะ 10 รายการล่าสุด
+                </span>
+                {onGoToHistory && (
+                  <button
+                    type="button"
+                    onClick={onGoToHistory}
+                    className="w-full sm:w-auto px-3.5 py-2 rounded-xl bg-purple-50 dark:bg-purple-950/60 hover:bg-purple-100 dark:hover:bg-purple-900/60 text-purple-700 dark:text-purple-300 text-xs font-bold border border-purple-200/60 dark:border-purple-800/60 transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+                  >
+                    <span>🔍</span>
+                    ดูประวัติและทะเบียนออกเลขหนังสือทั้งหมด
+                  </button>
+                )}
               </div>
             </div>
           )}

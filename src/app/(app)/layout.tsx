@@ -617,6 +617,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
   const documentSubItems = showDocument
     ? [
         { href: "/document?view=issue", label: "ขอเลขหนังสือ", icon: FileText },
+        { href: "/document?view=outbound_history", label: "ประวัติและทะเบียนออกเลขหนังสือ", icon: ClipboardList },
         { href: "/document?view=inbound", label: "AMSS++", icon: Archive },
         { href: "/document?view=cert", label: "เกียรติบัตร", icon: ClipboardList },
       ]
