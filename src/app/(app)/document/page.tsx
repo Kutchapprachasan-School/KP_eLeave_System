@@ -118,8 +118,7 @@ function DocumentPageContent() {
           <button
             key={item.id}
             onClick={() => {
-              filters.setView(item.view as any);
-              filters.setActiveTab(item.activeTab as any);
+              filters.setNav(item.view as any, item.activeTab as any);
             }}
             className={`px-4 py-2 text-center rounded-lg text-sm transition-all cursor-pointer whitespace-nowrap ${
               filters.view === item.view

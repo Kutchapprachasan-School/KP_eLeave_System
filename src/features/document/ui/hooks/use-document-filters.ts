@@ -27,26 +27,32 @@ export function useDocumentFilters(
 
   const [selectedYear, setSelectedYear] = useState<number>(toBuddhistYear());
 
-  // URL State Updater Helper
-  const setUrlParam = (key: string, value: string) => {
+  // URL State Updater Helper supporting batch updates
+  const setUrlParams = (updates: Record<string, string>) => {
     const params = new URLSearchParams(searchParams?.toString() || "");
-    if (value) {
-      params.set(key, value);
-    } else {
-      params.delete(key);
-    }
+    Object.entries(updates).forEach(([key, value]) => {
+      if (value) {
+        params.set(key, value);
+      } else {
+        params.delete(key);
+      }
+    });
 
     startTransition(() => {
       router.replace(`${pathname}?${params.toString()}`, { scroll: false });
     });
   };
 
-  const setView = (newView: ViewType) => setUrlParam("view", newView);
-  const setActiveTab = (newTab: TabType) => setUrlParam("tab", newTab);
-  const setSearchQuery = (q: string) => setUrlParam("q", q);
-  const setSelectedDocType = (type: string) => setUrlParam("docType", type);
-  const setSelectedYearTable = (year: string) => setUrlParam("year", year);
-  const setSelectedStatus = (status: string) => setUrlParam("status", status);
+  const setNav = (newView: ViewType, newTab: TabType) => {
+    setUrlParams({ view: newView, tab: newTab });
+  };
+
+  const setView = (newView: ViewType) => setUrlParams({ view: newView });
+  const setActiveTab = (newTab: TabType) => setUrlParams({ tab: newTab });
+  const setSearchQuery = (q: string) => setUrlParams({ q });
+  const setSelectedDocType = (type: string) => setUrlParams({ docType: type });
+  const setSelectedYearTable = (year: string) => setUrlParams({ year });
+  const setSelectedStatus = (status: string) => setUrlParams({ status });
 
   const clearFilters = () => {
     startTransition(() => {
@@ -71,6 +77,7 @@ export function useDocumentFilters(
     setActiveTab,
     view: paramView,
     setView,
+    setNav,
     selectedYear,
     setSelectedYear,
     searchQuery,
