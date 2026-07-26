@@ -31,7 +31,9 @@ import {
   Plus,
   Clock,
   ClipboardList,
-  Wrench
+  Wrench,
+  ChevronDown,
+  ChevronRight
 } from "lucide-react";
 import { hasRepairPermission } from "@/lib/permissions";
 
@@ -292,6 +294,90 @@ const DEFAULT_PERMISSIONS: Record<string, string[]> = {
   manual_import: ["ADMIN", "HR", "HR_STAFF"]
 };
 
+function CollapsibleGroup({
+  title,
+  icon: GroupIcon,
+  items,
+  badge,
+  defaultOpen = false,
+  pathname,
+  searchParams,
+  renderNavItem,
+}: {
+  title: string;
+  icon: any;
+  items: Array<{ href: string; label: string; icon: any; badge?: number }>;
+  badge?: number;
+  defaultOpen?: boolean;
+  pathname: string;
+  searchParams: any;
+  renderNavItem: (item: any, isSubItem?: boolean) => React.ReactNode;
+}) {
+  const isAnyChildActive = items.some((item) => {
+    if (item.href.includes("?")) {
+      const [path, query] = item.href.split("?");
+      const keyVal = query.split("=");
+      return pathname === path && searchParams?.get(keyVal[0]) === keyVal[1];
+    }
+    return pathname === item.href;
+  });
+
+  const [isOpen, setIsOpen] = useState(defaultOpen || isAnyChildActive);
+
+  useEffect(() => {
+    if (isAnyChildActive) {
+      setIsOpen(true);
+    }
+  }, [isAnyChildActive]);
+
+  if (items.length === 0) return null;
+
+  return (
+    <div className="space-y-0.5">
+      <button
+        type="button"
+        onClick={() => setIsOpen((prev) => !prev)}
+        className={`w-full flex items-center justify-between gap-2 px-2.5 py-2 rounded-xl text-[13px] font-bold transition-all duration-200 cursor-pointer select-none ${
+          isAnyChildActive
+            ? "text-purple-600 dark:text-purple-400 bg-purple-50/70 dark:bg-purple-500/10"
+            : "text-slate-700 dark:text-slate-300 hover:bg-slate-100/80 dark:hover:bg-slate-800/50"
+        }`}
+      >
+        <div className="flex items-center gap-2 min-w-0">
+          <GroupIcon className="w-4 h-4 text-purple-600 dark:text-purple-400 shrink-0" />
+          <span className="truncate">{title}</span>
+        </div>
+        <div className="flex items-center gap-1 shrink-0">
+          {badge !== undefined && badge > 0 && (
+            <span className="flex items-center justify-center min-w-4 h-4 px-1 rounded-full bg-red-500 text-white text-[9px] font-bold">
+              {badge}
+            </span>
+          )}
+          {isOpen ? (
+            <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+          ) : (
+            <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+          )}
+        </div>
+      </button>
+
+      <AnimatePresence initial={false}>
+        {isOpen && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.2, ease: "easeInOut" }}
+            className="pl-2 overflow-hidden space-y-0.5 border-l-2 border-slate-100 dark:border-slate-800 ml-3.5 mt-0.5"
+          >
+            {items.map((item) => renderNavItem(item, true))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
 function AppContent({ children }: { children: React.ReactNode }) {
   const { showToast } = useToast();
   const pathname = usePathname();
@@ -512,74 +598,86 @@ function AppContent({ children }: { children: React.ReactNode }) {
 
   const showDocument = enableDocument || isAdmin;
   const showRepair = enableRepair || isAdmin;
-  const generalNavItems = [];
-  if (showDocument) {
-    generalNavItems.push({ href: "/document", label: lang === "en" ? "Documents" : "ระบบเอกสาร", icon: ClipboardList, badge: pendingDocsCount });
-  }
-  if (showRepair && (hasRepairPermission(user, "repair:view.own") || hasRepairPermission(user, "repair:view.all"))) {
-    generalNavItems.push({ href: "/repair", label: lang === "en" ? "Repair" : "ระบบแจ้งซ่อม", icon: Wrench });
-  }
-
   const showAttendance = enableAttendance || isAdmin;
-  const hrNavItems = [];
-  if (showAttendance) {
-    hrNavItems.push({ href: "/attendance", label: lang === "en" ? "Attendance" : "ลงเวลา", icon: Clock });
-  }
 
-  const leaveNavItems = [
-    { href: "/request", label: t("requestLeave"), icon: FileText },
-    { href: "/history", label: t("history"), icon: History },
+  // Sub-items for Leave System (ระบบการลา)
+  const leaveSubItems = [
+    { href: "/request", label: "📝 ขอลาออนไลน์", icon: FileText },
+    { href: "/history", label: "📜 ประวัติการลา", icon: History },
   ];
   if (activePermissions.approvals?.includes(userRole)) {
-    leaveNavItems.push({ href: "/approvals", label: t("approvals"), icon: CheckSquare });
+    leaveSubItems.push({ href: "/approvals", label: "✍️ พิจารณาอนุมัติลา", icon: CheckSquare });
   }
   if (activePermissions.reports?.includes(userRole)) {
-    leaveNavItems.push({ href: "/reports", label: t("reports"), icon: FileSpreadsheet });
+    leaveSubItems.push({ href: "/reports", label: "📊 รายงานและสถิติ", icon: FileSpreadsheet });
   }
-  leaveNavItems.push({ href: "/manual", label: t("userManual"), icon: BookOpen });
+  leaveSubItems.push({ href: "/manual", label: t("userManual"), icon: BookOpen });
 
-  const settingsNavItems = [];
-  if (activePermissions.settings?.includes(userRole)) {
-    settingsNavItems.push({ href: "/settings", label: t("settings"), icon: Settings });
-  } else if (activePermissions.manual_import?.includes(userRole)) {
-    settingsNavItems.push({ href: "/settings?section=manual-import", label: lang === "en" ? "Manual Leave Entry" : "กรอกข้อมูลใบลาเอง", icon: Plus });
+  // Sub-items for Document System (ระบบสารบรรณ / เอกสาร - แยกออกเป็นคนละหน้า)
+  const documentSubItems = showDocument
+    ? [
+        { href: "/document?view=issue", label: "📝 ขอออกเลขหนังสือ (ส่ง/บันทึก)", icon: FileText },
+        { href: "/document?view=inbound", label: "📥 ทะเบียนหนังสือรับ (AMSS++)", icon: Archive },
+        { href: "/document?view=cert", label: "📜 ออกเกียรติบัตรออนไลน์", icon: ClipboardList },
+      ]
+    : [];
+
+  // Sub-items for Repair System (ระบบแจ้งซ่อม)
+  const repairSubItems = (showRepair && (hasRepairPermission(user, "repair:view.own") || hasRepairPermission(user, "repair:view.all")))
+    ? [
+        { href: "/repair", label: "🔧 รายการแจ้งซ่อมทั้งหมด", icon: Wrench },
+        { href: "/repair/new", label: "➕ แจ้งซ่อมรายการใหม่", icon: Plus },
+        { href: "/repair/dashboard", label: "📊 แดชบอร์ดงานซ่อม", icon: Activity },
+      ]
+    : [];
+
+  // Sub-items for HR & Attendance System (งานบุคคล / ลงเวลา)
+  const hrSubItems = [];
+  if (showAttendance) {
+    hrSubItems.push({ href: "/attendance", label: "⏰ ลงเวลาปฏิบัติราชการ", icon: Clock });
   }
   if (activePermissions.users?.includes(userRole)) {
-    settingsNavItems.push({ href: "/users", label: t("users"), icon: Users });
+    hrSubItems.push({ href: "/users", label: "👥 จัดการบุคลากร", icon: Users });
+  }
+
+  // Sub-items for Settings (ตั้งค่าระบบ)
+  const settingsSubItems = [];
+  if (activePermissions.settings?.includes(userRole)) {
+    settingsSubItems.push({ href: "/settings", label: "⚙️ ตั้งค่าระบบหลัก", icon: Settings });
+  } else if (activePermissions.manual_import?.includes(userRole)) {
+    settingsSubItems.push({ href: "/settings?section=manual-import", label: "📋 กรอกข้อมูลใบลาเอง", icon: Plus });
   }
   if (activePermissions.logs?.includes(userRole)) {
-    settingsNavItems.push({ href: "/logs", label: t("logs"), icon: Activity });
+    settingsSubItems.push({ href: "/logs", label: "📜 บันทึกกิจกรรม (Logs)", icon: Activity });
   }
 
-  const mobileNavItems = [
-    { href: "/dashboard", label: t("dashboard"), icon: LayoutDashboard },
-    { href: "/request", label: t("requestLeave"), icon: FileText },
-    { href: "/history", label: t("history"), icon: History },
-  ];
-  if (showAttendance) {
-    mobileNavItems.push({ href: "/attendance", label: lang === "en" ? "Attendance" : "ลงเวลา", icon: Clock });
-  }
-  if (showDocument) {
-    mobileNavItems.push({ href: "/document", label: lang === "en" ? "Documents" : "เอกสาร", icon: ClipboardList });
-  }
+  const renderNavItem = (item: any, isSubItem: boolean = false) => {
+    const isExactMatch = item.href.includes("?")
+      ? pathname === item.href.split("?")[0] && (searchParams?.get(item.href.split("?")[1].split("=")[0]) === item.href.split("?")[1].split("=")[1])
+      : pathname === item.href;
 
-  const renderNavItem = (item: any) => {
-    const isActive = pathname === item.href || (item.href.startsWith("/settings") && pathname.startsWith("/settings") && searchParams?.get("section") === "manual-import");
+    const isActive = isExactMatch || (item.href.startsWith("/settings") && !item.href.includes("?") && pathname.startsWith("/settings") && !searchParams?.get("section"));
     const Icon = item.icon;
+
     return (
       <Link key={item.href} href={item.href}>
-        <div className={`relative flex items-center gap-2.5 px-3 py-2 rounded-xl text-[13.5px] font-medium transition-all duration-300 group overflow-hidden ${
-          isActive 
-            ? "text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-500/10 font-bold" 
-            : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-800/50"
-        }`}>
+        <div
+          className={`relative flex items-center gap-2 px-2.5 ${isSubItem ? "py-1.5 text-[12px]" : "py-2 text-[13px]"} rounded-lg font-medium transition-all duration-200 group overflow-hidden ${
+            isActive
+              ? "text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-500/10 font-bold"
+              : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-800/50"
+          }`}
+        >
           {isActive && (
-            <motion.div layoutId="activeNav" className="absolute left-0 top-1/4 bottom-1/4 w-1 bg-purple-500 rounded-r-full" />
+            <motion.div
+              layoutId="activeNav"
+              className="absolute left-0 top-1/4 bottom-1/4 w-1 bg-purple-500 rounded-r-full"
+            />
           )}
-          <Icon className={`w-4 h-4 transition-transform duration-300 ${isActive ? "scale-110" : "group-hover:scale-110"}`} />
+          <Icon className={`${isSubItem ? "w-3.5 h-3.5" : "w-4 h-4"} transition-transform duration-200 ${isActive ? "scale-110" : "group-hover:scale-110"}`} />
           <span className="flex-1 truncate">{item.label}</span>
           {item.badge !== undefined && item.badge > 0 && (
-            <span className="flex items-center justify-center min-w-4 h-4 px-1 rounded-full bg-red-500 text-white text-[10px] font-bold">
+            <span className="flex items-center justify-center min-w-4 h-4 px-1 rounded-full bg-red-500 text-white text-[9px] font-bold">
               {item.badge}
             </span>
           )}
@@ -608,6 +706,18 @@ function AppContent({ children }: { children: React.ReactNode }) {
     }
     return true;
   };
+
+  const mobileNavItems: Array<{ href: string; label: string; icon: any }> = [
+    { href: "/dashboard", label: t("dashboard"), icon: LayoutDashboard },
+    { href: "/request", label: t("requestLeave"), icon: FileText },
+    { href: "/history", label: t("history"), icon: History },
+  ];
+  if (showAttendance) {
+    mobileNavItems.push({ href: "/attendance", label: lang === "en" ? "Attendance" : "ลงเวลา", icon: Clock });
+  }
+  if (showDocument) {
+    mobileNavItems.push({ href: "/document", label: lang === "en" ? "Documents" : "เอกสาร", icon: ClipboardList });
+  }
 
   const hasAccess = checkPermission(pathname);
 
@@ -678,10 +788,10 @@ function AppContent({ children }: { children: React.ReactNode }) {
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 px-3 py-3 space-y-1 overflow-y-auto custom-scrollbar">
+        <nav className="flex-1 px-2.5 py-3 space-y-1.5 overflow-y-auto custom-scrollbar">
           {/* Dashboard (Top level) */}
           <Link href="/dashboard">
-            <div className={`relative flex items-center gap-2.5 px-3 py-2 rounded-xl text-[13.5px] font-medium transition-all duration-300 group overflow-hidden ${
+            <div className={`relative flex items-center gap-2.5 px-3 py-2 rounded-xl text-[13px] font-medium transition-all duration-200 group overflow-hidden ${
               pathname === "/dashboard" 
                 ? "text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-500/10 font-bold" 
                 : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-800/50"
@@ -689,63 +799,85 @@ function AppContent({ children }: { children: React.ReactNode }) {
               {pathname === "/dashboard" && (
                 <motion.div layoutId="activeNav" className="absolute left-0 top-1/4 bottom-1/4 w-1 bg-purple-500 rounded-r-full" />
               )}
-              <LayoutDashboard className={`w-4 h-4 transition-transform duration-300 ${pathname === "/dashboard" ? "scale-110" : "group-hover:scale-110"}`} />
+              <LayoutDashboard className={`w-4 h-4 transition-transform duration-200 ${pathname === "/dashboard" ? "scale-110" : "group-hover:scale-110"}`} />
               <span className="flex-1 truncate">{t("dashboard")}</span>
             </div>
           </Link>
 
-          {/* Category: งานทั่วไป */}
-          {generalNavItems.length > 0 && (
-            <div className="pt-1.5 space-y-1">
-              <div className="px-3 pb-0.5 text-[11.5px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-                {lang === "en" ? "General" : "งานทั่วไป"}
-              </div>
-              {generalNavItems.map(renderNavItem)}
-            </div>
+          {/* Group 1: ระบบการลา (Leave System) */}
+          <CollapsibleGroup
+            title="ระบบการลา"
+            icon={FileText}
+            items={leaveSubItems}
+            pathname={pathname}
+            searchParams={searchParams}
+            renderNavItem={renderNavItem}
+          />
+
+          {/* Group 2: ระบบงานสารบรรณ/เอกสาร (Document System - Split View Pages) */}
+          {documentSubItems.length > 0 && (
+            <CollapsibleGroup
+              title="ระบบงานสารบรรณ"
+              icon={ClipboardList}
+              badge={pendingDocsCount}
+              items={documentSubItems}
+              pathname={pathname}
+              searchParams={searchParams}
+              renderNavItem={renderNavItem}
+            />
           )}
 
-          {/* Category: งานบุคคล */}
-          {hrNavItems.length > 0 && (
-            <div className="pt-1.5 space-y-1">
-              <div className="px-3 pb-0.5 text-[11.5px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-                {lang === "en" ? "HR System" : "งานบุคคล"}
-              </div>
-              {hrNavItems.map(renderNavItem)}
-            </div>
+          {/* Group 3: ระบบแจ้งซ่อม (Repair System) */}
+          {repairSubItems.length > 0 && (
+            <CollapsibleGroup
+              title="ระบบแจ้งซ่อม"
+              icon={Wrench}
+              items={repairSubItems}
+              pathname={pathname}
+              searchParams={searchParams}
+              renderNavItem={renderNavItem}
+            />
           )}
 
-          {/* Category: ลาออนไลน์ */}
-          <div className="pt-1.5 space-y-1">
-            <div className="px-3 pb-0.5 text-[11.5px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-              {lang === "en" ? "Online Leave" : "ลาออนไลน์"}
-            </div>
-            {leaveNavItems.map(renderNavItem)}
+          {/* Group 4: งานบุคคล & ลงเวลา (HR & Attendance) */}
+          {hrSubItems.length > 0 && (
+            <CollapsibleGroup
+              title="งานบุคคล & ลงเวลา"
+              icon={Clock}
+              items={hrSubItems}
+              pathname={pathname}
+              searchParams={searchParams}
+              renderNavItem={renderNavItem}
+            />
+          )}
+
+          {/* Group 5: ตั้งค่าระบบ (Settings) */}
+          {settingsSubItems.length > 0 && (
+            <CollapsibleGroup
+              title="ตั้งค่าระบบ"
+              icon={Settings}
+              items={settingsSubItems}
+              pathname={pathname}
+              searchParams={searchParams}
+              renderNavItem={renderNavItem}
+            />
+          )}
+
+          <div className="pt-2">
+            <Link href="/profile">
+              <div className={`relative flex items-center gap-2.5 px-3 py-2 rounded-xl text-[13px] font-medium transition-all duration-200 group overflow-hidden ${
+                pathname === "/profile" 
+                  ? "text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-500/10 font-bold" 
+                  : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-800/50"
+              }`}>
+                {pathname === "/profile" && (
+                  <motion.div layoutId="activeNav" className="absolute left-0 top-1/4 bottom-1/4 w-1 bg-purple-500 rounded-r-full" />
+                )}
+                <UserCircle className={`w-4 h-4 transition-transform duration-200 ${pathname === "/profile" ? "scale-110" : "group-hover:scale-110"}`} />
+                <span className="flex-1 truncate">{t("profile")}</span>
+              </div>
+            </Link>
           </div>
-
-          {/* Category: ตั้งค่า */}
-          {settingsNavItems.length > 0 && (
-            <div className="pt-1.5 space-y-1">
-              <div className="px-3 pb-0.5 text-[11.5px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-                {lang === "en" ? "Settings" : "ตั้งค่า"}
-              </div>
-              {settingsNavItems.map(renderNavItem)}
-            </div>
-          )}
-
-          <div className="px-3 pt-4 pb-1 text-[11.5px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">{t("accountMenu")}</div>
-          <Link href="/profile">
-            <div className={`relative flex items-center gap-2.5 px-3 py-2 rounded-xl text-[13.5px] font-medium transition-all duration-300 group overflow-hidden ${
-              pathname === "/profile" 
-                ? "text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-500/10 font-bold" 
-                : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-800/50"
-            }`}>
-              {pathname === "/profile" && (
-                <motion.div layoutId="activeNav" className="absolute left-0 top-1/4 bottom-1/4 w-1 bg-purple-500 rounded-r-full" />
-              )}
-              <UserCircle className={`w-4 h-4 transition-transform duration-300 ${pathname === "/profile" ? "scale-110" : "group-hover:scale-110"}`} />
-              <span className="flex-1 truncate">{t("profile")}</span>
-            </div>
-          </Link>
         </nav>
 
         {/* User Footer Component */}
