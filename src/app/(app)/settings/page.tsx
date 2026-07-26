@@ -2114,13 +2114,45 @@ export default function SettingsPage() {
           <SectionHeader title={sectionTitles["document-settings"]} />
 
           <div className="space-y-6">
+            {/* Top Stat Summary Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+              <div className="p-4 rounded-2xl bg-indigo-50/60 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-900/50 flex items-center gap-3 shadow-2xs">
+                <div className="w-10 h-10 rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-bold">
+                  <FolderOpen className="w-5 h-5" />
+                </div>
+                <div>
+                  <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 block">หมวดหมู่บันทึกข้อความ</span>
+                  <span className="text-xl font-black text-indigo-950 dark:text-indigo-200">{docMemoSections.length} หมวด</span>
+                </div>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-purple-50/60 dark:bg-purple-950/40 border border-purple-100 dark:border-purple-900/50 flex items-center gap-3 shadow-2xs">
+                <div className="w-10 h-10 rounded-xl bg-purple-500/10 text-purple-600 dark:text-purple-400 flex items-center justify-center font-bold">
+                  <Hash className="w-5 h-5" />
+                </div>
+                <div>
+                  <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 block">รูปแบบเลขเอกสาร</span>
+                  <span className="text-xl font-black text-purple-950 dark:text-purple-200">{docConfigs.length} รูปแบบ</span>
+                </div>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-amber-50/60 dark:bg-amber-950/40 border border-amber-100 dark:border-amber-900/50 flex items-center gap-3 shadow-2xs">
+                <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center font-bold">
+                  <UserCheck className="w-5 h-5" />
+                </div>
+                <div>
+                  <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 block">ผู้ลงนามใช้บ่อย</span>
+                  <span className="text-xl font-black text-amber-950 dark:text-amber-200">{docSignees.length} รายชื่อ</span>
+                </div>
+              </div>
+            </div>
 
             <div className="space-y-4 pt-4 border-t border-gray-100 dark:border-gray-800">
               {/* Tabs list */}
-              <div className="flex gap-2 flex-wrap bg-slate-50 dark:bg-slate-900/50 p-1.5 rounded-xl border border-gray-100 dark:border-gray-800">
+              <div className="flex gap-2 flex-wrap bg-slate-100/70 dark:bg-slate-900/80 p-1.5 rounded-2xl border border-gray-200/80 dark:border-gray-800">
                 {[
+                  { key: "patterns", label: "ตั้งค่ารูปแบบเลข & ลำดับถัดไป", icon: Hash },
                   { key: "sections", label: "งานย่อยบันทึกข้อความ", icon: FolderOpen },
-                  { key: "patterns", label: "ตั้งค่ารูปแบบเลข", icon: Hash },
                   { key: "signees", label: "ผู้ลงนามใช้บ่อย", icon: UserCheck }
                 ].map((tab) => {
                   const Icon = tab.icon;
@@ -2130,13 +2162,13 @@ export default function SettingsPage() {
                       key={tab.key}
                       type="button"
                       onClick={() => setDocActiveTab(tab.key as DocTab)}
-                      className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all duration-200 cursor-pointer ${
+                      className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-extrabold transition-all duration-200 cursor-pointer ${
                         active
-                          ? "text-orange-600 dark:text-orange-400 bg-white dark:bg-gray-800 shadow-sm"
-                          : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                          ? "text-purple-700 dark:text-purple-300 bg-white dark:bg-slate-800 shadow-sm border border-purple-200/60 dark:border-purple-800/60"
+                          : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/50 dark:hover:bg-slate-800/50"
                       }`}
                     >
-                      <Icon className="w-3.5 h-3.5" />
+                      <Icon className="w-4 h-4" />
                       {tab.label}
                     </button>
                   );

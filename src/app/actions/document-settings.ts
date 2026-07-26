@@ -156,9 +156,37 @@ export async function deleteSigneePreset(id: string) {
 // DocumentConfig Actions
 export async function getDocumentConfigs() {
   await checkAuth();
-  return prisma.documentConfig.findMany({
+  const existing = await prisma.documentConfig.findMany({
     include: { memoSection: true }
   });
+
+  const baseTypes = [
+    { docType: "OUTGOING", prefix: "ศทก" },
+    { docType: "COMMAND", prefix: "คำสั่ง" },
+    { docType: "ANNOUNCEMENT", prefix: "ประกาศ" },
+  ];
+
+  let addedNew = false;
+  for (const item of baseTypes) {
+    const found = existing.find((c) => c.docType === item.docType && !c.memoSectionId);
+    if (!found) {
+      const created = await prisma.documentConfig.create({
+        data: {
+          docType: item.docType,
+          prefix: item.prefix,
+          useThaiNumerals: true,
+          paddingDigits: 1,
+          yearFormat: "TH_BE",
+          currentSeq: 0,
+        },
+        include: { memoSection: true }
+      });
+      existing.push(created as any);
+      addedNew = true;
+    }
+  }
+
+  return existing;
 }
 
 export async function saveDocumentConfig(
