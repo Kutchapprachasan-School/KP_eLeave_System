@@ -24,6 +24,7 @@ interface InboundViewProps {
   setSelectedYear: (val: string) => void;
   selectedStatus: string;
   setSelectedStatus: (val: string) => void;
+  currentUserId?: string;
 }
 
 export function InboundView({
@@ -45,7 +46,12 @@ export function InboundView({
   setSelectedYear,
   selectedStatus,
   setSelectedStatus,
+  currentUserId,
 }: InboundViewProps) {
+  const myPendingDocs = inboundDocs.filter(
+    (d) => d.routingSteps?.some((s) => s.status === "PENDING" && s.assigneeId === currentUserId)
+  );
+
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
       {/* Header Banner & AMSS Settings Bar */}
@@ -95,7 +101,10 @@ export function InboundView({
 
         {/* Quick Stats Summary Strip */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-3 border-t border-slate-100 dark:border-slate-800">
-          <div className="p-3.5 rounded-2xl bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/40 flex items-center justify-between">
+          <div 
+            onClick={() => setSelectedStatus("")}
+            className="p-3.5 rounded-2xl bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/40 flex items-center justify-between cursor-pointer hover:bg-indigo-100/50 transition"
+          >
             <div>
               <span className="text-[10px] font-bold uppercase text-indigo-500">
                 หนังสือรับทั้งหมด
@@ -107,21 +116,23 @@ export function InboundView({
             <span className="text-2xl">📚</span>
           </div>
 
-          <div className="p-3.5 rounded-2xl bg-amber-50/50 dark:bg-amber-950/20 border border-amber-100 dark:border-amber-900/40 flex items-center justify-between">
+          <div
+            onClick={() => setSelectedStatus("MY_PENDING")}
+            className={`p-3.5 rounded-2xl border flex items-center justify-between cursor-pointer transition ${
+              selectedStatus === "MY_PENDING"
+                ? "bg-purple-600 text-white border-purple-500 shadow-md"
+                : "bg-purple-50/60 dark:bg-purple-950/20 border-purple-200 dark:border-purple-900/40 hover:bg-purple-100/60"
+            }`}
+          >
             <div>
-              <span className="text-[10px] font-bold uppercase text-amber-500">
-                รอดำเนินการ / เกษียน
+              <span className={`text-[10px] font-bold uppercase ${selectedStatus === "MY_PENDING" ? "text-purple-200" : "text-purple-600 dark:text-purple-400"}`}>
+                🎯 งานส่งถึงคุณรอการเกษียณ
               </span>
-              <p className="text-lg font-black text-amber-900 dark:text-amber-200">
-                {
-                  inboundDocs.filter(
-                    (d) => d.status === "ROUTING" || d.status === "PENDING"
-                  ).length
-                }{" "}
-                เล่ม
+              <p className={`text-lg font-black ${selectedStatus === "MY_PENDING" ? "text-white" : "text-purple-950 dark:text-purple-200"}`}>
+                {myPendingDocs.length} เล่ม
               </p>
             </div>
-            <span className="text-2xl">⏳</span>
+            <span className="text-2xl">✍️</span>
           </div>
 
           <div className="p-3.5 rounded-2xl bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/40 flex items-center justify-between">
@@ -154,6 +165,7 @@ export function InboundView({
         setSelectedYear={setSelectedYear}
         selectedStatus={selectedStatus}
         setSelectedStatus={setSelectedStatus}
+        currentUserId={currentUserId}
       />
     </div>
   );

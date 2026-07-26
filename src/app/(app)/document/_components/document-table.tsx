@@ -24,6 +24,7 @@ type DocumentTableProps = {
   setSelectedYear: (val: string) => void;
   selectedStatus: string;
   setSelectedStatus: (val: string) => void;
+  currentUserId?: string;
 };
 
 export default function DocumentTable({
@@ -41,6 +42,7 @@ export default function DocumentTable({
   setSelectedYear,
   selectedStatus,
   setSelectedStatus,
+  currentUserId,
 }: DocumentTableProps) {
   const [localTab, setLocalTab] = useState<"outbound" | "inbound">(activeTab);
   const [selectedTimeRange, setSelectedTimeRange] = useState<string>("this_month");
@@ -66,9 +68,10 @@ export default function DocumentTable({
     if (localTab === "outbound") {
       return outboundDocs.filter((d) => {
         const matchesSearch =
-          d.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          d.docNo?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          d.requester?.toLowerCase().includes(searchQuery.toLowerCase());
+          !searchQuery.trim() ||
+          Boolean(d.title?.toLowerCase().includes(searchQuery.toLowerCase())) ||
+          Boolean(d.docNo?.toLowerCase().includes(searchQuery.toLowerCase())) ||
+          Boolean(d.requester?.toLowerCase().includes(searchQuery.toLowerCase()));
         
         const matchesType =
           !selectedDocType ||
@@ -129,13 +132,14 @@ export default function DocumentTable({
 
         const matchesStatus =
           !selectedStatus ||
+          (selectedStatus === "MY_PENDING" && d.routingSteps?.some((s: any) => s.status === "PENDING" && s.assigneeId === currentUserId)) ||
           (selectedStatus === "PENDING" && (d.status === "PENDING" || d.status === "ROUTING")) ||
           d.status === selectedStatus;
 
         return matchesSearch && matchesType && matchesYear && matchesTimeRange && matchesStatus;
       });
     }
-  }, [localTab, outboundDocs, inboundDocs, searchQuery, selectedDocType, selectedYear, selectedTimeRange, selectedStatus]);
+  }, [localTab, outboundDocs, inboundDocs, searchQuery, selectedDocType, selectedYear, selectedTimeRange, selectedStatus, currentUserId]);
 
   // Paginated rows
   const totalPages = Math.max(1, Math.ceil(filteredData.length / pageSize));
@@ -361,7 +365,11 @@ export default function DocumentTable({
                           )}
 
                           {/* Status Badge */}
-                          {d.status === "COMPLETED" ? (
+                          {d.routingSteps?.some((s: any) => s.status === "PENDING" && s.assigneeId === currentUserId) ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-black bg-purple-600 text-white shadow-xs animate-pulse">
+                              👉 ถึงคิวคุณเกษียณสั่งการ
+                            </span>
+                          ) : d.status === "COMPLETED" ? (
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
                               ✅ เกษียณ / เสร็จสิ้น
                             </span>

@@ -174,6 +174,7 @@ function DocumentPageContent() {
           setSelectedYear={filters.setSelectedYearTable}
           selectedStatus={filters.selectedStatus}
           setSelectedStatus={filters.setSelectedStatus}
+          currentUserId={session?.user?.id}
         />
       ) : null}
 
