@@ -852,6 +852,44 @@ export default function HistoryPage() {
         const headApprover = staffList.find(s => s.id === item.headApproverId);
         const execApprover = staffList.find(s => s.id === item.execApproverId);
         
+        let extraObj: any = {};
+        try {
+          if (item.extraFields) extraObj = JSON.parse(item.extraFields);
+        } catch {}
+
+        const formatDetailDate = (dateInput: any) => {
+          if (!dateInput) return null;
+          try {
+            const d = new Date(dateInput);
+            if (isNaN(d.getTime())) return null;
+            const day = d.getDate();
+            const thaiMonthsShort = [
+              "ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.",
+              "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."
+            ];
+            const monthStr = thaiMonthsShort[d.getMonth()];
+            const yearShort = String((d.getFullYear() + 543) % 100).padStart(2, "0");
+            const hours = String(d.getHours()).padStart(2, "0");
+            const minutes = String(d.getMinutes()).padStart(2, "0");
+            return `${day} ${monthStr} ${yearShort} เวลา ${hours}:${minutes} น.`;
+          } catch {
+            return null;
+          }
+        };
+
+        const submittedDateText = formatDetailDate(item.createdAt) || "-";
+        const headApprovedDateText = extraObj.headApprovedAt
+          ? formatDetailDate(extraObj.headApprovedAt)
+          : (item.headApproverId || item.status === "PENDING_EXEC" || item.status === "APPROVED") && item.updatedAt
+          ? formatDetailDate(item.updatedAt)
+          : null;
+
+        const execApprovedDateText = extraObj.execApprovedAt
+          ? formatDetailDate(extraObj.execApprovedAt)
+          : (item.status === "APPROVED" || (item.status === "REJECTED" && item.execApproverId)) && item.updatedAt
+          ? formatDetailDate(item.updatedAt)
+          : null;
+
         return (
           <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
             <div className="w-full max-w-lg bg-white dark:bg-slate-900 rounded-3xl shadow-2xl overflow-hidden border border-slate-200/50 dark:border-slate-800 flex flex-col max-h-[90vh]">
@@ -874,14 +912,20 @@ export default function HistoryPage() {
               {/* Content */}
               <div className="p-6 overflow-y-auto space-y-5 custom-scrollbar text-sm">
                 {/* Profile Grid */}
-                <div className="bg-slate-50/50 dark:bg-slate-800/20 p-4 rounded-2xl border border-slate-100/50 dark:border-slate-800/40 grid grid-cols-2 gap-4">
-                  <div>
-                    <span className="text-xs text-slate-400 block mb-0.5">ผู้ขอลา</span>
-                    <span className="font-bold text-slate-800 dark:text-slate-100">{applicantName}</span>
+                <div className="bg-slate-50/50 dark:bg-slate-800/20 p-4 rounded-2xl border border-slate-100/50 dark:border-slate-800/40 space-y-2.5">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <span className="text-xs text-slate-400 block mb-0.5">ผู้ขอลา</span>
+                      <span className="font-bold text-slate-800 dark:text-slate-100">{applicantName}</span>
+                    </div>
+                    <div>
+                      <span className="text-xs text-slate-400 block mb-0.5">ตำแหน่ง</span>
+                      <span className="font-semibold text-slate-700 dark:text-slate-350">{tPosition(applicantPosition)}</span>
+                    </div>
                   </div>
-                  <div>
-                    <span className="text-xs text-slate-400 block mb-0.5">ตำแหน่ง</span>
-                    <span className="font-semibold text-slate-700 dark:text-slate-350">{tPosition(applicantPosition)}</span>
+                  <div className="pt-2 border-t border-slate-200/40 dark:border-slate-750 flex items-center justify-between text-xs">
+                    <span className="text-slate-400 font-medium">📅 วันที่ยื่นขอลา:</span>
+                    <span className="font-bold text-indigo-600 dark:text-indigo-400">{submittedDateText}</span>
                   </div>
                 </div>
 
@@ -935,13 +979,18 @@ export default function HistoryPage() {
                         <div className="w-1.5 h-1.5 rounded-full bg-white" />
                       </div>
                       <div>
-                        <p className="font-bold text-slate-800 dark:text-slate-100">ผู้ตรวจสอบ / หัวหน้ากลุ่มสาระ</p>
+                        <p className="font-bold text-slate-800 dark:text-slate-100">ผู้ตรวจสอบ / หัวหน้ากลุ่มสาระ (หัวหน้าบุคคล)</p>
                         <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                          {headApprover ? `${headApprover.name} (${tPosition(headApprover.position)})` : "หัวหน้ากลุ่มสาระ"}
+                          {headApprover ? `${headApprover.name} (${tPosition(headApprover.position)})` : "หัวหน้างานบุคคล"}
                         </p>
-                        <p className="text-[11px] font-semibold text-slate-400 mt-1">
+                        <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 mt-1">
                           สถานะ: {item.status === "PENDING_HEAD" ? "⏳ รอการตรวจสอบ" : (item.status === "REJECTED" && !item.execApproverId) ? "❌ ไม่อนุมัติ" : "✅ ตรวจสอบและผ่านเสนอแล้ว"}
                         </p>
+                        {headApprovedDateText && item.status !== "PENDING_HEAD" && (
+                          <p className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 mt-1 flex items-center gap-1">
+                            <span>🕒</span> วันที่หัวหน้าบุคคลอนุมัติ: {headApprovedDateText}
+                          </p>
+                        )}
                       </div>
                     </div>
 
@@ -963,9 +1012,14 @@ export default function HistoryPage() {
                         <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                           {execApprover ? `${execApprover.name} (${tPosition(execApprover.position)})` : "ผู้อำนวยการโรงเรียน"}
                         </p>
-                        <p className="text-[11px] font-semibold text-slate-400 mt-1">
+                        <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 mt-1">
                           สถานะ: {item.status === "APPROVED" ? "✅ อนุมัติการลาแล้ว" : item.status === "PENDING_EXEC" ? "⏳ รอการอนุมัติขั้นสุดท้าย" : item.status === "REJECTED" ? "❌ ปฏิเสธคำขอการลา" : "⚪ รอดำเนินการ"}
                         </p>
+                        {execApprovedDateText && item.status === "APPROVED" && (
+                          <p className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 mt-1 flex items-center gap-1">
+                            <span>🕒</span> วันที่ ผอ.อนุมัติ: {execApprovedDateText}
+                          </p>
+                        )}
                       </div>
                     </div>
                   </div>

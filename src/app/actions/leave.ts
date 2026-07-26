@@ -754,7 +754,17 @@ export async function approveLeaveRequest(id: string, pdfBase64?: string, skipDr
   if (user.position === "หัวหน้างานบุคคล" && request.status === "PENDING_HEAD") {
     // Head approves -> move to Executive
     newStatus = "PENDING_EXEC";
-    updateData = { status: newStatus, headApproverId: session.user.id };
+    let extraObj: any = {};
+    try {
+      if (request.extraFields) extraObj = JSON.parse(request.extraFields);
+    } catch {}
+    extraObj.headApprovedAt = new Date().toISOString();
+
+    updateData = { 
+      status: newStatus, 
+      headApproverId: session.user.id,
+      extraFields: JSON.stringify(extraObj)
+    };
   } else if (
     isFinalApprover &&
     request.status === "PENDING_EXEC"
@@ -769,11 +779,18 @@ export async function approveLeaveRequest(id: string, pdfBase64?: string, skipDr
     });
     const nextApprovedSeq = (maxApproved._max.approvedSeq || 0) + 1;
 
+    let extraObj: any = {};
+    try {
+      if (request.extraFields) extraObj = JSON.parse(request.extraFields);
+    } catch {}
+    extraObj.execApprovedAt = new Date().toISOString();
+
     updateData = { 
       status: newStatus, 
       execApproverId: session.user.id,
       approvedSeq: nextApprovedSeq,
-      fiscalYear: fy
+      fiscalYear: fy,
+      extraFields: JSON.stringify(extraObj)
     };
   } else {
     throw new Error("Cannot approve this request with your role");
