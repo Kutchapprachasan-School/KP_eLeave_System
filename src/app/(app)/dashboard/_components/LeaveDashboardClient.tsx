@@ -97,29 +97,33 @@ export default function LeaveDashboardClient() {
   const [sysSettings, setSysSettings] = useState<any>(null);
   const [clockActionLoading, setClockActionLoading] = useState(false);
 
+  const [statsError, setStatsError] = useState<string | null>(null);
+
   useEffect(() => {
     getSystemSettings().then((s) => {
-      setSysSettings(s);
-      setAttendanceEnabled(!!s.enableAttendance);
-      if (s.rolePermissions && session?.user) {
-        try {
-          const perms = JSON.parse(s.rolePermissions);
-          const allowedRoles = perms.calendar || ["ADMIN", "DIRECTOR", "HR", "INSPECTOR", "TEACHER"];
-          const user = session.user as any;
-          let isFinalApprover = false;
-          if (s.finalApproverUserIds) {
-            const allowedIds = s.finalApproverUserIds.split(",").map((id: string) => id.trim()).filter(Boolean);
-            isFinalApprover = allowedIds.includes(user.id);
+      if (s) {
+        setSysSettings(s);
+        setAttendanceEnabled(!!s.enableAttendance);
+        if (s.rolePermissions && session?.user) {
+          try {
+            const perms = JSON.parse(s.rolePermissions);
+            const allowedRoles = perms.calendar || ["ADMIN", "DIRECTOR", "HR", "INSPECTOR", "TEACHER"];
+            const user = session.user as any;
+            let isFinalApprover = false;
+            if (s.finalApproverUserIds) {
+              const allowedIds = s.finalApproverUserIds.split(",").map((id: string) => id.trim()).filter(Boolean);
+              isFinalApprover = allowedIds.includes(user.id);
+            }
+            let userRole = "TEACHER";
+            if (user.role === "ADMIN" || user.position === "แอดมิน") userRole = "ADMIN";
+            else if (user.position === "ผู้อำนวยการ" || isFinalApprover) userRole = "DIRECTOR";
+            else if (user.position === "หัวหน้างานบุคคล" || user.position === "เจ้าหน้าที่บุคคล") userRole = "HR";
+            else if (user.position === "ผู้ตรวจสอบ" || user.position === "หัวหน้าหมวด" || user.position === "หัวหน้ากลุ่มสาระ") userRole = "INSPECTOR";
+            
+            setHasCalendarPermission(allowedRoles.includes(userRole));
+          } catch (e) {
+            console.error("Failed to parse calendar permissions", e);
           }
-          let userRole = "TEACHER";
-          if (user.role === "ADMIN" || user.position === "แอดมิน") userRole = "ADMIN";
-          else if (user.position === "ผู้อำนวยการ" || isFinalApprover) userRole = "DIRECTOR";
-          else if (user.position === "หัวหน้างานบุคคล" || user.position === "เจ้าหน้าที่บุคคล") userRole = "HR";
-          else if (user.position === "ผู้ตรวจสอบ" || user.position === "หัวหน้าหมวด" || user.position === "หัวหน้ากลุ่มสาระ") userRole = "INSPECTOR";
-          
-          setHasCalendarPermission(allowedRoles.includes(userRole));
-        } catch (e) {
-          console.error("Failed to parse calendar permissions", e);
         }
       }
     }).catch(console.error);
@@ -150,6 +154,7 @@ export default function LeaveDashboardClient() {
   useEffect(() => { 
     setMounted(true); 
     setStats(null);
+    setStatsError(null);
     getDashboardStats(cycleFilter, lang, dashboardYear, viewMode)
       .then((data: any) => {
         setStats(data);
@@ -159,8 +164,10 @@ export default function LeaveDashboardClient() {
       })
       .catch((err: any) => {
         console.error("Dashboard error:", err);
-        if (err.message === "Unauthorized") {
+        if (err?.message === "Unauthorized") {
           router.push("/login");
+        } else {
+          setStatsError(err?.message || "ไม่สามารถโหลดข้อมูลแดชบอร์ดได้");
         }
       });
   }, [cycleFilter, lang, dashboardYear, viewMode, router]);
@@ -412,6 +419,35 @@ export default function LeaveDashboardClient() {
       return d;
     });
   };
+
+  if (statsError) {
+    return (
+      <div className="min-h-[50vh] flex flex-col items-center justify-center p-6 text-center space-y-4">
+        <div className="w-14 h-14 rounded-2xl bg-rose-100 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 flex items-center justify-center">
+          <AlertCircle className="w-7 h-7" />
+        </div>
+        <div className="space-y-1 max-w-md">
+          <h3 className="text-base font-bold text-slate-800 dark:text-white">
+            {lang === "en" ? "Unable to load dashboard" : "เกิดข้อผิดพลาดในการโหลดแดชบอร์ด"}
+          </h3>
+          <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+            {statsError}
+          </p>
+        </div>
+        <button
+          onClick={() => {
+            setStatsError(null);
+            getDashboardStats(cycleFilter, lang, dashboardYear, viewMode)
+              .then(setStats)
+              .catch((err) => setStatsError(err?.message || "เกิดข้อผิดพลาดในการโหลดข้อมูล"));
+          }}
+          className="px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold transition shadow-sm cursor-pointer"
+        >
+          {lang === "en" ? "Try Again" : "ลองใหม่อีกครั้ง"}
+        </button>
+      </div>
+    );
+  }
 
   if (!mounted || !stats) {
     return (
