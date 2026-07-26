@@ -121,11 +121,16 @@ export default function AmssAutoBrowserSync({ onSuccess, showToast, autoTrigger 
         maxPages: maxPages
       });
 
-      if (res.success) {
-        setPreviewItems(res.items);
+      if (!res.success) {
+        const errMsg = res.error || "ไม่สามารถดึงรายการตัวอย่างจาก AMSS++ ได้";
+        if (showToast) showToast(errMsg, "error");
+        setStatusMsg(null);
+      } else {
+        const items = res.data.items || [];
+        setPreviewItems(items);
         // Select all new items by default
         const newKeys = new Set<string>();
-        res.items.forEach(i => {
+        items.forEach(i => {
           if (!i.isExisting) {
             newKeys.add(i.amssLink || `${i.receiveNo}-${i.docRefNo}`);
           }
@@ -155,11 +160,15 @@ export default function AmssAutoBrowserSync({ onSuccess, showToast, autoTrigger 
       );
 
       const res = await importSelectedAMSSDocuments(selectedDocs);
-      if (showToast) {
-        showToast(`📥 นำเข้าหนังสือรับสำเร็จเรียบร้อย! เพิ่มรายการใหม่ ${res.importedCount} เรื่อง`, "success");
+      if (!res.success) {
+        if (showToast) showToast(res.error || "เกิดข้อผิดพลาดในการนำเข้า", "error");
+      } else {
+        if (showToast) {
+          showToast(`📥 นำเข้าหนังสือรับสำเร็จเรียบร้อย! เพิ่มรายการใหม่ ${res.data.importedCount} เรื่อง`, "success");
+        }
+        setShowPreviewModal(false);
+        if (onSuccess) onSuccess(res.data.importedCount);
       }
-      setShowPreviewModal(false);
-      if (onSuccess) onSuccess(res.importedCount);
     } catch (err: any) {
       if (showToast) showToast(err.message || "เกิดข้อผิดพลาดในการนำเข้า", "error");
     } finally {

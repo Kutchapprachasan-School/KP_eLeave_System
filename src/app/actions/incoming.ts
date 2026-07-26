@@ -280,63 +280,74 @@ export const syncAMSSDocumentsAutomatically = safeAction(async (
     let lastHttpStatus = 0;
 
     const currentBEYear = new Date().getFullYear() + 543;
+    const urlCandidates = [
+      (p: number) => `${origin}/index.php?option=book&task=main/receive&select_year=${currentBEYear}&page=${p}`,
+      (p: number) => `${origin}/index.php?option=book&task=main/receive_sch&select_year=${currentBEYear}&page=${p}`,
+      (p: number) => `${origin}/receive_sch.php?select_year=${currentBEYear}&page=${p}`
+    ];
 
     for (let page = 1; page <= maxPages; page++) {
-      const pageUrl = `${origin}/index.php?option=book&task=main/receive&select_year=${currentBEYear}&page=${page}`;
-      try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 8000);
-        const res = await fetchWithTlsFallback(pageUrl, {
-          signal: controller.signal,
-          headers: {
-            "Cookie": loginCookies,
-          }
-        });
-        clearTimeout(timeoutId);
-        lastHttpStatus = res.status;
+      let pageFetched = false;
+      for (const getUrl of urlCandidates) {
+        const pageUrl = getUrl(page);
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 8000);
+          const res = await fetchWithTlsFallback(pageUrl, {
+            signal: controller.signal,
+            headers: {
+              "Cookie": loginCookies,
+            }
+          });
+          clearTimeout(timeoutId);
+          lastHttpStatus = res.status;
 
-        if (res.ok) {
-          const buffer = await res.arrayBuffer();
-          let text = new TextDecoder("utf-8").decode(buffer);
-          if (text.includes("เธ") || text.includes("เธช")) {
-            text = new TextDecoder("windows-874").decode(buffer);
-          }
+          if (res.ok) {
+            const buffer = await res.arrayBuffer();
+            let text = new TextDecoder("utf-8").decode(buffer);
+            if (text.includes("เธ") || text.includes("เธช") || text.includes("")) {
+              text = new TextDecoder("windows-874").decode(buffer);
+            }
 
-          if (
-            text.includes("bookdetail") ||
-            text.includes("onclick=\"check") ||
-            text.includes("saraban_index") ||
-            text.includes("หนังสือรับ")
-          ) {
-            successFetch = true;
-
-            // CAPTCHA and Cloudflare Blocking Detection (only trigger on actual block pages, not analytics scripts)
-            const lowerHtml = text.toLowerCase();
             if (
-              lowerHtml.includes("g-recaptcha-response") ||
-              lowerHtml.includes("cf-browser-verification") ||
-              lowerHtml.includes("<title>just a moment...</title>")
+              text.includes("bookdetail") ||
+              text.includes("onclick=\"check") ||
+              text.includes("saraban_index") ||
+              text.includes("หนังสือรับ")
             ) {
-              throw new Error("ระบบ AMSS++ มีมาตรการความปลอดภัยขั้นสูง (CAPTCHA หรือ Cloudflare) บล็อกการดึงข้อมูลอัตโนมัติ กรุณาใช้วิธีนำเข้าแบบวางโค้ดแทน");
-            }
+              successFetch = true;
+              pageFetched = true;
 
-            const syncRes = await syncAMSSDocumentsFromHtml(text, dateRange);
-            totalImported += syncRes.importedCount;
-            totalUpdated += syncRes.updatedCount || 0;
-            totalDuplicates += syncRes.duplicatesCount;
+              // CAPTCHA and Cloudflare Blocking Detection (only trigger on actual block pages, not analytics scripts)
+              const lowerHtml = text.toLowerCase();
+              if (
+                lowerHtml.includes("g-recaptcha-response") ||
+                lowerHtml.includes("cf-browser-verification") ||
+                lowerHtml.includes("<title>just a moment...</title>")
+              ) {
+                throw new Error("ระบบ AMSS++ มีมาตรการความปลอดภัยขั้นสูง (CAPTCHA หรือ Cloudflare) บล็อกการดึงข้อมูลอัตโนมัติ กรุณาใช้วิธีนำเข้าแบบวางโค้ดแทน");
+              }
 
-            // If page returns no new items and no duplicates, we reached the end of list
-            if (syncRes.importedCount === 0 && syncRes.duplicatesCount === 0) {
-              break;
+              const syncRes = await syncAMSSDocumentsFromHtml(text, dateRange);
+              totalImported += syncRes.importedCount;
+              totalUpdated += syncRes.updatedCount || 0;
+              totalDuplicates += syncRes.duplicatesCount;
+
+              // If page returns new items or parsed rows, we found the right candidate URL for this page
+              if (syncRes.importedCount > 0 || syncRes.duplicatesCount > 0) {
+                break;
+              }
             }
           }
+        } catch (e: any) {
+          if (e.message && e.message.includes("CAPTCHA")) {
+            throw e;
+          }
+          // silent retry for network timeout on individual page candidate
         }
-      } catch (e: any) {
-        if (e.message && e.message.includes("CAPTCHA")) {
-          throw e;
-        }
-        // silent retry for network timeout on individual page
       }
+
+      if (!pageFetched && page > 1) break;
     }
 
     if (!successFetch) {
@@ -946,18 +957,18 @@ export type AMSSPreviewItem = {
   isExisting: boolean;
 };
 
-export async function fetchAmssPreviewDocs(options: {
+export const fetchAmssPreviewDocs = safeAction(async (options: {
   yearFilter?: number; // e.g. 2569 or 2568 (Buddhist year)
   monthFilter?: number; // 1 to 12 (0 = all months)
   maxPages?: number; // default 5
-}) {
+}) => {
   const user = await getSessionUser();
   const credentials = await prisma.aMSSCredentials.findUnique({
     where: { userId: user.id }
   });
 
   if (!credentials || !credentials.url || !credentials.username || !credentials.password) {
-    throw new Error("ยังไม่ได้ตั้งค่าข้อมูลบัญชี AMSS++");
+    throw new Error("ยังไม่ได้ตั้งค่าข้อมูลบัญชี AMSS++ (ไปที่ตั้งค่าระบบเอกสารรับ-ส่งเพื่อกรอกรหัสผ่าน)");
   }
 
   const decryptedPassword = decrypt(credentials.password);
@@ -966,7 +977,7 @@ export async function fetchAmssPreviewDocs(options: {
 
   const cookies = await loginToAMSS(origin, credentials.username, decryptedPassword);
   if (!cookies) {
-    throw new Error("เข้าสู่ระบบ AMSS++ ไม่สำเร็จ (อาจถูก Cloudflare/Firewall บล็อก หรือรหัสผ่านไม่ถูกต้อง)");
+    throw new Error("เข้าสู่ระบบ AMSS++ ไม่สำเร็จ (อาจถูก Cloudflare/Firewall บล็อก หรือรหัสผ่านไม่ถูกต้อง) แนะนำใช้การเปิด AMSS++ ผ่านเบราว์เซอร์");
   }
 
   const maxPages = options.maxPages || 5;
@@ -1097,15 +1108,14 @@ export async function fetchAmssPreviewDocs(options: {
   });
 
   return {
-    success: true,
     totalFound: previewItems.length,
     newCount: previewItems.filter(i => !i.isExisting).length,
     existingCount: previewItems.filter(i => i.isExisting).length,
     items: previewItems
   };
-}
+});
 
-export async function importSelectedAMSSDocuments(selectedItems: AMSSPreviewItem[]) {
+export const importSelectedAMSSDocuments = safeAction(async (selectedItems: AMSSPreviewItem[]) => {
   const user = await getSessionUser();
   if (!selectedItems || selectedItems.length === 0) {
     return { importedCount: 0, duplicatesCount: 0 };
@@ -1211,4 +1221,4 @@ export async function importSelectedAMSSDocuments(selectedItems: AMSSPreviewItem
 
   safeRevalidatePath("/document");
   return result;
-}
+});
