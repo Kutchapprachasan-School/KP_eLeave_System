@@ -45,7 +45,7 @@ export default function DocumentTable({
   currentUserId,
 }: DocumentTableProps) {
   const [localTab, setLocalTab] = useState<"outbound" | "inbound">(activeTab);
-  const [selectedTimeRange, setSelectedTimeRange] = useState<string>("this_month");
+  const [selectedTimeRange, setSelectedTimeRange] = useState<string>("");
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [pageSize, setPageSize] = useState<number>(10);
   const [previewDoc, setPreviewDoc] = useState<any | null>(null);
@@ -73,15 +73,17 @@ export default function DocumentTable({
           Boolean(d.docNo?.toLowerCase().includes(searchQuery.toLowerCase())) ||
           Boolean(d.requester?.toLowerCase().includes(searchQuery.toLowerCase()));
         
+        const targetDocType = (d.docType || "").toUpperCase();
+        const selDocType = (selectedDocType || "").toUpperCase();
+
         const matchesType =
           !selectedDocType ||
-          (selectedDocType === "MEMO" && d.docType === "MEMO") ||
-          (selectedDocType === "COMMAND" && d.docType === "COMMAND") ||
-          (selectedDocType === "OUTGOING_NORMAL" && (d.docType === "OUTGOING_NORMAL" || d.docType === "OUTGOING")) ||
-          (selectedDocType === "OUTGOING" && (d.docType === "OUTGOING" || d.docType === "OUTGOING_NORMAL")) ||
-          (selectedDocType === "OUTGOING_CIRCULAR" && d.docType === "OUTGOING_CIRCULAR") ||
-          (selectedDocType === "ANNOUNCEMENT" && d.docType === "ANNOUNCEMENT") ||
-          d.memoSectionId === selectedDocType;
+          (selDocType === "MEMO" && targetDocType === "MEMO") ||
+          (selDocType === "COMMAND" && targetDocType === "COMMAND") ||
+          (selDocType === "ANNOUNCEMENT" && targetDocType === "ANNOUNCEMENT") ||
+          (selDocType.startsWith("OUTGOING") && targetDocType.startsWith("OUTGOING")) ||
+          d.memoSectionId === selectedDocType ||
+          d.memoSection?.id === selectedDocType;
 
         const docDate = new Date(d.date);
         const docYear = docDate.getFullYear() + 543;
