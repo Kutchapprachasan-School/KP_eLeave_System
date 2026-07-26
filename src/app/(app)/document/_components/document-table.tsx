@@ -47,6 +47,7 @@ export default function DocumentTable({
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [pageSize, setPageSize] = useState<number>(10);
   const [previewDoc, setPreviewDoc] = useState<any | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   useEffect(() => {
     setLocalTab(activeTab);
@@ -157,40 +158,25 @@ export default function DocumentTable({
       {/* Table Title and Toolbar */}
       <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3 flex-wrap gap-2">
         <div className="flex items-center gap-2">
-          <FolderOpen className="w-5 h-5 text-indigo-600" />
-          <div className="flex bg-slate-100 dark:bg-slate-800/80 p-1 rounded-2xl gap-1 border border-slate-200/60 dark:border-slate-700/60">
-            <button
-              type="button"
-              onClick={() => setLocalTab("outbound")}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-extrabold transition cursor-pointer ${
-                localTab === "outbound"
-                  ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm"
-                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
-              }`}
-            >
-              📝 ทะเบียนออกเลขส่ง ({outboundDocs.length})
-            </button>
-            <button
-              type="button"
-              onClick={() => setLocalTab("inbound")}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-extrabold transition cursor-pointer ${
-                localTab === "inbound"
-                  ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm"
-                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
-              }`}
-            >
-              📥 ทะเบียนรับหนังสือ ({inboundDocs.length})
-            </button>
-          </div>
+          <FolderOpen className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+          <h3 className="text-sm font-bold text-slate-850 dark:text-white">
+            {localTab === "outbound"
+              ? `📋 ทะเบียนออกเลขส่ง (${outboundDocs.length} รายการ)`
+              : `📥 ทะเบียนรับหนังสือราชการ (${inboundDocs.length} รายการ)`}
+          </h3>
         </div>
         
         <button
           type="button"
-          onClick={onRefresh}
-          className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-sm font-semibold text-slate-600 dark:text-slate-400 transition cursor-pointer"
+          onClick={async () => {
+            setIsRefreshing(true);
+            if (onRefresh) await onRefresh();
+            setTimeout(() => setIsRefreshing(false), 600);
+          }}
+          className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-300 transition cursor-pointer shadow-2xs active:scale-95"
         >
-          <RefreshCw className="w-4 h-4" />
-          รีเฟรช
+          <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? "animate-spin text-indigo-600 dark:text-indigo-400" : ""}`} />
+          <span>{isRefreshing ? "กำลังโหลด..." : "รีเฟรช"}</span>
         </button>
       </div>
 

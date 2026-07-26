@@ -229,8 +229,9 @@ export default function IncomingDocDetailPage() {
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-3">
           <Link
-            href="/document"
-            className="p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-500 hover:text-slate-900 dark:hover:text-white transition shadow-sm"
+            href="/document?view=inbound&tab=inbound"
+            className="p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-500 hover:text-slate-900 dark:hover:text-white transition shadow-sm cursor-pointer"
+            title="กลับไปหน้าทะเบียนหนังสือรับ (AMSS++)"
           >
             <ArrowLeft className="w-4 h-4" />
           </Link>
@@ -245,7 +246,7 @@ export default function IncomingDocDetailPage() {
           </div>
         </div>
 
-        <div className="flex gap-2 flex-wrap">
+        <div className="flex gap-2 flex-wrap items-center">
           {(doc.amssLink || doc.attachmentUrl) && (
             <button
               type="button"
@@ -254,10 +255,10 @@ export default function IncomingDocDetailPage() {
                 navigator.clipboard.writeText(targetUrl);
                 showToast("คัดลอก URL ลิงก์เอกสารสำเร็จ!", "success");
               }}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 text-xs font-bold border border-indigo-200/80 dark:border-indigo-800/80 shadow-sm cursor-pointer"
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 text-xs font-bold border border-indigo-200/80 dark:border-indigo-800/80 shadow-xs cursor-pointer"
             >
-              <Link2 className="w-4 h-4" />
-              ก๊อปปี้ URL ลิงก์เอกสาร
+              <Link2 className="w-3.5 h-3.5" />
+              คัดลอก URL
             </button>
           )}
           {doc.amssLink && (
@@ -265,9 +266,9 @@ export default function IncomingDocDetailPage() {
               href={doc.amssLink}
               target="_blank"
               rel="noreferrer"
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-bold shadow-sm hover:bg-slate-50"
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-bold shadow-xs hover:bg-slate-50"
             >
-              <Globe className="w-4 h-4 text-indigo-500" />
+              <Globe className="w-3.5 h-3.5 text-indigo-500" />
               เปิดดูใน AMSS++
             </a>
           )}
@@ -276,12 +277,41 @@ export default function IncomingDocDetailPage() {
               href={doc.attachmentUrl}
               target="_blank"
               rel="noreferrer"
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold shadow-sm"
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold shadow-xs"
             >
-              <Link2 className="w-4 h-4" />
-              ไฟล์แนบต้นฉบับ
+              <Link2 className="w-3.5 h-3.5" />
+              ไฟล์แนบ PDF
             </a>
           )}
+        </div>
+      </div>
+
+      {/* 🎯 Prominent Action Focus Hero Banner */}
+      <div className="p-5 rounded-3xl bg-gradient-to-r from-indigo-900 via-indigo-800 to-purple-900 text-white shadow-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-white/20 text-white backdrop-blur-xs">
+              🎯 ศูนย์ปฏิบัติงานและเกษียณหนังสือ
+            </span>
+            <span className="text-xs text-indigo-200 font-mono">
+              สถานะ: {doc.status === "COMPLETED" ? "✅ เกษียณเสร็จสิ้น" : doc.status === "ROUTING" ? "⏳ กำลังดำเนินการเกษียณ" : "📥 หนังสือรับใหม่"}
+            </span>
+          </div>
+          <h3 className="text-base font-bold">
+            {activeStepForUser
+              ? "คุณมีงานเกษียณหนังสือสั่งการที่ต้องดำเนินการในฉบับนี้"
+              : isAdmin || isDirector
+              ? "ศูนย์สั่งการและมอบหมายงานเกษียณหนังสือสำหรับผู้บริหาร"
+              : "ติดตามสถานะและผังการเกษียณหนังสือสั่งการ"}
+          </h3>
+          <p className="text-xs text-indigo-200">
+            {activeStepForUser
+              ? "กรุณาอ่านรายละเอียดด้านล่างและกดปุ่มลงนามเพื่อบันทึกคำสั่งการ"
+              : "อ่านรายละเอียดหนังสือราชการ ลงนาม ตรวจสอบเส้นทาง และสั่งการดำเนินการต่อไป"}
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0">
           {(isAdmin || isDirector) && (
             <button
               type="button"
@@ -290,9 +320,10 @@ export default function IncomingDocDetailPage() {
                 setActiveRoutingId(undefined);
                 setShowDirectiveModal(true);
               }}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white text-xs font-bold shadow-sm cursor-pointer"
+              className="px-5 py-2.5 rounded-2xl bg-white text-indigo-950 hover:bg-indigo-50 text-xs font-black shadow-lg transition cursor-pointer flex items-center gap-2"
             >
-              ✍️ e-เกษียณหนังสือ & สั่งการ
+              <Sparkles className="w-4 h-4 text-purple-600" />
+              ✍️ ลงนาม / เกษียณสั่งการ
             </button>
           )}
         </div>
