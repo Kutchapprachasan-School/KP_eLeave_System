@@ -22,7 +22,7 @@ export function parseAMSSListHtml(input: string, baseUrl?: string): AMSSParsedRo
 
   const cleanBaseUrl = baseUrl ? (baseUrl.endsWith("/") ? baseUrl : baseUrl + "/") : "https://amss.sesaud.go.th/";
 
-  // Helper to check if a string is header text
+  // Helper to check if a string is header text or navigation noise
   const isHeaderCell = (str: string) => {
     const s = str.trim();
     return (
@@ -36,7 +36,13 @@ export function parseAMSSListHtml(input: string, baseUrl?: string): AMSSParsedRo
       s === "รายละเอียด" ||
       s === "อ้างอิงหนังสือ (ที่)" ||
       s === "วันเวลาที่ส่ง" ||
-      s === "จัดการ"
+      s === "จัดการ" ||
+      s.includes("ออกจากระบบ") ||
+      s.includes("สารบรรณสถานศึกษา") ||
+      s.includes("ค้นหาหนังสือ") ||
+      s.includes("ยังไม่ได้ส่งต่อ") ||
+      s.includes("ยังไม่ได้ลงทะเบียนรับ") ||
+      (s.startsWith("[") && s.endsWith("]"))
     );
   };
 
