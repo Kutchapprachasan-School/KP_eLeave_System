@@ -640,15 +640,18 @@ function AppContent({ children }: { children: React.ReactNode }) {
     hrSubItems.push({ href: "/users", label: "จัดการบุคลากร", icon: Users });
   }
 
-  // Sub-items for Settings (ตั้งค่าระบบ)
-  const settingsSubItems = [];
+  // Items for Settings category (ตั้งค่าระบบ)
+  const settingsNavItems = [];
   if (activePermissions.settings?.includes(userRole)) {
-    settingsSubItems.push({ href: "/settings", label: "ตั้งค่าระบบหลัก", icon: Settings });
+    settingsNavItems.push({ href: "/settings", label: "ตั้งค่าระบบหลัก", icon: Settings });
   } else if (activePermissions.manual_import?.includes(userRole)) {
-    settingsSubItems.push({ href: "/settings?section=manual-import", label: "กรอกข้อมูลใบลาเอง", icon: Plus });
+    settingsNavItems.push({ href: "/settings?section=manual-import", label: "กรอกข้อมูลใบลาเอง", icon: Plus });
+  }
+  if (activePermissions.users?.includes(userRole)) {
+    settingsNavItems.push({ href: "/users", label: "จัดการบุคคล", icon: Users });
   }
   if (activePermissions.logs?.includes(userRole)) {
-    settingsSubItems.push({ href: "/logs", label: "บันทึกกิจกรรม (Logs)", icon: Activity });
+    settingsNavItems.push({ href: "/logs", label: "บันทึกกิจกรรม", icon: Activity });
   }
 
   const renderNavItem = (item: any, isSubItem: boolean = false) => {
@@ -662,10 +665,10 @@ function AppContent({ children }: { children: React.ReactNode }) {
     return (
       <Link key={item.href} href={item.href}>
         <div
-          className={`relative flex items-center gap-2 px-2.5 ${isSubItem ? "py-1.5 text-[12px]" : "py-2 text-[13px]"} rounded-lg font-medium transition-all duration-200 group overflow-hidden ${
+          className={`relative flex items-center gap-2.5 px-3 ${isSubItem ? "py-2 text-[12.5px]" : "py-2.5 text-[13px]"} rounded-xl font-medium transition-all duration-200 group overflow-hidden ${
             isActive
               ? "text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-500/10 font-bold"
-              : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-800/50"
+              : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-800/50"
           }`}
         >
           {isActive && (
@@ -788,13 +791,13 @@ function AppContent({ children }: { children: React.ReactNode }) {
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 px-2.5 py-3 space-y-1.5 overflow-y-auto custom-scrollbar">
-          {/* Dashboard (Top level) */}
+        <nav className="flex-1 px-3 py-4 space-y-4 overflow-y-auto custom-scrollbar">
+          {/* Top Dashboard Link */}
           <Link href="/dashboard">
-            <div className={`relative flex items-center gap-2.5 px-3 py-2 rounded-xl text-[13px] font-medium transition-all duration-200 group overflow-hidden ${
+            <div className={`relative flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-[13px] font-medium transition-all duration-200 group overflow-hidden ${
               pathname === "/dashboard" 
                 ? "text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-500/10 font-bold" 
-                : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-800/50"
+                : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-800/50"
             }`}>
               {pathname === "/dashboard" && (
                 <motion.div layoutId="activeNav" className="absolute left-0 top-1/4 bottom-1/4 w-1 bg-purple-500 rounded-r-full" />
@@ -804,63 +807,69 @@ function AppContent({ children }: { children: React.ReactNode }) {
             </div>
           </Link>
 
-          {/* Group 1: ระบบการลา (Leave System) */}
-          <CollapsibleGroup
-            title="ระบบการลา"
-            icon={FileText}
-            items={leaveSubItems}
-            pathname={pathname}
-            searchParams={searchParams}
-            renderNavItem={renderNavItem}
-          />
+          {/* Section 1: บุคคล */}
+          <div className="space-y-1.5">
+            <div className="px-3 pb-0.5 text-[11.5px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+              บุคคล
+            </div>
 
-          {/* Group 2: ระบบงานสารบรรณ/เอกสาร (Document System - Split View Pages) */}
-          {documentSubItems.length > 0 && (
+            {/* ลงเวลา */}
+            {showAttendance && renderNavItem({ href: "/attendance", label: "ลงเวลา", icon: Clock })}
+
+            {/* ระบบการลา (Collapsible Group) */}
             <CollapsibleGroup
-              title="ระบบงานสารบรรณ"
-              icon={ClipboardList}
-              badge={pendingDocsCount}
-              items={documentSubItems}
+              title="ระบบการลา"
+              icon={FileText}
+              items={leaveSubItems}
               pathname={pathname}
               searchParams={searchParams}
               renderNavItem={renderNavItem}
             />
+          </div>
+
+          {/* Section 2: ทั่วไป */}
+          {(showDocument || showRepair) && (
+            <div className="space-y-1.5">
+              <div className="px-3 pb-0.5 text-[11.5px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                ทั่วไป
+              </div>
+
+              {/* ระบบสารบรรณ (Collapsible Group) */}
+              {documentSubItems.length > 0 && (
+                <CollapsibleGroup
+                  title="ระบบสารบรรณ"
+                  icon={ClipboardList}
+                  badge={pendingDocsCount}
+                  items={documentSubItems}
+                  pathname={pathname}
+                  searchParams={searchParams}
+                  renderNavItem={renderNavItem}
+                />
+              )}
+
+              {/* ระบบแจ้งซ่อม (Collapsible Group) */}
+              {repairSubItems.length > 0 && (
+                <CollapsibleGroup
+                  title="ระบบแจ้งซ่อม"
+                  icon={Wrench}
+                  items={repairSubItems}
+                  pathname={pathname}
+                  searchParams={searchParams}
+                  renderNavItem={renderNavItem}
+                />
+              )}
+            </div>
           )}
 
-          {/* Group 3: ระบบแจ้งซ่อม (Repair System) */}
-          {repairSubItems.length > 0 && (
-            <CollapsibleGroup
-              title="ระบบแจ้งซ่อม"
-              icon={Wrench}
-              items={repairSubItems}
-              pathname={pathname}
-              searchParams={searchParams}
-              renderNavItem={renderNavItem}
-            />
-          )}
+          {/* Section 3: ตั้งค่าระบบ */}
+          {settingsNavItems.length > 0 && (
+            <div className="space-y-1.5">
+              <div className="px-3 pb-0.5 text-[11.5px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                ตั้งค่าระบบ
+              </div>
 
-          {/* Group 4: งานบุคคล & ลงเวลา (HR & Attendance) */}
-          {hrSubItems.length > 0 && (
-            <CollapsibleGroup
-              title="งานบุคคล & ลงเวลา"
-              icon={Clock}
-              items={hrSubItems}
-              pathname={pathname}
-              searchParams={searchParams}
-              renderNavItem={renderNavItem}
-            />
-          )}
-
-          {/* Group 5: ตั้งค่าระบบ (Settings) */}
-          {settingsSubItems.length > 0 && (
-            <CollapsibleGroup
-              title="ตั้งค่าระบบ"
-              icon={Settings}
-              items={settingsSubItems}
-              pathname={pathname}
-              searchParams={searchParams}
-              renderNavItem={renderNavItem}
-            />
+              {settingsNavItems.map(item => renderNavItem(item))}
+            </div>
           )}
 
           <div className="pt-2">
