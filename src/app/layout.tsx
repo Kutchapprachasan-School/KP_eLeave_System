@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { ThemeProvider } from "@/components/theme-provider";
 import { I18nProvider } from "@/lib/i18n";
+import { AppProviders } from "@/components/providers/app-providers";
 import { prisma } from "@/lib/db";
 import "./globals.css";
 
@@ -49,7 +50,9 @@ export default function RootLayout({
             enableSystem
             disableTransitionOnChange={false}
           >
-            {children}
+            <AppProviders>
+              {children}
+            </AppProviders>
           </ThemeProvider>
         </I18nProvider>
       </body>
