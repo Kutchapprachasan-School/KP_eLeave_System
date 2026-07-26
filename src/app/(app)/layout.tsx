@@ -568,18 +568,18 @@ function AppContent({ children }: { children: React.ReactNode }) {
     const Icon = item.icon;
     return (
       <Link key={item.href} href={item.href}>
-        <div className={`relative flex items-center gap-3 px-4 py-3 rounded-2xl text-[14.5px] font-medium transition-all duration-300 group overflow-hidden ${
+        <div className={`relative flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11.5px] font-medium transition-all duration-300 group overflow-hidden ${
           isActive 
-            ? "text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-500/10" 
+            ? "text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-500/10 font-bold" 
             : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-800/50"
         }`}>
           {isActive && (
             <motion.div layoutId="activeNav" className="absolute left-0 top-1/4 bottom-1/4 w-1 bg-purple-500 rounded-r-full" />
           )}
-          <Icon className={`w-5 h-5 transition-transform duration-300 ${isActive ? "scale-110" : "group-hover:scale-110"}`} />
-          <span className="flex-1">{item.label}</span>
+          <Icon className={`w-4 h-4 transition-transform duration-300 ${isActive ? "scale-110" : "group-hover:scale-110"}`} />
+          <span className="flex-1 truncate">{item.label}</span>
           {item.badge !== undefined && item.badge > 0 && (
-            <span className="flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full bg-red-500 text-white text-[10px] font-bold">
+            <span className="flex items-center justify-center min-w-4 h-4 px-1 rounded-full bg-red-500 text-white text-[9px] font-bold">
               {item.badge}
             </span>
           )}
@@ -659,45 +659,45 @@ function AppContent({ children }: { children: React.ReactNode }) {
       </AnimatePresence>
 
       {/* Sidebar Navigation */}
-      <aside className={`fixed top-0 bottom-0 left-0 z-50 w-[280px] bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-r border-slate-200/50 dark:border-slate-800/50 flex flex-col transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] shadow-[4px_0_24px_rgba(0,0,0,0.02)] print:hidden ${sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`}>
+      <aside className={`fixed top-0 bottom-0 left-0 z-50 w-[220px] bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-r border-slate-200/50 dark:border-slate-800/50 flex flex-col transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] shadow-[4px_0_24px_rgba(0,0,0,0.02)] print:hidden ${sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`}>
         
         {/* Brand */}
-        <div className="h-24 px-8 flex items-center">
-          <div className="flex items-center gap-3 min-w-0">
+        <div className="h-16 px-4 flex items-center border-b border-slate-100 dark:border-slate-800/60 shrink-0">
+          <div className="flex items-center gap-2.5 min-w-0">
             {brandLogo ? (
-              <img src={brandLogo} alt="Logo" className="w-10 h-10 rounded-2xl object-cover shadow-lg" />
+              <img src={brandLogo} alt="Logo" className="w-8 h-8 rounded-xl object-cover shadow-xs shrink-0" />
             ) : (
-              <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-purple-500/20">
-                <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
+              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center shadow-xs shrink-0">
+                <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
               </div>
             )}
             <div className="flex-1 min-w-0">
-              <h1 className="text-sm font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-slate-900 to-slate-600 dark:from-white dark:to-slate-300 leading-tight">{brandName}</h1>
+              <h1 className="text-[12px] font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-slate-900 to-slate-600 dark:from-white dark:to-slate-300 leading-tight truncate">{brandName}</h1>
             </div>
           </div>
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 px-4 py-4 space-y-1.5 overflow-y-auto custom-scrollbar">
+        <nav className="flex-1 px-3 py-3 space-y-1 overflow-y-auto custom-scrollbar">
           {/* Dashboard (Top level) */}
           <Link href="/dashboard">
-            <div className={`relative flex items-center gap-3 px-4 py-3 rounded-2xl text-[14.5px] font-medium transition-all duration-300 group overflow-hidden ${
+            <div className={`relative flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11.5px] font-medium transition-all duration-300 group overflow-hidden ${
               pathname === "/dashboard" 
-                ? "text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-500/10" 
+                ? "text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-500/10 font-bold" 
                 : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-800/50"
             }`}>
               {pathname === "/dashboard" && (
                 <motion.div layoutId="activeNav" className="absolute left-0 top-1/4 bottom-1/4 w-1 bg-purple-500 rounded-r-full" />
               )}
-              <LayoutDashboard className={`w-5 h-5 transition-transform duration-300 ${pathname === "/dashboard" ? "scale-110" : "group-hover:scale-110"}`} />
-              <span className="flex-1">{t("dashboard")}</span>
+              <LayoutDashboard className={`w-4 h-4 transition-transform duration-300 ${pathname === "/dashboard" ? "scale-110" : "group-hover:scale-110"}`} />
+              <span className="flex-1 truncate">{t("dashboard")}</span>
             </div>
           </Link>
 
           {/* Category: งานทั่วไป */}
           {generalNavItems.length > 0 && (
-            <div className="pt-2 space-y-1.5">
-              <div className="px-4 pb-1 text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+            <div className="pt-1.5 space-y-1">
+              <div className="px-3 pb-0.5 text-[9.5px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
                 {lang === "en" ? "General" : "งานทั่วไป"}
               </div>
               {generalNavItems.map(renderNavItem)}
@@ -706,8 +706,8 @@ function AppContent({ children }: { children: React.ReactNode }) {
 
           {/* Category: งานบุคคล */}
           {hrNavItems.length > 0 && (
-            <div className="pt-2 space-y-1.5">
-              <div className="px-4 pb-1 text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+            <div className="pt-1.5 space-y-1">
+              <div className="px-3 pb-0.5 text-[9.5px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
                 {lang === "en" ? "HR System" : "งานบุคคล"}
               </div>
               {hrNavItems.map(renderNavItem)}
@@ -715,8 +715,8 @@ function AppContent({ children }: { children: React.ReactNode }) {
           )}
 
           {/* Category: ลาออนไลน์ */}
-          <div className="pt-2 space-y-1.5">
-            <div className="px-4 pb-1 text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+          <div className="pt-1.5 space-y-1">
+            <div className="px-3 pb-0.5 text-[9.5px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
               {lang === "en" ? "Online Leave" : "ลาออนไลน์"}
             </div>
             {leaveNavItems.map(renderNavItem)}
@@ -724,44 +724,44 @@ function AppContent({ children }: { children: React.ReactNode }) {
 
           {/* Category: ตั้งค่า */}
           {settingsNavItems.length > 0 && (
-            <div className="pt-2 space-y-1.5">
-              <div className="px-4 pb-1 text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+            <div className="pt-1.5 space-y-1">
+              <div className="px-3 pb-0.5 text-[9.5px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
                 {lang === "en" ? "Settings" : "ตั้งค่า"}
               </div>
               {settingsNavItems.map(renderNavItem)}
             </div>
           )}
 
-          <div className="px-4 pt-6 pb-2 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">{t("accountMenu")}</div>
+          <div className="px-3 pt-4 pb-1 text-[9.5px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">{t("accountMenu")}</div>
           <Link href="/profile">
-            <div className={`relative flex items-center gap-3 px-4 py-3 rounded-2xl text-[14.5px] font-medium transition-all duration-300 group overflow-hidden ${
+            <div className={`relative flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11.5px] font-medium transition-all duration-300 group overflow-hidden ${
               pathname === "/profile" 
-                ? "text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-500/10" 
+                ? "text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-500/10 font-bold" 
                 : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-800/50"
             }`}>
               {pathname === "/profile" && (
                 <motion.div layoutId="activeNav" className="absolute left-0 top-1/4 bottom-1/4 w-1 bg-purple-500 rounded-r-full" />
               )}
-              <UserCircle className={`w-5 h-5 transition-transform duration-300 ${pathname === "/profile" ? "scale-110" : "group-hover:scale-110"}`} />
-              {t("profile")}
+              <UserCircle className={`w-4 h-4 transition-transform duration-300 ${pathname === "/profile" ? "scale-110" : "group-hover:scale-110"}`} />
+              <span className="flex-1 truncate">{t("profile")}</span>
             </div>
           </Link>
         </nav>
 
         {/* User Footer Component */}
-        <div className="p-4 mx-4 mb-6 mt-auto">
-          <div className="relative overflow-hidden rounded-2xl bg-white dark:bg-slate-800 border border-slate-200/50 dark:border-slate-700/50 p-4 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
-            <div className="flex items-center gap-3 mb-4">
+        <div className="p-3 mx-2.5 mb-3 mt-auto shrink-0">
+          <div className="relative overflow-hidden rounded-xl bg-white dark:bg-slate-800 border border-slate-200/50 dark:border-slate-700/50 p-2.5 shadow-2xs">
+            <div className="flex items-center gap-2.5 mb-2.5">
               {user.image ? (
-                <img src={user.image} alt={user.name} className="w-10 h-10 rounded-full object-cover shadow-sm border border-slate-200 dark:border-slate-700" />
+                <img src={user.image} alt={user.name} className="w-8 h-8 rounded-full object-cover shadow-2xs border border-slate-200 dark:border-slate-700 shrink-0" />
               ) : (
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center text-white font-bold shadow-sm">
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center text-white text-xs font-bold shadow-2xs shrink-0">
                   {user.name?.charAt(0)?.toUpperCase()}
                 </div>
               )}
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">{user.name}</p>
-                <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{user.position || t("staff")}</p>
+                <p className="text-[11.5px] font-bold text-slate-900 dark:text-white truncate leading-snug">{user.name}</p>
+                <p className="text-[9.5px] text-slate-500 dark:text-slate-400 truncate">{user.position || t("staff")}</p>
               </div>
             </div>
             <button
@@ -769,9 +769,9 @@ function AppContent({ children }: { children: React.ReactNode }) {
                 await signOut();
                 router.push("/login");
               }}
-              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/50 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-500/10 dark:hover:text-red-400 text-sm font-medium text-slate-600 dark:text-slate-300 transition-colors"
+              className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-900/50 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-500/10 dark:hover:text-red-400 text-[11px] font-medium text-slate-600 dark:text-slate-300 transition-colors"
             >
-              <LogOut className="w-4 h-4" />
+              <LogOut className="w-3.5 h-3.5" />
               {t("logout")}
             </button>
           </div>
@@ -779,7 +779,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
       </aside>
 
       {/* Main Container */}
-      <main className="flex-1 flex flex-col min-w-0 min-h-screen lg:pl-[280px]">
+      <main className="flex-1 flex flex-col min-w-0 min-h-screen lg:pl-[220px]">
         
         {/* Top Header */}
         <header className="h-24 px-6 lg:px-10 flex items-center justify-between z-30 print:hidden">
