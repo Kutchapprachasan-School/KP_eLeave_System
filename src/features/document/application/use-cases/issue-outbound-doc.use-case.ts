@@ -40,10 +40,12 @@ export async function issueOutboundDocAtomic(data: OutboundFormData, userId: str
   const docDate = new Date(data.date);
   const year = docDate.getFullYear();
   const thYear = year + 543;
+  const isOutgoing = data.docType.startsWith("OUTGOING");
+  const baseDocType = isOutgoing ? "OUTGOING" : data.docType;
 
   return prisma.$transaction(async (tx) => {
     // 1. Acquire advisory lock key based on doc scope
-    const scopeKey = `doc-seq-${data.docType}-${data.memoSectionId || "default"}-${thYear}`;
+    const scopeKey = `doc-seq-${baseDocType}-${data.memoSectionId || "default"}-${thYear}`;
     const lockKey = generateAdvisoryLockKey(scopeKey);
 
     // PostgreSQL transaction-level advisory lock
@@ -52,7 +54,7 @@ export async function issueOutboundDocAtomic(data: OutboundFormData, userId: str
     // 2. Find or initialize DocumentConfig
     let config = await tx.documentConfig.findFirst({
       where: {
-        docType: data.docType,
+        docType: isOutgoing ? { in: ["OUTGOING", "OUTGOING_NORMAL", "OUTGOING_CIRCULAR"] } : data.docType,
         memoSectionId: data.docType === "MEMO" ? data.memoSectionId || null : null,
       },
     });
@@ -61,11 +63,11 @@ export async function issueOutboundDocAtomic(data: OutboundFormData, userId: str
       let defaultPrefix = "ศทก";
       if (data.docType === "COMMAND") defaultPrefix = "คำสั่งที่";
       else if (data.docType === "ANNOUNCEMENT") defaultPrefix = "ประกาศที่";
-      else if (data.docType.startsWith("OUTGOING")) defaultPrefix = "ที่ ศทก";
+      else if (isOutgoing) defaultPrefix = "ที่ ศทก";
 
       config = await tx.documentConfig.create({
         data: {
-          docType: data.docType,
+          docType: isOutgoing ? "OUTGOING" : data.docType,
           memoSectionId: data.docType === "MEMO" ? data.memoSectionId || null : null,
           prefix: defaultPrefix,
           useThaiNumerals: true,
@@ -79,7 +81,7 @@ export async function issueOutboundDocAtomic(data: OutboundFormData, userId: str
     // 3. Check anti-backdating rule against latest issued document
     const latestDoc = await tx.documentRecord.findFirst({
       where: {
-        docType: data.docType,
+        docType: isOutgoing ? { in: ["OUTGOING", "OUTGOING_NORMAL", "OUTGOING_CIRCULAR"] } : data.docType,
         memoSectionId: data.docType === "MEMO" ? data.memoSectionId || null : null,
         year: thYear,
         status: { in: ["ISSUED", "PRINTED"] },
@@ -88,7 +90,7 @@ export async function issueOutboundDocAtomic(data: OutboundFormData, userId: str
     });
 
     if (latestDoc && latestDoc.date) {
-      const activeDateMs = new Date(docDate.setHours(0, 0, 0, 0)).getTime();
+      const activeDateMs = new Date(new Date(data.date).setHours(0, 0, 0, 0)).getTime();
       const latestDateMs = new Date(new Date(latestDoc.date).setHours(0, 0, 0, 0)).getTime();
       if (activeDateMs < latestDateMs) {
         throw new Error(

@@ -53,6 +53,7 @@ export default function OutboundForm({
   // Default "จากหน่วยงาน" to requester's name
   const [formData, setFormData] = useState({
     docType: "MEMO",
+    outgoingSubtype: "OUTGOING_NORMAL",
     memoSectionId: sections[0]?.id || "",
     origin: username || department || "งานสารบรรณ",
     to: "ผู้อำนวยการโรงเรียน",
@@ -82,12 +83,37 @@ export default function OutboundForm({
     }
   }, [username, department]);
 
+  const selectedCategoryDocs = (outboundDocs || []).filter(d => {
+    if (formData.docType === "MEMO") {
+      return d.docType === "MEMO" && (!formData.memoSectionId || d.memoSectionId === formData.memoSectionId || d.memoSection?.id === formData.memoSectionId);
+    }
+    if (formData.docType === "OUTGOING") {
+      return d.docType.startsWith("OUTGOING");
+    }
+    return d.docType === formData.docType;
+  });
+
+  const latestCategoryDoc = selectedCategoryDocs[0];
+
+  const latestDocDateStr = latestCategoryDoc?.date
+    ? new Date(latestCategoryDoc.date).toLocaleDateString("th-TH", { day: "numeric", month: "long", year: "numeric" })
+    : null;
+
+  const selectedDateMs = new Date(new Date(formData.date).setHours(0, 0, 0, 0)).getTime();
+  const latestDateMs = latestCategoryDoc?.date
+    ? new Date(new Date(latestCategoryDoc.date).setHours(0, 0, 0, 0)).getTime()
+    : 0;
+
+  const isBackdatedError = latestDateMs > 0 && selectedDateMs < latestDateMs;
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (issuing) return;
+    if (issuing || isBackdatedError) return;
     
+    const activeDocType = formData.docType === "OUTGOING" ? formData.outgoingSubtype : formData.docType;
+
     onSubmit({
-      docType: formData.docType,
+      docType: activeDocType,
       memoSectionId: formData.docType === "MEMO" ? formData.memoSectionId : undefined,
       origin: formData.origin.trim(),
       to: formData.to.trim(),
@@ -100,15 +126,6 @@ export default function OutboundForm({
 
   // Get the selected memo section for color display
   const selectedSection = sections.find(s => s.id === formData.memoSectionId);
-
-  const selectedCategoryDocs = (outboundDocs || []).filter(d => {
-    if (formData.docType === "MEMO") {
-      return d.docType === "MEMO" && (!formData.memoSectionId || d.memoSectionId === formData.memoSectionId || d.memoSection?.id === formData.memoSectionId);
-    }
-    return d.docType === formData.docType;
-  });
-
-  const latestCategoryDoc = selectedCategoryDocs[0];
 
   const getDocBadge = (type: string) => {
     if (type === "MEMO") return { text: "ภายใน", bg: "bg-blue-100 dark:bg-blue-950/70 text-blue-700 dark:text-blue-300" };
@@ -141,10 +158,9 @@ export default function OutboundForm({
                 onChange={(e) => setFormData({ ...formData, docType: e.target.value })}
                 className="w-full h-10 pl-3 pr-9 rounded-xl border border-slate-200 dark:border-slate-750 bg-white dark:bg-slate-950 text-xs font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all appearance-none cursor-pointer outline-none"
               >
-                <option value="MEMO">บันทึกข้อความ (ภายใน)</option>
-                <option value="OUTGOING_NORMAL">หนังสือส่ง (ปกติ/ภายนอก)</option>
-                <option value="COMMAND">คำสั่งโรงเรียน</option>
-                <option value="OUTGOING_CIRCULAR">หนังสือส่ง (จดหมายเวียน)</option>
+                <option value="MEMO">บันทึกข้อความ</option>
+                <option value="OUTGOING">หนังสือส่ง</option>
+                <option value="COMMAND">คำสั่ง</option>
                 <option value="ANNOUNCEMENT">ประกาศ</option>
               </select>
               <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-slate-400">
@@ -152,6 +168,39 @@ export default function OutboundForm({
               </div>
             </div>
           </div>
+
+          {/* Sub-option for หนังสือส่ง */}
+          {formData.docType === "OUTGOING" && (
+            <div className="p-2.5 rounded-xl bg-purple-50/60 dark:bg-purple-950/40 border border-purple-100 dark:border-purple-900/60 space-y-1.5">
+              <label className="block text-[11px] font-bold text-purple-800 dark:text-purple-300">
+                ประเภทหนังสือส่ง *
+              </label>
+              <div className="flex items-center gap-4">
+                <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="outgoingSubtype"
+                    value="OUTGOING_NORMAL"
+                    checked={formData.outgoingSubtype === "OUTGOING_NORMAL"}
+                    onChange={() => setFormData({ ...formData, outgoingSubtype: "OUTGOING_NORMAL" })}
+                    className="accent-purple-600"
+                  />
+                  ปกติ
+                </label>
+                <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="outgoingSubtype"
+                    value="OUTGOING_CIRCULAR"
+                    checked={formData.outgoingSubtype === "OUTGOING_CIRCULAR"}
+                    onChange={() => setFormData({ ...formData, outgoingSubtype: "OUTGOING_CIRCULAR" })}
+                    className="accent-purple-600"
+                  />
+                  หนังสือเวียน
+                </label>
+              </div>
+            </div>
+          )}
 
           {/* Memo Section Select */}
           {formData.docType === "MEMO" && (
@@ -257,20 +306,35 @@ export default function OutboundForm({
             </div>
           </div>
 
-          {/* Green Preview Banner Card (เลขทะเบียนหนังสือของคุณ) */}
-          <div className="bg-emerald-50/80 dark:bg-emerald-950/40 border border-emerald-200/80 dark:border-emerald-800/60 rounded-xl p-3.5 text-center space-y-1 shadow-2xs">
-            <span className="text-[11px] font-medium text-emerald-700 dark:text-emerald-300 block">
-              เลขทะเบียนหนังสือของคุณ
+          {/* Green Preview Banner Card (แสดงเลขล่าสุดและวันที่ขอ) */}
+          <div className="bg-emerald-50/90 dark:bg-emerald-950/40 border border-emerald-200/80 dark:border-emerald-800/60 rounded-xl p-3.5 space-y-1 text-center shadow-2xs">
+            <span className="text-[11px] font-bold text-emerald-700 dark:text-emerald-300 block">
+              🔥 เลขล่าสุดที่ถูกขอในหมวดนี้
             </span>
-            <div className="text-xl sm:text-2xl font-black font-mono text-emerald-600 dark:text-emerald-400">
-              {latestCategoryDoc ? `ที่ ${latestCategoryDoc.docNo}` : "ถัดไปในระบบ"}
+            <div className="text-lg sm:text-xl font-black font-mono text-emerald-800 dark:text-emerald-300">
+              {latestCategoryDoc ? `ที่ ${latestCategoryDoc.docNo}` : "ยังไม่มีประวัติในหมวดนี้"}
             </div>
+            {latestDocDateStr && (
+              <span className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400 block pt-0.5">
+                📅 ขอออกเมื่อวันที่: {latestDocDateStr}
+              </span>
+            )}
           </div>
+
+          {/* Anti-backdating Warning */}
+          {isBackdatedError && (
+            <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800/60 text-amber-800 dark:text-amber-300 text-xs font-semibold flex items-start gap-2">
+              <span className="text-sm">⚠️</span>
+              <span>
+                ไม่สามารถขอออกเลขย้อนหลังเกินกว่าวันที่ของเลขล่าสุดได้ (เลขล่าสุดถูกขอเมื่อวันที่ {latestDocDateStr})
+              </span>
+            </div>
+          )}
 
           {/* Purple Submit Action Button */}
           <button
             type="submit"
-            disabled={issuing}
+            disabled={issuing || isBackdatedError}
             className="w-full h-11 rounded-xl bg-purple-600 hover:bg-purple-700 active:scale-[0.99] text-white text-xs font-bold transition-all flex items-center justify-center gap-2 shadow-md shadow-purple-600/20 disabled:opacity-50 cursor-pointer border border-purple-500/20"
           >
             <Send className="w-4 h-4" />
@@ -352,6 +416,9 @@ export default function OutboundForm({
                   })}
                 </tbody>
               </table>
+              <div className="pt-2.5 text-right text-[11px] text-slate-400 dark:text-slate-500 font-medium border-t border-slate-100 dark:border-slate-800/80">
+                📌 แสดงเฉพาะ 10 รายการล่าสุด (สามารถดูประวัติทั้งหมดได้ที่ตารางประวัติด้านล่าง)
+              </div>
             </div>
           )}
         </div>

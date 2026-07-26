@@ -116,14 +116,6 @@ function DocumentPageContent() {
         gradient="from-orange-600 to-amber-600"
         action={
           <div className="flex items-center gap-2">
-            <GuardedAction requiredPermission="sarabun:settings:edit">
-              <Link
-                href="/settings?tab=document-settings"
-                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 text-sm font-bold border border-indigo-200/60 dark:border-indigo-800/60 transition cursor-pointer shadow-xs"
-              >
-                ⚙️ ตั้งค่าระบบเอกสารรับ-ส่ง
-              </Link>
-            </GuardedAction>
             <Link
               href="/dashboard"
               className="w-9 h-9 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-center hover:bg-slate-50 dark:hover:bg-slate-800 transition shadow-xs"
