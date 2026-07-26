@@ -11,7 +11,7 @@ import RepairDashboardView, { type RepairDashStats } from "./_components/RepairD
 import DocumentDashboardView from "./_components/DocumentDashboardView";
 
 export const metadata: Metadata = {
-  title: "แดชบอร์ด | e-Leave",
+  title: "แดชบอร์ด",
   description: "แดชบอร์ดสรุปสถิติภาพรวมและการทำงานระบบย่อยของโรงเรียน",
 };
 

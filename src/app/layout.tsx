@@ -20,8 +20,11 @@ export async function generateMetadata(): Promise<Metadata> {
   }
 
   return {
-    title: "e-Leave System | ระบบลาออนไลน์",
-    description: "ระบบการลาออนไลน์สำหรับโรงเรียน - Online Leave Management System",
+    title: {
+      default: "ระบบบริหารจัดการโรงเรียน | e-Leave",
+      template: "%s | e-Leave",
+    },
+    description: "ระบบการลาและงานสารบรรณออนไลน์ - Online School Management System",
     icons: {
       icon: iconUrl,
       apple: iconUrl,
