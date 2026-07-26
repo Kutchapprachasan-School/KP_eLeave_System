@@ -8250,7 +8250,7 @@ function DocMemoSectionsTab({
             resetForm();
             setShowForm(true);
           }}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-purple-500 to-indigo-650 text-white text-sm font-semibold shadow-lg shadow-purple-500/20 hover:shadow-xl hover:shadow-purple-500/30 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 cursor-pointer"
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 active:scale-95 text-white text-xs font-bold transition-all shadow-md shadow-purple-600/20 cursor-pointer border border-purple-500/20"
         >
           <Plus className="w-4 h-4" />
           เพิ่มงานย่อย
@@ -8627,6 +8627,16 @@ function DocPatternBuilderTab({
       transition={{ duration: 0.2 }}
       className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 font-sans"
     >
+      {/* Year Sequence Info Banner */}
+      <div className="col-span-full bg-purple-50/90 dark:bg-purple-950/40 border border-purple-200/90 dark:border-purple-800/60 rounded-2xl p-4 space-y-1 text-purple-900 dark:text-purple-200 shadow-2xs">
+        <span className="text-xs font-extrabold flex items-center gap-1.5 text-purple-800 dark:text-purple-300">
+          💡 การรันลำดับเลขเอกสารแยกตามปี และรองรับการเริ่มต้นกลางปี
+        </span>
+        <p className="text-xs text-purple-700/90 dark:text-purple-300/90 leading-relaxed">
+          • <strong>กรณีโรงเรียนเริ่มใช้ระบบกลางปี:</strong> สามารถตั้งค่า <strong>"เลขรันถัดไป (Next Sequence)"</strong> ให้เริ่มที่เลขปัจจุบันได้ เช่น ปี 2569 เริ่มรันที่เลข 20<br />
+          • <strong>เมื่อขึ้นปีใหม่ (เช่น ปี 2570):</strong> ระบบจะทำการ <strong>รีเซ็ตกลับมาเริ่มนับ 1 ให้อัตโนมัติ</strong> สำหรับปีใหม่โดยไม่ต้องตั้งค่าซ้ำ!
+        </p>
+      </div>
       {configs.length === 0 ? (
         <div className="col-span-full bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-16 flex flex-col items-center justify-center text-slate-400 shadow-sm">
           <Hash className="w-12 h-12 mb-3 opacity-30" />
@@ -8943,7 +8953,7 @@ function DocSigneesTab({
             resetForm();
             setShowForm(true);
           }}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-purple-50 to-indigo-650 text-white text-sm font-semibold shadow-lg shadow-purple-500/20 hover:shadow-xl hover:shadow-purple-500/30 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 font-bold cursor-pointer"
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 active:scale-95 text-white text-xs font-bold transition-all shadow-md shadow-purple-600/20 cursor-pointer border border-purple-500/20"
         >
           <Plus className="w-4 h-4" />
           เพิ่มผู้ลงนาม

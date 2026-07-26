@@ -101,13 +101,31 @@ export async function issueOutboundDocAtomic(data: OutboundFormData, userId: str
       }
     }
 
-    // 4. Atomic sequence increment
-    const updatedConfig = await tx.documentConfig.update({
-      where: { id: config.id },
-      data: { currentSeq: { increment: 1 } },
-    });
+    // 4. Calculate sequence number for this specific year (thYear)
+    let nextSeq: number;
 
-    const nextSeq = updatedConfig.currentSeq;
+    if (latestDoc && latestDoc.seqNo !== null && latestDoc.seqNo !== undefined) {
+      // Documents exist in this year -> increment from the max seqNo of this year
+      nextSeq = latestDoc.seqNo + 1;
+      
+      if (nextSeq > config.currentSeq) {
+        await tx.documentConfig.update({
+          where: { id: config.id },
+          data: { currentSeq: nextSeq },
+        });
+      }
+    } else {
+      // First document of this year!
+      // Use configured sequence or start at 1
+      const configuredSeq = (config.currentSeq || 0) + 1;
+      nextSeq = configuredSeq > 0 ? configuredSeq : 1;
+
+      await tx.documentConfig.update({
+        where: { id: config.id },
+        data: { currentSeq: nextSeq },
+      });
+    }
+
     const finalYear = config.yearFormat === "TH_BE" ? thYear : year;
     const docNo = formatDocNumber(
       "[PREFIX] [SEQ]/[YEAR]",
