@@ -7,13 +7,20 @@ import "./globals.css";
 
 export async function generateMetadata(): Promise<Metadata> {
   let iconUrl: string = "/icon.jpg";
+  let appTitleSuffix: string = "e-Leave System";
+
   try {
     const settings = await prisma.systemSettings.findUnique({
       where: { id: "default" },
-      select: { logoUrl: true, schoolName: true },
+      select: { logoUrl: true, schoolName: true, subheader: true },
     });
     if (settings?.logoUrl) {
       iconUrl = settings.logoUrl;
+    }
+    if (settings?.subheader && settings.subheader.trim()) {
+      appTitleSuffix = settings.subheader.trim();
+    } else if (settings?.schoolName && settings.schoolName.trim()) {
+      appTitleSuffix = settings.schoolName.trim();
     }
   } catch {
     // fallback to default icon if DB is unreachable
@@ -21,8 +28,8 @@ export async function generateMetadata(): Promise<Metadata> {
 
   return {
     title: {
-      default: "ระบบบริหารจัดการโรงเรียน | e-Leave",
-      template: "%s | e-Leave",
+      default: `${appTitleSuffix}`,
+      template: `%s | ${appTitleSuffix}`,
     },
     description: "ระบบการลาและงานสารบรรณออนไลน์ - Online School Management System",
     icons: {
