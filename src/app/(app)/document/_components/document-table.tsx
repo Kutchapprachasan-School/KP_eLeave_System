@@ -40,21 +40,26 @@ export default function DocumentTable({
   selectedStatus,
   setSelectedStatus,
 }: DocumentTableProps) {
+  const [localTab, setLocalTab] = useState<"outbound" | "inbound">(activeTab);
   const [selectedTimeRange, setSelectedTimeRange] = useState<string>("");
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [pageSize, setPageSize] = useState<number>(10);
 
+  useEffect(() => {
+    setLocalTab(activeTab);
+  }, [activeTab]);
+
   // Reset pagination when active tab or filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [activeTab, searchQuery, selectedDocType, selectedYear, selectedTimeRange, selectedStatus]);
+  }, [localTab, searchQuery, selectedDocType, selectedYear, selectedTimeRange, selectedStatus]);
 
   // Filters logic
   const filteredData = useMemo(() => {
     const now = new Date();
     const oneWeekAgo = now.getTime() - 7 * 24 * 60 * 60 * 1000;
 
-    if (activeTab === "outbound") {
+    if (localTab === "outbound") {
       return outboundDocs.filter((d) => {
         const matchesSearch =
           d.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -126,7 +131,7 @@ export default function DocumentTable({
         return matchesSearch && matchesType && matchesYear && matchesTimeRange && matchesStatus;
       });
     }
-  }, [activeTab, outboundDocs, inboundDocs, searchQuery, selectedDocType, selectedYear, selectedTimeRange, selectedStatus]);
+  }, [localTab, outboundDocs, inboundDocs, searchQuery, selectedDocType, selectedYear, selectedTimeRange, selectedStatus]);
 
   // Paginated rows
   const totalPages = Math.max(1, Math.ceil(filteredData.length / pageSize));
@@ -148,15 +153,38 @@ export default function DocumentTable({
     <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl p-5 md:p-6 shadow-xs space-y-4">
       {/* Table Title and Toolbar */}
       <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3 flex-wrap gap-2">
-        <h3 className="text-base font-bold text-slate-800 dark:text-white flex items-center gap-2">
-          <FolderOpen className="w-4.5 h-4.5 text-indigo-600" />
-          ประวัติและทะเบียน{activeTab === "outbound" ? "ออกเลข" : "รับหนังสือ"}
-        </h3>
+        <div className="flex items-center gap-2">
+          <FolderOpen className="w-5 h-5 text-indigo-600" />
+          <div className="flex bg-slate-100 dark:bg-slate-800/80 p-1 rounded-2xl gap-1 border border-slate-200/60 dark:border-slate-700/60">
+            <button
+              type="button"
+              onClick={() => setLocalTab("outbound")}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-extrabold transition cursor-pointer ${
+                localTab === "outbound"
+                  ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm"
+                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+              }`}
+            >
+              📝 ทะเบียนออกเลขส่ง ({outboundDocs.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setLocalTab("inbound")}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-extrabold transition cursor-pointer ${
+                localTab === "inbound"
+                  ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm"
+                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+              }`}
+            >
+              📥 ทะเบียนรับหนังสือ ({inboundDocs.length})
+            </button>
+          </div>
+        </div>
         
         <button
           type="button"
           onClick={onRefresh}
-          className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-sm font-semibold text-slate-600 dark:text-slate-400 transition"
+          className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-sm font-semibold text-slate-600 dark:text-slate-400 transition cursor-pointer"
         >
           <RefreshCw className="w-4 h-4" />
           รีเฟรช
@@ -169,7 +197,7 @@ export default function DocumentTable({
           <Search className="absolute left-3.5 top-3 w-4 h-4 text-slate-400" />
           <input
             type="text"
-            placeholder={activeTab === "outbound" ? "ค้นหาเลขเดิม/เรื่อง/ผู้ขอ..." : "ค้นหาเลขรับ/อ้างอิง/เรื่อง/ผู้ส่ง..."}
+            placeholder={localTab === "outbound" ? "ค้นหาเลขเดิม/เรื่อง/ผู้ขอ..." : "ค้นหาเลขรับ/อ้างอิง/เรื่อง/ผู้ส่ง..."}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full h-10 pl-10 pr-4 rounded-xl border border-slate-200 dark:border-slate-750 bg-slate-50/50 dark:bg-slate-950/50 text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white dark:focus:bg-slate-900 transition-all outline-none"
@@ -241,7 +269,7 @@ export default function DocumentTable({
       <div className="overflow-x-auto border border-slate-200/80 dark:border-slate-800 rounded-2xl">
         <table className="w-full text-sm text-left">
           <thead className="bg-slate-50/80 dark:bg-slate-950/50 text-slate-600 dark:text-slate-400 font-bold border-b border-slate-100 dark:border-slate-800">
-            {activeTab === "outbound" ? (
+            {localTab === "outbound" ? (
               <tr>
                 <th className="py-3.5 px-4 font-semibold">เลขที่</th>
                 <th className="py-3.5 px-4 font-semibold">ประเภท</th>
@@ -271,7 +299,7 @@ export default function DocumentTable({
               </tr>
             ) : (
               paginatedRows.map((d) => {
-                if (activeTab === "outbound") {
+                if (localTab === "outbound") {
                   return (
                     <tr key={d.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition">
                       <td className="py-3 px-4 font-mono font-bold text-indigo-600 dark:text-indigo-400">
