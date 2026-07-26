@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Search, RefreshCw, X, FolderOpen, Eye, Ban, ShieldAlert, AlertTriangle, Link2, Copy, ChevronLeft, ChevronRight, Trash2 } from "lucide-react";
 import { getDocTypeThaiLabel } from "@/lib/document-utils";
 import { deleteIncomingDoc } from "@/app/actions/incoming";
+import { SlideOverSheet } from "@/features/document/ui/components/slide-over-sheet";
 
 type MemoSection = { id: string; name: string; code: string; color?: string };
 
@@ -45,6 +46,7 @@ export default function DocumentTable({
   const [selectedTimeRange, setSelectedTimeRange] = useState<string>("this_month");
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [pageSize, setPageSize] = useState<number>(10);
+  const [previewDoc, setPreviewDoc] = useState<any | null>(null);
 
   useEffect(() => {
     setLocalTab(activeTab);
@@ -324,7 +326,15 @@ export default function DocumentTable({
                         }) : "-"}
                       </td>
                       <td className="py-3 px-4 text-right">
-                        <div className="flex gap-1.5 justify-end">
+                        <div className="flex gap-1.5 justify-end items-center">
+                          <button
+                            type="button"
+                            onClick={() => setPreviewDoc(d)}
+                            className="w-7 h-7 rounded-lg border border-indigo-200 dark:border-indigo-800/80 bg-indigo-50/50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition flex items-center justify-center cursor-pointer"
+                            title="ดูรายละเอียดฉบับนี้"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                          </button>
                           {d.status !== "CANCELLED" && (
                             <button
                               type="button"
@@ -492,6 +502,59 @@ export default function DocumentTable({
           </button>
         </div>
       </div>
+
+      {/* Slide-Over Sheet for Document Details Preview */}
+      <SlideOverSheet
+        isOpen={Boolean(previewDoc)}
+        onClose={() => setPreviewDoc(null)}
+        title={previewDoc?.docNo || previewDoc?.receiveNo || "รายละเอียดเอกสาร"}
+        description={previewDoc?.title || "ข้อมูลรายละเอียดเอกสารที่บันทึกในระบบ"}
+      >
+        {previewDoc && (
+          <div className="space-y-4 text-xs">
+            <div className="p-4 rounded-2xl bg-indigo-50/50 dark:bg-indigo-950/30 border border-indigo-100 dark:border-indigo-900/40 space-y-2">
+              <div className="flex justify-between items-center">
+                <span className="text-[10px] font-bold text-indigo-500 uppercase">
+                  เลขที่เอกสาร
+                </span>
+                <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400 text-sm">
+                  {previewDoc.docNo || previewDoc.receiveNo || "-"}
+                </span>
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-400 block font-medium">เรื่อง</span>
+                <p className="font-bold text-slate-800 dark:text-slate-200 text-sm">
+                  {previewDoc.title}
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="p-3 rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/40">
+                <span className="text-[10px] text-slate-400 block font-medium">เรียน / ถึง</span>
+                <p className="font-semibold text-slate-800 dark:text-slate-200">
+                  {previewDoc.to || "-"}
+                </p>
+              </div>
+              <div className="p-3 rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/40">
+                <span className="text-[10px] text-slate-400 block font-medium">จากหน่วยงาน / ผู้ขอ</span>
+                <p className="font-semibold text-slate-800 dark:text-slate-200">
+                  {previewDoc.requester || previewDoc.origin || previewDoc.senderOrg || "-"}
+                </p>
+              </div>
+            </div>
+
+            {previewDoc.content && (
+              <div className="p-3.5 rounded-xl border border-slate-100 dark:border-slate-800 space-y-1">
+                <span className="text-[10px] text-slate-400 block font-medium">รายละเอียดเพิ่มเติม</span>
+                <p className="text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-wrap">
+                  {previewDoc.content}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+      </SlideOverSheet>
     </div>
   );
 }

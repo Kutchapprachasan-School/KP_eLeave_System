@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Save, Sparkles, ChevronDown, Eye } from "lucide-react";
+import { SearchableCombobox } from "@/features/document/ui/components/forms/searchable-combobox";
 
 type MemoSection = { id: string; name: string; code: string; color?: string };
 
@@ -226,50 +227,28 @@ export default function OutboundForm({
               />
             </div>
 
-            <div className="relative">
+            {/* To / Recipient */}
+            <div>
               <div className="flex justify-between items-center mb-1.5">
                 <label className="block text-xs font-semibold text-slate-800 dark:text-slate-200">
                   เรียน/ถึง *
                 </label>
-                <button
-                  type="button"
-                  onClick={() => setShowToPresets(!showToPresets)}
-                  className="text-[11px] text-indigo-600 dark:text-indigo-400 font-semibold hover:underline flex items-center gap-1 bg-indigo-50 dark:bg-indigo-950/50 px-2 py-0.5 rounded-md border border-indigo-200/50 dark:border-indigo-900/40 transition cursor-pointer"
-                >
-                  <Sparkles className="w-3 h-3 text-indigo-500" />
-                  ผู้รับใช้บ่อย
-                </button>
+                <SearchableCombobox
+                  options={COMMON_RECIPIENTS.map((r) => ({ label: r, value: r }))}
+                  value={formData.to}
+                  onSelect={(val) => setFormData((prev) => ({ ...prev, to: val }))}
+                  triggerLabel="ผู้รับใช้บ่อย"
+                  placeholder="ค้นหาผู้รับ/ตำแหน่ง..."
+                />
               </div>
               <input
                 type="text"
                 required
                 placeholder="เช่น ผู้อำนวยการโรงเรียน"
                 value={formData.to}
-                onFocus={() => setShowToPresets(true)}
                 onChange={(e) => setFormData({ ...formData, to: e.target.value })}
                 className="w-full h-10 px-3 rounded-xl border border-slate-200 dark:border-slate-750 bg-slate-50/50 dark:bg-slate-950/50 text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white dark:focus:bg-slate-900 transition-all outline-none"
               />
-              {showToPresets && (
-                <div className="absolute z-20 w-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg p-2 space-y-1">
-                  <div className="flex justify-between items-center text-[11px] text-slate-400 px-2 pb-1 border-b border-slate-100 dark:border-slate-800 font-semibold">
-                    <span>เลือกคำลงท้าย/ผู้รับใช้บ่อย</span>
-                    <button type="button" onClick={() => setShowToPresets(false)} className="text-rose-500 hover:underline">ปิด</button>
-                  </div>
-                  {COMMON_RECIPIENTS.map(r => (
-                    <button
-                      key={r}
-                      type="button"
-                      onClick={() => {
-                        setFormData(prev => ({ ...prev, to: r }));
-                        setShowToPresets(false);
-                      }}
-                      className="w-full text-left px-3 py-1.5 rounded-lg text-xs hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 transition-colors"
-                    >
-                      {r}
-                    </button>
-                  ))}
-                </div>
-              )}
             </div>
           </div>
 
@@ -293,31 +272,9 @@ export default function OutboundForm({
               required
               placeholder="เช่น ขออนุมัติจัดซื้อวัสดุสำนักงาน..."
               value={formData.title}
-              onFocus={() => setShowTitlePresets(true)}
               onChange={(e) => setFormData({ ...formData, title: e.target.value })}
               className="w-full h-10 px-3 rounded-xl border border-slate-200 dark:border-slate-750 bg-slate-50/50 dark:bg-slate-950/50 text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white dark:focus:bg-slate-900 transition-all outline-none"
             />
-            {showTitlePresets && (
-              <div className="absolute z-20 w-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg p-2 space-y-1">
-                <div className="flex justify-between items-center text-[11px] text-slate-400 px-2 pb-1 border-b border-slate-100 dark:border-slate-800 font-semibold">
-                  <span>เลือกหัวข้อเรื่องที่ใช้บ่อย</span>
-                  <button type="button" onClick={() => setShowTitlePresets(false)} className="text-rose-500 hover:underline">ปิด</button>
-                </div>
-                {COMMON_TITLES.map(t => (
-                  <button
-                    key={t}
-                    type="button"
-                    onClick={() => {
-                      setFormData(prev => ({ ...prev, title: t }));
-                      setShowTitlePresets(false);
-                    }}
-                    className="w-full text-left px-3 py-1.5 rounded-lg text-xs hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 transition-colors"
-                  >
-                    {t}
-                  </button>
-                ))}
-              </div>
-            )}
           </div>
 
           {/* Requester & Department */}

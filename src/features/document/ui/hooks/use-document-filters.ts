@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
-import { useSearchParams } from "next/navigation";
+import { useState, useTransition, useMemo } from "react";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { toBuddhistYear } from "@/features/document/domain/utils/thai-date";
 import { OutboundDocument, IncomingDoc } from "@/features/document/domain/types/document.types";
 
@@ -12,52 +12,47 @@ export function useDocumentFilters(
   outboundDocs: OutboundDocument[],
   inboundDocs: IncomingDoc[]
 ) {
+  const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
+  const [isPending, startTransition] = useTransition();
 
-  const [activeTab, setActiveTab] = useState<TabType>("outbound");
-  const [view, setView] = useState<ViewType>("issue");
+  // Read URL params as Single Source of Truth
+  const paramView = (searchParams?.get("view") as ViewType) || "issue";
+  const paramTab = (searchParams?.get("tab") as TabType) || "outbound";
+  const searchQuery = searchParams?.get("q") || "";
+  const selectedDocType = searchParams?.get("docType") || "";
+  const selectedYearTable = searchParams?.get("year") || "";
+  const selectedStatus = searchParams?.get("status") || "";
+
   const [selectedYear, setSelectedYear] = useState<number>(toBuddhistYear());
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedDocType, setSelectedDocType] = useState("");
-  const [selectedYearTable, setSelectedYearTable] = useState("");
-  const [selectedStatus, setSelectedStatus] = useState("");
 
-  // Sync state from URL Search Params
-  const paramView = searchParams?.get("view") ?? null;
-  const paramTab = searchParams?.get("tab") ?? null;
-  const paramDocType = searchParams?.get("docType") ?? null;
-  const paramStatus = searchParams?.get("status") ?? null;
-
-  useEffect(() => {
-    if (
-      paramView === "inbound" ||
-      paramView === "outbound_history" ||
-      paramView === "issue" ||
-      paramView === "cert"
-    ) {
-      setView(paramView as ViewType);
-      if (paramView === "inbound") setActiveTab("inbound");
-      if (paramView === "outbound_history") setActiveTab("outbound");
-    } else if (paramView === "history") {
-      if (paramTab === "inbound") {
-        setView("inbound");
-        setActiveTab("inbound");
-      } else {
-        setView("outbound_history");
-        setActiveTab("outbound");
-      }
-    } else if (paramTab === "inbound") {
-      setView("inbound");
-      setActiveTab("inbound");
+  // URL State Updater Helper
+  const setUrlParam = (key: string, value: string) => {
+    const params = new URLSearchParams(searchParams?.toString() || "");
+    if (value) {
+      params.set(key, value);
+    } else {
+      params.delete(key);
     }
 
-    if (paramDocType !== null) {
-      setSelectedDocType(paramDocType);
-    }
-    if (paramStatus !== null) {
-      setSelectedStatus(paramStatus);
-    }
-  }, [paramView, paramTab, paramDocType, paramStatus]);
+    startTransition(() => {
+      router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+    });
+  };
+
+  const setView = (newView: ViewType) => setUrlParam("view", newView);
+  const setActiveTab = (newTab: TabType) => setUrlParam("tab", newTab);
+  const setSearchQuery = (q: string) => setUrlParam("q", q);
+  const setSelectedDocType = (type: string) => setUrlParam("docType", type);
+  const setSelectedYearTable = (year: string) => setUrlParam("year", year);
+  const setSelectedStatus = (status: string) => setUrlParam("status", status);
+
+  const clearFilters = () => {
+    startTransition(() => {
+      router.replace(pathname, { scroll: false });
+    });
+  };
 
   const filteredOutboundDocs = useMemo(() => {
     return outboundDocs.filter(
@@ -71,17 +66,10 @@ export function useDocumentFilters(
     );
   }, [inboundDocs, selectedYear]);
 
-  const clearFilters = () => {
-    setSearchQuery("");
-    setSelectedDocType("");
-    setSelectedYearTable("");
-    setSelectedStatus("");
-  };
-
   return {
-    activeTab,
+    activeTab: paramTab,
     setActiveTab,
-    view,
+    view: paramView,
     setView,
     selectedYear,
     setSelectedYear,
@@ -96,5 +84,6 @@ export function useDocumentFilters(
     filteredOutboundDocs,
     filteredInboundDocs,
     clearFilters,
+    isPending,
   };
 }
