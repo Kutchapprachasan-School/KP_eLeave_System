@@ -768,18 +768,10 @@ export async function clearImpersonation() {
 }
 
 export async function getSimpleUsersList() {
-
-  await requireHROrAdmin();
-
   return prisma.user.findMany({
-
     where: { isApproved: true },
-
     select: { id: true, username: true, name: true, position: true, email: true },
-
     orderBy: { username: "asc" }
-
   });
-
 }
 

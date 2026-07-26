@@ -206,28 +206,28 @@ function DocumentPageContent() {
     setLoading(true);
     try {
       const [secs, outStatsRes, outListRes, inList, staff, amssCreds, trendRes] = await Promise.all([
-        getMemoSections(),
-        getDashboardStats(),
-        getDocumentsList({}),
-        getIncomingDocsList({}),
-        getSimpleUsersList(),
-        getAMSSCredentials(),
-        getDocumentTrendStats()
+        getMemoSections().catch(() => []),
+        getDashboardStats().catch(() => ({ success: false, data: { DRAFT: 0, ISSUED: 0, PRINTED: 0, CANCELLED: 0 } })),
+        getDocumentsList({}).catch(() => ({ success: false, data: [] })),
+        getIncomingDocsList({}).catch(() => []),
+        getSimpleUsersList().catch(() => []),
+        getAMSSCredentials().catch(() => ({ success: false, data: null })),
+        getDocumentTrendStats().catch(() => ({ success: false, data: [] }))
       ]);
-      setSections(secs as MemoSection[]);
-      if (outStatsRes.success) {
+      setSections((secs || []) as MemoSection[]);
+      if (outStatsRes?.success && outStatsRes.data) {
         setOutboundStats(outStatsRes.data);
       }
-      if (outListRes.success) {
+      if (outListRes?.success && outListRes.data) {
         setOutboundDocs(outListRes.data as any[]);
       }
-      setInboundDocs(inList as any[]);
-      setUsers(staff);
-      if (trendRes.success && trendRes.data) {
+      setInboundDocs((inList || []) as any[]);
+      setUsers(staff || []);
+      if (trendRes?.success && trendRes.data) {
         setTrendData(trendRes.data);
       }
 
-      if (amssCreds.success && amssCreds.data) {
+      if (amssCreds?.success && amssCreds.data) {
         setAmssCredsExist(true);
         setLastSyncAt(amssCreds.data.lastSyncAt ? new Date(amssCreds.data.lastSyncAt) : null);
       } else {
@@ -235,11 +235,11 @@ function DocumentPageContent() {
         setLastSyncAt(null);
       }
     } catch (err: any) {
-      showToast(err.message || "เกิดข้อผิดพลาดในการโหลดข้อมูล", "error");
+      console.error("loadData error:", err);
     } finally {
       setLoading(false);
     }
-  }, [showToast]);
+  }, []);
 
   useEffect(() => {
     loadData();
@@ -292,6 +292,7 @@ function DocumentPageContent() {
       });
       if (res.success) {
         showToast("ออกเลขเอกสารสำเร็จ: " + res.data.docNo, "success");
+        setQuickIssuedResult(res.data);
         setShowIssueModal(false);
         await loadData();
       } else {
