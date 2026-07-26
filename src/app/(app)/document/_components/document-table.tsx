@@ -2,8 +2,9 @@
 
 import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
-import { Search, RefreshCw, X, FolderOpen, Eye, Ban, ShieldAlert, AlertTriangle, Link2, Copy, ChevronLeft, ChevronRight } from "lucide-react";
+import { Search, RefreshCw, X, FolderOpen, Eye, Ban, ShieldAlert, AlertTriangle, Link2, Copy, ChevronLeft, ChevronRight, Trash2 } from "lucide-react";
 import { getDocTypeThaiLabel } from "@/lib/document-utils";
+import { deleteIncomingDoc } from "@/app/actions/incoming";
 
 type MemoSection = { id: string; name: string; code: string; color?: string };
 
@@ -383,6 +384,20 @@ export default function DocumentTable({
                           >
                             <Eye className="w-3.5 h-3.5" />
                           </Link>
+                          <button
+                            type="button"
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              if (confirm(`คุณต้องการลบหนังสือรับ "${d.title}" ออกจากทะเบียนหรือไม่?`)) {
+                                await deleteIncomingDoc(d.id);
+                                if (onRefresh) onRefresh();
+                              }
+                            }}
+                            className="w-7 h-7 rounded-lg border border-rose-200 dark:border-rose-900/60 bg-rose-50/50 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-900/50 transition flex items-center justify-center cursor-pointer ml-1"
+                            title="ลบหนังสือรับนี้ออกจากทะเบียน"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
                         </div>
                       </td>
                     </tr>

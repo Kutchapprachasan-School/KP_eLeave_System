@@ -10,6 +10,7 @@ import {
   importSelectedAMSSDocuments,
   AMSSPreviewItem 
 } from "@/app/actions/incoming";
+import { parseAMSSListHtml } from "@/lib/amss-list-parser";
 
 type AmssAutoBrowserSyncProps = {
   onSuccess?: (count: number) => void;
@@ -392,17 +393,29 @@ export default function AmssAutoBrowserSync({ onSuccess, showToast, autoTrigger 
                 placeholder="คลิกที่นี่แล้วกด Ctrl+V เพื่อวางข้อความจาก AMSS++ ทันที..."
                 onChange={async (e) => {
                   const text = e.target.value;
-                  if (text && text.trim().length > 30) {
+                  if (text && text.trim().length > 20) {
                     setSyncing(true);
-                    setStatusMsg("กำลังประมวลผลข้อความ AMSS++...");
+                    setStatusMsg("กำลังตรวจสอบรายการหนังสือรับจากข้อความ...");
                     try {
-                      const res = await syncAMSSDocumentsFromHtml(text, "all");
+                      const docs = parseAMSSListHtml(text);
                       setSyncing(false);
                       setStatusMsg(null);
-                      if (showToast) {
-                        showToast(`⚡ ซิงค์สำเร็จ! นำเข้าหนังสือใหม่ ${res.importedCount} รายการ`, "success");
+                      if (docs.length === 0) {
+                        if (showToast) showToast("ไม่พบรายการหนังสือรับในข้อความที่คัดลอกมา", "error");
+                        return;
                       }
-                      if (onSuccess) onSuccess(res.importedCount);
+                      const mappedItems: AMSSPreviewItem[] = docs.map((d) => ({
+                        amssLink: d.amssLink || "",
+                        receiveNo: d.receiveNo || "",
+                        docRefNo: d.docRefNo || "",
+                        title: d.title || "",
+                        senderOrg: d.senderOrg || "",
+                        dateText: d.dateText || "",
+                        isExisting: false
+                      }));
+                      setPreviewItems(mappedItems);
+                      setSelectedKeys(new Set(mappedItems.map((item) => item.amssLink || item.receiveNo)));
+                      setShowPreviewModal(true);
                       e.target.value = "";
                     } catch (err: any) {
                       setSyncing(false);

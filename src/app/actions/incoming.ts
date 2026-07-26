@@ -1222,3 +1222,20 @@ export const importSelectedAMSSDocuments = safeAction(async (selectedItems: AMSS
   safeRevalidatePath("/document");
   return result;
 });
+
+// Delete an incoming document by ID
+export const deleteIncomingDoc = safeAction(async (id: string) => {
+  const user = await getSessionUser();
+  await prisma.incomingDocument.delete({
+    where: { id }
+  });
+  await prisma.systemLog.create({
+    data: {
+      actionType: "INCOMING_DELETE",
+      description: `ลบหนังสือรับ ID: ${id} โดยผู้ใช้ ${user.name || "Unknown"}`,
+      userId: user.id
+    }
+  });
+  safeRevalidatePath("/document");
+  return { success: true };
+});
