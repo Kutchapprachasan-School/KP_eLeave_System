@@ -231,7 +231,30 @@ export default function AmssAutoBrowserSync({ onSuccess, showToast, autoTrigger 
   };
 
   const handleDirectOneClickSync = async () => {
-    await handleFetchPreview();
+    try {
+      const res = await fetchAmssPreviewDocs({
+        yearFilter: getEffectiveYear(),
+        monthFilter: selectedMonth,
+        maxPages: maxPages
+      });
+
+      if (res.success && res.data && res.data.items && res.data.items.length > 0) {
+        setPreviewItems(res.data.items);
+        const newKeys = new Set<string>();
+        res.data.items.forEach(i => {
+          if (!i.isExisting) {
+            newKeys.add(i.amssLink || `${i.receiveNo}-${i.docRefNo}`);
+          }
+        });
+        setSelectedKeys(newKeys);
+        setShowPreviewModal(true);
+      } else {
+        // Fallback to opening browser pop-up sync automatically
+        await handleAutoBrowserSync();
+      }
+    } catch (err) {
+      await handleAutoBrowserSync();
+    }
   };
 
   const filteredPreviewItems = previewItems.filter(item => {

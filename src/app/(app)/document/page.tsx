@@ -347,20 +347,9 @@ function DocumentPageContent() {
     try {
       const res = await syncAMSSDocumentsAutomatically();
       if (!res.success) {
-        const errMsg = res.error || "เกิดข้อผิดพลาดในการดึงข้อมูลจาก AMSS++";
-        if (
-          errMsg.includes("CAPTCHA") ||
-          errMsg.includes("Cloudflare") ||
-          errMsg.includes("403") ||
-          errMsg.includes("Firewall") ||
-          errMsg.includes("ล้มเหลว") ||
-          errMsg.includes("ไม่สามารถเชื่อมต่อ")
-        ) {
-          // Trigger browser client background sync automatically without popup error toast
-          setAutoBrowserTrigger(true);
-        } else {
-          showToast(errMsg, "error");
-        }
+        // Auto trigger browser sync fallback whenever direct server-to-server sync is blocked or fails
+        setAutoBrowserTrigger(true);
+        showToast("เซิร์ฟเวอร์ AMSS++ มีระบบป้องกันบอทภายนอก สลับไปช่องทางซิงค์ผ่านเบราว์เซอร์ให้อัตโนมัติ...", "success");
       } else {
         const { importedCount, duplicatesCount } = res.data;
         if (importedCount === 0 && duplicatesCount > 0) {
@@ -377,6 +366,7 @@ function DocumentPageContent() {
     } catch (err: any) {
       // Fallback to browser client auto sync
       setAutoBrowserTrigger(true);
+      showToast("สลับไปช่องทางซิงค์ผ่านเบราว์เซอร์ให้อัตโนมัติ...", "success");
     } finally {
       setAmssSyncing(false);
     }
