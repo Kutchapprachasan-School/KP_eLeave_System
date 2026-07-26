@@ -20,6 +20,8 @@ type DocumentTableProps = {
   setSearchQuery: (val: string) => void;
   selectedDocType: string;
   setSelectedDocType: (val: string) => void;
+  selectedSectionId?: string;
+  setSelectedSectionId?: (val: string) => void;
   selectedYear: string;
   setSelectedYear: (val: string) => void;
   selectedStatus: string;
@@ -38,6 +40,8 @@ export default function DocumentTable({
   setSearchQuery,
   selectedDocType,
   setSelectedDocType,
+  selectedSectionId = "",
+  setSelectedSectionId,
   selectedYear,
   setSelectedYear,
   selectedStatus,
@@ -58,7 +62,33 @@ export default function DocumentTable({
   // Reset pagination when active tab or filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [localTab, searchQuery, selectedDocType, selectedYear, selectedTimeRange, selectedStatus]);
+  }, [localTab, searchQuery, selectedDocType, selectedSectionId, selectedYear, selectedTimeRange, selectedStatus]);
+
+  // Active memo section resolution for custom color theme
+  const activeSection = useMemo(() => {
+    if (selectedSectionId) {
+      return sections.find((s) => s.id === selectedSectionId);
+    }
+    return sections.find((s) => s.id === selectedDocType);
+  }, [sections, selectedSectionId, selectedDocType]);
+
+  const activeBadgeStyle = useMemo(() => {
+    if (activeSection?.color) {
+      const color = activeSection.color;
+      return {
+        style: {
+          backgroundColor: `${color}15`,
+          borderColor: `${color}50`,
+          color: color,
+        },
+        iconColor: color,
+      };
+    }
+    return {
+      style: undefined,
+      iconColor: undefined,
+    };
+  }, [activeSection]);
 
   // Filters logic
   const filteredData = useMemo(() => {
@@ -81,9 +111,12 @@ export default function DocumentTable({
           (selDocType === "MEMO" && targetDocType === "MEMO") ||
           (selDocType === "COMMAND" && targetDocType === "COMMAND") ||
           (selDocType === "ANNOUNCEMENT" && targetDocType === "ANNOUNCEMENT") ||
-          (selDocType.startsWith("OUTGOING") && targetDocType.startsWith("OUTGOING")) ||
-          d.memoSectionId === selectedDocType ||
-          d.memoSection?.id === selectedDocType;
+          (selDocType.startsWith("OUTGOING") && targetDocType.startsWith("OUTGOING"));
+
+        const matchesSection =
+          !selectedSectionId ||
+          d.memoSectionId === selectedSectionId ||
+          d.memoSection?.id === selectedSectionId;
 
         const docDate = new Date(d.date);
         const docYear = docDate.getFullYear() + 543;
@@ -102,7 +135,7 @@ export default function DocumentTable({
           !selectedStatus ||
           d.status === selectedStatus;
 
-        return matchesSearch && matchesType && matchesYear && matchesTimeRange && matchesStatus;
+        return matchesSearch && matchesType && matchesSection && matchesYear && matchesTimeRange && matchesStatus;
       });
     } else {
       return inboundDocs.filter((d) => {
@@ -110,14 +143,17 @@ export default function DocumentTable({
           !searchQuery.trim() ||
           Boolean(d.title?.toLowerCase().includes(searchQuery.toLowerCase())) ||
           Boolean(d.receiveNo?.toLowerCase().includes(searchQuery.toLowerCase())) ||
-          Boolean(d.senderOrg?.toLowerCase().includes(searchQuery.toLowerCase())) ||
-          Boolean(d.docRefNo?.toLowerCase().includes(searchQuery.toLowerCase()));
+          Boolean(d.senderOrg?.toLowerCase().includes(searchQuery.toLowerCase()));
 
         const matchesType =
           !selectedDocType ||
-          (selectedDocType === "AMSS" && Boolean(d.amssOriginId || d.amssLink)) ||
-          (selectedDocType === "MANUAL" && !d.amssOriginId && !d.amssLink) ||
-          d.memoSectionId === selectedDocType;
+          (selectedDocType === "AMSS" && Boolean(d.amssOriginId)) ||
+          (selectedDocType === "MANUAL" && !d.amssOriginId);
+
+        const matchesSection =
+          !selectedSectionId ||
+          d.memoSectionId === selectedSectionId ||
+          d.memoSection?.id === selectedSectionId;
 
         const docDate = new Date(d.receiveDate);
         const docYear = docDate.getFullYear() + 543;
@@ -134,17 +170,15 @@ export default function DocumentTable({
 
         const matchesStatus =
           !selectedStatus ||
-          (selectedStatus === "MY_PENDING" && d.routingSteps?.some((s: any) => s.status === "PENDING" && s.assigneeId === currentUserId)) ||
-          (selectedStatus === "PENDING" && (d.status === "PENDING" || d.status === "ROUTING")) ||
           d.status === selectedStatus;
 
-        return matchesSearch && matchesType && matchesYear && matchesTimeRange && matchesStatus;
+        return matchesSearch && matchesType && matchesSection && matchesYear && matchesTimeRange && matchesStatus;
       });
     }
-  }, [localTab, outboundDocs, inboundDocs, searchQuery, selectedDocType, selectedYear, selectedTimeRange, selectedStatus, currentUserId]);
+  }, [localTab, outboundDocs, inboundDocs, searchQuery, selectedDocType, selectedSectionId, selectedYear, selectedTimeRange, selectedStatus]);
 
   // Paginated rows
-  const totalPages = Math.max(1, Math.ceil(filteredData.length / pageSize));
+  const totalPages = Math.ceil(filteredData.length / pageSize) || 1;
   
   const paginatedRows = useMemo(() => {
     const start = (currentPage - 1) * pageSize;
@@ -155,31 +189,33 @@ export default function DocumentTable({
     if (localTab !== "outbound") {
       return `ทะเบียนรับหนังสือราชการ (${filteredData.length} รายการ)`;
     }
-    if (!selectedDocType) {
-      return `ทะเบียนออกเลขหนังสือทั้งหมด (${filteredData.length} รายการ)`;
-    }
+
+    let baseTitle = "ทะเบียนออกเลขหนังสือทั้งหมด";
     if (selectedDocType === "MEMO") {
-      return `ทะเบียนออกเลขบันทึกข้อความ (${filteredData.length} รายการ)`;
+      baseTitle = "ทะเบียนออกเลขบันทึกข้อความ";
+    } else if (selectedDocType === "OUTGOING" || selectedDocType.startsWith("OUTGOING")) {
+      baseTitle = "ทะเบียนออกเลขหนังสือส่ง";
+    } else if (selectedDocType === "COMMAND") {
+      baseTitle = "ทะเบียนออกเลขคำสั่ง";
+    } else if (selectedDocType === "ANNOUNCEMENT") {
+      baseTitle = "ทะเบียนออกเลขประกาศ";
     }
-    if (selectedDocType === "OUTGOING" || selectedDocType.startsWith("OUTGOING")) {
-      return `ทะเบียนออกเลขหนังสือส่ง (${filteredData.length} รายการ)`;
+
+    if (activeSection) {
+      if (selectedDocType === "MEMO" || !selectedDocType) {
+        baseTitle = `ทะเบียนออกเลขบันทึกข้อความ - ${activeSection.name}`;
+      } else {
+        baseTitle = `${baseTitle} - ${activeSection.name}`;
+      }
     }
-    if (selectedDocType === "COMMAND") {
-      return `ทะเบียนออกเลขคำสั่ง (${filteredData.length} รายการ)`;
-    }
-    if (selectedDocType === "ANNOUNCEMENT") {
-      return `ทะเบียนออกเลขประกาศ (${filteredData.length} รายการ)`;
-    }
-    const sec = sections.find((s) => s.id === selectedDocType);
-    if (sec) {
-      return `ทะเบียนออกเลขบันทึกข้อความ - ${sec.name} (${filteredData.length} รายการ)`;
-    }
-    return `ทะเบียนออกเลขหนังสือ (${filteredData.length} รายการ)`;
+
+    return `${baseTitle} (${filteredData.length} รายการ)`;
   };
 
   const clearFilters = () => {
     setSearchQuery("");
     setSelectedDocType("");
+    if (setSelectedSectionId) setSelectedSectionId("");
     setSelectedYear("");
     setSelectedTimeRange("");
     setSelectedStatus("");
@@ -189,9 +225,19 @@ export default function DocumentTable({
     <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl p-5 md:p-6 shadow-xs space-y-4">
       {/* Table Title and Toolbar */}
       <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3 flex-wrap gap-2">
-        <div className="flex items-center gap-2.5 bg-indigo-50/80 dark:bg-indigo-950/50 px-3.5 py-1.5 rounded-xl border border-indigo-100 dark:border-indigo-900/60">
-          <FolderOpen className="w-4.5 h-4.5 text-indigo-600 dark:text-indigo-400" />
-          <h3 className="text-sm font-extrabold text-indigo-950 dark:text-indigo-200">
+        <div
+          className={`flex items-center gap-2.5 px-3.5 py-1.5 rounded-xl border font-bold transition-all ${
+            !activeBadgeStyle.style
+              ? "bg-indigo-50/80 dark:bg-indigo-950/50 border-indigo-100 dark:border-indigo-900/60 text-indigo-950 dark:text-indigo-200"
+              : ""
+          }`}
+          style={activeBadgeStyle.style ? activeBadgeStyle.style : undefined}
+        >
+          <FolderOpen
+            className="w-4.5 h-4.5"
+            style={{ color: activeBadgeStyle.iconColor || undefined }}
+          />
+          <h3 className="text-sm font-extrabold">
             {getActiveDocTypeTitle()}
           </h3>
         </div>
@@ -223,21 +269,19 @@ export default function DocumentTable({
           />
         </div>
 
+        {/* Dropdown 1: ประเภทหนังสือหลัก */}
         <select
           value={selectedDocType}
           onChange={(e) => setSelectedDocType(e.target.value)}
-          className="h-10 px-3.5 rounded-xl border border-slate-200 dark:border-slate-750 bg-slate-50/50 dark:bg-slate-950/50 text-sm cursor-pointer focus:ring-2 focus:ring-indigo-500/20 outline-none"
+          className="h-10 px-3.5 rounded-xl border border-slate-200 dark:border-slate-750 bg-slate-50/50 dark:bg-slate-950/50 text-sm cursor-pointer focus:ring-2 focus:ring-indigo-500/20 outline-none font-medium"
         >
-          <option value="">ประเภททั้งหมด</option>
+          <option value="">ประเภทหนังสือทั้งหมด</option>
           {activeTab === "outbound" ? (
             <>
               <option value="MEMO">บันทึกข้อความ</option>
               <option value="OUTGOING">หนังสือส่ง</option>
               <option value="COMMAND">คำสั่ง</option>
               <option value="ANNOUNCEMENT">ประกาศ</option>
-              {sections.map(s => (
-                <option key={s.id} value={s.id}>{s.name} ({s.code})</option>
-              ))}
             </>
           ) : (
             <>
@@ -324,8 +368,31 @@ export default function DocumentTable({
                       <td className="py-3 px-4 font-mono font-bold text-indigo-600 dark:text-indigo-400 whitespace-nowrap">
                         {d.docNo || <span className="text-amber-500 text-xs">รอออกเลข</span>}
                       </td>
-                      <td className="py-3 px-4 text-slate-600 dark:text-slate-400 font-medium whitespace-nowrap">
-                        {getDocTypeThaiLabel(d.docType, d.memoSection?.name)}
+                      <td className="py-3 px-4 whitespace-nowrap">
+                        {(() => {
+                          const sec = sections.find((s) => s.id === d.memoSectionId || s.name === d.memoSection?.name);
+                          const color = sec?.color || "#6366f1";
+                          const label = getDocTypeThaiLabel(d.docType, d.memoSection?.name);
+                          
+                          return (
+                            <span 
+                              className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold border ${
+                                !sec ? "bg-slate-100/80 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300" : ""
+                              }`}
+                              style={
+                                sec
+                                  ? {
+                                      backgroundColor: `${color}15`,
+                                      borderColor: `${color}40`,
+                                      color: color,
+                                    }
+                                  : undefined
+                              }
+                            >
+                              {label}
+                            </span>
+                          );
+                        })()}
                       </td>
                       <td className="py-3 px-4 text-slate-500 font-medium whitespace-nowrap">
                         {d.date ? new Date(d.date).toLocaleDateString("th-TH", {

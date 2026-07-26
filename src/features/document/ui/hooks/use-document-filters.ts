@@ -22,6 +22,7 @@ export function useDocumentFilters(
   const paramTab = (searchParams?.get("tab") as TabType) || "outbound";
   const searchQuery = searchParams?.get("q") || "";
   const selectedDocType = searchParams?.get("docType") || "";
+  const selectedSectionId = searchParams?.get("sectionId") || "";
   const selectedYearTable = searchParams?.get("year") || "";
   const selectedStatus = searchParams?.get("status") || "";
 
@@ -51,6 +52,7 @@ export function useDocumentFilters(
   const setActiveTab = (newTab: TabType) => setUrlParams({ tab: newTab });
   const setSearchQuery = (q: string) => setUrlParams({ q });
   const setSelectedDocType = (type: string) => setUrlParams({ docType: type });
+  const setSelectedSectionId = (sectionId: string) => setUrlParams({ sectionId });
   const setSelectedYearTable = (year: string) => setUrlParams({ year });
   const setSelectedStatus = (status: string) => setUrlParams({ status });
 
@@ -84,6 +86,8 @@ export function useDocumentFilters(
     setSearchQuery,
     selectedDocType,
     setSelectedDocType,
+    selectedSectionId,
+    setSelectedSectionId,
     selectedYearTable,
     setSelectedYearTable,
     selectedStatus,

@@ -13,6 +13,8 @@ interface OutboundHistoryViewProps {
   setSearchQuery: (val: string) => void;
   selectedDocType: string;
   setSelectedDocType: (val: string) => void;
+  selectedSectionId?: string;
+  setSelectedSectionId?: (val: string) => void;
   selectedYear: string;
   setSelectedYear: (val: string) => void;
   selectedStatus: string;
@@ -29,6 +31,8 @@ export function OutboundHistoryView({
   setSearchQuery,
   selectedDocType,
   setSelectedDocType,
+  selectedSectionId = "",
+  setSelectedSectionId,
   selectedYear,
   setSelectedYear,
   selectedStatus,
@@ -38,20 +42,22 @@ export function OutboundHistoryView({
     <div className="space-y-6 animate-in fade-in duration-200">
       <DocumentTable
         activeTab="outbound"
-          outboundDocs={outboundDocs}
-          inboundDocs={inboundDocs}
-          sections={sections}
-          onRefresh={onRefresh}
-          onCancelDocClick={onCancelDocClick}
-          searchQuery={searchQuery}
-          setSearchQuery={setSearchQuery}
-          selectedDocType={selectedDocType}
-          setSelectedDocType={setSelectedDocType}
-          selectedYear={selectedYear}
-          setSelectedYear={setSelectedYear}
-          selectedStatus={selectedStatus}
-          setSelectedStatus={setSelectedStatus}
-        />
+        outboundDocs={outboundDocs}
+        inboundDocs={inboundDocs}
+        sections={sections}
+        onRefresh={onRefresh}
+        onCancelDocClick={onCancelDocClick}
+        searchQuery={searchQuery}
+        setSearchQuery={setSearchQuery}
+        selectedDocType={selectedDocType}
+        setSelectedDocType={setSelectedDocType}
+        selectedSectionId={selectedSectionId}
+        setSelectedSectionId={setSelectedSectionId}
+        selectedYear={selectedYear}
+        setSelectedYear={setSelectedYear}
+        selectedStatus={selectedStatus}
+        setSelectedStatus={setSelectedStatus}
+      />
     </div>
   );
 }

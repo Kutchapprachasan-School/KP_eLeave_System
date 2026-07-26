@@ -140,6 +140,8 @@ function DocumentPageContent() {
           setSearchQuery={filters.setSearchQuery}
           selectedDocType={filters.selectedDocType}
           setSelectedDocType={filters.setSelectedDocType}
+          selectedSectionId={filters.selectedSectionId}
+          setSelectedSectionId={filters.setSelectedSectionId}
           selectedYear={filters.selectedYearTable}
           setSelectedYear={filters.setSelectedYearTable}
           selectedStatus={filters.selectedStatus}
