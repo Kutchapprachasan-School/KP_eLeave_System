@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { ArrowLeft, Printer, Plus, Trash2, Award, FileCheck, Calendar, UserCheck, Shield } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { CertQrCode } from "@/features/document/ui/components/cert-qr-code";
 
 interface Certificate {
   id: string;
@@ -63,9 +64,8 @@ export default function CertGenerator({ onBack }: { onBack: () => void }) {
     window.print();
   };
 
-  // Generate dynamic QR code URL
+  // Generate dynamic QR code payload
   const qrData = `ID:${form.name}|Act:${form.activity}|Sign:${form.signatoryName}`;
-  const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(qrData)}`;
 
   return (
     <div className="space-y-6">
@@ -291,10 +291,11 @@ export default function CertGenerator({ onBack }: { onBack: () => void }) {
             <div className="flex justify-between items-end px-4 md:px-8 pt-4 border-t border-slate-100">
               {/* QR Code Validation */}
               <div className="flex items-center gap-2.5 text-left bg-slate-50 p-2 rounded-xl border border-slate-100 max-w-[190px]">
-                <img
-                  src={qrCodeUrl}
-                  alt="Verification QR"
-                  className="w-12 h-12 border border-slate-200 bg-white"
+                <CertQrCode
+                  certId="CERT-VERIFY"
+                  recipientName={form.name}
+                  activityName={form.activity}
+                  size={48}
                 />
                 <div className="text-[8px] leading-tight text-slate-500 font-sans">
                   <p className="font-bold text-slate-755">ระบบตรวจสอบ</p>

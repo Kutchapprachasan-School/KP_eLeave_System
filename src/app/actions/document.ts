@@ -4,6 +4,7 @@ import prisma from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { formatDocNumber } from "@/lib/document-utils";
 import { ActionResponse } from "@/lib/utils";
+import { issueOutboundDocAtomic } from "@/features/document/application/use-cases/issue-outbound-doc.use-case";
 
 // Helper to check user session
 async function getSessionUser() {
@@ -183,35 +184,9 @@ export async function quickIssueDoc(data: {
       throw new Error("วันที่ของเอกสารไม่ถูกต้อง");
     }
 
-    const draft = await prisma.documentRecord.create({
-      data: {
-        docType: data.docType,
-        memoSectionId: data.memoSectionId || null,
-        title: data.title,
-        to: data.to,
-        origin: data.origin,
-        date: docDate,
-        content: "",
-        signeeName: "",
-        signeePosition: "",
-        requester: data.requester,
-        department: data.department,
-        status: "DRAFT",
-        createdById: user.id,
-        year: docDate.getFullYear()
-      }
-    });
-
-    try {
-      const issuedRes = await issueDocNumber(draft.id, data.date);
-      if (!issuedRes.success) {
-        throw new Error(issuedRes.error);
-      }
-      return issuedRes;
-    } catch (error: any) {
-      await prisma.documentRecord.delete({ where: { id: draft.id } }).catch(() => {});
-      throw error;
-    }
+    const issuedDoc = await issueOutboundDocAtomic(data, user.id);
+    safeRevalidatePath("/document");
+    return { success: true, data: issuedDoc };
   } catch (err: any) {
     return handleActionError(err, "quickIssueDoc");
   }
