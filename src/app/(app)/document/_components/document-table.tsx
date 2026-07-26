@@ -3,6 +3,7 @@
 import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { Search, RefreshCw, X, FolderOpen, Eye, Ban, ShieldAlert, AlertTriangle, Link2, Copy, ChevronLeft, ChevronRight } from "lucide-react";
+import { getDocTypeThaiLabel } from "@/lib/document-utils";
 
 type MemoSection = { id: string; name: string; code: string; color?: string };
 
@@ -276,7 +277,7 @@ export default function DocumentTable({
                         {d.docNo}
                       </td>
                       <td className="py-3 px-4 text-slate-600 dark:text-slate-400 font-medium">
-                        {d.docType === "MEMO" ? (d.memoSection?.name || "บันทึกข้อความ") : d.docType}
+                        {getDocTypeThaiLabel(d.docType, d.memoSection?.name)}
                       </td>
                       <td className="py-3 px-4 font-semibold text-slate-800 dark:text-slate-200 max-w-xs truncate" title={d.title}>
                         {d.title}

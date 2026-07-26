@@ -34,3 +34,19 @@ export function formatDocNumber(
     
   return formatted;
 }
+
+export const DOC_TYPE_THAI_MAP: Record<string, string> = {
+  MEMO: "บันทึกข้อความ",
+  COMMAND: "คำสั่งโรงเรียน",
+  OUTGOING: "หนังสือส่ง",
+  OUTGOING_NORMAL: "หนังสือส่ง (ปกติ)",
+  OUTGOING_CIRCULAR: "หนังสือส่ง (จดหมายเวียน)",
+  ANNOUNCEMENT: "ประกาศโรงเรียน",
+};
+
+export function getDocTypeThaiLabel(docType: string, memoSectionName?: string | null): string {
+  if (docType === "MEMO") {
+    return memoSectionName || "บันทึกข้อความ";
+  }
+  return DOC_TYPE_THAI_MAP[docType] || docType;
+}

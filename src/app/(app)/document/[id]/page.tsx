@@ -45,8 +45,11 @@ const STATUS_MAP: Record<string, { label: string; color: string }> = {
 
 const DOC_TYPE_LABEL: Record<string, string> = {
   MEMO: "บันทึกข้อความ",
-  COMMAND: "คำสั่ง",
+  COMMAND: "คำสั่งโรงเรียน",
   OUTGOING: "หนังสือส่ง",
+  OUTGOING_NORMAL: "หนังสือส่ง (ปกติ)",
+  OUTGOING_CIRCULAR: "หนังสือส่ง (จดหมายเวียน)",
+  ANNOUNCEMENT: "ประกาศโรงเรียน",
 };
 
 // ══════════════════════════════════════════════════════════════════════
