@@ -93,15 +93,16 @@ export default function DocumentTable({
     } else {
       return inboundDocs.filter((d) => {
         const matchesSearch =
-          d.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          d.receiveNo?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          d.senderOrg?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          d.docRefNo?.toLowerCase().includes(searchQuery.toLowerCase());
+          !searchQuery.trim() ||
+          Boolean(d.title?.toLowerCase().includes(searchQuery.toLowerCase())) ||
+          Boolean(d.receiveNo?.toLowerCase().includes(searchQuery.toLowerCase())) ||
+          Boolean(d.senderOrg?.toLowerCase().includes(searchQuery.toLowerCase())) ||
+          Boolean(d.docRefNo?.toLowerCase().includes(searchQuery.toLowerCase()));
 
         const matchesType =
           !selectedDocType ||
-          (selectedDocType === "AMSS" && d.amssOriginId) ||
-          (selectedDocType === "MANUAL" && !d.amssOriginId) ||
+          (selectedDocType === "AMSS" && Boolean(d.amssOriginId || d.amssLink)) ||
+          (selectedDocType === "MANUAL" && !d.amssOriginId && !d.amssLink) ||
           d.memoSectionId === selectedDocType;
 
         const docDate = new Date(d.receiveDate);

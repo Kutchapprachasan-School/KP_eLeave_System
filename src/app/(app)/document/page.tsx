@@ -695,8 +695,8 @@ function DocumentPageContent() {
           {/* Inbound Document History Table */}
           <DocumentTable
             activeTab="inbound"
-            outboundDocs={filteredOutboundDocs}
-            inboundDocs={filteredInboundDocs}
+            outboundDocs={outboundDocs}
+            inboundDocs={inboundDocs}
             sections={sections}
             onRefresh={loadData}
             onCancelDocClick={(id) => {
