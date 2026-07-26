@@ -1127,63 +1127,78 @@ export const importSelectedAMSSDocuments = safeAction(async (selectedItems: AMSS
     return { importedCount: 0, duplicatesCount: selectedItems.length };
   }
 
+  // Pre-parse date and time for each item
+  const itemsWithDates = itemsToImport.map((d) => {
+    let parsedDate = new Date();
+    const textToSearch = `${d.dateText} ${d.senderOrg || ""}`;
+    const parts = d.dateText.trim().split(/\s+/);
+    if (parts.length >= 3) {
+      const day = parseInt(parts[0], 10);
+      const thaiShortMonthMap: Record<string, number> = {
+        "มค": 0, "กพ": 1, "มีค": 2, "เมย": 3, "พค": 4, "มิย": 5,
+        "กค": 6, "สค": 7, "กย": 8, "ตค": 9, "พย": 10, "ธค": 11,
+        "มกราคม": 0, "กุมภาพันธ์": 1, "มีนาคม": 2, "เมษายน": 3,
+        "พฤษภาคม": 4, "มิถุนายน": 5, "กรกฎาคม": 6, "สิงหาคม": 7,
+        "กันยายน": 8, "ตุลาคม": 9, "พฤศจิกายน": 10, "ธันวาคม": 11
+      };
+      const mClean = parts[1].replace(/\./g, "").trim();
+      const monthIdx = thaiShortMonthMap[mClean] !== undefined ? thaiShortMonthMap[mClean] : 0;
+      
+      let year = parseInt(parts[2], 10);
+      if (!isNaN(year) && !isNaN(day)) {
+        if (year > 2400) year = year - 543;
+        else if (year < 100) year = year + 2500 - 543;
+
+        let hours = 12, minutes = 0, seconds = 0;
+        const timeMatch = textToSearch.match(/(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+        if (timeMatch) {
+          hours = parseInt(timeMatch[1], 10);
+          minutes = parseInt(timeMatch[2], 10);
+          if (timeMatch[3]) seconds = parseInt(timeMatch[3], 10);
+        }
+
+        parsedDate = new Date(Date.UTC(year, monthIdx, day, hours, minutes, seconds));
+      }
+    }
+    return { item: d, parsedDate };
+  });
+
+  // Sort ascending by parsedDate (oldest date/time first, newest last)
+  itemsWithDates.sort((a, b) => a.parsedDate.getTime() - b.parsedDate.getTime());
+
   const result = await prisma.$transaction(async (tx) => {
     let importedCount = 0;
-
-    // Fetch baseline sequence numbers for each represented year
     const yearDocsMap = new Map<number, number>();
 
-    for (const d of itemsToImport) {
-      let parsedDate = new Date();
-      const parts = d.dateText.trim().split(/\s+/);
-      if (parts.length >= 3) {
-        const day = parseInt(parts[0], 10);
-        const thaiShortMonthMap: Record<string, number> = {
-          "มค": 0, "กพ": 1, "มีค": 2, "เมย": 3, "พค": 4, "มิย": 5,
-          "กค": 6, "สค": 7, "กย": 8, "ตค": 9, "พย": 10, "ธค": 11,
-          "มกราคม": 0, "กุมภาพันธ์": 1, "มีนาคม": 2, "เมษายน": 3,
-          "พฤษภาคม": 4, "มิถุนายน": 5, "กรกฎาคม": 6, "สิงหาคม": 7,
-          "กันยายน": 8, "ตุลาคม": 9, "พฤศจิกายน": 10, "ธันวาคม": 11
-        };
-        const mClean = parts[1].replace(/\./g, "").trim();
-        const monthIdx = thaiShortMonthMap[mClean] !== undefined ? thaiShortMonthMap[mClean] : 0;
-        
-        let year = parseInt(parts[2], 10);
-        if (!isNaN(year) && !isNaN(day)) {
-          if (year > 2400) {
-            year = year - 543;
-          } else if (year < 100) {
-            year = year + 2500 - 543;
-          }
-          parsedDate = new Date(Date.UTC(year, monthIdx, day, 0, 0, 0, 0));
-        }
-      }
-
+    for (const { item: d, parsedDate } of itemsWithDates) {
       const yearVal = parsedDate.getUTCFullYear();
       const thYear = yearVal + 543;
 
       if (!yearDocsMap.has(yearVal)) {
         const startDate = new Date(Date.UTC(yearVal, 0, 1));
         const endDate = new Date(Date.UTC(yearVal + 1, 0, 1));
-        const highestDoc = await tx.incomingDocument.findFirst({
+
+        const yearDocs = await tx.incomingDocument.findMany({
           where: {
             receiveDate: {
               gte: startDate,
               lt: endDate,
             },
           },
-          orderBy: { createdAt: "desc" },
           select: { receiveNo: true }
         });
 
-        let lastSeq = 0;
-        if (highestDoc && highestDoc.receiveNo) {
-          const matchSeq = highestDoc.receiveNo.match(/รับที่\s*(\d+)/);
-          if (matchSeq) {
-            lastSeq = parseInt(matchSeq[1], 10);
+        let highestSeq = 0;
+        for (const doc of yearDocs) {
+          if (doc.receiveNo) {
+            const matchSeq = doc.receiveNo.match(/รับที่\s*(\d+)/);
+            if (matchSeq) {
+              const seq = parseInt(matchSeq[1], 10);
+              if (seq > highestSeq) highestSeq = seq;
+            }
           }
         }
-        yearDocsMap.set(yearVal, lastSeq + 1);
+        yearDocsMap.set(yearVal, highestSeq + 1);
       }
 
       let nextSeq = yearDocsMap.get(yearVal) || 1;

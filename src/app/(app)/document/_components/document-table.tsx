@@ -42,7 +42,7 @@ export default function DocumentTable({
   setSelectedStatus,
 }: DocumentTableProps) {
   const [localTab, setLocalTab] = useState<"outbound" | "inbound">(activeTab);
-  const [selectedTimeRange, setSelectedTimeRange] = useState<string>("");
+  const [selectedTimeRange, setSelectedTimeRange] = useState<string>("this_month");
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [pageSize, setPageSize] = useState<number>(10);
 

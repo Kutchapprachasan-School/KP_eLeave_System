@@ -120,7 +120,7 @@ function DocumentPageContent() {
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear() + 543);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedDocType, setSelectedDocType] = useState("");
-  const [selectedYearTable, setSelectedYearTable] = useState("");
+  const [selectedYearTable, setSelectedYearTable] = useState<string>((new Date().getFullYear() + 543).toString());
   const [selectedStatus, setSelectedStatus] = useState("");
 
   // URL searchParams sync

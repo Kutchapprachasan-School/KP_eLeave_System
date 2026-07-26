@@ -45,18 +45,47 @@ export function parseAMSSListHtml(input: string, baseUrl?: string): AMSSParsedRo
       s.includes("ค้นหาหนังสือ") ||
       s.includes("ยังไม่ได้ส่งต่อ") ||
       s.includes("ยังไม่ได้ลงทะเบียนรับ") ||
+      s.includes("หน้าแรก") ||
+      s.includes("หน้าก่อน") ||
+      s.includes("หน้าถัดไป") ||
+      s.includes("หนังสือรับ <") ||
+      s.includes("รายการหลัก") ||
       (s.startsWith("[") && s.endsWith("]"))
     );
   };
 
-  // Helper to clean senderOrg from next concatenated rows
+  // Helper to clean senderOrg from dates, times, and next concatenated rows
   const cleanSenderOrgText = (str: string) => {
     let s = str.trim();
-    const noiseIdx = s.search(/(?:\d{5,8}\s+(?:ที่|ศธ)|มีไฟล์แนบ\s+\d{1,2}|กลุ่มบริหาร|กลุ่มส่งเสริม|กลุ่มนิเทศ|กลุ่มนโยบาย)/);
+    // Strip trailing date/time patterns like "24 กค 2569 15:14:43 น." or "14:11:22 น."
+    s = s.replace(/\s*\d{1,2}\s+[ก-ฮ].*$/i, "");
+    s = s.replace(/\s*\d{1,2}:\d{2}(?::\d{2})?\s*น\.?.*$/i, "");
+    s = s.replace(/\s*มีไฟล์เอกสาร.*$/i, "");
+    s = s.replace(/\s*มีไฟล์แนบ.*$/i, "");
+
+    const noiseIdx = s.search(/(?:\d{5,8}\s+(?:ที่|ศธ))/);
     if (noiseIdx > 0) {
       s = s.substring(0, noiseIdx).trim();
     }
-    return s;
+    return s.trim();
+  };
+
+  const isInvalidTitle = (titleText: string, docRefText: string) => {
+    const t = (titleText || "").trim();
+    const r = (docRefText || "").trim();
+    return (
+      !t ||
+      t.length <= 2 ||
+      t === "ยังไม่ได้ส่งต่อ" ||
+      t.includes("หน้าแรก") ||
+      t.includes("หน้าก่อน") ||
+      t.includes("หน้าถัดไป") ||
+      t.includes("หนังสือรับ <") ||
+      t.includes("ยังไม่ได้ลงทะเบียนรับ") ||
+      r === "ยังไม่ได้ลงทะเบียนรับ" ||
+      r.includes("หน้าแรก") ||
+      r.includes("สารบรรณ")
+    );
   };
 
   // 1. Try HTML Table Parsing
@@ -114,7 +143,7 @@ export function parseAMSSListHtml(input: string, baseUrl?: string): AMSSParsedRo
         amssLink = buildAmssBookDetailUrl(cleanBaseUrl, idVal);
       }
 
-      if (title && title.length > 2 && title !== "ยังไม่ได้ส่งต่อ" && docRefNo !== "ยังไม่ได้ลงทะเบียนรับ") {
+      if (!isInvalidTitle(title, docRefNo)) {
         documents.push({ amssLink, receiveNo, docRefNo, title, senderOrg, dateText });
       }
     } else if (tds.length >= 4) {
@@ -130,7 +159,7 @@ export function parseAMSSListHtml(input: string, baseUrl?: string): AMSSParsedRo
         amssLink = buildAmssBookDetailUrl(cleanBaseUrl, idVal);
       }
 
-      if (title && title.length > 2 && title !== "ยังไม่ได้ส่งต่อ" && docRefNo !== "ยังไม่ได้ลงทะเบียนรับ") {
+      if (!isInvalidTitle(title, docRefNo)) {
         documents.push({ amssLink, receiveNo, docRefNo, title, senderOrg, dateText });
       }
     }
@@ -194,13 +223,7 @@ export function parseAMSSListHtml(input: string, baseUrl?: string): AMSSParsedRo
         }
       }
 
-      if (
-        title &&
-        title.length > 2 &&
-        title !== "ยังไม่ได้ส่งต่อ" &&
-        docRefNo !== "ยังไม่ได้ลงทะเบียนรับ" &&
-        !title.includes("ยังไม่ได้ลงทะเบียนรับ")
-      ) {
+      if (!isInvalidTitle(title, docRefNo)) {
         const amssIdMatch = receiveNo.match(/^\d{4,9}$/);
         const amssId = amssIdMatch ? amssIdMatch[0] : Date.now().toString();
         const amssLink = buildAmssBookDetailUrl(cleanBaseUrl, amssId);
