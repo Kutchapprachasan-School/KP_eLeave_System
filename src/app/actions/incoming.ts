@@ -1160,11 +1160,15 @@ export const importSelectedAMSSDocuments = safeAction(async (selectedItems: AMSS
         parsedDate = new Date(Date.UTC(year, monthIdx, day, hours, minutes, seconds));
       }
     }
-    return { item: d, parsedDate };
+    return { item: d, parsedDate, originalIndex: itemsToImport.indexOf(d) };
   });
 
-  // Sort ascending by parsedDate (oldest date/time first, newest last)
-  itemsWithDates.sort((a, b) => a.parsedDate.getTime() - b.parsedDate.getTime());
+  // Sort ascending by parsedDate; tie-break with originalIndex descending (bottom item = oldest = first seq)
+  itemsWithDates.sort((a, b) => {
+    const diff = a.parsedDate.getTime() - b.parsedDate.getTime();
+    if (diff !== 0) return diff;
+    return b.originalIndex - a.originalIndex;
+  });
 
   const result = await prisma.$transaction(async (tx) => {
     let importedCount = 0;

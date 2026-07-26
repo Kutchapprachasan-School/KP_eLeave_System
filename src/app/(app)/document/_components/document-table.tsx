@@ -284,6 +284,7 @@ export default function DocumentTable({
                 <th className="py-3.5 px-4 font-semibold">เลขทะเบียนรับ</th>
                 <th className="py-3.5 px-4 font-semibold">อ้างอิงหนังสือ (ที่)</th>
                 <th className="py-3.5 px-4 font-semibold">เรื่อง</th>
+                <th className="py-3.5 px-4 font-semibold">ความเร่งด่วน & สถานะ</th>
                 <th className="py-3.5 px-4 font-semibold">จากหน่วยงาน</th>
                 <th className="py-3.5 px-4 font-semibold">วันที่ลงรับ</th>
                 <th className="py-3.5 px-4 text-right">จัดการ</th>
@@ -293,7 +294,7 @@ export default function DocumentTable({
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
             {paginatedRows.length === 0 ? (
               <tr>
-                <td colSpan={6} className="text-center py-12 text-slate-400 dark:text-slate-500 font-medium">
+                <td colSpan={7} className="text-center py-12 text-slate-400 dark:text-slate-500 font-medium">
                   <FolderOpen className="w-10 h-10 mx-auto mb-2 opacity-30 text-slate-400" />
                   ไม่พบรายการเอกสารในหน้านี้
                 </td>
@@ -304,7 +305,7 @@ export default function DocumentTable({
                   return (
                     <tr key={d.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition">
                       <td className="py-3 px-4 font-mono font-bold text-indigo-600 dark:text-indigo-400">
-                        {d.docNo}
+                        {d.docNo || <span className="text-amber-500 text-xs">รอออกเลข</span>}
                       </td>
                       <td className="py-3 px-4 text-slate-600 dark:text-slate-400 font-medium">
                         {getDocTypeThaiLabel(d.docType, d.memoSection?.name)}
@@ -341,7 +342,7 @@ export default function DocumentTable({
                 } else {
                   return (
                     <tr key={d.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition">
-                      <td className="py-3 px-4 font-mono font-bold text-slate-900 dark:text-white">
+                      <td className="py-3 px-4 font-mono font-bold text-slate-900 dark:text-white whitespace-nowrap">
                         {d.receiveNo}
                       </td>
                       <td className="py-3 px-4 text-slate-600 dark:text-slate-400 font-mono">
@@ -350,10 +351,43 @@ export default function DocumentTable({
                       <td className="py-3 px-4 font-semibold text-slate-800 dark:text-slate-200 max-w-xs truncate" title={d.title}>
                         {d.title}
                       </td>
+                      <td className="py-3 px-4">
+                        <div className="flex flex-col gap-1 items-start">
+                          {/* Urgency Badge */}
+                          {d.urgencyLevel && d.urgencyLevel !== "NORMAL" ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-black bg-rose-100 dark:bg-rose-950/80 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800">
+                              ⚡ {d.urgencyLevel === "HIGH" || d.urgencyLevel === "VERY_URGENT" ? "ด่วนที่สุด" : d.urgencyLevel === "URGENT" ? "ด่วนมาก" : d.urgencyLevel === "FAST" ? "ด่วน" : d.urgencyLevel}
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-500">
+                              ปกติ
+                            </span>
+                          )}
+
+                          {/* Status Badge */}
+                          {d.status === "COMPLETED" ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                              ✅ เกษียณ / เสร็จสิ้น
+                            </span>
+                          ) : d.status === "ROUTING" ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-indigo-100 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                              📤 มอบหมายแล้ว
+                            </span>
+                          ) : d.status === "CANCELLED" ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800">
+                              ❌ ยกเลิก
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+                              ⏳ รอมอบหมาย
+                            </span>
+                          )}
+                        </div>
+                      </td>
                       <td className="py-3 px-4 text-slate-600 dark:text-slate-400">
                         {d.senderOrg}
                       </td>
-                      <td className="py-3 px-4 text-slate-500 font-medium">
+                      <td className="py-3 px-4 text-slate-500 font-medium whitespace-nowrap">
                         {new Date(d.receiveDate).toLocaleDateString("th-TH", {
                           year: "numeric",
                           month: "short",
