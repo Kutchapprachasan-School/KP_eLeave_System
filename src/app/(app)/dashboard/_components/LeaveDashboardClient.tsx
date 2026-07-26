@@ -157,6 +157,9 @@ export default function LeaveDashboardClient() {
     setStatsError(null);
     getDashboardStats(cycleFilter, lang, dashboardYear, viewMode)
       .then((data: any) => {
+        if (data?.error) {
+          console.error("Dashboard server warning:", data.error);
+        }
         setStats(data);
         if (data && !data.canViewOverview && viewMode !== "personal") {
           setViewMode("personal");
@@ -167,7 +170,7 @@ export default function LeaveDashboardClient() {
         if (err?.message === "Unauthorized") {
           router.push("/login");
         } else {
-          setStatsError(err?.message || "ไม่สามารถโหลดข้อมูลแดชบอร์ดได้");
+          setStatsError("ไม่สามารถเชื่อมต่อข้อมูลแดชบอร์ดได้ในขณะนี้ กรุณากดลองใหม่อีกครั้ง");
         }
       });
   }, [cycleFilter, lang, dashboardYear, viewMode, router]);

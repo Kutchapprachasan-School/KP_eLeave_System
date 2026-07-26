@@ -40,8 +40,10 @@ function toUtcDateString(date: Date): string {
 }
 
 export async function calculateLeaveDays(startDate: Date, endDate: Date, type: string): Promise<number> {
+  if (!startDate || !endDate) return 0;
   const start = new Date(startDate);
   const end = new Date(endDate);
+  if (isNaN(start.getTime()) || isNaN(end.getTime())) return 0;
   
   const tz = await getTimezoneMemo();
   const startStr = toLocalCustomDateString(start, tz);
@@ -436,254 +438,279 @@ export async function getDashboardStats(
   targetYear?: number | null,
   viewMode: "school" | "personal" = "school"
 ) {
-  const session = await getSession();
-  const user = session.user as any;
-  
-  // Check if user is a configured final approver
-  const isFinalApprover = await canGiveFinalApproval(session.user.id, user.position, user.role);
-  
-  // Whitelist of positions allowed to view the school overview
-  const allowedOverviewPositions = [
-    "ผู้อำนวยการ",
-    "รองผู้อำนวยการ",
-    "หัวหน้างานบุคคล",
-    "เจ้าหน้าที่บุคคล",
-    "ผู้ตรวจสอบ",
-    "แอดมิน"
-  ];
-  const canViewOverview = user.role === "ADMIN" || allowedOverviewPositions.includes(user.position) || isFinalApprover;
+  try {
+    const session = await getSession();
+    const user = session.user as any;
+    
+    // Check if user is a configured final approver
+    const isFinalApprover = await canGiveFinalApproval(session.user.id, user.position, user.role);
+    
+    // Whitelist of positions allowed to view the school overview
+    const allowedOverviewPositions = [
+      "ผู้อำนวยการ",
+      "รองผู้อำนวยการ",
+      "หัวหน้างานบุคคล",
+      "เจ้าหน้าที่บุคคล",
+      "ผู้ตรวจสอบ",
+      "แอดมิน"
+    ];
+    const canViewOverview = user.role === "ADMIN" || allowedOverviewPositions.includes(user.position) || isFinalApprover;
 
-  // We only show school overview if they are allowed AND they chose "school" mode
-  const showSchoolOverview = canViewOverview && viewMode === "school";
+    // We only show school overview if they are allowed AND they chose "school" mode
+    const showSchoolOverview = canViewOverview && viewMode === "school";
 
-  // Fetch Leave Configs dynamically
-  const { getLeaveConfigs } = await import("./settings");
-  const leaveConfigs = await getLeaveConfigs();
+    // Fetch Leave Configs dynamically
+    const { getLeaveConfigs } = await import("./settings");
+    const leaveConfigs = await getLeaveConfigs();
 
-  const refDate = targetYear ? new Date(targetYear - 543, 5, 1) : new Date();
-  const filter = getLeaveCycleFilter(refDate, cycleFilter, lang);
-  const cycle = filter || getCurrentLeaveCycle(refDate, lang); // fallback if all
+    const refDate = targetYear ? new Date(targetYear - 543, 5, 1) : new Date();
+    const filter = getLeaveCycleFilter(refDate, cycleFilter, lang);
+    const cycle = filter || getCurrentLeaveCycle(refDate, lang); // fallback if all
 
-  let requests;
-  if (showSchoolOverview) {
-    requests = await prisma.leaveRequest.findMany({
-      where: {
-        status: "APPROVED",
-        ...(filter ? { startDate: { gte: filter.start, lte: filter.end } } : {})
-      },
-      include: { user: { select: { name: true, position: true } } }
-    });
-  } else {
-    requests = await prisma.leaveRequest.findMany({
-      where: {
-        userId: session.user.id,
-        status: "APPROVED",
-        ...(filter ? { startDate: { gte: filter.start, lte: filter.end } } : {})
-      },
-      include: { user: { select: { name: true, position: true } } }
-    });
-  }
-
-  // Calculate days used per type
-  const usedDaysMap: Record<string, number> = {};
-  for (const config of leaveConfigs) {
-    usedDaysMap[config.type] = 0;
-  }
-
-  for (const r of requests) {
-    const days = await calculateLeaveDays(r.startDate, r.endDate, r.type);
-    if (usedDaysMap[r.type] !== undefined) {
-      usedDaysMap[r.type] += days;
+    let requests;
+    if (showSchoolOverview) {
+      requests = await prisma.leaveRequest.findMany({
+        where: {
+          status: "APPROVED",
+          ...(filter ? { startDate: { gte: filter.start, lte: filter.end } } : {})
+        },
+        include: { user: { select: { name: true, position: true } } }
+      });
     } else {
-      usedDaysMap[r.type] = days;
-    }
-  }
-
-  // Get pending count
-  let pendingWhere: any = { status: { in: ["PENDING_HEAD", "PENDING_EXEC"] } };
-  if (!canViewOverview) {
-    pendingWhere = { userId: session.user.id, status: { in: ["PENDING_HEAD", "PENDING_EXEC"] } };
-  }
-
-  const pendingCount = await prisma.leaveRequest.count({ where: pendingWhere });
-
-  // Calculate total staff (for Admin/HR/Management KPI)
-  const totalStaff = await prisma.user.count({
-    where: {
-      role: { not: "ADMIN" }
-    }
-  });
-
-  // Get total requests for approval rate
-  const allRequestsCount = await prisma.leaveRequest.count({
-    where: showSchoolOverview
-      ? {}
-      : { userId: session.user.id }
-  });
-  const approvedRequestsCount = await prisma.leaveRequest.count({
-    where: showSchoolOverview
-      ? { status: "APPROVED" }
-      : { userId: session.user.id, status: "APPROVED" }
-  });
-  const approvalRate = allRequestsCount === 0 ? 100 : Math.round((approvedRequestsCount / allRequestsCount) * 100);
-
-  // Generate monthly distribution based on selected cycle filter range
-  const start = filter?.start || new Date(refDate.getFullYear() - 1, 9, 1);
-  const end = filter?.end || new Date(refDate.getFullYear(), 8, 30, 23, 59, 59, 999);
-
-  const monthlyData: any[] = [];
-  let current = new Date(start.getFullYear(), start.getMonth(), 1);
-  const last = new Date(end.getFullYear(), end.getMonth(), 1);
-
-  const monthsTH = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
-  const monthsEN = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  const monthNames = lang === "th" ? monthsTH : monthsEN;
-
-  while (current <= last) {
-    const m = current.getMonth();
-    const y = current.getFullYear();
-    const yDisplay = lang === "th" ? (y + 543) : y;
-    const name = `${monthNames[m]} ${yDisplay}`;
-    
-    // Create base object for this month
-    const monthItem: any = {
-      name,
-      year: y,
-      month: m,
-      total: 0,
-      value: 0 // Compatibility for old code if referenced
-    };
-    
-    // Initialize all leave config types to 0
-    for (const config of leaveConfigs) {
-      monthItem[config.type] = 0;
-    }
-    
-    monthlyData.push(monthItem);
-    current.setMonth(current.getMonth() + 1);
-  }
-
-  for (const r of requests) {
-    const rStart = new Date(r.startDate);
-    const rMonth = rStart.getMonth();
-    const rYear = rStart.getFullYear();
-    
-    const monthItem = monthlyData.find(item => item.year === rYear && item.month === rMonth);
-    if (monthItem) {
-      const days = await calculateLeaveDays(r.startDate, r.endDate, r.type);
-      if (monthItem[r.type] !== undefined) {
-        monthItem[r.type] += days;
-      } else {
-        monthItem[r.type] = days;
-      }
-      monthItem.total += days;
-      monthItem.value += days; // Compatibility
-    }
-  }
-
-  // Generate department stats for overview
-  const deptStats = [
-    { name: "Science", value: 35, fill: "#38BDF8" },
-    { name: "Math", value: 25, fill: "#8B5CF6" },
-    { name: "Language", value: 20, fill: "#34D399" },
-    { name: "PE", value: 10, fill: "#FBBF24" },
-    { name: "Arts", value: 10, fill: "#FB7185" },
-  ];
-
-  // Get recent requests (all statuses, last 5)
-  const recentWhere = showSchoolOverview
-    ? {}
-    : { userId: session.user.id };
-  const recentRequests = await prisma.leaveRequest.findMany({
-    where: recentWhere,
-    orderBy: { createdAt: "desc" },
-    take: 5,
-    include: { user: { select: { name: true } } }
-  });
-
-  // Generate Leave Leaderboard & Watchlist
-  let leaveLeaderboard: any[] = [];
-  let userWatchlistStats = { totalDays: 0, totalTimes: 0, isWarning: false };
-
-  // Always calculate personal watchlist stats
-  const ownRequests = showSchoolOverview
-    ? await prisma.leaveRequest.findMany({
+      requests = await prisma.leaveRequest.findMany({
         where: {
           userId: session.user.id,
           status: "APPROVED",
           ...(filter ? { startDate: { gte: filter.start, lte: filter.end } } : {})
-        }
-      })
-    : requests;
-
-  const settings = await prisma.systemSettings.findUnique({
-    where: { id: "default" },
-    select: { memoThresholdTimes: true, memoThresholdDays: true }
-  });
-  const limitTimes = settings?.memoThresholdTimes ?? 6;
-  const limitDays = settings?.memoThresholdDays ?? 15;
-
-  for (const r of ownRequests) {
-    if (r.type === "SICK" || r.type === "PERSONAL") {
-      const days = await calculateLeaveDays(r.startDate, r.endDate, r.type);
-      userWatchlistStats.totalDays += days;
-      userWatchlistStats.totalTimes += 1;
+        },
+        include: { user: { select: { name: true, position: true } } }
+      });
     }
-  }
-  userWatchlistStats.isWarning = userWatchlistStats.totalTimes >= limitTimes || userWatchlistStats.totalDays >= limitDays;
 
-  if (showSchoolOverview) {
-    const userStatsMap: Record<string, any> = {};
+    // Calculate days used per type
+    const usedDaysMap: Record<string, number> = {};
+    for (const config of leaveConfigs) {
+      usedDaysMap[config.type] = 0;
+    }
+
     for (const r of requests) {
-      if (!r.user) continue;
-      const uid = r.userId;
-      if (!userStatsMap[uid]) {
-        userStatsMap[uid] = { userId: uid, name: r.user.name, totalDays: 0, totalTimes: 0, sickDays: 0, sickTimes: 0, personalDays: 0, personalTimes: 0, position: (r.user as any).position || "-" };
+      const days = await calculateLeaveDays(r.startDate, r.endDate, r.type);
+      if (usedDaysMap[r.type] !== undefined) {
+        usedDaysMap[r.type] += days;
+      } else {
+        usedDaysMap[r.type] = days;
       }
+    }
+
+    // Get pending count
+    let pendingWhere: any = { status: { in: ["PENDING_HEAD", "PENDING_EXEC"] } };
+    if (!canViewOverview) {
+      pendingWhere = { userId: session.user.id, status: { in: ["PENDING_HEAD", "PENDING_EXEC"] } };
+    }
+
+    const pendingCount = await prisma.leaveRequest.count({ where: pendingWhere });
+
+    // Calculate total staff (for Admin/HR/Management KPI)
+    const totalStaff = await prisma.user.count({
+      where: {
+        role: { not: "ADMIN" }
+      }
+    });
+
+    // Get total requests for approval rate
+    const allRequestsCount = await prisma.leaveRequest.count({
+      where: showSchoolOverview
+        ? {}
+        : { userId: session.user.id }
+    });
+    const approvedRequestsCount = await prisma.leaveRequest.count({
+      where: showSchoolOverview
+        ? { status: "APPROVED" }
+        : { userId: session.user.id, status: "APPROVED" }
+    });
+    const approvalRate = allRequestsCount === 0 ? 100 : Math.round((approvedRequestsCount / allRequestsCount) * 100);
+
+    // Generate monthly distribution based on selected cycle filter range
+    const start = filter?.start || new Date(refDate.getFullYear() - 1, 9, 1);
+    const end = filter?.end || new Date(refDate.getFullYear(), 8, 30, 23, 59, 59, 999);
+
+    const monthlyData: any[] = [];
+    let current = new Date(start.getFullYear(), start.getMonth(), 1);
+    const last = new Date(end.getFullYear(), end.getMonth(), 1);
+
+    const monthsTH = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
+    const monthsEN = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const monthNames = lang === "th" ? monthsTH : monthsEN;
+
+    while (current <= last) {
+      const m = current.getMonth();
+      const y = current.getFullYear();
+      const yDisplay = lang === "th" ? (y + 543) : y;
+      const name = `${monthNames[m]} ${yDisplay}`;
+      
+      // Create base object for this month
+      const monthItem: any = {
+        name,
+        year: y,
+        month: m,
+        total: 0,
+        value: 0 // Compatibility for old code if referenced
+      };
+      
+      // Initialize all leave config types to 0
+      for (const config of leaveConfigs) {
+        monthItem[config.type] = 0;
+      }
+      
+      monthlyData.push(monthItem);
+      current.setMonth(current.getMonth() + 1);
+    }
+
+    for (const r of requests) {
+      const rStart = new Date(r.startDate);
+      const rMonth = rStart.getMonth();
+      const rYear = rStart.getFullYear();
+      
+      const monthItem = monthlyData.find(item => item.year === rYear && item.month === rMonth);
+      if (monthItem) {
+        const days = await calculateLeaveDays(r.startDate, r.endDate, r.type);
+        if (monthItem[r.type] !== undefined) {
+          monthItem[r.type] += days;
+        } else {
+          monthItem[r.type] = days;
+        }
+        monthItem.total += days;
+        monthItem.value += days; // Compatibility
+      }
+    }
+
+    // Generate department stats for overview
+    const deptStats = [
+      { name: "Science", value: 35, fill: "#38BDF8" },
+      { name: "Math", value: 25, fill: "#8B5CF6" },
+      { name: "Language", value: 20, fill: "#34D399" },
+      { name: "PE", value: 10, fill: "#FBBF24" },
+      { name: "Arts", value: 10, fill: "#FB7185" },
+    ];
+
+    // Get recent requests (all statuses, last 5)
+    const recentWhere = showSchoolOverview
+      ? {}
+      : { userId: session.user.id };
+    const recentRequests = await prisma.leaveRequest.findMany({
+      where: recentWhere,
+      orderBy: { createdAt: "desc" },
+      take: 5,
+      include: { user: { select: { name: true } } }
+    });
+
+    // Generate Leave Leaderboard & Watchlist
+    let leaveLeaderboard: any[] = [];
+    let userWatchlistStats = { totalDays: 0, totalTimes: 0, isWarning: false };
+
+    // Always calculate personal watchlist stats
+    const ownRequests = showSchoolOverview
+      ? await prisma.leaveRequest.findMany({
+          where: {
+            userId: session.user.id,
+            status: "APPROVED",
+            ...(filter ? { startDate: { gte: filter.start, lte: filter.end } } : {})
+          }
+        })
+      : requests;
+
+    const settings = await prisma.systemSettings.findUnique({
+      where: { id: "default" },
+      select: { memoThresholdTimes: true, memoThresholdDays: true }
+    });
+    const limitTimes = settings?.memoThresholdTimes ?? 6;
+    const limitDays = settings?.memoThresholdDays ?? 15;
+
+    for (const r of ownRequests) {
       if (r.type === "SICK" || r.type === "PERSONAL") {
         const days = await calculateLeaveDays(r.startDate, r.endDate, r.type);
-        userStatsMap[uid].totalDays += days;
-        userStatsMap[uid].totalTimes += 1;
-        if (r.type === "SICK") {
-          userStatsMap[uid].sickDays += days;
-          userStatsMap[uid].sickTimes += 1;
-        } else {
-          userStatsMap[uid].personalDays += days;
-          userStatsMap[uid].personalTimes += 1;
-        }
+        userWatchlistStats.totalDays += days;
+        userWatchlistStats.totalTimes += 1;
       }
     }
-    leaveLeaderboard = Object.values(userStatsMap)
-      .map((stat: any) => ({ ...stat, isWarning: stat.totalTimes >= limitTimes || stat.totalDays >= limitDays }))
-      .filter((stat: any) => stat.totalTimes > 0)
-      .sort((a: any, b: any) => b.totalTimes - a.totalTimes || b.totalDays - a.totalDays)
-      .slice(0, 50);
-  }
+    userWatchlistStats.isWarning = userWatchlistStats.totalTimes >= limitTimes || userWatchlistStats.totalDays >= limitDays;
 
-  return {
-    isOverview: showSchoolOverview,
-    canViewOverview,
-    usedDaysMap,
-    leaveConfigs,
-    pendingCount,
-    totalStaff,
-    approvalRate,
-    monthlyData,
-    deptStats,
-    currentCycle: cycle.label,
-    recentRequests: recentRequests.map((r) => ({
-      ...r,
-      userName: r.user?.name,
-      startDate: r.startDate.toISOString(),
-      endDate: r.endDate.toISOString(),
-      createdAt: r.createdAt.toISOString(),
-      updatedAt: r.updatedAt.toISOString(),
-    })),
-    leaveLeaderboard,
-    userWatchlistStats,
-    limitTimes,
-    limitDays,
-  };
+    if (showSchoolOverview) {
+      const userStatsMap: Record<string, any> = {};
+      for (const r of requests) {
+        if (!r.user) continue;
+        const uid = r.userId;
+        if (!userStatsMap[uid]) {
+          userStatsMap[uid] = { userId: uid, name: r.user.name, totalDays: 0, totalTimes: 0, sickDays: 0, sickTimes: 0, personalDays: 0, personalTimes: 0, position: (r.user as any).position || "-" };
+        }
+        if (r.type === "SICK" || r.type === "PERSONAL") {
+          const days = await calculateLeaveDays(r.startDate, r.endDate, r.type);
+          userStatsMap[uid].totalDays += days;
+          userStatsMap[uid].totalTimes += 1;
+          if (r.type === "SICK") {
+            userStatsMap[uid].sickDays += days;
+            userStatsMap[uid].sickTimes += 1;
+          } else {
+            userStatsMap[uid].personalDays += days;
+            userStatsMap[uid].personalTimes += 1;
+          }
+        }
+      }
+      leaveLeaderboard = Object.values(userStatsMap)
+        .map((stat: any) => ({ ...stat, isWarning: stat.totalTimes >= limitTimes || stat.totalDays >= limitDays }))
+        .filter((stat: any) => stat.totalTimes > 0)
+        .sort((a: any, b: any) => b.totalTimes - a.totalTimes || b.totalDays - a.totalDays)
+        .slice(0, 50);
+    }
+
+    return {
+      isOverview: showSchoolOverview,
+      canViewOverview,
+      usedDaysMap,
+      leaveConfigs,
+      pendingCount,
+      totalStaff,
+      approvalRate,
+      monthlyData,
+      deptStats,
+      currentCycle: cycle.label,
+      recentRequests: recentRequests.map((r) => ({
+        ...r,
+        userName: r.user?.name,
+        startDate: r.startDate.toISOString(),
+        endDate: r.endDate.toISOString(),
+        createdAt: r.createdAt.toISOString(),
+        updatedAt: r.updatedAt.toISOString(),
+      })),
+      leaveLeaderboard,
+      userWatchlistStats,
+      limitTimes,
+      limitDays,
+    };
+  } catch (error: any) {
+    console.error("Error in getDashboardStats:", error);
+    if (error?.message === "Unauthorized") {
+      throw error;
+    }
+    return {
+      isOverview: false,
+      canViewOverview: false,
+      usedDaysMap: {},
+      leaveConfigs: [],
+      pendingCount: 0,
+      totalStaff: 0,
+      approvalRate: 100,
+      monthlyData: [],
+      deptStats: [],
+      currentCycle: "",
+      recentRequests: [],
+      leaveLeaderboard: [],
+      userWatchlistStats: { totalDays: 0, totalTimes: 0, isWarning: false },
+      limitTimes: 6,
+      limitDays: 15,
+      error: error?.message || "Failed to fetch dashboard stats",
+    };
+  }
 }
 
 // ========= Get Pending Approvals (role-based) =========
