@@ -306,17 +306,17 @@ export default function OutboundForm({
             </div>
           </div>
 
-          {/* Green Preview Banner Card (แสดงเลขล่าสุดและวันที่ขอ) */}
-          <div className="bg-emerald-50/90 dark:bg-emerald-950/40 border border-emerald-200/80 dark:border-emerald-800/60 rounded-xl p-3.5 space-y-1 text-center shadow-2xs">
-            <span className="text-[11px] font-bold text-emerald-700 dark:text-emerald-300 block">
-              🔥 เลขล่าสุดที่ถูกขอในหมวดนี้
+          {/* Reference Info Card (แสดงเลขล่าสุดที่เคยถูกขอในหมวดนี้ เพื่อใช้อ้างอิง) */}
+          <div className="bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200/70 dark:border-amber-800/50 rounded-xl p-3.5 space-y-1 text-center shadow-2xs">
+            <span className="text-[11px] font-bold text-amber-800 dark:text-amber-300 flex items-center justify-center gap-1">
+              📌 เลขล่าสุดที่ถูกขอในหมวดนี้ (อ้างอิง)
             </span>
-            <div className="text-lg sm:text-xl font-black font-mono text-emerald-800 dark:text-emerald-300">
+            <div className="text-lg sm:text-xl font-black font-mono text-amber-900 dark:text-amber-200">
               {latestCategoryDoc ? `ที่ ${latestCategoryDoc.docNo}` : "ยังไม่มีประวัติในหมวดนี้"}
             </div>
             {latestDocDateStr && (
-              <span className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400 block pt-0.5">
-                📅 ขอออกเมื่อวันที่: {latestDocDateStr}
+              <span className="text-[11px] font-semibold text-amber-700/90 dark:text-amber-400/90 block pt-0.5">
+                📅 ออกเมื่อวันที่: {latestDocDateStr}
               </span>
             )}
           </div>
