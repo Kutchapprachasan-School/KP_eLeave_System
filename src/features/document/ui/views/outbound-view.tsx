@@ -61,6 +61,7 @@ export function OutboundView({
         username={username}
         department={department}
         outboundDocs={outboundDocs}
+        onRefresh={onRefresh}
       />
 
       {/* Embedded History & Register Table */}

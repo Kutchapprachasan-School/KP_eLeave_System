@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Save, Sparkles, ChevronDown, Eye } from "lucide-react";
+import { Save, Sparkles, ChevronDown, Eye, Send, RefreshCw } from "lucide-react";
 import { SearchableCombobox } from "@/features/document/ui/components/forms/searchable-combobox";
 
 type MemoSection = { id: string; name: string; code: string; color?: string };
@@ -22,23 +22,16 @@ type OutboundFormProps = {
   username?: string;
   department?: string;
   outboundDocs?: any[];
+  onRefresh?: () => void;
 };
 
 const DOC_TYPE_NAMES: Record<string, string> = {
-  MEMO: "บันทึกข้อความ",
+  MEMO: "บันทึกข้อความ (ภายใน)",
   COMMAND: "คำสั่งโรงเรียน",
-  OUTGOING_NORMAL: "หนังสือส่ง (ปกติ)",
+  OUTGOING_NORMAL: "หนังสือส่ง (ปกติ/ภายนอก)",
   OUTGOING_CIRCULAR: "หนังสือส่ง (จดหมายเวียน)",
   ANNOUNCEMENT: "ประกาศ",
 };
-
-const COMMON_TITLES = [
-  "ขออนุมัติจัดซื้อวัสดุสำนักงาน",
-  "รายงานผลการปฏิบัติงานตามโครงการ",
-  "ขออนุมัติเบิกจ่ายงบประมาณโครงการพัฒนาผู้เรียน",
-  "ขออนุญาตจัดส่งบุคลากรเข้าร่วมการอบรมเชิงปฏิบัติการ",
-  "ขออนุมัติจัดจ้างทำความสะอาดอาคารเรียน"
-];
 
 const COMMON_RECIPIENTS = [
   "ผู้อำนวยการโรงเรียน",
@@ -48,14 +41,6 @@ const COMMON_RECIPIENTS = [
   "ทุกคนในสถานศึกษา"
 ];
 
-const DEPARTMENT_OPTIONS = [
-  "กลุ่มบริหารงานวิชาการ",
-  "กลุ่มบริหารงานงบประมาณ",
-  "กลุ่มบริหารงานบุคคล",
-  "กลุ่มบริหารงานทั่วไป",
-  "กลุ่มกิจการนักเรียน",
-];
-
 export default function OutboundForm({
   sections,
   issuing,
@@ -63,6 +48,7 @@ export default function OutboundForm({
   username = "",
   department = "",
   outboundDocs = [],
+  onRefresh,
 }: OutboundFormProps) {
   // Default "จากหน่วยงาน" to requester's name
   const [formData, setFormData] = useState({
@@ -74,7 +60,6 @@ export default function OutboundForm({
     requester: username || "",
     date: new Date().toISOString().split("T")[0],
     department: department || "",
-    connectBudget: false,
   });
 
   const [selectedPreviewDoc, setSelectedPreviewDoc] = useState<any | null>(null);
@@ -92,17 +77,10 @@ export default function OutboundForm({
         ...prev,
         requester: prev.requester || username || "",
         origin: (prev.origin === "งานสารบรรณ" || !prev.origin) ? (username || department || "งานสารบรรณ") : prev.origin,
-        department: prev.department || department || ""
+        department: department || prev.department || ""
       }));
     }
   }, [username, department]);
-
-  const [showTitlePresets, setShowTitlePresets] = useState(false);
-  const [showToPresets, setShowToPresets] = useState(false);
-  const [customDepartment, setCustomDepartment] = useState(false);
-
-  // Determine if the current department is a custom value (not in the preset list)
-  const isCustomDepartment = formData.department !== "" && !DEPARTMENT_OPTIONS.includes(formData.department);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -116,7 +94,7 @@ export default function OutboundForm({
       title: formData.title.trim(),
       requester: formData.requester.trim(),
       date: formData.date,
-      department: formData.department.trim() || undefined,
+      department: (department || formData.department || "").trim() || undefined,
     });
   };
 
@@ -132,53 +110,45 @@ export default function OutboundForm({
 
   const latestCategoryDoc = selectedCategoryDocs[0];
 
-  const latestDocDateFormatted = latestCategoryDoc?.date
-    ? new Date(latestCategoryDoc.date).toLocaleDateString('th-TH', {
-        day: 'numeric',
-        month: 'long',
-        year: 'numeric'
-      })
-    : null;
+  const getDocBadge = (type: string) => {
+    if (type === "MEMO") return { text: "ภายใน", bg: "bg-blue-100 dark:bg-blue-950/70 text-blue-700 dark:text-blue-300" };
+    if (type === "COMMAND") return { text: "คำสั่ง", bg: "bg-rose-100 dark:bg-rose-950/70 text-rose-700 dark:text-rose-300" };
+    return { text: "ภายนอก", bg: "bg-emerald-100 dark:bg-emerald-950/70 text-emerald-700 dark:text-emerald-300" };
+  };
 
   return (
     <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 md:p-6 shadow-xs relative">
       <div className="lg:grid lg:grid-cols-12 lg:gap-8 space-y-6 lg:space-y-0 items-start">
-        {/* Left Column (7 cols): The Input Form */}
-        <form onSubmit={handleSubmit} className="lg:col-span-7 space-y-4">
-          {/* Form Fields: Date & DocType */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-semibold text-slate-800 dark:text-slate-200 mb-1.5">
-                วันที่ออกเลข *
-              </label>
-              <input
-                type="date"
-                required
-                value={formData.date}
-                onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                className="w-full h-10 px-3 rounded-xl border border-slate-200 dark:border-slate-750 bg-slate-50/50 dark:bg-slate-950/50 text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white dark:focus:bg-slate-900 transition-all outline-none"
-              />
+        {/* Left Column (5 cols on lg): The Input Form (+ ออกเลขหนังสือใหม่) */}
+        <form onSubmit={handleSubmit} className="lg:col-span-5 space-y-4">
+          <div className="flex items-center gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
+            <div className="w-6 h-6 rounded-full bg-purple-100 dark:bg-purple-950/80 text-purple-600 dark:text-purple-400 flex items-center justify-center text-xs font-bold">
+              +
             </div>
+            <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+              ออกเลขหนังสือใหม่
+            </h3>
+          </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-slate-800 dark:text-slate-200 mb-1.5">
-                ประเภทเอกสาร *
-              </label>
-              <div className="relative">
-                <select
-                  value={formData.docType}
-                  onChange={(e) => setFormData({ ...formData, docType: e.target.value })}
-                  className="w-full h-10 pl-3 pr-9 rounded-xl border border-slate-200 dark:border-slate-750 bg-slate-50/50 dark:bg-slate-950/50 text-xs font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white dark:focus:bg-slate-900 transition-all appearance-none cursor-pointer outline-none"
-                >
-                  <option value="MEMO">บันทึกข้อความ</option>
-                  <option value="COMMAND">คำสั่ง</option>
-                  <option value="OUTGOING_NORMAL">หนังสือส่ง (ปกติ)</option>
-                  <option value="OUTGOING_CIRCULAR">หนังสือส่ง (จดหมายเวียน)</option>
-                  <option value="ANNOUNCEMENT">ประกาศ</option>
-                </select>
-                <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-slate-400">
-                  <ChevronDown className="w-4 h-4" />
-                </div>
+          {/* DocType Dropdown */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-800 dark:text-slate-200 mb-1.5">
+              ประเภท
+            </label>
+            <div className="relative">
+              <select
+                value={formData.docType}
+                onChange={(e) => setFormData({ ...formData, docType: e.target.value })}
+                className="w-full h-10 pl-3 pr-9 rounded-xl border border-slate-200 dark:border-slate-750 bg-white dark:bg-slate-950 text-xs font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all appearance-none cursor-pointer outline-none"
+              >
+                <option value="MEMO">บันทึกข้อความ (ภายใน)</option>
+                <option value="OUTGOING_NORMAL">หนังสือส่ง (ปกติ/ภายนอก)</option>
+                <option value="COMMAND">คำสั่งโรงเรียน</option>
+                <option value="OUTGOING_CIRCULAR">หนังสือส่ง (จดหมายเวียน)</option>
+                <option value="ANNOUNCEMENT">ประกาศ</option>
+              </select>
+              <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-slate-400">
+                <ChevronDown className="w-4 h-4" />
               </div>
             </div>
           </div>
@@ -193,7 +163,7 @@ export default function OutboundForm({
                 <select
                   value={formData.memoSectionId}
                   onChange={(e) => setFormData({ ...formData, memoSectionId: e.target.value })}
-                  className="w-full h-10 pl-3 pr-9 rounded-xl border border-slate-200 dark:border-slate-750 bg-slate-50/50 dark:bg-slate-950/50 text-xs font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white dark:focus:bg-slate-900 transition-all appearance-none cursor-pointer outline-none"
+                  className="w-full h-10 pl-3 pr-9 rounded-xl border border-slate-200 dark:border-slate-750 bg-white dark:bg-slate-950 text-xs font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all appearance-none cursor-pointer outline-none"
                   style={selectedSection?.color ? { borderLeftWidth: '4px', borderLeftColor: selectedSection.color } : {}}
                 >
                   <option value="" disabled>-- เลือกหมวดหมู่บันทึกข้อความ --</option>
@@ -205,253 +175,185 @@ export default function OutboundForm({
                   <ChevronDown className="w-4 h-4" />
                 </div>
               </div>
-              {selectedSection && (
-                <div className="flex items-center gap-2 mt-1.5">
-                  <span
-                    className="w-2.5 h-2.5 rounded-full border border-white shadow-xs"
-                    style={{ backgroundColor: selectedSection.color || '#6366f1' }}
-                  />
-                  <span className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
-                    หมวด: {selectedSection.name} ({selectedSection.code})
-                  </span>
-                </div>
-              )}
             </div>
           )}
 
-          {/* Origin & To */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-semibold text-slate-800 dark:text-slate-200 mb-1.5">
-                จากหน่วยงาน *
-              </label>
-              <input
-                type="text"
-                required
-                placeholder="ชื่อผู้ขอ / หน่วยงาน"
-                value={formData.origin}
-                onChange={(e) => setFormData({ ...formData, origin: e.target.value })}
-                className="w-full h-10 px-3 rounded-xl border border-slate-200 dark:border-slate-750 bg-slate-50/50 dark:bg-slate-950/50 text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white dark:focus:bg-slate-900 transition-all outline-none"
-              />
-            </div>
-
-            {/* To / Recipient */}
-            <div>
-              <div className="flex justify-between items-center mb-1.5">
-                <label className="block text-xs font-semibold text-slate-800 dark:text-slate-200">
-                  เรียน/ถึง *
-                </label>
-                <SearchableCombobox
-                  options={COMMON_RECIPIENTS.map((r) => ({ label: r, value: r }))}
-                  value={formData.to}
-                  onSelect={(val) => setFormData((prev) => ({ ...prev, to: val }))}
-                  triggerLabel="ผู้รับใช้บ่อย"
-                  placeholder="ค้นหาผู้รับ/ตำแหน่ง..."
-                />
-              </div>
-              <input
-                type="text"
-                required
-                placeholder="เช่น ผู้อำนวยการโรงเรียน"
-                value={formData.to}
-                onChange={(e) => setFormData({ ...formData, to: e.target.value })}
-                className="w-full h-10 px-3 rounded-xl border border-slate-200 dark:border-slate-750 bg-slate-50/50 dark:bg-slate-950/50 text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white dark:focus:bg-slate-900 transition-all outline-none"
-              />
-            </div>
+          {/* Date Picker */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-800 dark:text-slate-200 mb-1.5">
+              วันที่ออกเลข *
+            </label>
+            <input
+              type="date"
+              required
+              value={formData.date}
+              onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+              className="w-full h-10 px-3 rounded-xl border border-slate-200 dark:border-slate-750 bg-white dark:bg-slate-950 text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all outline-none"
+            />
           </div>
 
           {/* Title */}
-          <div className="relative">
+          <div>
+            <label className="block text-xs font-semibold text-slate-800 dark:text-slate-200 mb-1.5">
+              เรื่อง
+            </label>
+            <textarea
+              rows={2}
+              required
+              placeholder="ระบุชื่อเรื่อง..."
+              value={formData.title}
+              onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+              className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-750 bg-white dark:bg-slate-950 text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all outline-none resize-none"
+            />
+          </div>
+
+          {/* To / Recipient */}
+          <div>
             <div className="flex justify-between items-center mb-1.5">
               <label className="block text-xs font-semibold text-slate-800 dark:text-slate-200">
-                เรื่อง (ชื่อเอกสาร) *
+                เรียน / ถึง
               </label>
-              <button
-                type="button"
-                onClick={() => setShowTitlePresets(!showTitlePresets)}
-                className="text-[11px] text-indigo-600 dark:text-indigo-400 font-semibold hover:underline flex items-center gap-1 bg-indigo-50 dark:bg-indigo-950/50 px-2 py-0.5 rounded-md border border-indigo-200/50 dark:border-indigo-900/40 transition cursor-pointer"
-              >
-                <Sparkles className="w-3 h-3 text-indigo-500" />
-                เรื่องใช้บ่อย
-              </button>
+              <SearchableCombobox
+                options={COMMON_RECIPIENTS.map((r) => ({ label: r, value: r }))}
+                value={formData.to}
+                onSelect={(val) => setFormData((prev) => ({ ...prev, to: val }))}
+                triggerLabel="ผู้รับใช้บ่อย"
+                placeholder="ค้นหาตำแหน่ง..."
+              />
             </div>
             <input
               type="text"
               required
-              placeholder="เช่น ขออนุมัติจัดซื้อวัสดุสำนักงาน..."
-              value={formData.title}
-              onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-              className="w-full h-10 px-3 rounded-xl border border-slate-200 dark:border-slate-750 bg-slate-50/50 dark:bg-slate-950/50 text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white dark:focus:bg-slate-900 transition-all outline-none"
+              placeholder="เช่น ผู้อำนวยการ..."
+              value={formData.to}
+              onChange={(e) => setFormData({ ...formData, to: e.target.value })}
+              className="w-full h-10 px-3 rounded-xl border border-slate-200 dark:border-slate-750 bg-white dark:bg-slate-950 text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all outline-none"
             />
           </div>
 
-          {/* Requester & Department */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {/* Origin / Requester (Hidden or Compact) */}
+          <div className="grid grid-cols-2 gap-3 pt-1">
             <div>
-              <label className="block text-xs font-semibold text-slate-800 dark:text-slate-200 mb-1.5">
-                ผู้ปฏิบัติ/ผู้ขอออกเลข
+              <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1">
+                จากหน่วยงาน
               </label>
               <input
                 type="text"
-                required
-                value={formData.requester}
-                onChange={(e) => setFormData({ ...formData, requester: e.target.value })}
-                className="w-full h-10 px-3 rounded-xl border border-slate-200 dark:border-slate-750 bg-slate-50/50 dark:bg-slate-950/50 text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white dark:focus:bg-slate-900 transition-all outline-none"
+                value={formData.origin}
+                onChange={(e) => setFormData({ ...formData, origin: e.target.value })}
+                className="w-full h-8 px-2.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-[11px] text-slate-700 dark:text-slate-300 outline-none"
               />
             </div>
-
             <div>
-              <label className="block text-xs font-semibold text-slate-800 dark:text-slate-200 mb-1.5">
-                กลุ่มงาน/ฝ่ายที่เกี่ยวข้อง
+              <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1">
+                ผู้ขอออกเลข
               </label>
-              {customDepartment || isCustomDepartment ? (
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    placeholder="ระบุกลุ่มงานเอง"
-                    value={formData.department}
-                    onChange={(e) => setFormData({ ...formData, department: e.target.value })}
-                    className="flex-1 h-10 px-3 rounded-xl border border-slate-200 dark:border-slate-750 bg-slate-50/50 dark:bg-slate-950/50 text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white dark:focus:bg-slate-900 transition-all outline-none"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => { setCustomDepartment(false); setFormData({ ...formData, department: "" }); }}
-                    className="h-10 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 text-[11px] font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-200 transition cursor-pointer whitespace-nowrap"
-                  >
-                    เลือกจากรายการ
-                  </button>
-                </div>
-              ) : (
-                <div className="relative">
-                  <select
-                    value={formData.department}
-                    onChange={(e) => {
-                      if (e.target.value === "__custom__") {
-                        setCustomDepartment(true);
-                        setFormData({ ...formData, department: "" });
-                      } else {
-                        setFormData({ ...formData, department: e.target.value });
-                      }
-                    }}
-                    className="w-full h-10 pl-3 pr-9 rounded-xl border border-slate-200 dark:border-slate-750 bg-slate-50/50 dark:bg-slate-950/50 text-xs font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white dark:focus:bg-slate-900 transition-all appearance-none cursor-pointer outline-none"
-                  >
-                    <option value="">-- เลือกกลุ่มงาน --</option>
-                    {DEPARTMENT_OPTIONS.map(d => (
-                      <option key={d} value={d}>{d}</option>
-                    ))}
-                    <option value="__custom__">อื่นๆ (ระบุเอง)</option>
-                  </select>
-                  <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-slate-400">
-                    <ChevronDown className="w-4 h-4" />
-                  </div>
-                </div>
-              )}
+              <input
+                type="text"
+                value={formData.requester}
+                onChange={(e) => setFormData({ ...formData, requester: e.target.value })}
+                className="w-full h-8 px-2.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-[11px] text-slate-700 dark:text-slate-300 outline-none"
+              />
             </div>
           </div>
 
-          {/* Budget Link Toggle */}
-          <div className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 dark:bg-slate-950/40 border border-slate-100 dark:border-slate-800">
-            <input
-              type="checkbox"
-              id="connectBudget"
-              checked={formData.connectBudget}
-              onChange={(e) => setFormData({ ...formData, connectBudget: e.target.checked })}
-              className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer accent-indigo-600"
-            />
-            <label htmlFor="connectBudget" className="text-xs font-medium text-slate-700 dark:text-slate-300 cursor-pointer select-none">
-              🔗 เชื่อมโยงกับระบบแผน/งบประมาณโครงการโรงเรียน
-            </label>
+          {/* Green Preview Banner Card (เลขทะเบียนหนังสือของคุณ) */}
+          <div className="bg-emerald-50/80 dark:bg-emerald-950/40 border border-emerald-200/80 dark:border-emerald-800/60 rounded-xl p-3.5 text-center space-y-1 shadow-2xs">
+            <span className="text-[11px] font-medium text-emerald-700 dark:text-emerald-300 block">
+              เลขทะเบียนหนังสือของคุณ
+            </span>
+            <div className="text-xl sm:text-2xl font-black font-mono text-emerald-600 dark:text-emerald-400">
+              {latestCategoryDoc ? `ที่ ${latestCategoryDoc.docNo}` : "ถัดไปในระบบ"}
+            </div>
           </div>
 
-          {/* Primary CTA Submit Button */}
+          {/* Purple Submit Action Button */}
           <button
             type="submit"
             disabled={issuing}
-            className="w-full h-11 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:scale-[0.99] text-white text-xs font-semibold transition-all flex items-center justify-center gap-2 shadow-xs disabled:opacity-50 cursor-pointer border border-indigo-500/20"
+            className="w-full h-11 rounded-xl bg-purple-600 hover:bg-purple-700 active:scale-[0.99] text-white text-xs font-bold transition-all flex items-center justify-center gap-2 shadow-md shadow-purple-600/20 disabled:opacity-50 cursor-pointer border border-purple-500/20"
           >
-            <Save className="w-4 h-4" />
-            {issuing ? "กำลังขอออกเลขเอกสาร..." : "ยืนยันขอออกเลขเอกสาร (หนังสือออก)"}
+            <Send className="w-4 h-4" />
+            {issuing ? "กำลังขอออกเลขเอกสาร..." : "🚀 ยืนยันขอเลข"}
           </button>
         </form>
 
-        {/* Right Column (5 cols): Category Status & 10 Recent Items Panel */}
-        <div className="lg:col-span-5 bg-slate-50/60 dark:bg-slate-950/40 border border-slate-200/60 dark:border-slate-800/60 rounded-xl p-4 space-y-3.5">
-          {/* Category Status Banner */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3.5 shadow-xs space-y-3">
-            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
-              <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                <span>📌</span> สถานะหมวดหมู่: <strong className="text-indigo-600 dark:text-indigo-400 font-bold">{formData.docType === "MEMO" ? (selectedSection ? selectedSection.name : "บันทึกข้อความ") : (DOC_TYPE_NAMES[formData.docType] || formData.docType)}</strong>
-              </span>
-              <span className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
-                ออกแล้วในปีนี้ {selectedCategoryDocs.length} ฉบับ
-              </span>
+        {/* Right Column (7 cols on lg): Recent History Table (🕒 ประวัติการออกเลขล่าสุด) */}
+        <div className="lg:col-span-7 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 md:p-5 space-y-4">
+          {/* Header */}
+          <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+            <div className="flex items-center gap-2">
+              <span className="text-base">🕒</span>
+              <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                ประวัติการออกเลขล่าสุด
+              </h3>
             </div>
-
-            {/* Clean & Focused Display of Latest Number and Date */}
-            <div className="space-y-1">
-              <div className="text-xs text-slate-500 dark:text-slate-400 font-medium flex items-center gap-1">
-                <span>🔥</span> เลขล่าสุดที่ถูกขอในหมวดนี้
-              </div>
-              <div className="text-xl font-bold font-mono text-slate-900 dark:text-white">
-                {latestCategoryDoc ? latestCategoryDoc.docNo : "ยังไม่มีการออกเลข"}
-              </div>
-              {latestDocDateFormatted && (
-                <div className="text-xs text-slate-600 dark:text-slate-300 font-medium flex items-center gap-1 pt-1">
-                  <span>📅 ขอออกเมื่อวันที่:</span>
-                  <span className="font-bold text-slate-900 dark:text-white">{latestDocDateFormatted}</span>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Interactive 10 Recent Items List */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <h4 className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                <span>📋</span> 10 รายการล่าสุดในหมวดนี้
-              </h4>
-              <span className="text-[10px] text-slate-400 font-medium">
-                {selectedCategoryDocs.length > 0 ? `${Math.min(selectedCategoryDocs.length, 10)} รายการ` : ""}
-              </span>
-            </div>
-
-            {selectedCategoryDocs.length === 0 ? (
-              <div className="text-center py-6 bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 text-xs text-slate-400">
-                ยังไม่มีประวัติการออกเลขในหมวดหมู่นี้
-              </div>
-            ) : (
-              <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 divide-y divide-slate-100 dark:divide-slate-800/60 max-h-[360px] overflow-y-auto">
-                {selectedCategoryDocs.slice(0, 10).map((doc, idx) => (
-                  <div
-                    key={doc.id || idx}
-                    onClick={() => setSelectedPreviewDoc(doc)}
-                    className="p-2.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition flex items-center justify-between gap-2 cursor-pointer group"
-                    title="คลิกเพื่อดูรายละเอียดเอกสาร"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono text-xs font-bold text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors whitespace-nowrap">
-                          {doc.docNo}
-                        </span>
-                        <span className="text-[10px] text-slate-400 whitespace-nowrap">
-                          {doc.date ? new Date(doc.date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' }) : ''}
-                        </span>
-                      </div>
-                      <p className="text-xs text-slate-600 dark:text-slate-300 truncate mt-0.5 font-medium">
-                        {doc.title}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <span className="text-[10px] text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded whitespace-nowrap">
-                        {doc.requester || doc.origin || '-'}
-                      </span>
-                      <Eye className="w-3.5 h-3.5 text-slate-300 group-hover:text-indigo-500 transition-colors" />
-                    </div>
-                  </div>
-                ))}
-              </div>
+            {onRefresh && (
+              <button
+                type="button"
+                onClick={onRefresh}
+                className="text-xs font-bold text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 flex items-center gap-1.5 px-2.5 py-1 rounded-lg hover:bg-purple-50 dark:hover:bg-purple-950/50 transition cursor-pointer"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                รีเฟรช
+              </button>
             )}
           </div>
+
+          {/* History List Table */}
+          {outboundDocs.length === 0 ? (
+            <div className="text-center py-12 text-xs text-slate-400">
+              ยังไม่มีประวัติการขอออกเลขหนังสือ
+            </div>
+          ) : (
+            <div className="overflow-x-auto custom-scrollbar">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-100 dark:border-slate-800 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                    <th className="py-2 px-2.5">เลขที่</th>
+                    <th className="py-2 px-2">ประเภท</th>
+                    <th className="py-2 px-2.5">เรื่อง</th>
+                    <th className="py-2 px-2">ผู้ขอ</th>
+                    <th className="py-2 px-2 text-right">เวลา</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
+                  {outboundDocs.slice(0, 10).map((doc, idx) => {
+                    const badge = getDocBadge(doc.docType);
+                    const formattedDate = doc.date ? new Date(doc.date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' }) : '';
+                    const formattedTime = doc.createdAt ? new Date(doc.createdAt).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) : '';
+                    
+                    return (
+                      <tr
+                        key={doc.id || idx}
+                        onClick={() => setSelectedPreviewDoc(doc)}
+                        className="hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition cursor-pointer group"
+                      >
+                        <td className="py-3 px-2.5 font-mono font-bold text-slate-900 dark:text-white group-hover:text-purple-600 dark:group-hover:text-purple-400 whitespace-nowrap">
+                          {doc.docNo}
+                        </td>
+                        <td className="py-3 px-2 whitespace-nowrap">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${badge.bg}`}>
+                            {badge.text}
+                          </span>
+                        </td>
+                        <td className="py-3 px-2.5 max-w-[200px] truncate text-slate-700 dark:text-slate-300 font-medium">
+                          {doc.title}
+                        </td>
+                        <td className="py-3 px-2 text-slate-600 dark:text-slate-400 whitespace-nowrap">
+                          {doc.requester || doc.origin || '-'}
+                        </td>
+                        <td className="py-3 px-2 text-right whitespace-nowrap text-[10px] text-slate-400">
+                          <div>{formattedTime}</div>
+                          <div>{formattedDate}</div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       </div>
 
@@ -474,10 +376,10 @@ export default function OutboundForm({
             </div>
 
             <div className="space-y-3 text-xs">
-              <div className="bg-indigo-50/60 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-900/40 rounded-xl p-3.5 flex items-center justify-between">
+              <div className="bg-purple-50/60 dark:bg-purple-950/40 border border-purple-100 dark:border-purple-900/40 rounded-xl p-3.5 flex items-center justify-between">
                 <div>
                   <span className="text-[10px] text-slate-500 dark:text-slate-400 block font-medium">เลขที่ออกเอกสาร</span>
-                  <span className="font-mono text-sm font-extrabold text-indigo-600 dark:text-indigo-400">{selectedPreviewDoc.docNo}</span>
+                  <span className="font-mono text-sm font-extrabold text-purple-600 dark:text-purple-400">{selectedPreviewDoc.docNo}</span>
                 </div>
                 <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800/40">
                   {selectedPreviewDoc.status || "ISSUED"}
@@ -510,16 +412,16 @@ export default function OutboundForm({
                   <span className="font-semibold text-slate-800 dark:text-slate-200">{selectedPreviewDoc.department || selectedPreviewDoc.origin || '-'}</span>
                 </div>
               </div>
-            </div>
 
-            <div className="pt-2 flex justify-end">
-              <button
-                type="button"
-                onClick={() => setSelectedPreviewDoc(null)}
-                className="px-4 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold text-xs transition cursor-pointer"
-              >
-                ปิดหน้าต่าง
-              </button>
+              <div className="pt-2 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setSelectedPreviewDoc(null)}
+                  className="px-4 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold text-xs transition cursor-pointer"
+                >
+                  ปิดหน้าต่าง
+                </button>
+              </div>
             </div>
           </div>
         </div>
