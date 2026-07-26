@@ -8596,11 +8596,17 @@ function DocPatternBuilderTab({
   const docTypeLabel = (dt: string) => {
     switch (dt) {
       case "MEMO":
-        return "บันทึกข้อความ";
+        return lang === "en" ? "Memorandum" : "บันทึกข้อความ";
       case "COMMAND":
-        return "คำสั่ง";
+        return lang === "en" ? "School Command" : "คำสั่งโรงเรียน";
+      case "ANNOUNCEMENT":
+        return lang === "en" ? "School Announcement" : "ประกาศโรงเรียน";
       case "OUTGOING":
-        return "หนังสือส่ง";
+        return lang === "en" ? "Outgoing Document" : "หนังสือส่ง (ทั่วไป)";
+      case "OUTGOING_NORMAL":
+        return lang === "en" ? "Outgoing Doc (Normal)" : "หนังสือส่ง (ปกติ/ภายนอก)";
+      case "OUTGOING_CIRCULAR":
+        return lang === "en" ? "Outgoing Doc (Circular)" : "หนังสือส่ง (จดหมายเวียน)";
       default:
         return dt;
     }
@@ -8612,10 +8618,15 @@ function DocPatternBuilderTab({
         return "bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-500/20";
       case "COMMAND":
         return "bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-500/20";
+      case "ANNOUNCEMENT":
+        return "bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-200 dark:border-purple-500/20";
       case "OUTGOING":
+      case "OUTGOING_NORMAL":
         return "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/20";
+      case "OUTGOING_CIRCULAR":
+        return "bg-teal-50 dark:bg-teal-500/10 text-teal-600 dark:text-teal-400 border-teal-200 dark:border-teal-500/20";
       default:
-        return "bg-slate-50 dark:bg-slate-700 text-slate-655 dark:text-slate-450 border-slate-200 dark:border-slate-700";
+        return "bg-slate-50 dark:bg-slate-700 text-slate-650 dark:text-slate-350 border-slate-200 dark:border-slate-700";
     }
   };
 
@@ -8845,20 +8856,20 @@ function DocPatternBuilderTab({
 
                     {/* Config Details */}
                     <div className="flex flex-wrap gap-2">
-                      <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-700 text-xs text-slate-600 dark:text-slate-300">
-                        Prefix: <strong className="ml-1">{c.prefix}</strong>
+                      <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-700 text-xs text-slate-600 dark:text-slate-300 font-medium">
+                        {lang === "en" ? "Prefix:" : "คำนำหน้า:"} <strong className="ml-1">{c.prefix}</strong>
                       </span>
-                      <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-700 text-xs text-slate-600 dark:text-slate-300">
-                        Padding: <strong className="ml-1">{c.paddingDigits}</strong>
+                      <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-700 text-xs text-slate-600 dark:text-slate-300 font-medium">
+                        {lang === "en" ? "Padding:" : "จำนวนหลัก:"} <strong className="ml-1">{c.paddingDigits} {lang === "en" ? "digits" : "หลัก"}</strong>
                       </span>
-                      <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-700 text-xs text-slate-600 dark:text-slate-300">
-                        {c.useThaiNumerals ? "เลขไทย" : "เลขอารบิก"}
+                      <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-700 text-xs text-slate-600 dark:text-slate-300 font-medium">
+                        {c.useThaiNumerals ? (lang === "en" ? "Thai Numerals" : "เลขไทย") : (lang === "en" ? "Arabic Numerals" : "เลขอารบิก")}
                       </span>
-                      <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-700 text-xs text-slate-600 dark:text-slate-300">
-                        {c.yearFormat === "TH_BE" ? "พ.ศ." : "ค.ศ."}
+                      <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-700 text-xs text-slate-600 dark:text-slate-300 font-medium">
+                        {c.yearFormat === "TH_BE" ? (lang === "en" ? "B.E. Year" : "พ.ศ.") : (lang === "en" ? "A.D. Year" : "ค.ศ.")}
                       </span>
-                      <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-purple-50 dark:bg-purple-500/10 text-xs text-purple-600 dark:text-purple-400 font-semibold">
-                        ลำดับปัจจุบัน: {c.currentSeq}
+                      <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-purple-50 dark:bg-purple-500/10 text-xs text-purple-600 dark:text-purple-400 font-bold">
+                        {lang === "en" ? "Current Seq:" : "ลำดับปัจจุบัน:"} {c.currentSeq}
                       </span>
                     </div>
                   </div>

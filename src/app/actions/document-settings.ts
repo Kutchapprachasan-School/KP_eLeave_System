@@ -161,9 +161,10 @@ export async function getDocumentConfigs() {
   });
 
   const baseTypes = [
-    { docType: "OUTGOING", prefix: "ศทก" },
-    { docType: "COMMAND", prefix: "คำสั่ง" },
-    { docType: "ANNOUNCEMENT", prefix: "ประกาศ" },
+    { docType: "OUTGOING_NORMAL", prefix: "ที่ ศทก" },
+    { docType: "OUTGOING_CIRCULAR", prefix: "ที่ ศทก" },
+    { docType: "COMMAND", prefix: "คำสั่งที่" },
+    { docType: "ANNOUNCEMENT", prefix: "ประกาศที่" },
   ];
 
   let addedNew = false;
