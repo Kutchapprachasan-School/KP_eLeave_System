@@ -266,9 +266,9 @@ export default function DocumentTable({
               <tr>
                 <th className="py-3.5 px-4 font-semibold">เลขที่</th>
                 <th className="py-3.5 px-4 font-semibold">ประเภท</th>
+                <th className="py-3.5 px-4 font-semibold">วันที่</th>
                 <th className="py-3.5 px-4 font-semibold">เรื่อง</th>
                 <th className="py-3.5 px-4 font-semibold">ผู้ขอ</th>
-                <th className="py-3.5 px-4 font-semibold">เวลาออกเลข</th>
                 <th className="py-3.5 px-4 text-right">จัดการ</th>
               </tr>
             ) : (
@@ -296,26 +296,26 @@ export default function DocumentTable({
                 if (localTab === "outbound") {
                   return (
                     <tr key={d.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition">
-                      <td className="py-3 px-4 font-mono font-bold text-indigo-600 dark:text-indigo-400">
+                      <td className="py-3 px-4 font-mono font-bold text-indigo-600 dark:text-indigo-400 whitespace-nowrap">
                         {d.docNo || <span className="text-amber-500 text-xs">รอออกเลข</span>}
                       </td>
-                      <td className="py-3 px-4 text-slate-600 dark:text-slate-400 font-medium">
+                      <td className="py-3 px-4 text-slate-600 dark:text-slate-400 font-medium whitespace-nowrap">
                         {getDocTypeThaiLabel(d.docType, d.memoSection?.name)}
                       </td>
-                      <td className="py-3 px-4 font-semibold text-slate-800 dark:text-slate-200 max-w-xs truncate" title={d.title}>
-                        {d.title}
-                      </td>
-                      <td className="py-3 px-4 text-slate-600 dark:text-slate-400">
-                        {d.requester || d.origin || "-"}
-                      </td>
-                      <td className="py-3 px-4 text-slate-500 font-medium">
+                      <td className="py-3 px-4 text-slate-500 font-medium whitespace-nowrap">
                         {d.date ? new Date(d.date).toLocaleDateString("th-TH", {
                           year: "numeric",
                           month: "short",
                           day: "numeric",
                         }) : "-"}
                       </td>
-                      <td className="py-3 px-4 text-right">
+                      <td className="py-3 px-4 font-semibold text-slate-800 dark:text-slate-200 max-w-xs truncate" title={d.title}>
+                        {d.title}
+                      </td>
+                      <td className="py-3 px-4 text-slate-600 dark:text-slate-400 whitespace-nowrap">
+                        {d.requester || d.origin || "-"}
+                      </td>
+                      <td className="py-3 px-4 text-right whitespace-nowrap">
                         <div className="flex gap-1.5 justify-end items-center">
                           <button
                             type="button"

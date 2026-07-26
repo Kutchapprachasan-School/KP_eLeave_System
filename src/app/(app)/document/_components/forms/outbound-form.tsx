@@ -421,16 +421,15 @@ export default function OutboundForm({
                     <tr className="border-b border-slate-100 dark:border-slate-800 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
                       <th className="py-2 px-2.5">เลขที่</th>
                       <th className="py-2 px-2">ประเภท</th>
+                      <th className="py-2 px-2">วันที่</th>
                       <th className="py-2 px-2.5">เรื่อง</th>
                       <th className="py-2 px-2">ผู้ขอ</th>
-                      <th className="py-2 px-2 text-right">เวลา</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
                     {outboundDocs.slice(0, 10).map((doc, idx) => {
                       const badge = getDocBadge(doc.docType);
                       const formattedDate = doc.date ? new Date(doc.date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' }) : '';
-                      const formattedTime = doc.createdAt ? new Date(doc.createdAt).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) : '';
                       
                       return (
                         <tr
@@ -446,15 +445,14 @@ export default function OutboundForm({
                               {badge.text}
                             </span>
                           </td>
+                          <td className="py-3 px-2 text-slate-600 dark:text-slate-400 whitespace-nowrap text-[11px]">
+                            {formattedDate}
+                          </td>
                           <td className="py-3 px-2.5 max-w-[200px] truncate text-slate-700 dark:text-slate-300 font-medium">
                             {doc.title}
                           </td>
                           <td className="py-3 px-2 text-slate-600 dark:text-slate-400 whitespace-nowrap">
                             {doc.requester || doc.origin || '-'}
-                          </td>
-                          <td className="py-3 px-2 text-right whitespace-nowrap text-[10px] text-slate-400">
-                            <div>{formattedTime}</div>
-                            <div>{formattedDate}</div>
                           </td>
                         </tr>
                       );
