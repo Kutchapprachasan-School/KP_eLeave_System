@@ -32,6 +32,8 @@ import {
 import { getSimpleUsersList } from "@/app/actions/settings";
 import { useSession } from "@/lib/auth-client";
 import { useToast } from "@/components/toast-provider";
+import { IncomingDirectiveModal } from "@/features/document/ui/components/incoming-directive-modal";
+import { RoutingTimeline } from "@/features/document/ui/components/routing-timeline";
 
 type RoutingStep = {
   id: string;
@@ -92,6 +94,11 @@ export default function IncomingDocDetailPage() {
   const [showAddStepModal, setShowAddStepModal] = useState(false);
   const [newStepAssigneeId, setNewStepAssigneeId] = useState("");
   const [newStepDeadline, setNewStepDeadline] = useState("");
+
+  // Executive e-Directive & Report Modal state
+  const [showDirectiveModal, setShowDirectiveModal] = useState(false);
+  const [directiveModalMode, setDirectiveModalMode] = useState<"DIRECTIVE" | "REPORT">("DIRECTIVE");
+  const [activeRoutingId, setActiveRoutingId] = useState<string | undefined>(undefined);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -274,6 +281,19 @@ export default function IncomingDocDetailPage() {
               <Link2 className="w-4 h-4" />
               ไฟล์แนบต้นฉบับ
             </a>
+          )}
+          {(isAdmin || isDirector) && (
+            <button
+              type="button"
+              onClick={() => {
+                setDirectiveModalMode("DIRECTIVE");
+                setActiveRoutingId(undefined);
+                setShowDirectiveModal(true);
+              }}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white text-xs font-bold shadow-sm cursor-pointer"
+            >
+              ✍️ e-เกษียณหนังสือ & สั่งการ
+            </button>
           )}
         </div>
       </div>
@@ -646,8 +666,20 @@ export default function IncomingDocDetailPage() {
           </div>
         )}
       </AnimatePresence>
-      
 
+      {/* Executive e-Directive & Report Modal */}
+      <IncomingDirectiveModal
+        documentId={doc.id}
+        routingId={activeRoutingId}
+        userId={(session?.user as any)?.id || ""}
+        mode={directiveModalMode}
+        staffList={users}
+        isOpen={showDirectiveModal}
+        onClose={() => {
+          setShowDirectiveModal(false);
+          loadData();
+        }}
+      />
     </div>
   );
 }

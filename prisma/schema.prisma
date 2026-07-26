@@ -853,21 +853,37 @@ model DocumentRouting {
 
   incomingDocId     String
 
-  stepOrder         Int             // ลำดับขั้นตอน (1, 2, 3...)
+  stepOrder         Int             @default(1) // ลำดับขั้นตอน (1, 2, 3...)
 
-  assigneeId        String          // ผู้เกษียน/ดำเนินการ
+  assigneeId        String          // ผู้เกษียน/ดำเนินการ (ID ครู หรือ ID กลุ่มสาระ)
 
-  assignedById      String          // ผู้มอบหมาย
+  assigneeName      String?         // ชื่อครู/กลุ่มสาระ
 
-  status            String          @default("PENDING") // PENDING, COMPLETED, SKIPPED
+  assignedById      String          // ผู้มอบหมาย (ID ผู้บริหาร)
+
+  status            String          @default("PENDING") // PENDING, ACKNOWLEDGED, IN_PROGRESS, COMPLETED, SKIPPED
 
   resolution        String?         // คำเกษียนสั่งการ (เช่น "ทราบและดำเนินการ")
+
+  standardDirective String?         // ข้อสั่งการมาตรฐาน
+
+  directiveText     String?         @db.Text // ข้อความสั่งการเพิ่มเติม
+
+  signatureUrl      String?         // รูปตรายาง / ลายเซ็นดิจิทัล
+
+  dueDate           DateTime?       // วันครบกำหนดปฏิบัติงาน (Due Date)
+
+  acknowledgedAt    DateTime?       // วันเวลาที่กดรับทราบ
+
+  actionReport      String?         @db.Text // สรุปรายงานผลการปฏิบัติงาน
+
+  actionAttachmentUrl String?       // URL ไฟล์แนบรายงานผล
+
+  completedAt       DateTime?
 
   note              String?         @db.Text
 
   deadline          DateTime?       // กำหนดเสร็จ
-
-  completedAt       DateTime?
 
   createdAt         DateTime        @default(now())
 
@@ -883,7 +899,9 @@ model DocumentRouting {
 
 
 
-  @@unique([incomingDocId, stepOrder])
+  @@index([incomingDocId])
+
+  @@index([assigneeId, status])
 
 }
 
