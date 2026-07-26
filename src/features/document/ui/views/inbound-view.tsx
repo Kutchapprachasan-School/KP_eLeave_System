@@ -57,16 +57,6 @@ export function InboundView({
       {/* Header Banner & AMSS Settings Bar */}
       <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl p-5 md:p-6 shadow-xs space-y-4">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-              <span className="text-lg">📥</span>
-              ระบบรับหนังสือราชการ (AMSS++)
-            </h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-              รับหนังสือราชการจากเขตพื้นที่การศึกษา อัปเดตอัตโนมัติ พร้อมระบบเกษียนหนังสือ
-            </p>
-          </div>
-
           <div className="flex flex-wrap items-center gap-2">
             <GuardedAction requiredPermission="sarabun:amss:sync">
               <AmssAutoBrowserSync

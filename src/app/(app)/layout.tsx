@@ -627,6 +627,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
     ? [
         { href: "/repair", label: "รายการแจ้งซ่อมทั้งหมด", icon: Wrench },
         { href: "/repair/new", label: "แจ้งซ่อมรายการใหม่", icon: Plus },
+        { href: "/repair/summary", label: "สรุปการดำเนินงาน", icon: FileText },
       ]
     : [];
 

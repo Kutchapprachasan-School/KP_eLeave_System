@@ -45,15 +45,6 @@ export function OutboundView({
 }: OutboundViewProps) {
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
-      <div className="border-b border-slate-100 dark:border-slate-800/80 pb-3">
-        <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-          <span>📝</span> ขอเลขทะเบียนเอกสารใหม่
-        </h2>
-        <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-          กรอกข้อมูลเพื่อขอออกเลขทะเบียนหนังสือส่ง บันทึกข้อความ หรือคำสั่งโรงเรียน
-        </p>
-      </div>
-
       <OutboundForm
         sections={sections}
         issuing={issuing}

@@ -161,6 +161,12 @@ export default function RepairListPage() {
           description="จัดการคำขอแจ้งซ่อมทั้งหมดในโรงเรียน"
           action={
             <div className="flex items-center gap-2">
+              <Link href="/repair/summary">
+                <button className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors shadow-sm cursor-pointer">
+                  <FileText className="w-4 h-4 text-purple-500" />
+                  สรุปการดำเนินงาน
+                </button>
+              </Link>
               {user && hasRepairPermission(user, "repair:dashboard") && (
                 <Link href="/dashboard?system=repair">
                   <button className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors shadow-sm cursor-pointer">
@@ -188,37 +194,6 @@ export default function RepairListPage() {
           }
         />
       </div>
-
-      {/* Main Tab Navigation (Hidden during print) */}
-      <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-1 print:hidden">
-        <button
-          onClick={() => setActiveTab("list")}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all cursor-pointer ${
-            activeTab === "list"
-              ? "bg-orange-500 text-white shadow-md shadow-orange-500/20"
-              : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
-          }`}
-        >
-          <ListFilter className="w-4 h-4" />
-          รายการแจ้งซ่อม
-        </button>
-        <button
-          onClick={() => setActiveTab("report")}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all cursor-pointer ${
-            activeTab === "report"
-              ? "bg-orange-500 text-white shadow-md shadow-orange-500/20"
-              : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
-          }`}
-        >
-          <FileText className="w-4 h-4" />
-          สรุปการดำเนินงาน (รายเดือน/รอบประเมิน/รายปี)
-        </button>
-      </div>
-
-      {activeTab === "report" ? (
-        <RepairSummaryReportView canViewCost={user ? hasRepairPermission(user, "repair:view.cost") : false} />
-      ) : (
-        <>
 
       {/* Stat Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -306,8 +281,6 @@ export default function RepairListPage() {
           </div>
         )}
       </div>
-      </>
-      )}
     </div>
   );
 }

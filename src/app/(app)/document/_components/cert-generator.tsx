@@ -112,13 +112,7 @@ export default function CertGenerator({ onBack }: { onBack: () => void }) {
           >
             <ArrowLeft className="w-4 h-4 text-slate-700 dark:text-slate-350" />
           </button>
-          <div>
-            <h3 className="text-lg font-bold text-slate-850 dark:text-white flex items-center gap-2">
-              <Award className="w-5 h-5 text-rose-500" />
-              ระบบออกเกียรติบัตรอิเล็กทรอนิกส์
-            </h3>
-            <p className="text-xs text-slate-400 mt-0.5">สร้างเกียรติบัตรพร้อมระบบตรวจสอบความถูกต้องด้วยรหัส QR Code</p>
-          </div>
+
         </div>
 
         <button
