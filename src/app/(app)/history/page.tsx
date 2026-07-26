@@ -878,17 +878,26 @@ export default function HistoryPage() {
         };
 
         const submittedDateText = formatDetailDate(item.createdAt) || "-";
-        const headApprovedDateText = extraObj.headApprovedAt
-          ? formatDetailDate(extraObj.headApprovedAt)
-          : (item.headApproverId || item.status === "PENDING_EXEC" || item.status === "APPROVED") && item.updatedAt
-          ? formatDetailDate(item.updatedAt)
-          : null;
+        
+        let headApprovedDateText: string | null = null;
+        if (item.headApprovedAt) {
+          headApprovedDateText = formatDetailDate(item.headApprovedAt);
+        } else if (extraObj.headApprovedAt) {
+          headApprovedDateText = formatDetailDate(extraObj.headApprovedAt);
+        } else if (item.status === "PENDING_EXEC" && item.updatedAt) {
+          headApprovedDateText = formatDetailDate(item.updatedAt);
+        } else if (item.status === "APPROVED" && item.headApproverId) {
+          headApprovedDateText = "อนุมัติเรียบร้อย";
+        }
 
-        const execApprovedDateText = extraObj.execApprovedAt
-          ? formatDetailDate(extraObj.execApprovedAt)
-          : (item.status === "APPROVED" || (item.status === "REJECTED" && item.execApproverId)) && item.updatedAt
-          ? formatDetailDate(item.updatedAt)
-          : null;
+        let execApprovedDateText: string | null = null;
+        if (item.execApprovedAt) {
+          execApprovedDateText = formatDetailDate(item.execApprovedAt);
+        } else if (extraObj.execApprovedAt) {
+          execApprovedDateText = formatDetailDate(extraObj.execApprovedAt);
+        } else if (item.status === "APPROVED" && item.updatedAt) {
+          execApprovedDateText = formatDetailDate(item.updatedAt);
+        }
 
         return (
           <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">

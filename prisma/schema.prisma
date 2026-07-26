@@ -189,8 +189,10 @@ model LeaveRequest {
   documentUrl    String?
 
   headApproverId String?
+  headApprovedAt DateTime?
 
   execApproverId String?
+  execApprovedAt DateTime?
 
   rejectReason   String?
 

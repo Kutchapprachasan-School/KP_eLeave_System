@@ -754,15 +754,17 @@ export async function approveLeaveRequest(id: string, pdfBase64?: string, skipDr
   if (user.position === "หัวหน้างานบุคคล" && request.status === "PENDING_HEAD") {
     // Head approves -> move to Executive
     newStatus = "PENDING_EXEC";
+    const now = new Date();
     let extraObj: any = {};
     try {
       if (request.extraFields) extraObj = JSON.parse(request.extraFields);
     } catch {}
-    extraObj.headApprovedAt = new Date().toISOString();
+    extraObj.headApprovedAt = now.toISOString();
 
     updateData = { 
       status: newStatus, 
       headApproverId: session.user.id,
+      headApprovedAt: now,
       extraFields: JSON.stringify(extraObj)
     };
   } else if (
@@ -779,15 +781,17 @@ export async function approveLeaveRequest(id: string, pdfBase64?: string, skipDr
     });
     const nextApprovedSeq = (maxApproved._max.approvedSeq || 0) + 1;
 
+    const now = new Date();
     let extraObj: any = {};
     try {
       if (request.extraFields) extraObj = JSON.parse(request.extraFields);
     } catch {}
-    extraObj.execApprovedAt = new Date().toISOString();
+    extraObj.execApprovedAt = now.toISOString();
 
     updateData = { 
       status: newStatus, 
       execApproverId: session.user.id,
+      execApprovedAt: now,
       approvedSeq: nextApprovedSeq,
       fiscalYear: fy,
       extraFields: JSON.stringify(extraObj)
