@@ -407,7 +407,7 @@ export default function DocumentTable({
                 if (localTab === "outbound") {
                   return (
                     <tr key={d.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition">
-                      <td className="py-3 px-4 font-mono font-bold text-indigo-600 dark:text-indigo-400 whitespace-nowrap">
+                      <td className="py-3 px-4 font-mono font-medium text-indigo-600 dark:text-indigo-400 whitespace-nowrap">
                         {d.docNo || <span className="text-amber-500 text-xs">รอออกเลข</span>}
                       </td>
                       <td className="py-3 px-4 whitespace-nowrap">
@@ -443,7 +443,7 @@ export default function DocumentTable({
                           day: "numeric",
                         }) : "-"}
                       </td>
-                      <td className="py-3 px-4 font-semibold text-slate-800 dark:text-slate-200 max-w-xs truncate" title={d.title}>
+                      <td className="py-3 px-4 font-normal text-slate-800 dark:text-slate-200 max-w-xs truncate" title={d.title}>
                         {d.title}
                       </td>
                       <td className="py-3 px-4 text-slate-600 dark:text-slate-400 whitespace-nowrap">
@@ -476,7 +476,7 @@ export default function DocumentTable({
                 } else {
                   return (
                     <tr key={d.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition">
-                      <td className="py-3 px-4 font-mono font-bold text-slate-900 dark:text-white whitespace-nowrap">
+                      <td className="py-3 px-4 font-mono font-normal text-slate-800 dark:text-slate-200 whitespace-nowrap">
                         {d.receiveNo}
                       </td>
                       <td className="py-3 px-4 font-mono">
@@ -495,16 +495,16 @@ export default function DocumentTable({
 
                           const badgeClass =
                             text === "ด่วนที่สุด"
-                              ? "bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800 font-black"
+                              ? "bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800 font-bold"
                               : text === "ด่วนมาก"
-                              ? "bg-orange-50 dark:bg-orange-950/60 text-orange-700 dark:text-orange-300 border-orange-200 dark:border-orange-800 font-bold"
+                              ? "bg-orange-50 dark:bg-orange-950/60 text-orange-700 dark:text-orange-300 border-orange-200 dark:border-orange-800 font-medium"
                               : text === "ด่วน"
-                              ? "bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800 font-bold"
-                              : "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800 font-semibold";
+                              ? "bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800 font-medium"
+                              : "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800 font-normal";
 
                           return (
                             <div className="flex flex-col items-start gap-1">
-                              <span className="font-semibold text-slate-800 dark:text-slate-200">{cleanRef || <span className="text-slate-400 italic font-sans text-xs">ไม่มีเลข</span>}</span>
+                              <span className="font-normal text-slate-800 dark:text-slate-200">{cleanRef || <span className="text-slate-400 italic font-sans text-xs">ไม่มีเลข</span>}</span>
                               <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] border ${badgeClass}`}>
                                 {text}
                               </span>
@@ -512,7 +512,7 @@ export default function DocumentTable({
                           );
                         })()}
                       </td>
-                      <td className="py-3 px-4 font-semibold text-slate-800 dark:text-slate-200 max-w-xs truncate" title={d.title}>
+                      <td className="py-3 px-4 font-normal text-slate-800 dark:text-slate-200 max-w-xs truncate" title={d.title}>
                         {d.title}
                       </td>
                       <td className="py-3 px-4">
