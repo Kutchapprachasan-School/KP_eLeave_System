@@ -8647,16 +8647,27 @@ function DocPatternBuilderTab({
           • <strong>เมื่อขึ้นปีใหม่ (เช่น ปี 2570):</strong> ระบบจะทำการ <strong>รีเซ็ตกลับมาเริ่มนับ 1 ให้อัตโนมัติ</strong> สำหรับปีใหม่โดยไม่ต้องตั้งค่าซ้ำ!
         </p>
       </div>
-      {configs.length === 0 ? (
-        <div className="col-span-full bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-16 flex flex-col items-center justify-center text-slate-400 shadow-sm">
-          <Hash className="w-12 h-12 mb-3 opacity-30" />
-          <p className="text-sm font-medium">ยังไม่มีรูปแบบเลขเอกสาร</p>
-          <p className="text-xs mt-1">
-            เพิ่มงานย่อยในแท็บแรกเพื่อสร้างรูปแบบเลขอัตโนมัติ
-          </p>
-        </div>
-      ) : (
-        configs.map((c) => {
+      {(() => {
+        const displayConfigs = configs.filter((c) => {
+          if (c.docType === "OUTGOING" && configs.some((other) => other.docType === "OUTGOING_NORMAL")) {
+            return false;
+          }
+          return true;
+        });
+
+        if (displayConfigs.length === 0) {
+          return (
+            <div className="col-span-full bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-16 flex flex-col items-center justify-center text-slate-400 shadow-sm">
+              <Hash className="w-12 h-12 mb-3 opacity-30" />
+              <p className="text-sm font-medium">ยังไม่มีรูปแบบเลขเอกสาร</p>
+              <p className="text-xs mt-1">
+                เพิ่มงานย่อยในแท็บแรกเพื่อสร้างรูปแบบเลขอัตโนมัติ
+              </p>
+            </div>
+          );
+        }
+
+        return displayConfigs.map((c) => {
           const isEditing = editingConfig?.id === c.id;
           const preview = renderPatternPreview(
             c.prefix,
@@ -8876,8 +8887,8 @@ function DocPatternBuilderTab({
               </div>
             </motion.div>
           );
-        })
-      )}
+        });
+      })()}
     </motion.div>
   );
 }

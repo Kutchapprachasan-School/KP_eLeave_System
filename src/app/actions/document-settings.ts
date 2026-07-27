@@ -156,9 +156,27 @@ export async function deleteSigneePreset(id: string) {
 // DocumentConfig Actions
 export async function getDocumentConfigs() {
   await checkAuth();
-  const existing = await prisma.documentConfig.findMany({
+  let existing = await prisma.documentConfig.findMany({
     include: { memoSection: true }
   });
+
+  // Auto-migrate or clean up legacy "OUTGOING" base config if "OUTGOING_NORMAL" exists
+  const legacyOutgoing = existing.find((c) => c.docType === "OUTGOING" && !c.memoSectionId);
+  if (legacyOutgoing) {
+    const hasNormal = existing.some((c) => c.docType === "OUTGOING_NORMAL" && !c.memoSectionId);
+    if (!hasNormal) {
+      await prisma.documentConfig.update({
+        where: { id: legacyOutgoing.id },
+        data: { docType: "OUTGOING_NORMAL" }
+      });
+      (legacyOutgoing as any).docType = "OUTGOING_NORMAL";
+    } else {
+      await prisma.documentConfig.delete({
+        where: { id: legacyOutgoing.id }
+      });
+      existing = existing.filter((c) => c.id !== legacyOutgoing.id);
+    }
+  }
 
   const baseTypes = [
     { docType: "OUTGOING_NORMAL", prefix: "ที่ ศทก" },
@@ -167,7 +185,6 @@ export async function getDocumentConfigs() {
     { docType: "ANNOUNCEMENT", prefix: "ประกาศที่" },
   ];
 
-  let addedNew = false;
   for (const item of baseTypes) {
     const found = existing.find((c) => c.docType === item.docType && !c.memoSectionId);
     if (!found) {
@@ -183,7 +200,6 @@ export async function getDocumentConfigs() {
         include: { memoSection: true }
       });
       existing.push(created as any);
-      addedNew = true;
     }
   }
 
