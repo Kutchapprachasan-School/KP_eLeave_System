@@ -7,6 +7,37 @@ interface AMSSParsedRow {
   dateText: string;
 }
 
+// Helper to clean docRefNo and extract urgency level
+export function parseDocRefAndUrgency(rawRef: string): { cleanRef: string; urgencyLevel: string; urgencyText: string } {
+  if (!rawRef) return { cleanRef: "", urgencyLevel: "NORMAL", urgencyText: "ปกติ" };
+
+  let text = rawRef.trim();
+  let urgencyLevel = "NORMAL";
+  let urgencyText = "ปกติ";
+
+  if (/ด่วนที่สุด/i.test(text)) {
+    urgencyLevel = "URGENT_MOST";
+    urgencyText = "ด่วนที่สุด";
+    text = text.replace(/ด่วนที่สุด/gi, "").trim();
+  } else if (/ด่วนมาก/i.test(text)) {
+    urgencyLevel = "URGENT_MORE";
+    urgencyText = "ด่วนมาก";
+    text = text.replace(/ด่วนมาก/gi, "").trim();
+  } else if (/\bด่วน\b/i.test(text) || /ด่วน(?!ที่สุด|มาก)/i.test(text)) {
+    urgencyLevel = "URGENT";
+    urgencyText = "ด่วน";
+    text = text.replace(/ด่วน/gi, "").trim();
+  } else if (/ปกติ/i.test(text)) {
+    urgencyLevel = "NORMAL";
+    urgencyText = "ปกติ";
+    text = text.replace(/ปกติ/gi, "").trim();
+  }
+
+  text = text.replace(/^[\s\r\n]+|[\s\r\n]+$/g, "").trim();
+
+  return { cleanRef: text, urgencyLevel, urgencyText };
+}
+
 export function buildAmssBookDetailUrl(baseUrl: string, amssId: string): string {
   try {
     const origin = new URL(baseUrl).origin;
@@ -133,7 +164,7 @@ export function parseAMSSListHtml(input: string, baseUrl?: string): AMSSParsedRo
 
     if (tds.length >= 7) {
       const receiveNo = tds[0] || "";
-      const docRefNo = tds[1] || "";
+      const { cleanRef: docRefNo } = parseDocRefAndUrgency(tds[1] || "");
       const title = tds[2] || "";
       const dateText = tds[4] || "";
       const senderOrg = cleanSenderOrgText(tds[5] || "");
@@ -149,7 +180,7 @@ export function parseAMSSListHtml(input: string, baseUrl?: string): AMSSParsedRo
     } else if (tds.length >= 4) {
       const cleanTds = tds.filter((t) => t !== "คลิก" && t !== "รายละเอียด");
       const receiveNo = cleanTds[0] || "";
-      const docRefNo = cleanTds[1] || "";
+      const { cleanRef: docRefNo } = parseDocRefAndUrgency(cleanTds[1] || "");
       const title = cleanTds[2] || "";
       const senderOrg = cleanSenderOrgText(cleanTds[3] || "");
       const dateText = cleanTds[4] || "";

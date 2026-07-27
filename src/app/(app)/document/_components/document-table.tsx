@@ -4,6 +4,7 @@ import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { Search, RefreshCw, X, FolderOpen, Eye, Ban, ShieldAlert, AlertTriangle, Link2, Copy, ChevronLeft, ChevronRight, Trash2 } from "lucide-react";
 import { getDocTypeThaiLabel } from "@/lib/document-utils";
+import { parseDocRefAndUrgency } from "@/lib/amss-list-parser";
 import { deleteIncomingDoc } from "@/app/actions/incoming";
 import { SlideOverSheet } from "@/features/document/ui/components/slide-over-sheet";
 
@@ -478,8 +479,38 @@ export default function DocumentTable({
                       <td className="py-3 px-4 font-mono font-bold text-slate-900 dark:text-white whitespace-nowrap">
                         {d.receiveNo}
                       </td>
-                      <td className="py-3 px-4 text-slate-600 dark:text-slate-400 font-mono">
-                        {d.docRefNo || <span className="text-slate-400 italic">ไม่มีเลข</span>}
+                      <td className="py-3 px-4 font-mono">
+                        {(() => {
+                          const rawRef = d.docRefNo || "";
+                          const { cleanRef, urgencyLevel: parsedLevel, urgencyText: parsedText } = parseDocRefAndUrgency(rawRef);
+                          
+                          let level = d.urgencyLevel && d.urgencyLevel !== "NORMAL" ? d.urgencyLevel : parsedLevel;
+                          let text = parsedText;
+                          if (!text || text === "ปกติ") {
+                            if (level === "URGENT_MOST" || level === "HIGH" || level === "VERY_URGENT") text = "ด่วนที่สุด";
+                            else if (level === "URGENT_MORE") text = "ด่วนมาก";
+                            else if (level === "URGENT" || level === "FAST") text = "ด่วน";
+                            else text = "ปกติ";
+                          }
+
+                          const badgeClass =
+                            text === "ด่วนที่สุด"
+                              ? "bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800 font-black"
+                              : text === "ด่วนมาก"
+                              ? "bg-orange-50 dark:bg-orange-950/60 text-orange-700 dark:text-orange-300 border-orange-200 dark:border-orange-800 font-bold"
+                              : text === "ด่วน"
+                              ? "bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800 font-bold"
+                              : "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800 font-semibold";
+
+                          return (
+                            <div className="flex flex-col items-start gap-1">
+                              <span className="font-semibold text-slate-800 dark:text-slate-200">{cleanRef || <span className="text-slate-400 italic font-sans text-xs">ไม่มีเลข</span>}</span>
+                              <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] border ${badgeClass}`}>
+                                {text}
+                              </span>
+                            </div>
+                          );
+                        })()}
                       </td>
                       <td className="py-3 px-4 font-semibold text-slate-800 dark:text-slate-200 max-w-xs truncate" title={d.title}>
                         {d.title}

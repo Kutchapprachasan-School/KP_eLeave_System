@@ -10,7 +10,7 @@ import {
   importSelectedAMSSDocuments,
   AMSSPreviewItem 
 } from "@/app/actions/incoming";
-import { parseAMSSListHtml } from "@/lib/amss-list-parser";
+import { parseAMSSListHtml, parseDocRefAndUrgency } from "@/lib/amss-list-parser";
 
 type AmssAutoBrowserSyncProps = {
   onSuccess?: (count: number) => void;
@@ -553,8 +553,30 @@ export default function AmssAutoBrowserSync({ onSuccess, showToast, autoTrigger 
                               </span>
                             )}
                           </td>
-                          <td className="py-2.5 px-3 font-mono font-semibold text-slate-700 dark:text-slate-300">
-                            {item.docRefNo || item.receiveNo}
+                          <td className="py-2.5 px-3 font-mono">
+                            {(() => {
+                              const rawRef = item.docRefNo || item.receiveNo || "";
+                              const { cleanRef, urgencyText } = parseDocRefAndUrgency(rawRef);
+                              const badgeClass =
+                                urgencyText === "ด่วนที่สุด"
+                                  ? "bg-rose-50 text-rose-700 border-rose-200"
+                                  : urgencyText === "ด่วนมาก"
+                                  ? "bg-orange-50 text-orange-700 border-orange-200"
+                                  : urgencyText === "ด่วน"
+                                  ? "bg-amber-50 text-amber-700 border-amber-200"
+                                  : "bg-emerald-50 text-emerald-700 border-emerald-200";
+
+                              return (
+                                <div className="flex flex-col items-start gap-0.5">
+                                  <span className="font-semibold text-slate-700 dark:text-slate-300">{cleanRef}</span>
+                                  {urgencyText && (
+                                    <span className={`inline-flex items-center px-1.5 py-0.2 rounded text-[10px] border font-bold ${badgeClass}`}>
+                                      {urgencyText}
+                                    </span>
+                                  )}
+                                </div>
+                              );
+                            })()}
                           </td>
                           <td className="py-2.5 px-3 font-bold text-slate-900 dark:text-white max-w-xs truncate" title={item.title}>
                             {item.title}

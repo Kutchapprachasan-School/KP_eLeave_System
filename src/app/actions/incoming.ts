@@ -3,7 +3,7 @@
 import prisma from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { parseAMSSUrl, loginToAMSS, fetchWithTlsFallback } from "@/lib/amss-parser";
-import { parseAMSSListHtml } from "@/lib/amss-list-parser";
+import { parseAMSSListHtml, parseDocRefAndUrgency } from "@/lib/amss-list-parser";
 import { safeAction } from "@/lib/utils";
 import { encrypt, decrypt } from "@/lib/crypto";
 
@@ -907,14 +907,15 @@ export async function syncAMSSDocumentsFromHtml(
       const generatedReceiveNo = `รับที่ ${nextSeq}/${thYear}`;
       yearDocsMap.set(yearVal, nextSeq + 1);
 
+      const { cleanRef, urgencyLevel: parsedUrgency } = parseDocRefAndUrgency(d.docRefNo || "");
       const createdDoc = await tx.incomingDocument.create({
         data: {
           receiveNo: generatedReceiveNo,
           receiveDate: parsedDate,
           senderOrg: d.senderOrg,
-          docRefNo: d.docRefNo || null,
+          docRefNo: cleanRef || d.docRefNo || null,
           title: d.title,
-          urgencyLevel: "NORMAL",
+          urgencyLevel: parsedUrgency || "NORMAL",
           amssLink: d.amssLink,
           status: "PENDING",
           createdById: user.id
