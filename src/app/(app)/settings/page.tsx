@@ -8602,11 +8602,10 @@ function DocPatternBuilderTab({
       case "ANNOUNCEMENT":
         return lang === "en" ? "School Announcement" : "ประกาศโรงเรียน";
       case "OUTGOING":
-        return lang === "en" ? "Outgoing Document" : "หนังสือส่ง (ทั่วไป)";
       case "OUTGOING_NORMAL":
-        return lang === "en" ? "Outgoing Doc (Normal)" : "หนังสือส่ง (ปกติ/ภายนอก)";
+        return lang === "en" ? "Outgoing Document (Normal)" : "หนังสือส่ง (ปกติ)";
       case "OUTGOING_CIRCULAR":
-        return lang === "en" ? "Outgoing Doc (Circular)" : "หนังสือส่ง (จดหมายเวียน)";
+        return lang === "en" ? "Outgoing Document (Circular)" : "หนังสือส่ง (จดหมายเวียน)";
       default:
         return dt;
     }
