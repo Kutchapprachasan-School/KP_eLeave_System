@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>eLeave & ระบบนิเทศการสอน</title>
+  <link rel="stylesheet" href="./eLeave/src/styles/supervision.css">
+</head>
+<body>
+  <div class="timetable-container" style="margin-top: 2rem;">
+    <div class="timetable-header-title">
+      <h2>📚 ตารางนิเทศการสอนรายสัปดาห์ (Instructional Supervision)</h2>
+      <div style="font-size: 0.85rem; color: #64748b;">
+        ผู้ดูแลระบบ: <strong>panchapon@udkp.ac.th</strong>
+      </div>
+    </div>
+    <div id="timetableRoot"></div>
+  </div>
+
+  <div id="modalContainer"></div>
+
+  <script type="module">
+    import { WeeklyTimetable } from './eLeave/src/components/WeeklyTimetable.js';
+    import { EvaluationModal } from './eLeave/src/components/EvaluationModal.js';
+    import { SupervisionService } from './eLeave/src/services/supervisionService.js';
+
+    const service = new SupervisionService([]);
+    
+    // Seed initial mock session for demonstration
+    const sampleSlot = service.createSlot({
+      academic_year: '2569',
+      term: 1,
+      week_number: 6,
+      day_of_week: 'MONDAY',
+      period_number: 2,
+      time_slot: '09:20-10:10',
+      teacher_id: 'EMP-042',
+      teacher_name: 'นายเดชาธร ศรีสุข',
+      department: 'วิทยาศาสตร์และเทคโนโลยี',
+      subject_code: 'ว23101',
+      subject_name: 'วิทยาศาสตร์ 5',
+      class_level: 'ม.3/1',
+      room_number: '324',
+      supervision_type: 'ONLINE',
+      video_link: 'https://www.youtube.com/watch?v=example',
+      lesson_plan_file_url: 'https://drive.google.com/file/d/sample/view',
+      supervisor_ids: ['EMP-018']
+    });
+
+    const root = document.getElementById('timetableRoot');
+    const modalContainer = document.getElementById('modalContainer');
+
+    const timetable = new WeeklyTimetable(root, ({ sessionId, day, period }) => {
+      const session = service.store.find(s => s.session_id === sessionId) || {
+        subject_code: 'วิชาใหม่',
+        subject_name: 'การจัดการเรียนรู้',
+        class_level: 'ม.3/1',
+        room_number: '324',
+        teacher_name: 'ครูผู้สอน',
+        status_flow: { current_status: 'SCHEDULED' }
+      };
+
+      const html = EvaluationModal.renderModalContent(session, 'SUPERVISOR');
+      modalContainer.innerHTML = `<div class="modal-overlay">${html}</div>`;
+      
+      const closeBtn = modalContainer.querySelector('#closeModalBtn');
+      if (closeBtn) {
+        closeBtn.addEventListener('click', () => {
+          modalContainer.innerHTML = '';
+        });
+      }
+    });
+
+    timetable.render(service.getWeeklySlots('2569', 1, 6));
+  </script>
+</body>
+</html>

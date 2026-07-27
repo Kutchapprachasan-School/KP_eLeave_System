@@ -1,0 +1,94 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum SupervisionStatus {
+  SCHEDULED               // นัดหมายเรียบร้อย รอการนิเทศ
+  WAITING_TEACHER_ACK     // ผู้นิเทศประเมินแล้ว รอครูรับทราบ/สะท้อนคิด
+  WAITING_DIRECTOR_SIGN   // ครูรับทราบแล้ว รอ ผอ. ลงนามเห็นชอบ
+  COMPLETED               // ผอ. ลงนามเสร็จสมบูรณ์
+}
+
+enum SupervisionType {
+  ON_SITE        // นิเทศในห้องเรียนจริง
+  ONLINE_VIDEO   // นิเทศออนไลน์ผ่านลิงก์ภายนอก (YouTube / Google Drive / OneDrive)
+}
+
+model SupervisionSession {
+  id                  String             @id @default(cuid())
+  schoolId            String
+  academicYear        Int                // พ.ศ. เช่น 2569
+  term                Int                // ภาคเรียน 1 หรือ 2
+  
+  // วิชาและตารางสอน
+  subjectCode         String             // เช่น ว23101
+  subjectName         String             // ชื่อวิชา
+  gradeLevel          String             // เช่น ม.3/1
+  departmentGroup     String             // กลุ่มสาระการเรียนรู้
+  dayOfWeek           Int                // 1 = จันทร์, ..., 5 = ศุกร์
+  periodNumber        Int                // คาบที่ 1 - 8
+  scheduledDate       DateTime
+
+  // บุคลากร
+  teacherId           String             // ID ครูผู้รับการนิเทศ
+  teacherName         String             // ชื่อครูผู้รับการนิเทศ
+  supervisorId        String             // ID ผู้นิเทศ
+  supervisorName      String             // ชื่อผู้นิเทศ
+  
+  // Anti-Bloat Artifacts
+  type                SupervisionType    @default(ON_SITE)
+  lessonPlanUrl       String?            // ไฟล์แผนการสอน PDF (< 10MB) 1 ไฟล์
+  videoUrl            String?            // ลิงก์วิดีโอภายนอก ป้องกันดิสก์เต็ม
+  
+  // Dynamic Rubric Data (JSON Storage)
+  rubricScores        Json?              // ประเมินตาม Schema ใน Domain
+  totalScore          Float?             // คะแนนเฉลี่ย (1.00 - 5.00)
+  supervisorComment   String?            @db.Text
+  teacherReflection   String?            @db.Text // ข้อคิดเห็นสะท้อนคิดของครู
+  
+  // Phase 1 Approval & Signing
+  directorSignedBy    String?            // User ID ของผู้อำนวยการผู้ลงนาม
+  directorSignedAt    DateTime?
+  directorComment     String?            @db.Text
+  
+  status              SupervisionStatus  @default(SCHEDULED)
+  auditLogs           SupervisionAuditLog[]
+
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+
+  @@index([schoolId, academicYear, term])
+  @@index([teacherId, status])
+  @@index([scheduledDate, dayOfWeek, periodNumber])
+}
+
+model SupervisionAuditLog {
+  id          String             @id @default(cuid())
+  sessionId   String
+  session     SupervisionSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  actionBy    String             // User ID ของผู้ทำรายการ
+  actionType  String             // DIRECTOR_SIGN / TEACHER_ACK / EVALUATE
+  reason      String?            @db.Text
+  createdAt   DateTime           @default(now())
+
+  @@index([sessionId])
+}
+
+model OutboxEvent {
+  id            String   @id @default(cuid())
+  aggregateType String   // e.g. SUPERVISION_SESSION
+  aggregateId   String
+  eventType     String   // e.g. SUPERVISION_COMPLETED
+  payload       Json     // Strict Payload Validate จาก Domain Schema
+  status        String   @default("PENDING") // PENDING, PROCESSED, FAILED
+  retryCount    Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([status, createdAt])
+}

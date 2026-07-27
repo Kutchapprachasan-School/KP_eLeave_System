@@ -1,0 +1,9 @@
+# Ignore non-code uploaded media and docs for clean Vercel deployment
+/ไฟล์ใบลาออนไลน์
+/คู่มือ
+/user ระบบวันลา69.xlsx
+/eLeave_Uploads
+*.pdf
+*.xlsx
+*.jpg
+*.png
