@@ -356,10 +356,11 @@ export default function IncomingDocDetailPage() {
               <div className="grid grid-cols-2 gap-4 pt-2">
                 <div>
                   <span className="font-semibold text-slate-400 block text-xs">ความเร่งด่วน</span>
-                  <span className={`inline-block px-2.5 py-0.5 rounded-lg text-xs font-bold ${
-                    doc.urgencyLevel === "URGENT_MOST" ? "bg-red-50 text-red-650" :
-                    doc.urgencyLevel === "URGENT_MORE" ? "bg-orange-50 text-orange-650" :
-                    doc.urgencyLevel === "URGENT" ? "bg-yellow-50 text-yellow-650" : "bg-slate-50 text-slate-600"
+                  <span className={`inline-block px-2.5 py-1 rounded-lg text-xs font-bold border ${
+                    doc.urgencyLevel === "URGENT_MOST" ? "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800 font-black" :
+                    doc.urgencyLevel === "URGENT_MORE" ? "bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950/40 dark:text-orange-300 dark:border-orange-800" :
+                    doc.urgencyLevel === "URGENT" ? "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800" :
+                    "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800"
                   }`}>
                     {doc.urgencyLevel === "URGENT_MOST" ? "ด่วนที่สุด" :
                      doc.urgencyLevel === "URGENT_MORE" ? "ด่วนมาก" :

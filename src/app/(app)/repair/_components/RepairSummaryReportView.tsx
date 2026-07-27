@@ -90,16 +90,7 @@ export default function RepairSummaryReportView({ canViewCost = true }: { canVie
 
       {/* Controls Bar */}
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/60 dark:border-slate-800 p-5 shadow-sm space-y-4 print:hidden">
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <div className="flex items-center gap-2">
-            <div className="w-9 h-9 rounded-xl bg-orange-500/10 text-orange-500 flex items-center justify-center font-bold">
-              <FileText className="w-5 h-5" />
-            </div>
-            <div>
-              <h2 className="text-base font-bold text-slate-900 dark:text-white">รายงานสรุปผลการดำเนินงานแจ้งซ่อม</h2>
-              <p className="text-xs text-slate-500">เลือกปีงบประมาณและรอบประเมินที่ต้องการสรุป</p>
-            </div>
-          </div>
+        <div className="flex items-center justify-end flex-wrap gap-3">
 
           <div className="flex items-center gap-2">
             <button

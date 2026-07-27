@@ -505,8 +505,14 @@ export default function OutboundForm({
                   <span className="text-[10px] text-slate-500 dark:text-slate-400 block font-medium">เลขที่ออกเอกสาร</span>
                   <span className="font-mono text-sm font-extrabold text-purple-600 dark:text-purple-400">{selectedPreviewDoc.docNo}</span>
                 </div>
-                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800/40">
-                  {selectedPreviewDoc.status || "ISSUED"}
+                <span className="px-2.5 py-1 rounded-lg text-xs font-extrabold bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800/40">
+                  {selectedPreviewDoc.status === "ISSUED" || !selectedPreviewDoc.status
+                    ? "ออกเลขสำเร็จ"
+                    : selectedPreviewDoc.status === "PRINTED"
+                    ? "พิมพ์แล้ว"
+                    : selectedPreviewDoc.status === "CANCELLED"
+                    ? "ยกเลิก"
+                    : selectedPreviewDoc.status}
                 </span>
               </div>
 

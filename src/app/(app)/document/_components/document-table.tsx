@@ -138,7 +138,7 @@ export default function DocumentTable({
         return matchesSearch && matchesType && matchesSection && matchesYear && matchesTimeRange && matchesStatus;
       });
     } else {
-      return inboundDocs.filter((d) => {
+      const list = inboundDocs.filter((d) => {
         const matchesSearch =
           !searchQuery.trim() ||
           Boolean(d.title?.toLowerCase().includes(searchQuery.toLowerCase())) ||
@@ -173,6 +173,12 @@ export default function DocumentTable({
           d.status === selectedStatus;
 
         return matchesSearch && matchesType && matchesSection && matchesYear && matchesTimeRange && matchesStatus;
+      });
+
+      return list.sort((a, b) => {
+        const tA = new Date(a.receiveDate || a.createdAt || 0).getTime();
+        const tB = new Date(b.receiveDate || b.createdAt || 0).getTime();
+        return tB - tA;
       });
     }
   }, [localTab, outboundDocs, inboundDocs, searchQuery, selectedDocType, selectedSectionId, selectedYear, selectedTimeRange, selectedStatus]);
@@ -287,12 +293,25 @@ export default function DocumentTable({
             <>
               <option value="AMSS">ดึงจาก AMSS++</option>
               <option value="MANUAL">กรอกข้อมูลเอง</option>
-              {sections.map(s => (
-                <option key={s.id} value={s.id}>{s.name} ({s.code})</option>
-              ))}
             </>
           )}
         </select>
+
+        {/* Dropdown 2: หมวดหมู่งานย่อย (สำหรับบันทึกข้อความ) */}
+        {activeTab === "outbound" && (
+          <select
+            value={selectedSectionId}
+            onChange={(e) => setSelectedSectionId?.(e.target.value)}
+            className="h-10 px-3.5 rounded-xl border border-slate-200 dark:border-slate-750 bg-slate-50/50 dark:bg-slate-950/50 text-sm cursor-pointer focus:ring-2 focus:ring-indigo-500/20 outline-none font-medium"
+          >
+            <option value="">หมวดหมู่งานย่อยทั้งหมด</option>
+            {sections.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name} ({s.code})
+              </option>
+            ))}
+          </select>
+        )}
 
         <select
           value={selectedTimeRange}
@@ -316,7 +335,29 @@ export default function DocumentTable({
           <option value="2567">2567</option>
         </select>
 
-        {(searchQuery || selectedDocType || selectedYear || selectedTimeRange || selectedStatus) && (
+        <select
+          value={selectedStatus}
+          onChange={(e) => setSelectedStatus(e.target.value)}
+          className="h-10 px-3.5 rounded-xl border border-slate-200 dark:border-slate-750 bg-slate-50/50 dark:bg-slate-950/50 text-sm cursor-pointer focus:ring-2 focus:ring-indigo-500/20 outline-none font-medium"
+        >
+          <option value="">สถานะทั้งหมด</option>
+          {activeTab === "outbound" ? (
+            <>
+              <option value="ISSUED">ออกเลขสำเร็จ</option>
+              <option value="PRINTED">พิมพ์แล้ว</option>
+              <option value="CANCELLED">ยกเลิก</option>
+            </>
+          ) : (
+            <>
+              <option value="PENDING">รอมอบหมาย</option>
+              <option value="ROUTING">มอบหมายแล้ว</option>
+              <option value="COMPLETED">เกษียณ / เสร็จสิ้น</option>
+              <option value="CANCELLED">ยกเลิก</option>
+            </>
+          )}
+        </select>
+
+        {(searchQuery || selectedDocType || selectedSectionId || selectedYear || selectedTimeRange || selectedStatus) && (
           <button
             onClick={clearFilters}
             className="flex items-center gap-1 px-3 h-10 rounded-xl text-sm font-semibold text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/20 transition-colors cursor-pointer"
@@ -345,7 +386,7 @@ export default function DocumentTable({
                 <th className="py-3.5 px-4 font-semibold">เลขทะเบียนรับ</th>
                 <th className="py-3.5 px-4 font-semibold">อ้างอิงหนังสือ (ที่)</th>
                 <th className="py-3.5 px-4 font-semibold">เรื่อง</th>
-                <th className="py-3.5 px-4 font-semibold">ความเร่งด่วน & สถานะ</th>
+                <th className="py-3.5 px-4 font-semibold">สถานะ</th>
                 <th className="py-3.5 px-4 font-semibold">จากหน่วยงาน</th>
                 <th className="py-3.5 px-4 font-semibold">วันที่ลงรับ</th>
                 <th className="py-3.5 px-4 text-right">จัดการ</th>
@@ -444,41 +485,27 @@ export default function DocumentTable({
                         {d.title}
                       </td>
                       <td className="py-3 px-4">
-                        <div className="flex flex-col gap-1 items-start">
-                          {/* Urgency Badge */}
-                          {d.urgencyLevel && d.urgencyLevel !== "NORMAL" ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-black bg-rose-100 dark:bg-rose-950/80 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800">
-                              ⚡ {d.urgencyLevel === "HIGH" || d.urgencyLevel === "VERY_URGENT" ? "ด่วนที่สุด" : d.urgencyLevel === "URGENT" ? "ด่วนมาก" : d.urgencyLevel === "FAST" ? "ด่วน" : d.urgencyLevel}
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-500">
-                              ปกติ
-                            </span>
-                          )}
-
-                          {/* Status Badge */}
-                          {d.routingSteps?.some((s: any) => s.status === "PENDING" && s.assigneeId === currentUserId) ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-black bg-purple-600 text-white shadow-xs animate-pulse">
-                              👉 ถึงคิวคุณเกษียณสั่งการ
-                            </span>
-                          ) : d.status === "COMPLETED" ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
-                              ✅ เกษียณ / เสร็จสิ้น
-                            </span>
-                          ) : d.status === "ROUTING" ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-indigo-100 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
-                              📤 มอบหมายแล้ว
-                            </span>
-                          ) : d.status === "CANCELLED" ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800">
-                              ❌ ยกเลิก
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
-                              ⏳ รอมอบหมาย
-                            </span>
-                          )}
-                        </div>
+                        {d.routingSteps?.some((s: any) => s.status === "PENDING" && s.assigneeId === currentUserId) ? (
+                          <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-black bg-purple-600 text-white shadow-xs">
+                            ถึงคิวคุณเกษียณสั่งการ
+                          </span>
+                        ) : d.status === "COMPLETED" ? (
+                          <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                            เกษียณแล้ว
+                          </span>
+                        ) : d.status === "ROUTING" ? (
+                          <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold bg-indigo-100 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                            มอบหมายแล้ว
+                          </span>
+                        ) : d.status === "CANCELLED" ? (
+                          <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800">
+                            ยกเลิก
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+                            รอมอบหมาย
+                          </span>
+                        )}
                       </td>
                       <td className="py-3 px-4 text-slate-600 dark:text-slate-400">
                         {d.senderOrg}
