@@ -321,7 +321,7 @@ export default function OutboundForm({
                 ออกเลขหนังสือของคุณสำเร็จเรียบร้อย!
               </div>
               <div className="text-xl sm:text-2xl font-black font-mono text-emerald-600 dark:text-emerald-400">
-                ที่ {lastIssuedDoc.docNo}
+                {lastIssuedDoc.docNo}
               </div>
               <div className="text-xs font-bold text-slate-800 dark:text-slate-100 line-clamp-1">
                 เรื่อง: {lastIssuedDoc.title}
@@ -334,7 +334,7 @@ export default function OutboundForm({
               <div className="pt-1 flex items-center justify-center gap-2">
                 <button
                   type="button"
-                  onClick={() => navigator.clipboard.writeText(`ที่ ${lastIssuedDoc.docNo}`)}
+                  onClick={() => navigator.clipboard.writeText(lastIssuedDoc.docNo)}
                   className="px-3.5 py-1.5 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 text-xs font-bold transition flex items-center gap-1.5 shadow-xs cursor-pointer active:scale-95"
                 >
                   📋 คัดลอกเลขหนังสือ
@@ -354,7 +354,7 @@ export default function OutboundForm({
                 📌 เลขล่าสุดที่ถูกขอในหมวดนี้ (อ้างอิง)
               </span>
               <div className="text-lg sm:text-xl font-black font-mono text-amber-900 dark:text-amber-200">
-                {latestCategoryDoc ? `ที่ ${latestCategoryDoc.docNo}` : "ยังไม่มีประวัติในหมวดนี้"}
+                {latestCategoryDoc ? latestCategoryDoc.docNo : "ยังไม่มีประวัติในหมวดนี้"}
               </div>
               {latestDocDateStr && (
                 <span className="text-[11px] font-semibold text-amber-700/90 dark:text-amber-400/90 block pt-0.5">
