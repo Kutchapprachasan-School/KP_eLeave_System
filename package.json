@@ -8,12 +8,16 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "test": "node --test eLeave/tests/unit/deployment.test.js eLeave/tests/unit/supervisionService.test.js eLeave/tests/unit/weeklyTimetable.test.js eLeave/tests/unit/evaluationModal.test.js eLeave/tests/e2e/supervision.test.js"
+    "test": "node --test eLeave/tests/unit/deployment.test.js eLeave/tests/unit/supervisionService.test.js eLeave/tests/unit/weeklyTimetable.test.js eLeave/tests/unit/evaluationModal.test.js eLeave/tests/unit/timetableService.test.js eLeave/tests/unit/timetableService_challenger.test.js eLeave/tests/unit/availabilityService.test.js eLeave/tests/unit/recommendationService.test.js eLeave/tests/unit/substituteWorkflowService.test.js eLeave/tests/e2e/supervision.test.js"
   },
   "dependencies": {
     "next": "^14.2.0",
     "react": "^18.3.0",
     "react-dom": "^18.3.0"
+  },
+  "devDependencies": {
+    "@prisma/client": "^5.12.0",
+    "prisma": "^5.12.0"
   },
   "author": "panchapon@udkp.ac.th",
   "license": "ISC"

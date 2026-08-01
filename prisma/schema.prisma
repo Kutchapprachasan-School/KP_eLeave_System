@@ -92,3 +92,173 @@ model OutboxEvent {
 
   @@index([status, createdAt])
 }
+
+// ==========================================
+// SROP Phase 1 & Phase 2 Models
+// ==========================================
+
+enum TimetableVersionStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum AssignmentPolicyType {
+  CENTRALIZED
+  DEPARTMENT
+  HYBRID
+}
+
+enum SubstituteWorkflowStatus {
+  ASSIGNED
+  ACKNOWLEDGED
+  REJECTED
+}
+
+model Department {
+  id          String    @id @default(cuid())
+  code        String    @unique
+  name        String
+  teachers    Teacher[]
+  subjects    Subject[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Teacher {
+  id               String           @id @default(cuid())
+  employeeCode     String           @unique
+  prefix           String?
+  firstName        String
+  lastName         String
+  departmentId     String
+  department       Department       @relation(fields: [departmentId], references: [id])
+  maxWeeklyPeriods Int              @default(20)
+  offerings        SubjectOffering[]
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+}
+
+model Subject {
+  id           String            @id @default(cuid())
+  code         String            @unique
+  name         String
+  credits      Float             @default(1.0)
+  departmentId String
+  department   Department        @relation(fields: [departmentId], references: [id])
+  offerings    SubjectOffering[]
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+}
+
+model ClassRoom {
+  id          String            @id @default(cuid())
+  gradeLevel  Int               // e.g. 3 (ม.3)
+  roomNumber  Int               // e.g. 1 (ห้อง 1)
+  name        String            // e.g. "ม.3/1"
+  offerings   SubjectOffering[]
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  @@unique([gradeLevel, roomNumber])
+}
+
+model Room {
+  id          String          @id @default(cuid())
+  code        String          @unique
+  name        String          // e.g. "ห้องปฏิบัติการคอมพิวเตอร์ 1"
+  building    String?         // e.g. "อาคาร 3"
+  roomType    String          @default("REGULAR") // REGULAR, LAB, COMPUTER
+  slots       TimetableSlot[]
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+}
+
+model SubjectOffering {
+  id           String          @id @default(cuid())
+  subjectId    String
+  subject      Subject         @relation(fields: [subjectId], references: [id])
+  teacherId    String
+  teacher      Teacher         @relation(fields: [teacherId], references: [id])
+  classRoomId  String
+  classRoom    ClassRoom       @relation(fields: [classRoomId], references: [id])
+  academicYear Int             // e.g. 2569
+  term         Int             // e.g. 1
+  slots        TimetableSlot[]
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  @@unique([subjectId, teacherId, classRoomId, academicYear, term])
+  @@index([academicYear, term])
+}
+
+model TimetableVersion {
+  id                 String                 @id @default(cuid())
+  schoolId           String
+  academicYear       Int                    // e.g. 2569
+  term               Int                    // e.g. 1
+  versionName        String                 // e.g. "ตารางสอนภาคเรียนที่ 1/2569 ฉบับร่าง 1"
+  status             TimetableVersionStatus @default(DRAFT)
+  isCurrentPublished Boolean                @default(false)
+  slots              TimetableSlot[]
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
+
+  @@index([schoolId, academicYear, term, status])
+}
+
+model TimetableSlot {
+  id                 String              @id @default(cuid())
+  timetableVersionId String
+  timetableVersion   TimetableVersion    @relation(fields: [timetableVersionId], references: [id], onDelete: Cascade)
+  offeringId         String
+  offering           SubjectOffering     @relation(fields: [offeringId], references: [id])
+  roomId             String
+  room               Room                @relation(fields: [roomId], references: [id])
+  dayOfWeek          Int                 // 1 = Monday, ..., 5 = Friday
+  periodNumber       Int                 // 1..8
+  recommendationRuns RecommendationRun[]
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+
+  @@unique([timetableVersionId, offeringId, dayOfWeek, periodNumber])
+  @@unique([timetableVersionId, roomId, dayOfWeek, periodNumber])
+}
+
+model SchoolConfig {
+  id               String               @id @default(cuid())
+  schoolId         String               @unique
+  assignmentPolicy AssignmentPolicyType @default(DEPARTMENT)
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+}
+
+model SubstituteWorkflow {
+  id                String                   @id @default(cuid())
+  leaveRequestId    String
+  timetableSlotId   String
+  date              DateTime
+  assignedTeacherId String
+  assignedBy        String
+  status            SubstituteWorkflowStatus @default(ASSIGNED)
+  createdAt         DateTime                 @default(now())
+  updatedAt         DateTime                 @updatedAt
+
+  @@index([leaveRequestId, date])
+}
+
+model RecommendationRun {
+  id              String        @id @default(cuid())
+  leaveRequestId  String
+  timetableSlotId String
+  policy          String
+  candidatesJson  String
+  createdAt       DateTime      @default(now())
+
+  timetableSlot   TimetableSlot @relation(fields: [timetableSlotId], references: [id], onDelete: Cascade)
+
+  @@index([leaveRequestId])
+  @@index([timetableSlotId])
+}
+
+
