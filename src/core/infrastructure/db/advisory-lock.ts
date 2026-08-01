@@ -1,11 +1,10 @@
 import { createHash } from "crypto";
 
 /**
- * Generates a signed 64-bit integer lock key from a string using SHA-256 for Postgres Advisory Locks
+ * Generates a 32-bit signed integer key from a string resource identifier
+ * using SHA-256 for PostgreSQL pg_advisory_xact_lock.
  */
-export function generateAdvisoryLockKey(resourceIdentifier: string): bigint {
-  const hash = createHash("sha256").update(resourceIdentifier).digest("hex");
-  // Take first 16 hex characters (64 bits) and convert to BigInt
-  const BigInt64 = BigInt(`0x${hash.slice(0, 16)}`);
-  return BigInt.asIntN(64, BigInt64);
+export function generateAdvisoryLockKey(resourceIdentifier: string): number {
+  const hash = createHash("sha256").update(resourceIdentifier).digest();
+  return hash.readInt32BE(0);
 }

@@ -7,3 +7,8 @@
 *.xlsx
 *.jpg
 *.png
+node_modules_old
+temp_prisma_install
+temp_prisma_install_2
+scratch
+tests

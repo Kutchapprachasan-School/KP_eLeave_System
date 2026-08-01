@@ -1,11 +1,560 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["partialIndexes"]
+}
+
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
-generator client {
-  provider = "prisma-client-js"
+model User {
+  id                  String             @id @default(cuid())
+  name                String?
+  email               String             @unique
+  image               String?
+  role                String             @default("TEACHER")
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+  emailVerified       Boolean            @default(false)
+  lineUserId          String?
+  position            String?
+  subjectGroup        String?
+  isApproved          Boolean            @default(false)
+  signatureUrl        String?
+  username            String?            @unique
+  address             String?
+  phoneNumber         String?
+  level               String?
+  bypassAttendance    Boolean            @default(false)
+  faceConsent         Boolean            @default(false)
+  faceConsentAt       DateTime?
+  faceDescriptor      Json?
+  faceProfileUrl      String?
+  workShiftId         String?
+  amssCredentials     AMSSCredentials?
+  accounts            Account[]
+  createdAttendances  Attendance[]       @relation("AttendanceCreatedBy")
+  attendances         Attendance[]       @relation("UserAttendances")
+  nonces              AttendanceNonce[]
+  documentRecords     DocumentRecord[]
+  createdRoutings     DocumentRouting[]  @relation("RoutingAssigner")
+  assignedRoutings    DocumentRouting[]  @relation("RoutingAssignee")
+  templates           DocumentTemplate[]
+  createdIncomingDocs IncomingDocument[] @relation("IncomingDocCreator")
+  leaveRequests       LeaveRequest[]
+  uploadedPhotos      RepairPhoto[]      @relation("PhotoUploadedBy")
+  requestsAssigned    RepairRequest[]    @relation("RequestAssignedTo")
+  requestsCreated     RepairRequest[]    @relation("RequestCreatedBy")
+  sessions            Session[]
+  workShift           WorkShift?         @relation(fields: [workShiftId], references: [id])
 }
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Account {
+  id                    String    @id @default(cuid())
+  userId                String
+  accountId             String
+  providerId            String
+  accessToken           String?
+  refreshToken          String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model LeaveRequest {
+  id             String    @id @default(cuid())
+  userId         String
+  type           String
+  startDate      DateTime
+  endDate        DateTime
+  reason         String
+  status         String    @default("PENDING")
+  documentUrl    String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  execApproverId String?
+  headApproverId String?
+  rejectReason   String?
+  extraFields    String?
+  approvedSeq    Int?
+  fiscalYear     Int?
+  pendingSeq     Int?
+  execApprovedAt DateTime?
+  headApprovedAt DateTime?
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model SystemSettings {
+  id                           String   @id @default("default")
+  schoolName                   String   @default("ชื่อโรงเรียน")
+  subheader                    String   @default("ระบบจัดการการลา")
+  logoUrl                      String?
+  footerText                   String   @default("© 2026 ระบบการลา")
+  developerSecret              String   @default("admin1234")
+  updatedAt                    DateTime @updatedAt
+  lineChannelAccessToken       String?
+  lineTargetGroupId            String?
+  leaveRules                   String   @default("การลากิจต้องยื่นคำขอล่วงหน้าอย่างน้อย 3 วันทำการ\nการลาป่วยติดต่อกันเกิน 3 วัน ต้องแนบใบรับรองแพทย์\nระบบจะส่งแจ้งเตือนให้หัวหน้าหมวดของท่านพิจารณาเป็นลำดับแรก")
+  requirePersonalAdvance       Boolean  @default(true)
+  memoThresholdDays            Int      @default(15)
+  memoThresholdTimes           Int      @default(6)
+  defaultInspectorId           String?
+  affiliation                  String   @default("สำนักงานเขตพื้นที่การศึกษามัธยมศึกษาอุดรธานี")
+  actingDirectorTitle          String   @default("รักษาการในตำแหน่งผู้อำนวยการโรงเรียน")
+  finalApproverUserIds         String   @default("")
+  showActingDirectorTitle      Boolean  @default(true)
+  enableLineNotify             Boolean  @default(true)
+  googleDriveFormat            String   @default("PDF")
+  pdfFont                      String   @default("Prompt")
+  lastLeaveMode                String   @default("SAME")
+  quotaExceededAction          String   @default("ALLOW_WITH_MEMO")
+  rolePermissions              String   @default("{\"calendar\":[\"ADMIN\",\"DIRECTOR\",\"HR\",\"INSPECTOR\",\"TEACHER\"],\"reports\":[\"ADMIN\",\"DIRECTOR\",\"HR\",\"INSPECTOR\"],\"approvals\":[\"ADMIN\",\"DIRECTOR\",\"HR\",\"INSPECTOR\"],\"logs\":[\"ADMIN\"],\"backups\":[\"ADMIN\"],\"users\":[\"ADMIN\"],\"settings\":[\"ADMIN\"]}")
+  attendanceLatitude           Float?
+  attendanceLongitude          Float?
+  attendanceRadius             Float?
+  enableAdvancedKPI            Boolean  @default(true)
+  enableAttendance             Boolean  @default(false)
+  faceMatchThreshold           Float    @default(0.65)
+  photoRetentionDays           Int?
+  requireFaceScan              Boolean  @default(false)
+  requireGeofence              Boolean  @default(false)
+  requireLivenessCheck         Boolean  @default(false)
+  enableDocument               Boolean  @default(false)
+  timezone                     String   @default("Asia/Bangkok")
+  iappApiKey                   String   @default("")
+  googleDriveFolderId          String?
+  googleDriveSecret            String?
+  googleDriveUploadUrl         String?
+  enableRepair                 Boolean  @default(false)
+  enableRepairLineNotify       Boolean  @default(true)
+  repairLineChannelAccessToken String?
+  repairLineTargetGroupId      String?
+}
+
+model LeaveConfig {
+  id               String   @id @default(cuid())
+  type             String   @unique
+  name             String
+  maxDaysPerYear   Int      @default(0)
+  warningThreshold Int      @default(3)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  isActive         Boolean  @default(true)
+}
+
+model SystemLog {
+  id          String   @id @default(cuid())
+  actionType  String
+  description String
+  userId      String
+  createdAt   DateTime @default(now())
+  metadata    Json?
+}
+
+model LeaveArchive {
+  id         String   @id @default(cuid())
+  cycleLabel String
+  cycleStart DateTime
+  cycleEnd   DateTime
+  data       String
+  totalStaff Int      @default(0)
+  totalDays  Int      @default(0)
+  archivedBy String
+  createdAt  DateTime @default(now())
+}
+
+model SystemBackup {
+  id        String   @id @default(cuid())
+  label     String
+  data      String
+  createdBy String
+  createdAt DateTime @default(now())
+}
+
+model MemoSection {
+  id                String             @id @default(cuid())
+  name              String
+  code              String             @unique
+  isActive          Boolean            @default(true)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  color             String             @default("#6366f1")
+  icon              String             @default("Folder")
+  sortOrder         Int                @default(0)
+  documentConfigs   DocumentConfig?
+  documentRecords   DocumentRecord[]
+  templates         DocumentTemplate[]
+  incomingDocuments IncomingDocument[]
+}
+
+model DocumentConfig {
+  id              String       @id @default(cuid())
+  docType         String
+  memoSectionId   String?      @unique
+  prefix          String       @default("")
+  useThaiNumerals Boolean      @default(true)
+  paddingDigits   Int          @default(1)
+  yearFormat      String       @default("TH_BE")
+  currentSeq      Int          @default(0)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  memoSection     MemoSection? @relation(fields: [memoSectionId], references: [id], onDelete: Cascade)
+}
+
+model DocumentRecord {
+  id             String             @id @default(cuid())
+  docType        String
+  memoSectionId  String?
+  docNo          String?            @unique
+  seqNo          Int?
+  year           Int
+  title          String
+  to             String
+  origin         String
+  date           DateTime
+  content        String
+  signeeName     String
+  signeePosition String
+  enclosures     String?
+  references     String?
+  status         String             @default("DRAFT")
+  cancelReason   String?
+  isPinned       Boolean            @default(false)
+  createdById    String
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  department     String?
+  requester      String?
+  attachmentName String?
+  attachmentUrl  String?
+  user           User               @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  memoSection    MemoSection?       @relation(fields: [memoSectionId], references: [id])
+  outgoingLinks  DocumentRelation[] @relation("FromDocument")
+  incomingLinks  DocumentRelation[] @relation("ToDocument")
+}
+
+model SigneePreset {
+  id        String   @id @default(cuid())
+  name      String
+  position  String
+  isCommon  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model DocumentTemplate {
+  id             String       @id @default(cuid())
+  name           String
+  docType        String
+  memoSectionId  String?
+  title          String
+  to             String
+  origin         String
+  content        String
+  signeeName     String
+  signeePosition String
+  isPublic       Boolean      @default(true)
+  createdById    String
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  user           User         @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  memoSection    MemoSection? @relation(fields: [memoSectionId], references: [id])
+}
+
+model DocumentRelation {
+  id        String         @id @default(cuid())
+  fromId    String
+  toId      String
+  createdAt DateTime       @default(now())
+  fromDoc   DocumentRecord @relation("FromDocument", fields: [fromId], references: [id], onDelete: Cascade)
+  toDoc     DocumentRecord @relation("ToDocument", fields: [toId], references: [id], onDelete: Cascade)
+
+  @@unique([fromId, toId])
+}
+
+model WorkShift {
+  id                String       @id @default(cuid())
+  name              String
+  startTime         String
+  endTime           String
+  lateThreshold     Int
+  earlyOutThreshold Int
+  isOvernight       Boolean      @default(false)
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+  attendances       Attendance[]
+  users             User[]
+}
+
+model Attendance {
+  id             String            @id @default(cuid())
+  userId         String
+  attendanceDate DateTime
+  checkInTime    DateTime?
+  checkOutTime   DateTime?
+  status         AttendanceStatus
+  workShiftId    String?
+  createdById    String?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  createdBy      User?             @relation("AttendanceCreatedBy", fields: [createdById], references: [id])
+  user           User              @relation("UserAttendances", fields: [userId], references: [id], onDelete: Cascade)
+  workShift      WorkShift?        @relation(fields: [workShiftId], references: [id])
+  logs           AttendanceLog[]
+  photos         AttendancePhoto[]
+
+  @@unique([userId, attendanceDate])
+  @@index([userId])
+  @@index([attendanceDate])
+  @@index([status])
+}
+
+model AttendancePhoto {
+  id               String     @id @default(cuid())
+  attendanceId     String
+  photoUrl         String
+  faceMatchScore   Float?
+  isLivenessPassed Boolean    @default(false)
+  createdAt        DateTime   @default(now())
+  attendance       Attendance @relation(fields: [attendanceId], references: [id], onDelete: Cascade)
+
+  @@index([attendanceId])
+}
+
+model AttendanceLog {
+  id               String     @id @default(cuid())
+  attendanceId     String
+  action           String
+  timestamp        DateTime   @default(now())
+  latitude         Float?
+  longitude        Float?
+  deviceInfo       String?
+  verificationHash String?
+  createdAt        DateTime   @default(now())
+  attendance       Attendance @relation(fields: [attendanceId], references: [id], onDelete: Cascade)
+
+  @@index([attendanceId])
+}
+
+model AttendanceNonce {
+  id        String   @id @default(cuid())
+  userId    String
+  nonce     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model IncomingDocument {
+  id            String            @id @default(cuid())
+  receiveNo     String
+  receiveDate   DateTime          @default(now())
+  senderOrg     String
+  docRefNo      String?
+  title         String
+  urgencyLevel  String            @default("NORMAL")
+  amssLink      String?
+  attachmentUrl String?
+  memoSectionId String?
+  status        String            @default("PENDING")
+  note          String?
+  createdById   String
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  amssOriginId  String?           @unique
+  routingSteps  DocumentRouting[]
+  createdBy     User              @relation("IncomingDocCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  memoSection   MemoSection?      @relation(fields: [memoSectionId], references: [id])
+}
+
+model DocumentRouting {
+  id                  String           @id @default(cuid())
+  incomingDocId       String
+  stepOrder           Int              @default(1)
+  assigneeId          String
+  assignedById        String
+  status              String           @default("PENDING")
+  resolution          String?
+  note                String?
+  deadline            DateTime?
+  completedAt         DateTime?
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+  acknowledgedAt      DateTime?
+  actionAttachmentUrl String?
+  actionReport        String?
+  assigneeName        String?
+  directiveText       String?
+  dueDate             DateTime?
+  signatureUrl        String?
+  standardDirective   String?
+  assignedBy          User             @relation("RoutingAssigner", fields: [assignedById], references: [id], onDelete: Cascade)
+  assignee            User             @relation("RoutingAssignee", fields: [assigneeId], references: [id], onDelete: Cascade)
+  incomingDoc         IncomingDocument @relation(fields: [incomingDocId], references: [id], onDelete: Cascade)
+
+  @@index([incomingDocId])
+  @@index([assigneeId, status])
+}
+
+model Holiday {
+  id        String   @id @default(cuid())
+  startDate DateTime
+  endDate   DateTime
+  name      String
+  isCustom  Boolean  @default(false)
+  isWorkday Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([startDate, endDate])
+}
+
+model AMSSCredentials {
+  id               String    @id @default(cuid())
+  userId           String    @unique
+  username         String
+  password         String
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  url              String    @default("")
+  lastSyncAt       DateTime?
+  sessionCookie    String?
+  sessionExpiresAt DateTime?
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model RunningNumber {
+  key     String @id
+  year    Int
+  current Int
+}
+
+model RepairRequest {
+  id               String         @id @default(cuid())
+  repairNo         String         @unique
+  title            String
+  description      String
+  location         String
+  urgency          RepairUrgency  @default(NORMAL)
+  category         RepairCategory @default(OTHER)
+  status           RepairStatus   @default(PENDING)
+  version          Int            @default(1)
+  requesterId      String
+  assigneeId       String?
+  resolutionNote   String?
+  cost             Decimal?       @db.Decimal(10, 2)
+  materialsUsed    String?
+  cancelReason     String?
+  expectedFinishAt DateTime?
+  actualFinishAt   DateTime?
+  slaStatus        SLAStatus?
+  assignedAt       DateTime?
+  finishedAt       DateTime?
+  deletedAt        DateTime?
+  deletedBy        String?
+  deleteReason     String?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  ratedAt          DateTime?
+  rating           Int?
+  ratingComment    String?
+  photos           RepairPhoto[]
+  assignee         User?          @relation("RequestAssignedTo", fields: [assigneeId], references: [id])
+  requester        User           @relation("RequestCreatedBy", fields: [requesterId], references: [id], onDelete: Cascade)
+
+  @@index([status, createdAt(sort: Desc)])
+  @@index([status, updatedAt])
+  @@index([assigneeId, status])
+  @@index([requesterId, status])
+  @@index([updatedAt])
+  @@index([id, version])
+}
+
+model RepairPhoto {
+  id           String          @id @default(cuid())
+  repairId     String
+  photoType    RepairPhotoType
+  mimeType     String
+  fileSize     Int
+  storageKey   String
+  createdAt    DateTime        @default(now())
+  uploadedById String
+  repair       RepairRequest   @relation(fields: [repairId], references: [id], onDelete: Cascade)
+  uploadedBy   User            @relation("PhotoUploadedBy", fields: [uploadedById], references: [id], onDelete: Cascade)
+
+  @@index([repairId])
+  @@index([repairId, photoType])
+}
+
+enum RepairUrgency {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum RepairCategory {
+  ELECTRICAL
+  PLUMBING
+  BUILDING
+  IT
+  FURNITURE
+  AIR_CONDITIONER
+  OTHER
+}
+
+enum RepairStatus {
+  PENDING
+  ASSIGNED
+  IN_PROGRESS
+  WAITING_PARTS
+  COMPLETED
+  CANCELLED
+}
+
+enum RepairPhotoType {
+  BEFORE
+  AFTER
+  ATTACHMENT
+}
+
+enum SLAStatus {
+  ON_TIME
+  OVERDUE
+}
+
+enum AttendanceStatus {
+  PRESENT
+  LATE
+  EARLY_OUT
+  ABSENT
+  ON_LEAVE
+  WORK_FROM_HOME
+}
+
+// ==========================================
+// Supervision & SROP Models
+// ==========================================
 
 enum SupervisionStatus {
   SCHEDULED               // นัดหมายเรียบร้อย รอการนิเทศ
@@ -16,49 +565,37 @@ enum SupervisionStatus {
 
 enum SupervisionType {
   ON_SITE        // นิเทศในห้องเรียนจริง
-  ONLINE_VIDEO   // นิเทศออนไลน์ผ่านลิงก์ภายนอก (YouTube / Google Drive / OneDrive)
+  ONLINE_VIDEO   // นิเทศออนไลน์ผ่านลิงก์ภายนอก
 }
 
 model SupervisionSession {
   id                  String             @id @default(cuid())
   schoolId            String
-  academicYear        Int                // พ.ศ. เช่น 2569
-  term                Int                // ภาคเรียน 1 หรือ 2
-  
-  // วิชาและตารางสอน
-  subjectCode         String             // เช่น ว23101
-  subjectName         String             // ชื่อวิชา
-  gradeLevel          String             // เช่น ม.3/1
-  departmentGroup     String             // กลุ่มสาระการเรียนรู้
-  dayOfWeek           Int                // 1 = จันทร์, ..., 5 = ศุกร์
-  periodNumber        Int                // คาบที่ 1 - 8
+  academicYear        Int
+  term                Int
+  subjectCode         String
+  subjectName         String
+  gradeLevel          String
+  departmentGroup     String
+  dayOfWeek           Int
+  periodNumber        Int
   scheduledDate       DateTime
-
-  // บุคลากร
-  teacherId           String             // ID ครูผู้รับการนิเทศ
-  teacherName         String             // ชื่อครูผู้รับการนิเทศ
-  supervisorId        String             // ID ผู้นิเทศ
-  supervisorName      String             // ชื่อผู้นิเทศ
-  
-  // Anti-Bloat Artifacts
+  teacherId           String
+  teacherName         String
+  supervisorId        String
+  supervisorName      String
   type                SupervisionType    @default(ON_SITE)
-  lessonPlanUrl       String?            // ไฟล์แผนการสอน PDF (< 10MB) 1 ไฟล์
-  videoUrl            String?            // ลิงก์วิดีโอภายนอก ป้องกันดิสก์เต็ม
-  
-  // Dynamic Rubric Data (JSON Storage)
-  rubricScores        Json?              // ประเมินตาม Schema ใน Domain
-  totalScore          Float?             // คะแนนเฉลี่ย (1.00 - 5.00)
+  lessonPlanUrl       String?
+  videoUrl            String?
+  rubricScores        Json?
+  totalScore          Float?
   supervisorComment   String?            @db.Text
-  teacherReflection   String?            @db.Text // ข้อคิดเห็นสะท้อนคิดของครู
-  
-  // Phase 1 Approval & Signing
-  directorSignedBy    String?            // User ID ของผู้อำนวยการผู้ลงนาม
+  teacherReflection   String?            @db.Text
+  directorSignedBy    String?
   directorSignedAt    DateTime?
   directorComment     String?            @db.Text
-  
   status              SupervisionStatus  @default(SCHEDULED)
   auditLogs           SupervisionAuditLog[]
-
   createdAt           DateTime           @default(now())
   updatedAt           DateTime           @updatedAt
 
@@ -71,8 +608,8 @@ model SupervisionAuditLog {
   id          String             @id @default(cuid())
   sessionId   String
   session     SupervisionSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  actionBy    String             // User ID ของผู้ทำรายการ
-  actionType  String             // DIRECTOR_SIGN / TEACHER_ACK / EVALUATE
+  actionBy    String
+  actionType  String
   reason      String?            @db.Text
   createdAt   DateTime           @default(now())
 
@@ -81,21 +618,17 @@ model SupervisionAuditLog {
 
 model OutboxEvent {
   id            String   @id @default(cuid())
-  aggregateType String   // e.g. SUPERVISION_SESSION
+  aggregateType String
   aggregateId   String
-  eventType     String   // e.g. SUPERVISION_COMPLETED
-  payload       Json     // Strict Payload Validate จาก Domain Schema
-  status        String   @default("PENDING") // PENDING, PROCESSED, FAILED
+  eventType     String
+  payload       Json
+  status        String   @default("PENDING")
   retryCount    Int      @default(0)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
   @@index([status, createdAt])
 }
-
-// ==========================================
-// SROP Phase 1 & Phase 2 Models
-// ==========================================
 
 enum TimetableVersionStatus {
   DRAFT
@@ -153,9 +686,9 @@ model Subject {
 
 model ClassRoom {
   id          String            @id @default(cuid())
-  gradeLevel  Int               // e.g. 3 (ม.3)
-  roomNumber  Int               // e.g. 1 (ห้อง 1)
-  name        String            // e.g. "ม.3/1"
+  gradeLevel  Int
+  roomNumber  Int
+  name        String
   offerings   SubjectOffering[]
   createdAt   DateTime          @default(now())
   updatedAt   DateTime          @updatedAt
@@ -166,9 +699,9 @@ model ClassRoom {
 model Room {
   id          String          @id @default(cuid())
   code        String          @unique
-  name        String          // e.g. "ห้องปฏิบัติการคอมพิวเตอร์ 1"
-  building    String?         // e.g. "อาคาร 3"
-  roomType    String          @default("REGULAR") // REGULAR, LAB, COMPUTER
+  name        String
+  building    String?
+  roomType    String          @default("REGULAR")
   slots       TimetableSlot[]
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
@@ -182,8 +715,8 @@ model SubjectOffering {
   teacher      Teacher         @relation(fields: [teacherId], references: [id])
   classRoomId  String
   classRoom    ClassRoom       @relation(fields: [classRoomId], references: [id])
-  academicYear Int             // e.g. 2569
-  term         Int             // e.g. 1
+  academicYear Int
+  term         Int
   slots        TimetableSlot[]
   createdAt    DateTime        @default(now())
   updatedAt    DateTime        @updatedAt
@@ -195,9 +728,9 @@ model SubjectOffering {
 model TimetableVersion {
   id                 String                 @id @default(cuid())
   schoolId           String
-  academicYear       Int                    // e.g. 2569
-  term               Int                    // e.g. 1
-  versionName        String                 // e.g. "ตารางสอนภาคเรียนที่ 1/2569 ฉบับร่าง 1"
+  academicYear       Int
+  term               Int
+  versionName        String
   status             TimetableVersionStatus @default(DRAFT)
   isCurrentPublished Boolean                @default(false)
   slots              TimetableSlot[]
@@ -215,8 +748,8 @@ model TimetableSlot {
   offering           SubjectOffering     @relation(fields: [offeringId], references: [id])
   roomId             String
   room               Room                @relation(fields: [roomId], references: [id])
-  dayOfWeek          Int                 // 1 = Monday, ..., 5 = Friday
-  periodNumber       Int                 // 1..8
+  dayOfWeek          Int
+  periodNumber       Int
   recommendationRuns RecommendationRun[]
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
@@ -254,11 +787,8 @@ model RecommendationRun {
   policy          String
   candidatesJson  String
   createdAt       DateTime      @default(now())
-
   timetableSlot   TimetableSlot @relation(fields: [timetableSlotId], references: [id], onDelete: Cascade)
 
   @@index([leaveRequestId])
   @@index([timetableSlotId])
 }
-
-
