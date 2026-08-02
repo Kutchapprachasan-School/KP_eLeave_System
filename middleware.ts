@@ -1,34 +1,39 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 export function middleware(request: NextRequest) {
-  const pathname = request.nextUrl.pathname;
+  // Better Auth stores session token in cookies
+  const sessionCookie =
+    request.cookies.get("better-auth.session_token") ||
+    request.cookies.get("__Secure-better-auth.session_token") ||
+    request.cookies.get("__Host-better-auth.session_token");
 
-  // 1. Skip API routes, static uploads, manuals, and files with extensions
-  if (
-    pathname.startsWith("/api") ||
-    pathname.startsWith("/uploads") ||
-    pathname.startsWith("/manual") ||
-    pathname.includes(".")
-  ) {
+  const isAuthRoute = request.nextUrl.pathname.startsWith("/login");
+  const isApiRoute = request.nextUrl.pathname.startsWith("/api");
+  const isUploadRoute = request.nextUrl.pathname.startsWith("/uploads");
+  const isManualRoute = request.nextUrl.pathname.startsWith("/manual");
+
+  if (isApiRoute || isUploadRoute || isManualRoute) {
     return NextResponse.next();
   }
 
-  // 2. Detect session cookie flexibly across HTTP / HTTPS / Vercel cookie prefixes
-  const allCookies = request.cookies.getAll();
-  const hasSessionCookie = allCookies.some((c) => {
-    const name = c.name.toLowerCase();
-    return name.includes("better-auth") || name.includes("session");
-  });
+  const isAttendanceRoute = request.nextUrl.pathname.startsWith("/attendance");
+  const isDocumentRoute = request.nextUrl.pathname.startsWith("/document");
 
-  const isAuthRoute = pathname.startsWith("/login");
-
-  // 3. If no session cookie exists and user is accessing a protected page, redirect to login
-  if (!hasSessionCookie && !isAuthRoute) {
-    return NextResponse.redirect(new URL("/login", request.url));
+  if (isAttendanceRoute && process.env.ENABLE_ATTENDANCE === "false") {
+    return NextResponse.redirect(new URL("/dashboard", request.url));
+  }
+  if (isDocumentRoute && process.env.ENABLE_DOCUMENT === "false") {
+    return NextResponse.redirect(new URL("/dashboard", request.url));
   }
 
-  // 4. If session cookie exists and user tries to access /login, redirect to dashboard
-  if (hasSessionCookie && isAuthRoute) {
+  if (!sessionCookie) {
+    if (!isAuthRoute) {
+      return NextResponse.redirect(new URL("/login", request.url));
+    }
+    return NextResponse.next();
+  }
+
+  if (isAuthRoute) {
     return NextResponse.redirect(new URL("/dashboard", request.url));
   }
 

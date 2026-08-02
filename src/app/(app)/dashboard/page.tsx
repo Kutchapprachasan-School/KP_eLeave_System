@@ -1,8 +1,7 @@
-"use client";
-
-import React, { useState, useEffect, Suspense } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
-import { useSession } from "@/lib/auth-client";
+import { Metadata } from "next";
+import { redirect } from "next/navigation";
+import { headers } from "next/headers";
+import { auth } from "@/lib/auth";
 import { getSystemSettings } from "@/app/actions/settings";
 import { getRepairDashboardStatsAction } from "@/app/actions/repair/report";
 import { hasRepairPermission } from "@/lib/permissions";
@@ -10,45 +9,53 @@ import DashboardShell from "./_components/DashboardShell";
 import LeaveDashboardClient from "./_components/LeaveDashboardClient";
 import RepairDashboardView, { type RepairDashStats } from "./_components/RepairDashboardView";
 import DocumentDashboardView from "./_components/DocumentDashboardView";
-import { Loader2 } from "lucide-react";
 
-function DashboardContent() {
-  const { data: session, isPending } = useSession();
-  const searchParams = useSearchParams();
-  const router = useRouter();
+export const dynamic = "force-dynamic";
 
-  const [mounted, setMounted] = useState(false);
-  const [systemSettings, setSystemSettings] = useState<any>(null);
-  const [repairStats, setRepairStats] = useState<RepairDashStats | null>(null);
+export const metadata: Metadata = {
+  title: "แดชบอร์ด",
+  description: "แดชบอร์ดสรุปสถิติภาพรวมและการทำงานระบบย่อยของโรงเรียน",
+};
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ system?: string }>;
+}) {
+  let session = null;
+  try {
+    session = await auth.api.getSession({
+      headers: await headers(),
+    });
+  } catch (err) {
+    console.error("Dashboard auth session fetch error:", err);
+  }
 
-  useEffect(() => {
-    if (!isPending && !session) {
-      router.push("/login");
-    }
-  }, [session, isPending, router]);
+  if (!session?.user) {
+    redirect("/login");
+  }
 
-  useEffect(() => {
-    if (mounted && session?.user) {
-      getSystemSettings()
-        .then(setSystemSettings)
-        .catch((err) => console.error("Failed to load settings on dashboard:", err));
-    }
-  }, [mounted, session]);
+  // Get system settings — wrapped in try/catch so DB failure doesn't crash the entire page
+  let systemSettings: any = null;
+  try {
+    systemSettings = await getSystemSettings();
+  } catch (err) {
+    console.error("Failed to load system settings on dashboard:", err);
+  }
 
+  // Safe-access settings with fallback defaults
   const enableRepair = systemSettings?.enableRepair ?? false;
-  const currentUser = (session?.user as any) || {};
-  const userRole = currentUser?.role ?? "TEACHER";
 
+  // Derive repair dashboard permissions safely
+  const currentUser = session.user as any;
+  const userRole = currentUser?.role ?? "TEACHER";
   const canViewRepairDash =
     hasRepairPermission(currentUser, "repair:dashboard") &&
     (userRole === "ADMIN" || !!enableRepair);
 
   const canViewCost = hasRepairPermission(currentUser, "repair:view.cost");
 
+  // Define available dashboard tabs based on permissions & features enabled
   const availableSystems = [
     { id: "leave", label: "ระบบการลา", icon: "CalendarDays" as const },
     { id: "document", label: "ระบบงานสารบรรณ", icon: "FileText" as const },
@@ -57,25 +64,27 @@ function DashboardContent() {
       : []),
   ];
 
-  const rawSystem = searchParams.get("system");
+  // Validate search param safely
+  let rawSystem: string | undefined;
+  try {
+    const resolvedParams = searchParams ? await searchParams : {};
+    rawSystem = resolvedParams?.system;
+  } catch (err) {
+    console.error("Failed to resolve searchParams on dashboard:", err);
+  }
+
   const activeSystem = availableSystems.some((s) => s.id === rawSystem)
     ? rawSystem!
     : "leave";
 
-  useEffect(() => {
-    if (mounted && activeSystem === "repair" && canViewRepairDash) {
-      getRepairDashboardStatsAction()
-        .then((res: any) => setRepairStats(res as RepairDashStats))
-        .catch((err) => console.error("Failed to load repair stats:", err));
+  // Fetch repair stats server-side if selected
+  let repairStats: RepairDashStats | null = null;
+  if (activeSystem === "repair" && canViewRepairDash) {
+    try {
+      repairStats = (await getRepairDashboardStatsAction()) as RepairDashStats;
+    } catch (err) {
+      console.error("Failed to load repair dashboard stats on server:", err);
     }
-  }, [mounted, activeSystem, canViewRepairDash]);
-
-  if (isPending || !mounted) {
-    return (
-      <div className="flex min-h-[60vh] items-center justify-center">
-        <Loader2 className="w-8 h-8 text-purple-600 animate-spin" />
-      </div>
-    );
   }
 
   return (
@@ -90,19 +99,5 @@ function DashboardContent() {
         ) : null
       }
     />
-  );
-}
-
-export default function DashboardPage() {
-  return (
-    <Suspense
-      fallback={
-        <div className="flex min-h-[60vh] items-center justify-center">
-          <Loader2 className="w-8 h-8 text-purple-600 animate-spin" />
-        </div>
-      }
-    >
-      <DashboardContent />
-    </Suspense>
   );
 }
