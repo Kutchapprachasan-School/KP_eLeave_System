@@ -1542,7 +1542,7 @@ export default function LeaveDashboardClient() {
                         <p className="text-xs font-semibold">{lang === "en" ? "No late sign-ins today!" : "วันนี้ไม่มีบุคลากรมาสายเลย!"}</p>
                       </div>
                     ) : (
-                      schoolAttendanceStats.lateList.map((a: any, index: number) => (
+                      (schoolAttendanceStats.lateList || []).map((a: any, index: number) => (
                         <div key={index} className="p-3 bg-slate-50/50 dark:bg-slate-900/30 border border-slate-100 dark:border-slate-800 rounded-2xl flex items-center justify-between gap-2">
                           <div className="min-w-0">
                             <span className="font-bold text-xs text-slate-850 dark:text-white block truncate">{a.name}</span>
@@ -1577,7 +1577,7 @@ export default function LeaveDashboardClient() {
                         <p className="text-xs font-semibold">{lang === "en" ? "Everyone has signed in!" : "บุคลากรทุกคนลงเวลาเข้างานครบแล้ว!"}</p>
                       </div>
                     ) : (
-                      schoolAttendanceStats.pendingList.map((u: any, index: number) => (
+                      (schoolAttendanceStats.pendingList || []).map((u: any, index: number) => (
                         <div key={index} className="p-3 bg-slate-50/50 dark:bg-slate-900/30 border border-slate-100 dark:border-slate-800 rounded-2xl flex items-center justify-between gap-2">
                           <div className="min-w-0">
                             <span className="font-bold text-xs text-slate-850 dark:text-white block truncate">{u.name}</span>

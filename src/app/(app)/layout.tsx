@@ -447,6 +447,10 @@ function AppContent({ children }: { children: React.ReactNode }) {
 
     import("@/app/actions/settings").then(({ getSystemSettings }) => {
       getSystemSettings().then((s) => {
+        if (!s) {
+          setIsLoadingSettings(false);
+          return;
+        }
         const finalSchoolName = s.schoolName || t("loginTitle");
         const finalSubheader = s.subheader || "ระบบจัดการการลา";
         const finalLogoUrl = s.logoUrl || null;
@@ -493,9 +497,13 @@ function AppContent({ children }: { children: React.ReactNode }) {
         }
 
         setIsLoadingSettings(false);
-      }).catch(() => {
+      }).catch((err) => {
+        console.error("Failed to load settings in layout:", err);
         setIsLoadingSettings(false);
       });
+    }).catch((err) => {
+      console.error("Failed to import settings module in layout:", err);
+      setIsLoadingSettings(false);
     });
   }, [session?.user?.id, t]);
 

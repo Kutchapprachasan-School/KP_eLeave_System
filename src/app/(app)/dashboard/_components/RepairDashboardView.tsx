@@ -45,6 +45,8 @@ export default function RepairDashboardView({
   stats: RepairDashStats;
   canViewCost: boolean;
 }) {
+  if (!stats || !Array.isArray(stats.monthlyTrend)) return null;
+
   // Pre-process monthly trend data to compute completion percentage for chart display
   const chartData = stats.monthlyTrend.map((t) => ({
     month: t.month,
