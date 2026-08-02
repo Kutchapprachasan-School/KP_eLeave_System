@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { RecommendationService } from '../../src/services/recommendationService.js';
+import { RecommendationService } from '../../../src/lib/services/recommendationService.js';
 
 test('RecommendationService - calculates score explainability breakdown correctly', () => {
   const rules = [
@@ -39,4 +39,19 @@ test('RecommendationService - applies Workload Fairness Penalty for frequent pas
   assert.equal(result.totalScore, 20);
   assert.equal(result.explainabilityBreakdown.length, 2);
   assert.equal(result.explainabilityBreakdown[1].score, -20);
+});
+
+test('RecommendationService - generates substitute order slip payload', () => {
+  const payload = RecommendationService.generateSubstituteOrderSlipPayload({
+    absentTeacherName: 'ครูสมชาย',
+    substituteTeacherName: 'ครูสมหญิง',
+    subjectName: 'คณิตศาสตร์ 5',
+    className: 'ม.3/1',
+    periodIndex: 2
+  });
+
+  assert.ok(payload.slipId.startsWith('SLIP-'));
+  assert.equal(payload.absentTeacherName, 'ครูสมชาย');
+  assert.equal(payload.substituteTeacherName, 'ครูสมหญิง');
+  assert.equal(payload.periodIndex, 2);
 });

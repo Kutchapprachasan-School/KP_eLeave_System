@@ -1,15 +1,15 @@
 /**
  * SROP Phase 3: Recommendation Engine Service
- * Implements Field-Operator-Value Structured Rules, Score Explainability, and Workload Fairness Penalty.
+ * Implements 4-Factor Structured Rules (Department 40%, Fairness Penalty 30%, Grade Experience 20%, Slot Suitability 10%), Score Explainability, and Substitute Order Slip Generator.
  */
 
 export class RecommendationService {
   constructor(rules = [], history = []) {
-    // Default rules if none provided
+    // Default 4-Factor rules if none provided
     this.rules = rules.length > 0 ? rules : [
-      { id: 'r1', field: 'subjectCode', operator: 'equals', weight: 40, name: 'วิชาเดียวกัน' },
-      { id: 'r2', field: 'departmentId', operator: 'equals', weight: 25, name: 'กลุ่มสาระเดียวกัน' },
-      { id: 'r3', field: 'building', operator: 'equals', weight: 10, name: 'อาคารเรียนเดียวกัน' }
+      { id: 'r1', field: 'departmentId', operator: 'equals', weight: 40, name: 'ตรงกลุ่มสาระการเรียนรู้ (40%)' },
+      { id: 'r2', field: 'gradeExperience', operator: 'equals', weight: 20, name: 'ประสบการณ์สอนช่วงชั้น (20%)' },
+      { id: 'r3', field: 'slotSuitability', operator: 'equals', weight: 10, name: 'ความเหมาะสมของช่วงเวลา (10%)' }
     ];
     this.history = history;
   }
@@ -39,12 +39,12 @@ export class RecommendationService {
       }
     }
 
-    // 2. Workload Fairness Penalty (Subtract 10 points for each recent substitution in past 30 days)
+    // 2. Workload Fairness Penalty (Subtract 10 points for each recent substitution in past 30 days up to 30 points)
     const recentSubCount = this.history.filter(h => h.teacherId === candidate.id).length;
     if (recentSubCount > 0) {
-      const penalty = recentSubCount * 10;
+      const penalty = Math.min(30, recentSubCount * 10);
       totalScore = Math.max(0, totalScore - penalty);
-      breakdown.push({ rule: `ภาระงานสะสม (-${penalty})`, score: -penalty });
+      breakdown.push({ rule: `ภาระงานสอนแทนสะสม (-${penalty})`, score: -penalty });
     }
 
     return {
@@ -62,5 +62,24 @@ export class RecommendationService {
     const evaluated = candidates.map(c => this.evaluateCandidate(c, targetContext));
     evaluated.sort((a, b) => b.totalScore - a.totalScore);
     return evaluated;
+  }
+
+  /**
+   * Generate Substitute Teaching Order Slip Payload (ใบบันทึกการปฏิบัติหน้าที่สอนแทน)
+   */
+  static generateSubstituteOrderSlipPayload(assignment) {
+    return {
+      slipId: `SLIP-${Date.now()}`,
+      issueDate: new Date().toLocaleDateString("th-TH"),
+      absentTeacherName: assignment.absentTeacherName,
+      leaveType: assignment.leaveType || "ลากิจ / ลาป่วย",
+      substituteTeacherName: assignment.substituteTeacherName,
+      subjectName: assignment.subjectName,
+      className: assignment.className,
+      periodIndex: assignment.periodIndex,
+      dayName: assignment.dayName || "วันทำการ",
+      roomName: assignment.roomName || "ห้องเรียนปกติ",
+      note: "บันทึกการปฏิบัติหน้าที่สอนแทนตามคำสั่งฝ่ายวิชาการ"
+    };
   }
 }
