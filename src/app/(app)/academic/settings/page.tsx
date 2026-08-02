@@ -204,10 +204,10 @@ export default function AcademicSettingsPage() {
           ไปยังส่วนตั้งค่าตามฝ่ายงาน:
         </span>
         <div className="flex flex-wrap items-center gap-2">
-          <a href="/academic/facility" className="px-3 py-1 rounded-xl bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300 font-bold border border-teal-200 dark:border-teal-800 hover:bg-teal-100 transition flex items-center gap-1">
+          <a href="/facility/settings" className="px-3 py-1 rounded-xl bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300 font-bold border border-teal-200 dark:border-teal-800 hover:bg-teal-100 transition flex items-center gap-1">
             🏢 ฝ่ายบริหารทั่วไป (ทรัพยากรกลาง) ›
           </a>
-          <a href="/academic/competency" className="px-3 py-1 rounded-xl bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 font-bold border border-rose-200 dark:border-rose-800 hover:bg-rose-100 transition flex items-center gap-1">
+          <a href="/personnel/settings" className="px-3 py-1 rounded-xl bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 font-bold border border-rose-200 dark:border-rose-800 hover:bg-rose-100 transition flex items-center gap-1">
             👥 ฝ่ายบุคคล (เกณฑ์ PA & PD) ›
           </a>
           <a href="/settings?section=document-settings" className="px-3 py-1 rounded-xl bg-orange-50 dark:bg-orange-950/40 text-orange-700 dark:text-orange-300 font-bold border border-orange-200 dark:border-orange-800 hover:bg-orange-100 transition flex items-center gap-1">

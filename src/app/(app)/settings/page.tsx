@@ -7268,7 +7268,7 @@ export default function SettingsPage() {
         desc: lang === "en" ? "Teacher PA agreement tracker, PD hours & 5-dimension evaluation" : "บันทึกข้อตกลง PA รายชั่วโมงพัฒนาตนเอง ประเมินสมรรถนะ 5 ด้าน",
         enabled: enableCompetency,
         saveKey: "enableCompetency",
-        customPath: "/academic/competency",
+        customPath: "/personnel/settings",
       },
       {
         id: "facility",
@@ -7281,7 +7281,7 @@ export default function SettingsPage() {
         desc: lang === "en" ? "Central facility booking catalog, conflict engine & A4 slips" : "จองห้องประชุม รถโรงเรียน อุปกรณ์ส่วนกลาง ป้องกันเวลาชนกัน",
         enabled: enableFacility,
         saveKey: "enableFacility",
-        customPath: "/academic/facility",
+        customPath: "/facility/settings",
       },
       {
         id: "academic_settings",
