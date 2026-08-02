@@ -88,4 +88,18 @@ export class AcademicSettingsService {
     currentSettings.classrooms.push(newClass);
     return newClass;
   }
+
+  static addLockedActivity(activity: { name: string; dayOfWeek: number; periodIndex: number; scope: string }) {
+    const newAct = {
+      id: `act-${Date.now()}`,
+      ...activity
+    };
+    currentSettings.lockedActivities.push(newAct);
+    return newAct;
+  }
+
+  static deleteLockedActivity(id: string) {
+    currentSettings.lockedActivities = currentSettings.lockedActivities.filter((a: any) => a.id !== id);
+    return currentSettings;
+  }
 }

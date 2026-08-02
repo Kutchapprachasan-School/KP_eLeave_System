@@ -13,7 +13,8 @@ import {
   Save, 
   RotateCcw,
   Check,
-  Plus
+  Plus,
+  Trash2
 } from "lucide-react";
 import { AcademicSettingsService } from "@/lib/services/academicSettingsService";
 
@@ -30,6 +31,12 @@ export default function AcademicSettingsPage() {
   const [newClassName, setNewClassName] = useState("");
   const [newClassLevel, setNewClassLevel] = useState("ม.ต้น");
   const [newClassAdvisor, setNewClassAdvisor] = useState("");
+
+  // New Locked Activity Form State
+  const [newActName, setNewActName] = useState("");
+  const [newActDay, setNewActDay] = useState<number>(3);
+  const [newActPeriod, setNewActPeriod] = useState<number>(7);
+  const [newActScope, setNewActScope] = useState("ทั้งโรงเรียน");
 
   const handleSave = () => {
     AcademicSettingsService.updateSettings(settings);
@@ -60,6 +67,26 @@ export default function AcademicSettingsPage() {
     setSettings(AcademicSettingsService.getSettings());
     setNewClassName("");
     setNewClassAdvisor("");
+  };
+
+  const handleAddActivity = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newActName) return;
+    AcademicSettingsService.addLockedActivity({
+      name: newActName,
+      dayOfWeek: Number(newActDay),
+      periodIndex: Number(newActPeriod),
+      scope: newActScope || "ทั้งโรงเรียน"
+    });
+    setSettings(AcademicSettingsService.getSettings());
+    setNewActName("");
+  };
+
+  const handleDeleteActivity = (id: string) => {
+    if (confirm("คุณต้องการลบคาบล็อคกิจกรรมนี้หรือไม่?")) {
+      AcademicSettingsService.deleteLockedActivity(id);
+      setSettings(AcademicSettingsService.getSettings());
+    }
   };
 
   return (
@@ -399,9 +426,81 @@ export default function AcademicSettingsPage() {
       {/* TAB 5: Locked Activities */}
       {activeTab === "ACTIVITIES" && (
         <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-200 dark:border-slate-800 shadow-xl space-y-6">
-          <h2 className="text-base font-bold text-slate-900 dark:text-white">
-            🔒 กำหนดคาบล็อคกิจกรรมพัฒนาผู้เรียนส่วนกลาง
-          </h2>
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div>
+              <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                🔒 กำหนดคาบล็อคกิจกรรมพัฒนาผู้เรียนส่วนกลาง
+              </h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                กำหนดคาบกิจกรรมประจำสัปดาห์ (ลูกเสือ/ชุมนุม/แนะแนว/สวดมนต์) ป้องกันไม่ให้ AI จัดตารางสอนวิชาอื่นลงแทรก
+              </p>
+            </div>
+          </div>
+
+          {/* Form to Add New Activity */}
+          <form onSubmit={handleAddActivity} className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/60 grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
+            <div>
+              <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 block mb-1">ชื่อกิจกรรม</label>
+              <input
+                type="text"
+                value={newActName}
+                onChange={(e) => setNewActName(e.target.value)}
+                placeholder="เช่น กิจกรรมลูกเสือ"
+                className="w-full h-9 px-3 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-medium"
+              />
+            </div>
+            <div>
+              <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 block mb-1">วันทำการ</label>
+              <select
+                value={newActDay}
+                onChange={(e) => setNewActDay(Number(e.target.value))}
+                className="w-full h-9 px-3 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-medium"
+              >
+                <option value={0}>ทุกวันจันทร์ - ศุกร์</option>
+                <option value={1}>วันจันทร์</option>
+                <option value={2}>วันอังคาร</option>
+                <option value={3}>วันพุธ</option>
+                <option value={4}>วันพฤหัสบดี</option>
+                <option value={5}>วันศุกร์</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 block mb-1">คาบเรียน</label>
+              <select
+                value={newActPeriod}
+                onChange={(e) => setNewActPeriod(Number(e.target.value))}
+                className="w-full h-9 px-3 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-medium"
+              >
+                {[1, 2, 3, 4, 5, 6, 7, 8].map(p => (
+                  <option key={p} value={p}>คาบที่ {p}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 block mb-1">ขอบเขตผู้เรียน</label>
+              <select
+                value={newActScope}
+                onChange={(e) => setNewActScope(e.target.value)}
+                className="w-full h-9 px-3 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-medium"
+              >
+                <option value="ทั้งโรงเรียน">ทั้งโรงเรียน</option>
+                <option value="ม.ต้น">ม.ต้น</option>
+                <option value="ม.ปลาย">ม.ปลาย</option>
+                <option value="ม.1">ม.1</option>
+                <option value="ม.2">ม.2</option>
+                <option value="ม.3">ม.3</option>
+                <option value="ม.4">ม.4</option>
+                <option value="ม.5">ม.5</option>
+                <option value="ม.6">ม.6</option>
+              </select>
+            </div>
+            <button
+              type="submit"
+              className="h-9 px-4 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-sm"
+            >
+              <Plus className="w-4 h-4" /> เพิ่มกิจกรรม
+            </button>
+          </form>
 
           <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800">
             <table className="w-full text-left text-xs border-collapse">
@@ -411,15 +510,26 @@ export default function AcademicSettingsPage() {
                   <th className="p-3">วันทำการ</th>
                   <th className="p-3 text-center">คาบเรียน</th>
                   <th className="p-3">ขอบเขตผู้เรียน</th>
+                  <th className="p-3 text-right">จัดการ</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
                 {settings.lockedActivities.map(act => (
                   <tr key={act.id} className="hover:bg-slate-50/50">
-                    <td className="p-3 font-bold text-amber-600">{act.name}</td>
-                    <td className="p-3">{act.dayOfWeek === 0 ? "ทุกวันจันทร์ - ศุกร์" : `วัน${act.dayOfWeek === 1 ? "จันทร์" : act.dayOfWeek === 3 ? "พุธ" : "พฤหัสบดี"}`}</td>
+                    <td className="p-3 font-bold text-amber-600 dark:text-amber-400">{act.name}</td>
+                    <td className="p-3 font-medium">{act.dayOfWeek === 0 ? "ทุกวันจันทร์ - ศุกร์" : `วัน${act.dayOfWeek === 1 ? "จันทร์" : act.dayOfWeek === 2 ? "อังคาร" : act.dayOfWeek === 3 ? "พุธ" : act.dayOfWeek === 4 ? "พฤหัสบดี" : "ศุกร์"}`}</td>
                     <td className="p-3 text-center font-bold">คาบที่ {act.periodIndex}</td>
-                    <td className="p-3 font-semibold text-purple-600">{act.scope}</td>
+                    <td className="p-3 font-semibold text-purple-600 dark:text-purple-400">{act.scope}</td>
+                    <td className="p-3 text-right">
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteActivity(act.id)}
+                        className="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition"
+                        title="ลบคาบล็อคกิจกรรม"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
