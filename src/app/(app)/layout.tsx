@@ -660,6 +660,12 @@ function AppContent({ children }: { children: React.ReactNode }) {
   if (enableSupervision || isAdmin) {
     academicSubItems.push({ href: "/academic/supervision", label: "นิเทศการสอนออนไลน์", icon: CheckSquare });
   }
+  if (isAdmin) {
+    academicSubItems.push({ href: "/academic/exam", label: "จัดตารางสอบ & ผังที่นั่ง", icon: FileText });
+    academicSubItems.push({ href: "/academic/competency", label: "แฟ้มสะสมงาน PA", icon: Award });
+    academicSubItems.push({ href: "/academic/facility", label: "จองทรัพยากรกลาง", icon: Building2 });
+    academicSubItems.push({ href: "/academic/settings", label: "ตั้งค่าระบบวิชาการ", icon: Settings });
+  }
 
   // Sub-items for HR & Attendance System (งานบุคคล / ลงเวลา)
   const hrSubItems = [];
