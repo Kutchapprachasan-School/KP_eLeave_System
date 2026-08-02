@@ -20,10 +20,14 @@ import {
   CheckCircle2,
   XCircle,
   Edit3,
-  Check
+  Check,
+  Settings,
+  Layout,
+  Palette
 } from "lucide-react";
 import { LocalSearchSchedulingEngine } from "@/lib/timetable/solvers/localSearchEngine";
 import { ExcelImportService } from "@/lib/services/excelImportService";
+import { PrintTemplateService } from "@/lib/services/printTemplateService";
 import type { TimeSlot, ScheduleBlock, ConstraintDefinition, ExplainabilityReport, ObjectiveScore } from "@/lib/timetable/types";
 
 // Mock TimeSlots (5 Days x 8 Periods)
@@ -71,6 +75,9 @@ export default function TimetableBuilderPage() {
   const [isSolving, setIsSolving] = useState(false);
   const [explainabilityReport, setExplainabilityReport] = useState<ExplainabilityReport | null>(null);
   const [score, setScore] = useState<ObjectiveScore | null>(null);
+
+  // Print Preset State
+  const [printPreset, setPrintPreset] = useState(PrintTemplateService.getDefaultPreset());
 
   // Excel Import Modal State
   const [showImportModal, setShowImportModal] = useState(false);
@@ -148,6 +155,8 @@ export default function TimetableBuilderPage() {
     return true;
   });
 
+  const workloadSummary = PrintTemplateService.calculateWorkloadSummary(filteredBlocks);
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 p-4 md:p-8 space-y-6">
       {/* Header Banner */}
@@ -163,7 +172,7 @@ export default function TimetableBuilderPage() {
               ระบบจัดตารางสอนแม่บทอัจฉริยะ (Master Timetable)
             </h1>
             <p className="text-purple-100 text-sm max-w-2xl leading-relaxed">
-              รองรับ 6-Layer Clean Architecture, AI Auto-Scheduler (Greedy + Hill Climbing), และระบบนำเข้าข้อมูลด้วย Excel/CSV
+              รองรับ 6-Layer Clean Architecture, AI Auto-Scheduler, Excel Import, และ A4 Print Template Customizer
             </p>
           </div>
 
@@ -614,43 +623,139 @@ export default function TimetableBuilderPage() {
         </div>
       )}
 
-      {/* TAB 4: Print & Export Dashboard */}
+      {/* TAB 4: Print & Customizer Dashboard */}
       {activeTab === "PRINT" && (
-        <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-200 dark:border-slate-800 shadow-xl space-y-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-lg font-bold text-slate-900 dark:text-white">
-                🖨️ ระบบพิมพ์ตารางเรียน และส่งออกตารางสอน A4
+        <div className="space-y-6">
+          {/* Customizer Settings Controls */}
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-200 dark:border-slate-800 shadow-xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
+              <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <Settings className="w-5 h-5 text-purple-500" />
+                ตั้งค่ารูปแบบการพิมพ์ A4 (Print Template Customizer Controls)
               </h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                สลับเลือกตารางสอนรายครู หรือตารางเรียนรายชั้นเรียน สั่งพิมพ์ A4 แนวนอน/แนวตั้ง
-              </p>
+              <button
+                onClick={() => window.print()}
+                className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs flex items-center gap-2 shadow-md"
+              >
+                <Printer className="w-4 h-4" />
+                สั่งพิมพ์ A4 ({printPreset.orientation === "LANDSCAPE" ? "แนวนอน" : "แนวตั้ง"})
+              </button>
             </div>
-            <button
-              onClick={() => window.print()}
-              className="px-4 py-2 rounded-xl bg-purple-600 text-white font-bold text-xs flex items-center gap-2 shadow-md"
-            >
-              <Printer className="w-4 h-4" />
-              พิมพ์ตาราง A4
-            </button>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+              <div className="space-y-1">
+                <label className="font-bold text-slate-700 dark:text-slate-300">ชื่อโรงเรียน (Header)</label>
+                <input
+                  type="text"
+                  value={printPreset.schoolName}
+                  onChange={e => setPrintPreset(prev => ({ ...prev, schoolName: e.target.value }))}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="font-bold text-slate-700 dark:text-slate-300">ปีการศึกษา / ภาคเรียน</label>
+                <input
+                  type="text"
+                  value={`ภาคเรียนที่ ${printPreset.term} ปีการศึกษา ${printPreset.academicYear}`}
+                  onChange={e => setPrintPreset(prev => ({ ...prev, academicYear: e.target.value }))}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="font-bold text-slate-700 dark:text-slate-300">แนววางกระดาษ (Orientation)</label>
+                <select
+                  value={printPreset.orientation}
+                  onChange={e => setPrintPreset(prev => ({ ...prev, orientation: e.target.value as any }))}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-bold"
+                >
+                  <option value="LANDSCAPE">A4 แนวนอน (Landscape)</option>
+                  <option value="PORTRAIT">A4 แนวตั้ง (Portrait)</option>
+                </select>
+              </div>
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-            <div className="p-4 rounded-2xl border border-slate-200 dark:border-slate-800 text-center space-y-2">
-              <Users className="w-8 h-8 text-purple-500 mx-auto" />
-              <div className="font-bold text-sm">ตารางเรียนรายชั้นเรียน</div>
-              <p className="text-slate-400">สำหรับแจกนักเรียน ม.1/1 - ม.6/6</p>
+          {/* Real-time WYSIWYG A4 Print Preview Sheet */}
+          <div className="bg-white text-slate-900 rounded-3xl p-8 border border-slate-300 shadow-2xl space-y-6 max-w-5xl mx-auto font-sans">
+            {/* Header Block */}
+            <div className="text-center space-y-1 border-b border-slate-300 pb-4">
+              <h1 className="text-xl font-black tracking-tight">{printPreset.schoolName}</h1>
+              <p className="text-xs font-semibold text-slate-600">{printPreset.subHeaderText}</p>
+              <h2 className="text-sm font-bold text-purple-700 mt-2">
+                ตารางเรียน / ตารางสอน ภาคเรียนที่ {printPreset.term} ปีการศึกษา {printPreset.academicYear} ({selectedClass})
+              </h2>
             </div>
-            <div className="p-4 rounded-2xl border border-slate-200 dark:border-slate-800 text-center space-y-2">
-              <BookOpen className="w-8 h-8 text-indigo-500 mx-auto" />
-              <div className="font-bold text-sm">ตารางสอนรายครู</div>
-              <p className="text-slate-400">ใบนัดหมายสอนครูรายบุคคล</p>
+
+            {/* Timetable Matrix Grid Preview */}
+            <div className="overflow-x-auto">
+              <table className="w-full text-center border-collapse border border-slate-400 text-xs">
+                <thead>
+                  <tr className="bg-slate-100 border-b border-slate-400 font-bold">
+                    <th className="p-2 border border-slate-400 w-24">วัน / คาบ</th>
+                    {PERIODS.map(p => (
+                      <th key={p} className="p-2 border border-slate-400">
+                        คาบที่ {p}
+                        <span className="block text-[9px] font-normal text-slate-500">
+                          {p === 4 ? "พักกลางวัน" : `${8 + (p <= 4 ? p - 1 : p)}:30 - ${8 + (p <= 4 ? p : p + 1)}:20`}
+                        </span>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {DAYS.map(day => (
+                    <tr key={day.id} className="border-b border-slate-300">
+                      <td className="p-2 border border-slate-400 font-bold bg-slate-50">{day.name}</td>
+                      {PERIODS.map(period => {
+                        const block = filteredBlocks.find(b => b.dayOfWeek === day.id && b.periodIndex === period);
+                        return (
+                          <td key={period} className="p-2 border border-slate-400 h-16 align-middle text-[11px]">
+                            {block ? (
+                              <div className="font-bold text-slate-800">
+                                <div>{block.subjectCode || block.title}</div>
+                                <div className="text-[10px] text-slate-600 font-normal">{block.teacherNames?.join(", ")}</div>
+                              </div>
+                            ) : (
+                              <span className="text-slate-300">-</span>
+                            )}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-            <div className="p-4 rounded-2xl border border-slate-200 dark:border-slate-800 text-center space-y-2">
-              <BarChart3 className="w-8 h-8 text-emerald-500 mx-auto" />
-              <div className="font-bold text-sm">ตารางสอนรวมทั้งโรงเรียน</div>
-              <p className="text-slate-400">มุมมอง Master Matrix รวม</p>
-            </div>
+
+            {/* Workload Summary Table */}
+            {printPreset.showWorkloadSummary && (
+              <div className="flex justify-between items-center bg-slate-50 p-4 rounded-xl border border-slate-300 text-xs">
+                <span className="font-bold">📊 สรุปภาระงานสอนรวม:</span>
+                <span>วิชาการ: <strong>{workloadSummary.academicPeriods}</strong> คาบ</span>
+                <span>กิจกรรม: <strong>{workloadSummary.activityPeriods}</strong> คาบ</span>
+                <span className="font-bold text-purple-700">รวมภาระงานสอนสุทธิ: {workloadSummary.totalTeachingPeriods} คาบ/สัปดาห์</span>
+              </div>
+            )}
+
+            {/* 3-Column Signatures Block */}
+            {printPreset.showSignaturesBlock && (
+              <div className="grid grid-cols-3 gap-6 pt-8 text-center text-xs text-slate-700">
+                <div className="space-y-8">
+                  <div>ลงชื่อ..........................................................</div>
+                  <div className="font-semibold">({printPreset.signature1Title})</div>
+                </div>
+                <div className="space-y-8">
+                  <div>ลงชื่อ..........................................................</div>
+                  <div className="font-semibold">({printPreset.signature2Title})</div>
+                </div>
+                <div className="space-y-8">
+                  <div>ลงชื่อ..........................................................</div>
+                  <div className="font-semibold">({printPreset.signature3Title})</div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
