@@ -520,18 +520,19 @@ export async function getDashboardStats(
       }
     });
 
-    // Get total requests for approval rate
-    const allRequestsCount = await prisma.leaveRequest.count({
-      where: showSchoolOverview
-        ? {}
-        : { userId: session.user.id }
-    });
+    // Get total requests for approval rate (strictly evaluating Approved vs Rejected, excluding Cancelled)
     const approvedRequestsCount = await prisma.leaveRequest.count({
       where: showSchoolOverview
         ? { status: "APPROVED" }
         : { userId: session.user.id, status: "APPROVED" }
     });
-    const approvalRate = allRequestsCount === 0 ? 100 : Math.round((approvedRequestsCount / allRequestsCount) * 100);
+    const rejectedRequestsCount = await prisma.leaveRequest.count({
+      where: showSchoolOverview
+        ? { status: "REJECTED" }
+        : { userId: session.user.id, status: "REJECTED" }
+    });
+    const evaluatedTotalCount = approvedRequestsCount + rejectedRequestsCount;
+    const approvalRate = evaluatedTotalCount === 0 ? 100 : Math.round((approvedRequestsCount / evaluatedTotalCount) * 100);
 
     // Generate monthly distribution based on selected cycle filter range
     const start = filter?.start || new Date(refDate.getFullYear() - 1, 9, 1);

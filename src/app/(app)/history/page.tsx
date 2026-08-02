@@ -87,11 +87,14 @@ export default function HistoryPage() {
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
 
   const filteredHistory = history.filter((item) => {
+    // Exclude CANCELLED requests from leave history view as requested
+    if (item.status === "CANCELLED") return false;
+
     // Filter by status
     if (selectedStatus !== "all") {
       if (selectedStatus === "pending" && item.status !== "PENDING_HEAD" && item.status !== "PENDING_EXEC") return false;
       if (selectedStatus === "approved" && item.status !== "APPROVED") return false;
-      if (selectedStatus === "rejected" && item.status !== "REJECTED" && item.status !== "CANCELLED") return false;
+      if (selectedStatus === "rejected" && item.status !== "REJECTED") return false;
     }
     // Filter by name search
     if (searchName.trim()) {
@@ -421,7 +424,7 @@ export default function HistoryPage() {
     total: filteredHistory.length,
     approved: filteredHistory.filter(h => h.status === "APPROVED").length,
     pending: filteredHistory.filter(h => h.status === "PENDING_HEAD" || h.status === "PENDING_EXEC").length,
-    rejected: filteredHistory.filter(h => h.status === "REJECTED" || h.status === "CANCELLED").length
+    rejected: filteredHistory.filter(h => h.status === "REJECTED").length
   };
 
   return (
@@ -488,7 +491,7 @@ export default function HistoryPage() {
             <option value="all">{t("status")}: {t("allOptions")}</option>
             <option value="pending">{t("status")}: {t("pending")}</option>
             <option value="approved">{t("status")}: {t("approved")}</option>
-            <option value="rejected">{t("status")}: {lang === "en" ? "Rejected/Cancelled" : "ไม่อนุมัติ/ยกเลิก"}</option>
+            <option value="rejected">{t("status")}: {lang === "en" ? "Rejected" : "ไม่อนุมัติ"}</option>
           </select>
         </div>
         
@@ -549,7 +552,7 @@ export default function HistoryPage() {
           </div>
           <div>
             <span className="block text-2xl font-bold text-slate-900 dark:text-white">{stats.rejected}</span>
-            <span className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider">{lang === "en" ? "Rejected/Cancelled" : "ไม่อนุมัติ/ยกเลิก"}</span>
+            <span className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider">{lang === "en" ? "Rejected" : "ไม่อนุมัติ"}</span>
           </div>
         </div>
       </div>
