@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 
 import { getSystemSettings, updateSystemSettings, updateFooter, generateBackup, getLeaveConfigs, updateLeaveConfig, updateLeaveRules, setImpersonationCookie, clearImpersonation, getEligibleInspectors, updateDefaultInspector, getSimpleUsersList } from "@/app/actions/settings";
 
@@ -29,7 +29,7 @@ import { getHolidays, createHoliday, updateHoliday, deleteHoliday, searchInterne
 
 import { useSession } from "@/lib/auth-client";
 
-import { Save, Image as ImageIcon, ShieldAlert, DownloadCloud, Lock, Code, Settings2, Archive, UploadCloud, Database, FileJson, AlertTriangle, CheckCircle2, ChevronRight, ArrowLeft, Bell, Type, Users, BookOpen, HardDrive, UserCog, FileSpreadsheet, X, CalendarDays, CalendarDays as Calendar, ArrowRightLeft, CheckSquare, FileX, Plus, Clock, ClipboardList, MapPin, FolderOpen, Hash, UserCheck, Pencil, Trash2, ToggleLeft, ToggleRight, Sparkles, AlertCircle, Check, Eye, LayoutGrid, Wrench, Loader2, XCircle, MessageSquare } from "lucide-react";
+import { Save, Image as ImageIcon, ShieldAlert, DownloadCloud, Lock, Code, Settings2, Archive, UploadCloud, Database, FileJson, AlertTriangle, CheckCircle2, ChevronRight, ArrowLeft, Bell, Type, Users, BookOpen, HardDrive, UserCog, FileSpreadsheet, X, CalendarDays, CalendarDays as Calendar, ArrowRightLeft, CheckSquare, FileX, Plus, Clock, ClipboardList, MapPin, FolderOpen, Hash, UserCheck, Pencil, Trash2, ToggleLeft, ToggleRight, Sparkles, AlertCircle, Check, Eye, LayoutGrid, Wrench, Loader2, XCircle, MessageSquare, Building2, Award, FileText, Settings } from "lucide-react";
 
 import { useToast } from "@/components/toast-provider";
 
@@ -94,6 +94,7 @@ export default function SettingsPage() {
   const { showToast } = useToast();
 
   const searchParams = useSearchParams();
+  const router = useRouter();
 
   const [settings, setSettings] = useState<any>(null);
 
@@ -149,6 +150,10 @@ export default function SettingsPage() {
   const [enableTimetable, setEnableTimetable] = useState(true);
   const [enableSubstitute, setEnableSubstitute] = useState(true);
   const [enableSupervision, setEnableSupervision] = useState(true);
+  const [enableExam, setEnableExam] = useState(true);
+  const [enableCompetency, setEnableCompetency] = useState(true);
+  const [enableFacility, setEnableFacility] = useState(true);
+  const [enableAcademicSettings, setEnableAcademicSettings] = useState(true);
 
   const [timetablePeriodsPerDay, setTimetablePeriodsPerDay] = useState(8);
   const [timetableStartTime, setTimetableStartTime] = useState("08:30");
@@ -446,6 +451,10 @@ export default function SettingsPage() {
       setEnableTimetable((data as any).enableTimetable !== false);
       setEnableSubstitute((data as any).enableSubstitute !== false);
       setEnableSupervision((data as any).enableSupervision !== false);
+      setEnableExam((data as any).enableExam !== false);
+      setEnableCompetency((data as any).enableCompetency !== false);
+      setEnableFacility((data as any).enableFacility !== false);
+      setEnableAcademicSettings((data as any).enableAcademicSettings !== false);
       setTimetablePeriodsPerDay((data as any).timetablePeriodsPerDay ?? 8);
       setTimetableStartTime((data as any).timetableStartTime || "08:30");
       setTimetablePeriodDuration((data as any).timetablePeriodDuration ?? 50);
@@ -702,7 +711,7 @@ export default function SettingsPage() {
 
   // Inline-save a single subsystem toggle
   const saveSubsystem = async (
-    key: "enableAttendance" | "enableDocument" | "enableRepair" | "enableTimetable" | "enableSubstitute" | "enableSupervision",
+    key: "enableAttendance" | "enableDocument" | "enableRepair" | "enableTimetable" | "enableSubstitute" | "enableSupervision" | "enableExam" | "enableCompetency" | "enableFacility" | "enableAcademicSettings",
     val: boolean
   ) => {
     if (key === "enableAttendance") setEnableAttendance(val);
@@ -711,6 +720,10 @@ export default function SettingsPage() {
     if (key === "enableTimetable") setEnableTimetable(val);
     if (key === "enableSubstitute") setEnableSubstitute(val);
     if (key === "enableSupervision") setEnableSupervision(val);
+    if (key === "enableExam") setEnableExam(val);
+    if (key === "enableCompetency") setEnableCompetency(val);
+    if (key === "enableFacility") setEnableFacility(val);
+    if (key === "enableAcademicSettings") setEnableAcademicSettings(val);
     try {
       await updateSystemSettings({
         schoolName,
@@ -721,6 +734,10 @@ export default function SettingsPage() {
         enableTimetable:   key === "enableTimetable"   ? val : enableTimetable,
         enableSubstitute:  key === "enableSubstitute"  ? val : enableSubstitute,
         enableSupervision: key === "enableSupervision" ? val : enableSupervision,
+        enableExam:        key === "enableExam"        ? val : enableExam,
+        enableCompetency:  key === "enableCompetency"  ? val : enableCompetency,
+        enableFacility:    key === "enableFacility"    ? val : enableFacility,
+        enableAcademicSettings: key === "enableAcademicSettings" ? val : enableAcademicSettings,
       });
       localStorage.setItem(`eleave_${key}`, String(val));
       window.dispatchEvent(new Event("storage"));
@@ -7131,8 +7148,9 @@ export default function SettingsPage() {
       desc: string;
       core?: boolean;
       enabled: boolean;
-      saveKey?: "enableAttendance" | "enableDocument" | "enableRepair" | "enableTimetable" | "enableSubstitute" | "enableSupervision";
+      saveKey?: "enableAttendance" | "enableDocument" | "enableRepair" | "enableTimetable" | "enableSubstitute" | "enableSupervision" | "enableExam" | "enableCompetency" | "enableFacility" | "enableAcademicSettings";
       settingsId?: string;
+      customPath?: string;
     };
 
     const SUBS: SubDef[] = [
@@ -7226,6 +7244,58 @@ export default function SettingsPage() {
         saveKey: "enableSupervision",
         settingsId: "supervision-settings",
       },
+      {
+        id: "exam",
+        icon: <FileText className="w-5 h-5" />,
+        activeColor: "text-blue-600 dark:text-blue-400",
+        activeBg: "bg-blue-100 dark:bg-blue-950/40",
+        activeBorder: "bg-blue-50/40 dark:bg-blue-950/10 border-blue-200 dark:border-blue-800",
+        toggleColor: "bg-blue-600",
+        title: lang === "en" ? "Exam Scheduling System" : "ระบบจัดตารางสอบ & ผังที่นั่ง",
+        desc: lang === "en" ? "Exam timetable matrix, seating algorithm & supervisor rosters" : "จัดตารางสอบ สลับผังที่นั่งสอบป้องกันทุจริต ใบเซ็นชื่อกรรมการสอบ",
+        enabled: enableExam,
+        saveKey: "enableExam",
+        customPath: "/academic/exam",
+      },
+      {
+        id: "competency",
+        icon: <Award className="w-5 h-5" />,
+        activeColor: "text-rose-600 dark:text-rose-400",
+        activeBg: "bg-rose-100 dark:bg-rose-950/40",
+        activeBorder: "bg-rose-50/40 dark:bg-rose-950/10 border-rose-200 dark:border-rose-800",
+        toggleColor: "bg-rose-600",
+        title: lang === "en" ? "PA Competency Portfolio System" : "ระบบแฟ้มสะสมงาน PA",
+        desc: lang === "en" ? "Teacher PA agreement tracker, PD hours & 5-dimension evaluation" : "บันทึกข้อตกลง PA รายชั่วโมงพัฒนาตนเอง ประเมินสมรรถนะ 5 ด้าน",
+        enabled: enableCompetency,
+        saveKey: "enableCompetency",
+        customPath: "/academic/competency",
+      },
+      {
+        id: "facility",
+        icon: <Building2 className="w-5 h-5" />,
+        activeColor: "text-teal-600 dark:text-teal-400",
+        activeBg: "bg-teal-100 dark:bg-teal-950/40",
+        activeBorder: "bg-teal-50/40 dark:bg-teal-950/10 border-teal-200 dark:border-teal-800",
+        toggleColor: "bg-teal-600",
+        title: lang === "en" ? "Resource Reservation System" : "ระบบจองทรัพยากรกลาง",
+        desc: lang === "en" ? "Central facility booking catalog, conflict engine & A4 slips" : "จองห้องประชุม รถโรงเรียน อุปกรณ์ส่วนกลาง ป้องกันเวลาชนกัน",
+        enabled: enableFacility,
+        saveKey: "enableFacility",
+        customPath: "/academic/facility",
+      },
+      {
+        id: "academic_settings",
+        icon: <Settings className="w-5 h-5" />,
+        activeColor: "text-violet-600 dark:text-violet-400",
+        activeBg: "bg-violet-100 dark:bg-violet-950/40",
+        activeBorder: "bg-violet-50/40 dark:bg-violet-950/10 border-violet-200 dark:border-violet-800",
+        toggleColor: "bg-violet-600",
+        title: lang === "en" ? "Academic Settings System" : "ระบบตั้งค่าวิชาการ",
+        desc: lang === "en" ? "Configure academic years, terms, classrooms, and load limits" : "ตั้งค่าปีการศึกษา ภาคเรียน กลุ่มสาระการเรียนรู้ และห้องเรียน",
+        enabled: enableAcademicSettings,
+        saveKey: "enableAcademicSettings",
+        customPath: "/academic/settings",
+      },
     ];
 
     return (
@@ -7287,10 +7357,16 @@ export default function SettingsPage() {
                   </button>
                 )}
 
-                {sys.settingsId && (
+                {(sys.settingsId || sys.customPath) && (
                   <button
                     type="button"
-                    onClick={() => setActiveSection(sys.settingsId!)}
+                    onClick={() => {
+                      if (sys.customPath) {
+                        router.push(sys.customPath);
+                      } else if (sys.settingsId) {
+                        setActiveSection(sys.settingsId);
+                      }
+                    }}
                     className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
                   >
                     {lang === "en" ? "Settings" : "ตั้งค่า"}

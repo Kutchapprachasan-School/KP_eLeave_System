@@ -402,6 +402,10 @@ function AppContent({ children }: { children: React.ReactNode }) {
   const [enableTimetable, setEnableTimetable] = useState(true);
   const [enableSubstitute, setEnableSubstitute] = useState(true);
   const [enableSupervision, setEnableSupervision] = useState(true);
+  const [enableExam, setEnableExam] = useState(true);
+  const [enableCompetency, setEnableCompetency] = useState(true);
+  const [enableFacility, setEnableFacility] = useState(true);
+  const [enableAcademicSettings, setEnableAcademicSettings] = useState(true);
   const [brandSubheader, setBrandSubheader] = useState("ระบบจัดการการลา");
   const [isLoadingSettings, setIsLoadingSettings] = useState(true);
 
@@ -460,6 +464,10 @@ function AppContent({ children }: { children: React.ReactNode }) {
       const finalEnableTimetable = (s as any).enableTimetable !== false;
       const finalEnableSubstitute = (s as any).enableSubstitute !== false;
       const finalEnableSupervision = (s as any).enableSupervision !== false;
+      const finalEnableExam = (s as any).enableExam !== false;
+      const finalEnableCompetency = (s as any).enableCompetency !== false;
+      const finalEnableFacility = (s as any).enableFacility !== false;
+      const finalEnableAcademicSettings = (s as any).enableAcademicSettings !== false;
 
       setBrandName(finalSchoolName);
       setBrandLogo(finalLogoUrl);
@@ -470,6 +478,10 @@ function AppContent({ children }: { children: React.ReactNode }) {
       setEnableTimetable(finalEnableTimetable);
       setEnableSubstitute(finalEnableSubstitute);
       setEnableSupervision(finalEnableSupervision);
+      setEnableExam(finalEnableExam);
+      setEnableCompetency(finalEnableCompetency);
+      setEnableFacility(finalEnableFacility);
+      setEnableAcademicSettings(finalEnableAcademicSettings);
       
       if (s.finalApproverUserIds && session?.user?.id) {
         const allowedIds = s.finalApproverUserIds.split(",").map((id: string) => id.trim()).filter(Boolean);
@@ -655,17 +667,19 @@ function AppContent({ children }: { children: React.ReactNode }) {
 
   // Sub-items for Academic Affairs System (งานฝ่ายวิชาการ)
   const academicSubItems = [];
-  if (enableTimetable || isAdmin) {
+  if (enableTimetable) {
     academicSubItems.push({ href: "/academic/timetable", label: "จัดตารางสอน", icon: Calendar });
   }
-  if (enableSubstitute || isAdmin) {
+  if (enableSubstitute) {
     academicSubItems.push({ href: "/academic/substitute", label: "จัดครูสอนแทน", icon: ArrowRightLeft });
   }
-  if (enableSupervision || isAdmin) {
+  if (enableSupervision) {
     academicSubItems.push({ href: "/academic/supervision", label: "นิเทศการสอนออนไลน์", icon: CheckSquare });
   }
-  if (isAdmin) {
+  if (enableExam) {
     academicSubItems.push({ href: "/academic/exam", label: "จัดตารางสอบ & ผังที่นั่ง", icon: FileText });
+  }
+  if (enableAcademicSettings && isAdmin) {
     academicSubItems.push({ href: "/academic/settings", label: "ตั้งค่าระบบวิชาการ", icon: Settings });
   }
 
@@ -674,7 +688,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
   if (showAttendance) {
     hrSubItems.push({ href: "/attendance", label: "ลงเวลาปฏิบัติราชการ", icon: Clock });
   }
-  if (isAdmin) {
+  if (enableCompetency) {
     hrSubItems.push({ href: "/academic/competency", label: "แฟ้มสะสมงาน PA", icon: Award });
   }
   if (activePermissions.users?.includes(userRole)) {
@@ -875,7 +889,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
             </div>
 
             {/* จองทรัพยากรกลาง */}
-            {renderNavItem({ href: "/academic/facility", label: "จองทรัพยากรกลาง", icon: Building2 })}
+            {enableFacility && renderNavItem({ href: "/academic/facility", label: "จองทรัพยากรกลาง", icon: Building2 })}
 
             {/* ระบบสารบรรณ (Collapsible Group) */}
             {documentSubItems.length > 0 && (

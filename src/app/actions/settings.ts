@@ -137,6 +137,10 @@ export async function getSystemSettings() {
       enableTimetable: (safeSettings as any).enableTimetable ?? true,
       enableSubstitute: (safeSettings as any).enableSubstitute ?? true,
       enableSupervision: (safeSettings as any).enableSupervision ?? true,
+      enableExam: (safeSettings as any).enableExam ?? true,
+      enableCompetency: (safeSettings as any).enableCompetency ?? true,
+      enableFacility: (safeSettings as any).enableFacility ?? true,
+      enableAcademicSettings: (safeSettings as any).enableAcademicSettings ?? true,
 
       timetablePeriodsPerDay: (safeSettings as any).timetablePeriodsPerDay ?? 8,
       timetableStartTime: (safeSettings as any).timetableStartTime || "08:30",
@@ -390,6 +394,10 @@ export async function updateSystemSettings(data: {
   enableTimetable?: boolean;
   enableSubstitute?: boolean;
   enableSupervision?: boolean;
+  enableExam?: boolean;
+  enableCompetency?: boolean;
+  enableFacility?: boolean;
+  enableAcademicSettings?: boolean;
   timetablePeriodsPerDay?: number;
   timetableStartTime?: string;
   timetablePeriodDuration?: number;
@@ -475,6 +483,10 @@ export async function updateSystemSettings(data: {
         enableTimetable: data.enableTimetable !== undefined ? data.enableTimetable : undefined,
         enableSubstitute: data.enableSubstitute !== undefined ? data.enableSubstitute : undefined,
         enableSupervision: data.enableSupervision !== undefined ? data.enableSupervision : undefined,
+        enableExam: data.enableExam !== undefined ? data.enableExam : undefined,
+        enableCompetency: data.enableCompetency !== undefined ? data.enableCompetency : undefined,
+        enableFacility: data.enableFacility !== undefined ? data.enableFacility : undefined,
+        enableAcademicSettings: data.enableAcademicSettings !== undefined ? data.enableAcademicSettings : undefined,
         timetablePeriodsPerDay: data.timetablePeriodsPerDay !== undefined ? data.timetablePeriodsPerDay : undefined,
         timetableStartTime: data.timetableStartTime !== undefined ? data.timetableStartTime : undefined,
         timetablePeriodDuration: data.timetablePeriodDuration !== undefined ? data.timetablePeriodDuration : undefined,
