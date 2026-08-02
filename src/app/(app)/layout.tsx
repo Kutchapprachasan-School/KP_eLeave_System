@@ -662,8 +662,6 @@ function AppContent({ children }: { children: React.ReactNode }) {
   }
   if (isAdmin) {
     academicSubItems.push({ href: "/academic/exam", label: "จัดตารางสอบ & ผังที่นั่ง", icon: FileText });
-    academicSubItems.push({ href: "/academic/competency", label: "แฟ้มสะสมงาน PA", icon: Award });
-    academicSubItems.push({ href: "/academic/facility", label: "จองทรัพยากรกลาง", icon: Building2 });
     academicSubItems.push({ href: "/academic/settings", label: "ตั้งค่าระบบวิชาการ", icon: Settings });
   }
 
@@ -671,6 +669,9 @@ function AppContent({ children }: { children: React.ReactNode }) {
   const hrSubItems = [];
   if (showAttendance) {
     hrSubItems.push({ href: "/attendance", label: "ลงเวลาปฏิบัติราชการ", icon: Clock });
+  }
+  if (isAdmin) {
+    hrSubItems.push({ href: "/academic/competency", label: "แฟ้มสะสมงาน PA", icon: Award });
   }
   if (activePermissions.users?.includes(userRole)) {
     hrSubItems.push({ href: "/users", label: "จัดการบุคลากร", icon: Users });
@@ -864,38 +865,39 @@ function AppContent({ children }: { children: React.ReactNode }) {
           </div>
 
           {/* Section 2: ทั่วไป */}
-          {(showDocument || showRepair) && (
-            <div className="space-y-1.5">
-              <div className="px-3 pb-0.5 text-[11.5px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-                ทั่วไป
-              </div>
-
-              {/* ระบบสารบรรณ (Collapsible Group) */}
-              {documentSubItems.length > 0 && (
-                <CollapsibleGroup
-                  title="ระบบสารบรรณ"
-                  icon={ClipboardList}
-                  badge={pendingDocsCount}
-                  items={documentSubItems}
-                  pathname={pathname}
-                  searchParams={searchParams}
-                  renderNavItem={renderNavItem}
-                />
-              )}
-
-              {/* ระบบแจ้งซ่อม (Collapsible Group) */}
-              {repairSubItems.length > 0 && (
-                <CollapsibleGroup
-                  title="ระบบแจ้งซ่อม"
-                  icon={Wrench}
-                  items={repairSubItems}
-                  pathname={pathname}
-                  searchParams={searchParams}
-                  renderNavItem={renderNavItem}
-                />
-              )}
+          <div className="space-y-1.5">
+            <div className="px-3 pb-0.5 text-[11.5px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+              ทั่วไป
             </div>
-          )}
+
+            {/* จองทรัพยากรกลาง */}
+            {renderNavItem({ href: "/academic/facility", label: "จองทรัพยากรกลาง", icon: Building2 })}
+
+            {/* ระบบสารบรรณ (Collapsible Group) */}
+            {documentSubItems.length > 0 && (
+              <CollapsibleGroup
+                title="ระบบสารบรรณ"
+                icon={ClipboardList}
+                badge={pendingDocsCount}
+                items={documentSubItems}
+                pathname={pathname}
+                searchParams={searchParams}
+                renderNavItem={renderNavItem}
+              />
+            )}
+
+            {/* ระบบแจ้งซ่อม (Collapsible Group) */}
+            {repairSubItems.length > 0 && (
+              <CollapsibleGroup
+                title="ระบบแจ้งซ่อม"
+                icon={Wrench}
+                items={repairSubItems}
+                pathname={pathname}
+                searchParams={searchParams}
+                renderNavItem={renderNavItem}
+              />
+            )}
+          </div>
 
           {/* Section 3: วิชาการ */}
           {academicSubItems.length > 0 && (
@@ -908,7 +910,18 @@ function AppContent({ children }: { children: React.ReactNode }) {
             </div>
           )}
 
-          {/* Section 3: ตั้งค่าระบบ */}
+          {/* Section 4: งานบุคคล */}
+          {hrSubItems.length > 0 && (
+            <div className="space-y-1.5">
+              <div className="px-3 pb-0.5 text-[11.5px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                งานบุคคล
+              </div>
+
+              {hrSubItems.map((item) => renderNavItem(item))}
+            </div>
+          )}
+
+          {/* Section 5: ตั้งค่าระบบ */}
           {settingsNavItems.length > 0 && (
             <div className="space-y-1.5">
               <div className="px-3 pb-0.5 text-[11.5px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
