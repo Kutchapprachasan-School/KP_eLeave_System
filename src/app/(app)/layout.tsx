@@ -862,6 +862,25 @@ function AppContent({ children }: { children: React.ReactNode }) {
             </div>
           )}
 
+          {/* Section 3: งานฝ่ายวิชาการ */}
+          <div className="space-y-1.5">
+            <div className="px-3 pb-0.5 text-[11.5px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+              วิชาการ
+            </div>
+
+            <CollapsibleGroup
+              title="งานฝ่ายวิชาการ"
+              icon={BookOpen}
+              items={[
+                { href: "/academic/timetable", label: "จัดตารางสอน & สอนแทน", icon: Calendar },
+                { href: "/academic/supervision", label: "นิเทศการสอนออนไลน์", icon: CheckSquare },
+              ]}
+              pathname={pathname}
+              searchParams={searchParams}
+              renderNavItem={renderNavItem}
+            />
+          </div>
+
           {/* Section 3: ตั้งค่าระบบ */}
           {settingsNavItems.length > 0 && (
             <div className="space-y-1.5">
