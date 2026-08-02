@@ -17,10 +17,25 @@ export type ScheduleBlockType =
   | "LUNCH"            // พักเที่ยง
   | "ASSEMBLY"         // เข้าแถว/สวดมนต์
   | "SCOUT"            // ลูกเสือ
-  | "CLUB"             // ชุมนุม
+  | "CLUB"              // ชุมนุม
   | "HOMEROOM"         // โฮมรูม
   | "EXAM"             // สอบ
   | "SPECIAL_EVENT";   // กิจกรรมพิเศษ
+
+export type LockType = 
+  | "UNLOCKED"
+  | "LOCKED_BY_USER"      // ฝ่ายวิชาการปักหมุดเอง
+  | "LOCKED_BY_POLICY"    // กฎบังคับของโรงเรียน (เช่น ห้ามสอนเกิน 4 คาบ/วัน)
+  | "LOCKED_BY_EXAM"      // คาบสอบที่ถูกตารางกลางล็อคไว้
+  | "LOCKED_BY_EVENT"     // กิจกรรมโรงเรียน/วันหยุด
+  | "LOCKED_BY_APPROVAL"; // ผ่านการอนุมัติจากผู้อำนวยการแล้ว
+
+export interface ScheduleBlockLock {
+  isLocked: boolean;
+  lockType: LockType;
+  lockedByUserId?: string;
+  lockReason?: string;
+}
 
 export interface ScheduleBlock {
   id: string;
@@ -42,10 +57,12 @@ export interface ScheduleBlock {
   teacherNames?: string[];
   roomId?: string;
   roomName?: string;
+  departmentId?: string;
   
   // Lock & Freeze Controls (สำหรับ Incremental Solving)
   isLocked: boolean;  // ปักหมุดโดยผู้ใช้
   isFrozen: boolean;  // Freeze สถานะหลังเปิดเทอม
+  lockDetails?: ScheduleBlockLock;
 }
 
 export type ConstraintSeverity = "HARD" | "CRITICAL_SOFT" | "SOFT";
@@ -92,12 +109,68 @@ export type CancellationToken = {
 
 export type ProgressCallback = (percent: number, currentPhase: string) => void;
 
+export type OptimizationScopeLevel = 
+  | "LEVEL_1_WITHIN_DEPARTMENT"           // ปรับเฉพาะในหมวดวิชาเดิม
+  | "LEVEL_2_DEPARTMENT_SHARED_ACTIVITIES"// ปรับหมวดวิชา + กิจกรรมรอง (ลูกเสือ/ชุมนุม)
+  | "LEVEL_3_ACROSS_DEPARTMENTS_POLICIED" // ปรับข้ามหมวดวิชาตามนโยบาย (เช่น หมวดภาษา)
+  | "LEVEL_4_EMERGENCY_MODE";             // โหมดฉุกเฉิน (ครูลาพัก/วิกฤต)
+
+export interface OptimizationBoundary {
+  scopeLevel: OptimizationScopeLevel;
+  teacherIds?: string[];
+  departmentIds?: string[];
+  classroomIds?: string[];
+  roomIds?: string[];
+  activityIds?: string[];
+  timeSlotIds?: string[];
+}
+
+export interface OptimizationPolicy {
+  maxChangedSlots: number;       // e.g. ย้ายได้ไม่เกิน 10 คาบ
+  maxChangedTeachers: number;    // e.g. กระทบครูไม่เกิน 3 คน
+  maxChangedRooms: number;       // e.g. เปลี่ยนห้องไม่เกิน 2 ห้อง
+  freezePublishedClasses: boolean;
+  freezeExamWeeks: boolean;
+  allowCrossDepartmentElectivesOnly: boolean;
+}
+
+export interface EnterpriseOptimizationResult {
+  executionTimeMs: number;
+  solverEngineName: string;
+  scopeLevelExecuted: OptimizationScopeLevel;
+  
+  // Core Scores
+  overallScore: number;           // 0 - 100%
+  fairnessIndexBefore: number;    // e.g. 81%
+  fairnessIndexAfter: number;     // e.g. 95%
+  
+  // Trust & Stability Metrics
+  scheduleStabilityScore: number; // e.g. 98% (คำนวณจากคาบที่ไม่ถูกแตะ)
+  
+  // Delta Impact Counters (Change Budget Verification)
+  impactSummary: {
+    changedSlotsCount: number;
+    changedTeachersCount: number;
+    changedRoomsCount: number;
+  };
+
+  violations: {
+    hardViolationsCount: number;
+    softViolationsCount: number;
+  };
+
+  blocks: ScheduleBlock[];
+  explainabilityReport: ExplainabilityReport;
+}
+
 export interface SchedulingOptions {
   maxExecutionTimeSeconds: number;
   cancellationToken?: CancellationToken;
   onProgress?: ProgressCallback;
   dirtyTeacherIds?: string[]; // สำหรับ Localized Incremental Solving
   objectiveWeightsOverride?: Record<string, number>;
+  optimizationPolicy?: OptimizationPolicy;
+  targetBoundary?: OptimizationBoundary;
 }
 
 export interface ObjectiveScore {
