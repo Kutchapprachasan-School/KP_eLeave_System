@@ -1,16 +1,17 @@
 import type { NextConfig } from "next";
+import path from "path";
 
 const nextConfig: NextConfig = {
   serverExternalPackages: ["sharp"],
   typescript: {
     ignoreBuildErrors: true,
   },
+  turbopack: {
+    root: path.resolve(__dirname),
+  },
   experimental: {
     serverActions: {
       bodySizeLimit: "15mb",
-    },
-    turbopack: {
-      root: __dirname,
     },
   },
   images: {
