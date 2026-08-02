@@ -33,7 +33,9 @@ import {
   ClipboardList,
   Wrench,
   ChevronDown,
-  ChevronRight
+  ChevronRight,
+  ArrowRightLeft,
+  Calendar
 } from "lucide-react";
 import { hasRepairPermission } from "@/lib/permissions";
 
@@ -872,7 +874,8 @@ function AppContent({ children }: { children: React.ReactNode }) {
               title="งานฝ่ายวิชาการ"
               icon={BookOpen}
               items={[
-                { href: "/academic/timetable", label: "จัดตารางสอน & สอนแทน", icon: Calendar },
+                { href: "/academic/timetable", label: "จัดตารางสอน", icon: Calendar },
+                { href: "/academic/substitute", label: "จัดครูสอนแทน", icon: ArrowRightLeft },
                 { href: "/academic/supervision", label: "นิเทศการสอนออนไลน์", icon: CheckSquare },
               ]}
               pathname={pathname}
