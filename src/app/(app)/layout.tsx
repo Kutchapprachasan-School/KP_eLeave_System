@@ -38,6 +38,9 @@ import {
   CalendarDays as Calendar
 } from "lucide-react";
 import { hasRepairPermission } from "@/lib/permissions";
+import { getNotifications } from "@/app/actions/admin";
+import { getMyPendingRoutingCount } from "@/app/actions/incoming";
+import { getSystemSettings } from "@/app/actions/settings";
 
 function ToolbarButtons({ isAdmin, isApprover }: { isAdmin: boolean; isApprover: boolean }) {
   const { theme, setTheme } = useTheme();
@@ -54,12 +57,10 @@ function ToolbarButtons({ isAdmin, isApprover }: { isAdmin: boolean; isApprover:
 
   const fetchNotifications = useCallback(() => {
     if (isAdmin || isApprover) {
-      import("@/app/actions/admin").then(({ getNotifications }) => {
-        getNotifications().then((data) => {
-          setNotifications(data.items);
-          setCounts(data.counts);
-        }).catch(() => {});
-      });
+      getNotifications().then((data) => {
+        setNotifications(data.items);
+        setCounts(data.counts);
+      }).catch(() => {});
     }
   }, [isAdmin, isApprover]);
   
@@ -404,9 +405,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (session?.user?.id) {
-      import("@/app/actions/incoming").then(({ getMyPendingRoutingCount }) => {
-        getMyPendingRoutingCount().then(setPendingDocsCount).catch(() => {});
-      });
+      getMyPendingRoutingCount().then(setPendingDocsCount).catch(() => {});
     }
   }, [session?.user?.id, pathname]);
 
@@ -445,64 +444,59 @@ function AppContent({ children }: { children: React.ReactNode }) {
       }
     }
 
-    import("@/app/actions/settings").then(({ getSystemSettings }) => {
-      getSystemSettings().then((s) => {
-        if (!s) {
-          setIsLoadingSettings(false);
-          return;
-        }
-        const finalSchoolName = s.schoolName || t("loginTitle");
-        const finalSubheader = s.subheader || "ระบบจัดการการลา";
-        const finalLogoUrl = s.logoUrl || null;
-        const finalEnableAttendance = s.enableAttendance === true;
-        const finalEnableDocument = s.enableDocument === true;
-        const finalEnableRepair = (s as any).enableRepair === true;
-        const finalEnableTimetable = (s as any).enableTimetable !== false;
-        const finalEnableSubstitute = (s as any).enableSubstitute !== false;
-        const finalEnableSupervision = (s as any).enableSupervision !== false;
-
-        setBrandName(finalSchoolName);
-        setBrandLogo(finalLogoUrl);
-        setBrandSubheader(finalSubheader);
-        setEnableAttendance(finalEnableAttendance);
-        setEnableDocument(finalEnableDocument);
-        setEnableRepair(finalEnableRepair);
-        setEnableTimetable(finalEnableTimetable);
-        setEnableSubstitute(finalEnableSubstitute);
-        setEnableSupervision(finalEnableSupervision);
-        
-        if (s.finalApproverUserIds && session?.user?.id) {
-          const allowedIds = s.finalApproverUserIds.split(",").map((id: string) => id.trim()).filter(Boolean);
-          setIsFinalApprover(allowedIds.includes(session.user.id));
-        }
-        if (s.rolePermissions) {
-          try {
-            setRolePermissions(JSON.parse(s.rolePermissions));
-          } catch (e) {
-            console.error("Failed to parse rolePermissions", e);
-          }
-        }
-
-        if (typeof window !== "undefined") {
-          localStorage.setItem("eleave_schoolName", finalSchoolName);
-          localStorage.setItem("eleave_subheader", finalSubheader);
-          if (finalLogoUrl) {
-            localStorage.setItem("eleave_logoUrl", finalLogoUrl);
-          } else {
-            localStorage.removeItem("eleave_logoUrl");
-          }
-          localStorage.setItem("eleave_enableAttendance", String(finalEnableAttendance));
-          localStorage.setItem("eleave_enableDocument", String(finalEnableDocument));
-          localStorage.setItem("eleave_enableRepair", String(finalEnableRepair));
-        }
-
+    getSystemSettings().then((s) => {
+      if (!s) {
         setIsLoadingSettings(false);
-      }).catch((err) => {
-        console.error("Failed to load settings in layout:", err);
-        setIsLoadingSettings(false);
-      });
+        return;
+      }
+      const finalSchoolName = s.schoolName || t("loginTitle");
+      const finalSubheader = s.subheader || "ระบบจัดการการลา";
+      const finalLogoUrl = s.logoUrl || null;
+      const finalEnableAttendance = s.enableAttendance === true;
+      const finalEnableDocument = s.enableDocument === true;
+      const finalEnableRepair = (s as any).enableRepair === true;
+      const finalEnableTimetable = (s as any).enableTimetable !== false;
+      const finalEnableSubstitute = (s as any).enableSubstitute !== false;
+      const finalEnableSupervision = (s as any).enableSupervision !== false;
+
+      setBrandName(finalSchoolName);
+      setBrandLogo(finalLogoUrl);
+      setBrandSubheader(finalSubheader);
+      setEnableAttendance(finalEnableAttendance);
+      setEnableDocument(finalEnableDocument);
+      setEnableRepair(finalEnableRepair);
+      setEnableTimetable(finalEnableTimetable);
+      setEnableSubstitute(finalEnableSubstitute);
+      setEnableSupervision(finalEnableSupervision);
+      
+      if (s.finalApproverUserIds && session?.user?.id) {
+        const allowedIds = s.finalApproverUserIds.split(",").map((id: string) => id.trim()).filter(Boolean);
+        setIsFinalApprover(allowedIds.includes(session.user.id));
+      }
+      if (s.rolePermissions) {
+        try {
+          setRolePermissions(JSON.parse(s.rolePermissions));
+        } catch (e) {
+          console.error("Failed to parse rolePermissions", e);
+        }
+      }
+
+      if (typeof window !== "undefined") {
+        localStorage.setItem("eleave_schoolName", finalSchoolName);
+        localStorage.setItem("eleave_subheader", finalSubheader);
+        if (finalLogoUrl) {
+          localStorage.setItem("eleave_logoUrl", finalLogoUrl);
+        } else {
+          localStorage.removeItem("eleave_logoUrl");
+        }
+        localStorage.setItem("eleave_enableAttendance", String(finalEnableAttendance));
+        localStorage.setItem("eleave_enableDocument", String(finalEnableDocument));
+        localStorage.setItem("eleave_enableRepair", String(finalEnableRepair));
+      }
+
+      setIsLoadingSettings(false);
     }).catch((err) => {
-      console.error("Failed to import settings module in layout:", err);
+      console.error("Failed to load settings in layout:", err);
       setIsLoadingSettings(false);
     });
   }, [session?.user?.id, t]);
