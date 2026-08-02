@@ -146,6 +146,22 @@ export default function SettingsPage() {
   const [enableAttendance, setEnableAttendance] = useState(false);
   const [enableDocument, setEnableDocument] = useState(false);
   const [enableRepair, setEnableRepair] = useState(false);
+  const [enableTimetable, setEnableTimetable] = useState(true);
+  const [enableSubstitute, setEnableSubstitute] = useState(true);
+  const [enableSupervision, setEnableSupervision] = useState(true);
+
+  const [timetablePeriodsPerDay, setTimetablePeriodsPerDay] = useState(8);
+  const [timetableStartTime, setTimetableStartTime] = useState("08:30");
+  const [timetablePeriodDuration, setTimetablePeriodDuration] = useState(50);
+
+  const [substitutePolicy, setSubstitutePolicy] = useState("DEPARTMENT");
+  const [substituteWorkloadPenalty, setSubstituteWorkloadPenalty] = useState(10);
+  const [enableSubstituteLineNotify, setEnableSubstituteLineNotify] = useState(true);
+
+  const [supervisionMinPerTerm, setSupervisionMinPerTerm] = useState(2);
+  const [supervisionDirectorRatio, setSupervisionDirectorRatio] = useState(40);
+  const [supervisionDeptRatio, setSupervisionDeptRatio] = useState(40);
+  const [supervisionSelfRatio, setSupervisionSelfRatio] = useState(20);
 
 
   const [isImpersonating, setIsImpersonating] = useState(false);
@@ -427,6 +443,19 @@ export default function SettingsPage() {
       setEnableAttendance(data.enableAttendance === true);
       setEnableDocument(data.enableDocument === true);
       setEnableRepair((data as any).enableRepair === true);
+      setEnableTimetable((data as any).enableTimetable !== false);
+      setEnableSubstitute((data as any).enableSubstitute !== false);
+      setEnableSupervision((data as any).enableSupervision !== false);
+      setTimetablePeriodsPerDay((data as any).timetablePeriodsPerDay ?? 8);
+      setTimetableStartTime((data as any).timetableStartTime || "08:30");
+      setTimetablePeriodDuration((data as any).timetablePeriodDuration ?? 50);
+      setSubstitutePolicy((data as any).substitutePolicy || "DEPARTMENT");
+      setSubstituteWorkloadPenalty((data as any).substituteWorkloadPenalty ?? 10);
+      setEnableSubstituteLineNotify((data as any).enableSubstituteLineNotify !== false);
+      setSupervisionMinPerTerm((data as any).supervisionMinPerTerm ?? 2);
+      setSupervisionDirectorRatio((data as any).supervisionDirectorRatio ?? 40);
+      setSupervisionDeptRatio((data as any).supervisionDeptRatio ?? 40);
+      setSupervisionSelfRatio((data as any).supervisionSelfRatio ?? 20);
       setAttendanceGeofenceLat(data.attendanceLatitude ? String(data.attendanceLatitude) : "");
       setAttendanceGeofenceLng(data.attendanceLongitude ? String(data.attendanceLongitude) : "");
       setAttendanceGeofenceRadius(data.attendanceRadius ? String(data.attendanceRadius) : "100");
@@ -673,12 +702,15 @@ export default function SettingsPage() {
 
   // Inline-save a single subsystem toggle
   const saveSubsystem = async (
-    key: "enableAttendance" | "enableDocument" | "enableRepair",
+    key: "enableAttendance" | "enableDocument" | "enableRepair" | "enableTimetable" | "enableSubstitute" | "enableSupervision",
     val: boolean
   ) => {
     if (key === "enableAttendance") setEnableAttendance(val);
     if (key === "enableDocument") setEnableDocument(val);
     if (key === "enableRepair") setEnableRepair(val);
+    if (key === "enableTimetable") setEnableTimetable(val);
+    if (key === "enableSubstitute") setEnableSubstitute(val);
+    if (key === "enableSupervision") setEnableSupervision(val);
     try {
       await updateSystemSettings({
         schoolName,
@@ -686,6 +718,9 @@ export default function SettingsPage() {
         enableAttendance: key === "enableAttendance" ? val : enableAttendance,
         enableDocument:   key === "enableDocument"   ? val : enableDocument,
         enableRepair:     key === "enableRepair"     ? val : enableRepair,
+        enableTimetable:   key === "enableTimetable"   ? val : enableTimetable,
+        enableSubstitute:  key === "enableSubstitute"  ? val : enableSubstitute,
+        enableSupervision: key === "enableSupervision" ? val : enableSupervision,
       });
       localStorage.setItem(`eleave_${key}`, String(val));
       window.dispatchEvent(new Event("storage"));
@@ -7087,7 +7122,7 @@ export default function SettingsPage() {
       desc: string;
       core?: boolean;
       enabled: boolean;
-      saveKey?: "enableAttendance" | "enableDocument" | "enableRepair";
+      saveKey?: "enableAttendance" | "enableDocument" | "enableRepair" | "enableTimetable" | "enableSubstitute" | "enableSupervision";
       settingsId?: string;
     };
 
@@ -7142,6 +7177,45 @@ export default function SettingsPage() {
         enabled: enableRepair,
         saveKey: "enableRepair",
         settingsId: "repair-settings",
+      },
+      {
+        id: "timetable",
+        icon: <Calendar className="w-5 h-5" />,
+        activeColor: "text-purple-600 dark:text-purple-400",
+        activeBg: "bg-purple-100 dark:bg-purple-950/40",
+        activeBorder: "bg-purple-50/40 dark:bg-purple-950/10 border-purple-200 dark:border-purple-800",
+        toggleColor: "bg-purple-600",
+        title: lang === "en" ? "Timetable System" : "ระบบจัดตารางสอน",
+        desc: lang === "en" ? "School master timetable builder & collision checks" : "จัดตารางสอนแม่บท ป้องกันคาบชน 4 มิติ สลับคาบด้วย AI",
+        enabled: enableTimetable,
+        saveKey: "enableTimetable",
+        settingsId: "timetable-settings",
+      },
+      {
+        id: "substitute",
+        icon: <ArrowRightLeft className="w-5 h-5" />,
+        activeColor: "text-emerald-600 dark:text-emerald-400",
+        activeBg: "bg-emerald-100 dark:bg-emerald-950/40",
+        activeBorder: "bg-emerald-50/40 dark:bg-emerald-950/10 border-emerald-200 dark:border-emerald-800",
+        toggleColor: "bg-emerald-600",
+        title: lang === "en" ? "Substitute Teaching System" : "ระบบจัดครูสอนแทน",
+        desc: lang === "en" ? "Smart substitute teacher assignment & LINE alerts" : "จัดครูสอนแทนอัตโนมัติ ซิงค์ข้อมูลการลา แนะนำครูว่างด้วย AI",
+        enabled: enableSubstitute,
+        saveKey: "enableSubstitute",
+        settingsId: "substitute-settings",
+      },
+      {
+        id: "supervision",
+        icon: <CheckSquare className="w-5 h-5" />,
+        activeColor: "text-cyan-600 dark:text-cyan-400",
+        activeBg: "bg-cyan-100 dark:bg-cyan-950/40",
+        activeBorder: "bg-cyan-50/40 dark:bg-cyan-950/10 border-cyan-200 dark:border-cyan-800",
+        toggleColor: "bg-cyan-600",
+        title: lang === "en" ? "Instructional Supervision System" : "ระบบนิเทศการสอนออนไลน์",
+        desc: lang === "en" ? "Classroom observation, video submission & scoring" : "นิเทศแผนการสอน แปะคลิปวีดีโอ ประเมินผล 4 ขั้นตอน",
+        enabled: enableSupervision,
+        saveKey: "enableSupervision",
+        settingsId: "supervision-settings",
       },
     ];
 
@@ -7223,6 +7297,258 @@ export default function SettingsPage() {
   };
 
 
+  // ─── Timetable Settings Section ──────────────────────────────────────────────
+  const renderTimetableSettingsSection = () => {
+    return (
+      <div className="bg-white dark:bg-gray-900 rounded-2xl p-6 md:p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-100 dark:border-gray-800 space-y-6">
+        <div className="flex items-center justify-between">
+          <SectionHeader title="ตั้งค่าระบบจัดตารางสอน (Timetable Builder Settings)" />
+          <button
+            type="button"
+            onClick={() => setActiveSection(null)}
+            className="px-3.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 text-xs font-bold transition-all"
+          >
+            ← กลับไปหน้าตั้งค่าหลัก
+          </button>
+        </div>
+
+        <form onSubmit={async (e) => {
+          e.preventDefault();
+          try {
+            await updateSystemSettings({
+              schoolName,
+              subheader,
+              timetablePeriodsPerDay,
+              timetableStartTime,
+              timetablePeriodDuration,
+            });
+            showToast("success", "บันทึกการตั้งค่าจัดตารางสอนเรียบร้อยแล้ว");
+          } catch (err: any) {
+            showToast("error", err?.message ?? "เกิดข้อผิดพลาด");
+          }
+        }} className="space-y-4 text-xs">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">จำนวนคาบต่อวัน</label>
+              <input
+                type="number"
+                min={1}
+                max={12}
+                value={timetablePeriodsPerDay}
+                onChange={e => setTimetablePeriodsPerDay(Number(e.target.value))}
+                className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700"
+              />
+            </div>
+            <div>
+              <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">เวลาเริ่มคาบแรก</label>
+              <input
+                type="time"
+                value={timetableStartTime}
+                onChange={e => setTimetableStartTime(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700"
+              />
+            </div>
+            <div>
+              <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">ระยะเวลาต่อคาบ (นาที)</label>
+              <input
+                type="number"
+                min={30}
+                max={120}
+                value={timetablePeriodDuration}
+                onChange={e => setTimetablePeriodDuration(Number(e.target.value))}
+                className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700"
+              />
+            </div>
+          </div>
+
+          <div className="p-4 rounded-xl bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800 text-purple-900 dark:text-purple-300">
+            <div className="font-bold mb-1">🛡️ ระบบป้องกันคาบชน 4 มิติ (4-Way Collision Protection):</div>
+            <p className="text-[11px] text-purple-700 dark:text-purple-400">
+              ตรวจสอบข้อมูลซ้ำซ้อนใน 4 มิติ ได้แก่ รายวิชา (Offering), ห้องเรียน (Room), ครูผู้สอน (Teacher) และชั้นเรียน (ClassRoom) ป้องกันการจัดครูหรือห้องชนกันในคาบเดียวกันอย่างรัดกุม
+            </p>
+          </div>
+
+          <button
+            type="submit"
+            className="px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold transition-all shadow-md"
+          >
+            บันทึกการตั้งค่าจัดตารางสอน
+          </button>
+        </form>
+      </div>
+    );
+  };
+
+  // ─── Substitute Settings Section ──────────────────────────────────────────────
+  const renderSubstituteSettingsSection = () => {
+    return (
+      <div className="bg-white dark:bg-gray-900 rounded-2xl p-6 md:p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-100 dark:border-gray-800 space-y-6">
+        <div className="flex items-center justify-between">
+          <SectionHeader title="ตั้งค่าระบบจัดครูสอนแทน (Substitute Routing Settings)" />
+          <button
+            type="button"
+            onClick={() => setActiveSection(null)}
+            className="px-3.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 text-xs font-bold transition-all"
+          >
+            ← กลับไปหน้าตั้งค่าหลัก
+          </button>
+        </div>
+
+        <form onSubmit={async (e) => {
+          e.preventDefault();
+          try {
+            await updateSystemSettings({
+              schoolName,
+              subheader,
+              substitutePolicy,
+              substituteWorkloadPenalty,
+              enableSubstituteLineNotify,
+            });
+            showToast("success", "บันทึกการตั้งค่าจัดครูสอนแทนเรียบร้อยแล้ว");
+          } catch (err: any) {
+            showToast("error", err?.message ?? "เกิดข้อผิดพลาด");
+          }
+        }} className="space-y-4 text-xs">
+          <div>
+            <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">นโยบายการคัดเลือกครูสอนแทน (Assignment Policy)</label>
+            <select
+              value={substitutePolicy}
+              onChange={e => setSubstitutePolicy(e.target.value)}
+              className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-semibold"
+            >
+              <option value="DEPARTMENT">DEPARTMENT - เลือกครูภายในกลุ่มสาระการเรียนรู้เดียวกันก่อน</option>
+              <option value="CENTRALIZED">CENTRALIZED - พิจารณาครูว่างทั้งโรงเรียนอย่างเท่าเทียม</option>
+              <option value="HYBRID">HYBRID - กลุ่มสาระเดียวกันเป็นลำดับแรก หากไม่มีให้ขยายเป็นทั้งโรงเรียน</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">เกณฑ์หักคะแนนภาระงานสะสม (Workload Fairness Penalty)</label>
+            <input
+              type="number"
+              min={0}
+              max={50}
+              value={substituteWorkloadPenalty}
+              onChange={e => setSubstituteWorkloadPenalty(Number(e.target.value))}
+              className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700"
+            />
+            <p className="text-[11px] text-slate-400 mt-1">หักคะแนน Match Score สำหรับครูที่เคยสอนแทนในรอบ 30 วันที่ผ่านมา (ป้องกันครูหน้าเดิมรับงานซ้ำ)</p>
+          </div>
+
+          <div className="flex items-center gap-3 pt-2">
+            <input
+              type="checkbox"
+              id="subLineNotify"
+              checked={enableSubstituteLineNotify}
+              onChange={e => setEnableSubstituteLineNotify(e.target.checked)}
+              className="w-4 h-4 rounded text-emerald-600 border-slate-300 focus:ring-emerald-500"
+            />
+            <label htmlFor="subLineNotify" className="font-bold text-slate-700 dark:text-slate-300">
+              เปิดการส่งแจ้งเตือน LINE อนุมัติจัดสอนแทนไปยังครูผู้ได้รับการมอบหมายทันที
+            </label>
+          </div>
+
+          <button
+            type="submit"
+            className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold transition-all shadow-md"
+          >
+            บันทึกการตั้งค่าจัดครูสอนแทน
+          </button>
+        </form>
+      </div>
+    );
+  };
+
+  // ─── Supervision Settings Section ───────────────────────────────────────────
+  const renderSupervisionSettingsSection = () => {
+    return (
+      <div className="bg-white dark:bg-gray-900 rounded-2xl p-6 md:p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-100 dark:border-gray-800 space-y-6">
+        <div className="flex items-center justify-between">
+          <SectionHeader title="ตั้งค่าระบบนิเทศการสอนออนไลน์ (Instructional Supervision Settings)" />
+          <button
+            type="button"
+            onClick={() => setActiveSection(null)}
+            className="px-3.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 text-xs font-bold transition-all"
+          >
+            ← กลับไปหน้าตั้งค่าหลัก
+          </button>
+        </div>
+
+        <form onSubmit={async (e) => {
+          e.preventDefault();
+          try {
+            await updateSystemSettings({
+              schoolName,
+              subheader,
+              supervisionMinPerTerm,
+              supervisionDirectorRatio,
+              supervisionDeptRatio,
+              supervisionSelfRatio,
+            });
+            showToast("success", "บันทึกการตั้งค่านิเทศการสอนเรียบร้อยแล้ว");
+          } catch (err: any) {
+            showToast("error", err?.message ?? "เกิดข้อผิดพลาด");
+          }
+        }} className="space-y-4 text-xs">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">สัดส่วนคะแนน ผอ. (%)</label>
+              <input
+                type="number"
+                min={0}
+                max={100}
+                value={supervisionDirectorRatio}
+                onChange={e => setSupervisionDirectorRatio(Number(e.target.value))}
+                className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700"
+              />
+            </div>
+            <div>
+              <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">สัดส่วนคะแนน หัวหน้าหมวด (%)</label>
+              <input
+                type="number"
+                min={0}
+                max={100}
+                value={supervisionDeptRatio}
+                onChange={e => setSupervisionDeptRatio(Number(e.target.value))}
+                className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700"
+              />
+            </div>
+            <div>
+              <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">สัดส่วนคะแนน ประเมินตนเอง (%)</label>
+              <input
+                type="number"
+                min={0}
+                max={100}
+                value={supervisionSelfRatio}
+                onChange={e => setSupervisionSelfRatio(Number(e.target.value))}
+                className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">จำนวนครั้งนิเทศขั้นต่ำต่อภาคเรียน</label>
+            <input
+              type="number"
+              min={1}
+              max={10}
+              value={supervisionMinPerTerm}
+              onChange={e => setSupervisionMinPerTerm(Number(e.target.value))}
+              className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700"
+            />
+          </div>
+
+          <button
+            type="submit"
+            className="px-5 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-700 text-white font-bold transition-all shadow-md"
+          >
+            บันทึกการตั้งค่านิเทศการสอน
+          </button>
+        </form>
+      </div>
+    );
+  };
+
   // --- Section renderer map ---
 
   const renderActiveSection = () => {
@@ -7258,6 +7584,12 @@ export default function SettingsPage() {
       case "subsystems": return renderSubsystemsSection();
 
       case "repair-settings": return renderRepairSettingsSection();
+
+      case "timetable-settings": return renderTimetableSettingsSection();
+
+      case "substitute-settings": return renderSubstituteSettingsSection();
+
+      case "supervision-settings": return renderSupervisionSettingsSection();
 
       default: return null;
 
@@ -7336,20 +7668,7 @@ export default function SettingsPage() {
           </div>
         )}
 
-        {/* Group 3: Other Subsystems Settings */}
-        {subsystemModuleItems.length > 0 && (
-          <div>
-            <p className="text-[11px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400 pl-2 mb-3 flex items-center gap-1.5">
-              <LayoutGrid className="w-3.5 h-3.5" />
-              {lang === "en" ? "Other Subsystems Settings" : "ตั้งค่าระบบย่อยอื่น ๆ"}
-            </p>
-            <div className="space-y-2">
-              {subsystemModuleItems.map((item) => (
-                <MenuItemRow key={item.id} item={item} onClick={() => setActiveSection(item.id)} />
-              ))}
-            </div>
-          </div>
-        )}
+
       </div>
     );
   };

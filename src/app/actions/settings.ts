@@ -134,14 +134,20 @@ export async function getSystemSettings() {
       enableAttendance: (safeSettings as any).enableAttendance ?? false,
       enableDocument: (safeSettings as any).enableDocument ?? false,
       enableRepair: (safeSettings as any).enableRepair ?? false,
+      enableTimetable: (safeSettings as any).enableTimetable ?? true,
+      enableSubstitute: (safeSettings as any).enableSubstitute ?? true,
+      enableSupervision: (safeSettings as any).enableSupervision ?? true,
 
-      // Ensure new fields have defaults even if DB column doesn't exist yet
-
-      pdfFont: (safeSettings as any).pdfFont || "Prompt",
-
-      googleDriveFormat: (safeSettings as any).googleDriveFormat || "PDF",
-
-      lastLeaveMode: (safeSettings as any).lastLeaveMode || "SAME",
+      timetablePeriodsPerDay: (safeSettings as any).timetablePeriodsPerDay ?? 8,
+      timetableStartTime: (safeSettings as any).timetableStartTime || "08:30",
+      timetablePeriodDuration: (safeSettings as any).timetablePeriodDuration ?? 50,
+      substitutePolicy: (safeSettings as any).substitutePolicy || "DEPARTMENT",
+      substituteWorkloadPenalty: (safeSettings as any).substituteWorkloadPenalty ?? 10,
+      enableSubstituteLineNotify: (safeSettings as any).enableSubstituteLineNotify ?? true,
+      supervisionMinPerTerm: (safeSettings as any).supervisionMinPerTerm ?? 2,
+      supervisionDirectorRatio: (safeSettings as any).supervisionDirectorRatio ?? 40,
+      supervisionDeptRatio: (safeSettings as any).supervisionDeptRatio ?? 40,
+      supervisionSelfRatio: (safeSettings as any).supervisionSelfRatio ?? 20,
 
       quotaExceededAction: (safeSettings as any).quotaExceededAction || "ALLOW_WITH_MEMO",
 
@@ -381,6 +387,19 @@ export async function updateSystemSettings(data: {
   enableAttendance?: boolean;
   enableDocument?: boolean;
   enableRepair?: boolean;
+  enableTimetable?: boolean;
+  enableSubstitute?: boolean;
+  enableSupervision?: boolean;
+  timetablePeriodsPerDay?: number;
+  timetableStartTime?: string;
+  timetablePeriodDuration?: number;
+  substitutePolicy?: string;
+  substituteWorkloadPenalty?: number;
+  enableSubstituteLineNotify?: boolean;
+  supervisionMinPerTerm?: number;
+  supervisionDirectorRatio?: number;
+  supervisionDeptRatio?: number;
+  supervisionSelfRatio?: number;
   repairLineChannelAccessToken?: string;
   repairLineTargetGroupId?: string;
   enableRepairLineNotify?: boolean;
@@ -453,6 +472,19 @@ export async function updateSystemSettings(data: {
         enableAttendance: data.enableAttendance !== undefined ? data.enableAttendance : undefined,
         enableDocument: data.enableDocument !== undefined ? data.enableDocument : undefined,
         enableRepair: data.enableRepair !== undefined ? data.enableRepair : undefined,
+        enableTimetable: data.enableTimetable !== undefined ? data.enableTimetable : undefined,
+        enableSubstitute: data.enableSubstitute !== undefined ? data.enableSubstitute : undefined,
+        enableSupervision: data.enableSupervision !== undefined ? data.enableSupervision : undefined,
+        timetablePeriodsPerDay: data.timetablePeriodsPerDay !== undefined ? data.timetablePeriodsPerDay : undefined,
+        timetableStartTime: data.timetableStartTime !== undefined ? data.timetableStartTime : undefined,
+        timetablePeriodDuration: data.timetablePeriodDuration !== undefined ? data.timetablePeriodDuration : undefined,
+        substitutePolicy: data.substitutePolicy !== undefined ? data.substitutePolicy : undefined,
+        substituteWorkloadPenalty: data.substituteWorkloadPenalty !== undefined ? data.substituteWorkloadPenalty : undefined,
+        enableSubstituteLineNotify: data.enableSubstituteLineNotify !== undefined ? data.enableSubstituteLineNotify : undefined,
+        supervisionMinPerTerm: data.supervisionMinPerTerm !== undefined ? data.supervisionMinPerTerm : undefined,
+        supervisionDirectorRatio: data.supervisionDirectorRatio !== undefined ? data.supervisionDirectorRatio : undefined,
+        supervisionDeptRatio: data.supervisionDeptRatio !== undefined ? data.supervisionDeptRatio : undefined,
+        supervisionSelfRatio: data.supervisionSelfRatio !== undefined ? data.supervisionSelfRatio : undefined,
         repairLineChannelAccessToken: data.repairLineChannelAccessToken !== undefined ? data.repairLineChannelAccessToken : undefined,
         repairLineTargetGroupId: data.repairLineTargetGroupId !== undefined ? data.repairLineTargetGroupId : undefined,
         enableRepairLineNotify: data.enableRepairLineNotify !== undefined ? data.enableRepairLineNotify : undefined,

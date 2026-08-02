@@ -396,6 +396,9 @@ function AppContent({ children }: { children: React.ReactNode }) {
   const [enableAttendance, setEnableAttendance] = useState(false);
   const [enableDocument, setEnableDocument] = useState(false);
   const [enableRepair, setEnableRepair] = useState(false);
+  const [enableTimetable, setEnableTimetable] = useState(true);
+  const [enableSubstitute, setEnableSubstitute] = useState(true);
+  const [enableSupervision, setEnableSupervision] = useState(true);
   const [brandSubheader, setBrandSubheader] = useState("ระบบจัดการการลา");
   const [isLoadingSettings, setIsLoadingSettings] = useState(true);
 
@@ -422,6 +425,9 @@ function AppContent({ children }: { children: React.ReactNode }) {
       const storedEnableAttendance = localStorage.getItem("eleave_enableAttendance");
       const storedEnableDocument = localStorage.getItem("eleave_enableDocument");
       const storedEnableRepair = localStorage.getItem("eleave_enableRepair");
+      const storedEnableTimetable = localStorage.getItem("eleave_enableTimetable");
+      const storedEnableSubstitute = localStorage.getItem("eleave_enableSubstitute");
+      const storedEnableSupervision = localStorage.getItem("eleave_enableSupervision");
 
       if (storedSchoolName) setBrandName(storedSchoolName);
       if (storedSubheader) setBrandSubheader(storedSubheader);
@@ -429,6 +435,9 @@ function AppContent({ children }: { children: React.ReactNode }) {
       if (storedEnableAttendance) setEnableAttendance(storedEnableAttendance === "true");
       if (storedEnableDocument) setEnableDocument(storedEnableDocument === "true");
       if (storedEnableRepair) setEnableRepair(storedEnableRepair === "true");
+      if (storedEnableTimetable) setEnableTimetable(storedEnableTimetable === "true");
+      if (storedEnableSubstitute) setEnableSubstitute(storedEnableSubstitute === "true");
+      if (storedEnableSupervision) setEnableSupervision(storedEnableSupervision === "true");
       
       // If we loaded cached data, we can mark settings loading as finished to bypass default splash page
       if (storedSchoolName || storedLogoUrl) {
@@ -444,6 +453,9 @@ function AppContent({ children }: { children: React.ReactNode }) {
         const finalEnableAttendance = s.enableAttendance === true;
         const finalEnableDocument = s.enableDocument === true;
         const finalEnableRepair = (s as any).enableRepair === true;
+        const finalEnableTimetable = (s as any).enableTimetable !== false;
+        const finalEnableSubstitute = (s as any).enableSubstitute !== false;
+        const finalEnableSupervision = (s as any).enableSupervision !== false;
 
         setBrandName(finalSchoolName);
         setBrandLogo(finalLogoUrl);
@@ -451,6 +463,9 @@ function AppContent({ children }: { children: React.ReactNode }) {
         setEnableAttendance(finalEnableAttendance);
         setEnableDocument(finalEnableDocument);
         setEnableRepair(finalEnableRepair);
+        setEnableTimetable(finalEnableTimetable);
+        setEnableSubstitute(finalEnableSubstitute);
+        setEnableSupervision(finalEnableSupervision);
         
         if (s.finalApproverUserIds && session?.user?.id) {
           const allowedIds = s.finalApproverUserIds.split(",").map((id: string) => id.trim()).filter(Boolean);
@@ -633,6 +648,18 @@ function AppContent({ children }: { children: React.ReactNode }) {
         { href: "/repair/summary", label: "สรุปการดำเนินงาน", icon: FileText },
       ]
     : [];
+
+  // Sub-items for Academic Affairs System (งานฝ่ายวิชาการ)
+  const academicSubItems = [];
+  if (enableTimetable || isAdmin) {
+    academicSubItems.push({ href: "/academic/timetable", label: "จัดตารางสอน", icon: Calendar });
+  }
+  if (enableSubstitute || isAdmin) {
+    academicSubItems.push({ href: "/academic/substitute", label: "จัดครูสอนแทน", icon: ArrowRightLeft });
+  }
+  if (enableSupervision || isAdmin) {
+    academicSubItems.push({ href: "/academic/supervision", label: "นิเทศการสอนออนไลน์", icon: CheckSquare });
+  }
 
   // Sub-items for HR & Attendance System (งานบุคคล / ลงเวลา)
   const hrSubItems = [];
@@ -865,24 +892,22 @@ function AppContent({ children }: { children: React.ReactNode }) {
           )}
 
           {/* Section 3: งานฝ่ายวิชาการ */}
-          <div className="space-y-1.5">
-            <div className="px-3 pb-0.5 text-[11.5px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-              วิชาการ
-            </div>
+          {academicSubItems.length > 0 && (
+            <div className="space-y-1.5">
+              <div className="px-3 pb-0.5 text-[11.5px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                วิชาการ
+              </div>
 
-            <CollapsibleGroup
-              title="งานฝ่ายวิชาการ"
-              icon={BookOpen}
-              items={[
-                { href: "/academic/timetable", label: "จัดตารางสอน", icon: Calendar },
-                { href: "/academic/substitute", label: "จัดครูสอนแทน", icon: ArrowRightLeft },
-                { href: "/academic/supervision", label: "นิเทศการสอนออนไลน์", icon: CheckSquare },
-              ]}
-              pathname={pathname}
-              searchParams={searchParams}
-              renderNavItem={renderNavItem}
-            />
-          </div>
+              <CollapsibleGroup
+                title="งานฝ่ายวิชาการ"
+                icon={BookOpen}
+                items={academicSubItems}
+                pathname={pathname}
+                searchParams={searchParams}
+                renderNavItem={renderNavItem}
+              />
+            </div>
+          )}
 
           {/* Section 3: ตั้งค่าระบบ */}
           {settingsNavItems.length > 0 && (
