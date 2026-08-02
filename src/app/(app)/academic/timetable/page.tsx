@@ -7,19 +7,23 @@ import {
   Search, 
   Building2, 
   Users, 
-  AlertTriangle,
   FileSpreadsheet,
-  CheckCircle2,
   Lock,
   Printer,
   Shield,
   BookOpen,
   Award,
   BarChart3,
-  ListFilter,
-  Info
+  Info,
+  Download,
+  Upload,
+  CheckCircle2,
+  XCircle,
+  Edit3,
+  Check
 } from "lucide-react";
 import { LocalSearchSchedulingEngine } from "@/lib/timetable/solvers/localSearchEngine";
+import { ExcelImportService } from "@/lib/services/excelImportService";
 import type { TimeSlot, ScheduleBlock, ConstraintDefinition, ExplainabilityReport, ObjectiveScore } from "@/lib/timetable/types";
 
 // Mock TimeSlots (5 Days x 8 Periods)
@@ -68,6 +72,14 @@ export default function TimetableBuilderPage() {
   const [explainabilityReport, setExplainabilityReport] = useState<ExplainabilityReport | null>(null);
   const [score, setScore] = useState<ObjectiveScore | null>(null);
 
+  // Excel Import Modal State
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importRows, setImportRows] = useState<any[]>([
+    { rowNumber: 1, subjectCode: "ว23101", subjectName: "วิทยาศาสตร์ 5", periodsPerWeek: 3, classroomName: "ม.3/1", teacherId: "t-1", teacherName: "ครูสมชาย สายวิทย์", roomId: "r-lab", isValid: true, errors: [] },
+    { rowNumber: 2, subjectCode: "ค23101", subjectName: "คณิตศาสตร์ 5", periodsPerWeek: 3, classroomName: "ม.3/1", teacherId: "t-2", teacherName: "ครูสมหญิง คณิตศาสตร์", roomId: "r-101", isValid: true, errors: [] },
+    { rowNumber: 3, subjectCode: "", subjectName: "สังคมศึกษา 5", periodsPerWeek: 2, classroomName: "ม.3/1", teacherId: "t-5", teacherName: "ครูนิภา", roomId: "r-101", isValid: false, errors: ["ไม่พบรหัสวิชา"] }
+  ]);
+
   // Constraint Toggles State
   const [constraintToggles, setConstraintToggles] = useState<ConstraintDefinition[]>([
     { code: "TEACHER_UNAVAILABILITY", name: "ตรวจเวลาห้ามสอนของครู", description: "งดจัดสอนวัน/คาบที่ครูติดภารกิจ", category: "TEACHER", severity: "HARD", defaultWeight: 10000, isEnabled: true },
@@ -92,6 +104,33 @@ export default function TimetableBuilderPage() {
     } finally {
       setIsSolving(false);
     }
+  };
+
+  // Download Sample Template CSV
+  const handleDownloadSampleTemplate = () => {
+    const csvContent = ExcelImportService.getSampleTemplateCSV();
+    const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", "Timetable_Master_Data_Template.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // Confirm Import Verified Rows
+  const handleConfirmImport = () => {
+    const parsed = ExcelImportService.parseOfferingRows(importRows);
+    const validOfferings = parsed.filter(p => p.isValid);
+    if (validOfferings.length === 0) {
+      alert("ไม่พบรายการข้อมูลที่ผ่านการตรวจสอบ กรุณาแก้ไขข้อมูลในตาราง Preview ก่อนกดยืนยัน");
+      return;
+    }
+    const newBlocks = ExcelImportService.convertOfferingsToScheduleBlocks(validOfferings);
+    setBlocks(prev => [...prev.filter(b => b.type !== "ACADEMIC_SUBJECT"), ...newBlocks]);
+    setShowImportModal(false);
+    alert(`นำเข้าข้อมูลวิชาสอนสำเร็จแล้วจำนวน ${validOfferings.length} รายวิชา (${newBlocks.length} คาบ)`);
   };
 
   const filteredBlocks = blocks.filter(b => {
@@ -124,11 +163,19 @@ export default function TimetableBuilderPage() {
               ระบบจัดตารางสอนแม่บทอัจฉริยะ (Master Timetable)
             </h1>
             <p className="text-purple-100 text-sm max-w-2xl leading-relaxed">
-              รองรับ 6-Layer Clean Architecture, AI Auto-Scheduler (Greedy + Hill Climbing), คาบล็อครายช่วงชั้น/รายห้อง และ Explainability Console
+              รองรับ 6-Layer Clean Architecture, AI Auto-Scheduler (Greedy + Hill Climbing), และระบบนำเข้าข้อมูลด้วย Excel/CSV
             </p>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              onClick={() => setShowImportModal(true)}
+              className="px-4 py-2.5 rounded-xl bg-white/20 hover:bg-white/30 text-white text-xs font-bold backdrop-blur-md transition-all flex items-center gap-2"
+            >
+              <Upload className="w-4 h-4 text-emerald-300" />
+              นำเข้าข้อมูลด้วย Excel
+            </button>
+
             <button
               onClick={handleRunAISolver}
               disabled={isSolving}
@@ -140,6 +187,146 @@ export default function TimetableBuilderPage() {
           </div>
         </div>
       </div>
+
+      {/* Excel Import Preview Modal */}
+      {showImportModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 md:p-8 max-w-4xl w-full border border-slate-200 dark:border-slate-800 shadow-2xl space-y-6 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-4">
+              <div>
+                <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <FileSpreadsheet className="w-5 h-5 text-emerald-500" />
+                  นำเข้าข้อมูลวิชาและครูผู้สอนด้วย Excel / CSV
+                </h2>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  ดาวน์โหลด Template, ตรวจสอบข้อมูลรายแถว และแก้ไขข้อมูลบนเว็บก่อนกดยืนยัน
+                </p>
+              </div>
+
+              <button
+                onClick={handleDownloadSampleTemplate}
+                className="px-3.5 py-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 text-emerald-700 dark:text-emerald-300 text-xs font-bold transition-all flex items-center gap-1.5"
+              >
+                <Download className="w-4 h-4" />
+                ดาวน์โหลด Template ตัวอย่าง
+              </button>
+            </div>
+
+            {/* Interactive Preview Data Grid */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between text-xs font-bold text-slate-700 dark:text-slate-300">
+                <span>ตาราง Preview ตรวจสอบข้อมูล ({importRows.length} รายการ)</span>
+                <span className="text-slate-400 font-normal">💡 คลิกที่เซลล์เพื่อแก้ไขข้อมูลล่วงหน้าบนเว็บ</span>
+              </div>
+
+              <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50 dark:bg-slate-800 text-slate-500 uppercase tracking-wider border-b border-slate-200 dark:border-slate-800">
+                      <th className="p-3 w-16 text-center">แถว</th>
+                      <th className="p-3 w-24 text-center">สถานะ</th>
+                      <th className="p-3">รหัสวิชา</th>
+                      <th className="p-3">ชื่อวิชา</th>
+                      <th className="p-3 w-20 text-center">คาบ/สัปดาห์</th>
+                      <th className="p-3">ชั้นเรียน</th>
+                      <th className="p-3">ครูผู้สอน</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+                    {importRows.map((row, index) => (
+                      <tr key={index} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
+                        <td className="p-3 text-center font-bold text-slate-400">#{row.rowNumber}</td>
+                        <td className="p-3 text-center">
+                          {row.isValid ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 font-bold text-[10px]">
+                              <CheckCircle2 className="w-3 h-3" /> ผ่าน
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 font-bold text-[10px]">
+                              <XCircle className="w-3 h-3" /> {row.errors.join(", ")}
+                            </span>
+                          )}
+                        </td>
+                        <td className="p-3">
+                          <input
+                            type="text"
+                            value={row.subjectCode}
+                            onChange={e => {
+                              const val = e.target.value;
+                              setImportRows(prev => prev.map((r, i) => i === index ? { ...r, subjectCode: val, isValid: Boolean(val && r.subjectName && r.classroomName), errors: val ? [] : ["ไม่พบรหัสวิชา"] } : r));
+                            }}
+                            className="w-full px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-transparent font-bold text-purple-600 focus:ring-1 focus:ring-purple-500"
+                          />
+                        </td>
+                        <td className="p-3">
+                          <input
+                            type="text"
+                            value={row.subjectName}
+                            onChange={e => {
+                              const val = e.target.value;
+                              setImportRows(prev => prev.map((r, i) => i === index ? { ...r, subjectName: val, isValid: Boolean(r.subjectCode && val && r.classroomName) } : r));
+                            }}
+                            className="w-full px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-transparent font-semibold focus:ring-1 focus:ring-purple-500"
+                          />
+                        </td>
+                        <td className="p-3 text-center">
+                          <input
+                            type="number"
+                            value={row.periodsPerWeek}
+                            onChange={e => {
+                              const val = parseInt(e.target.value, 10) || 1;
+                              setImportRows(prev => prev.map((r, i) => i === index ? { ...r, periodsPerWeek: val } : r));
+                            }}
+                            className="w-16 px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 text-center bg-transparent focus:ring-1 focus:ring-purple-500"
+                          />
+                        </td>
+                        <td className="p-3">
+                          <input
+                            type="text"
+                            value={row.classroomName}
+                            onChange={e => {
+                              const val = e.target.value;
+                              setImportRows(prev => prev.map((r, i) => i === index ? { ...r, classroomName: val } : r));
+                            }}
+                            className="w-full px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-transparent focus:ring-1 focus:ring-purple-500"
+                          />
+                        </td>
+                        <td className="p-3">
+                          <input
+                            type="text"
+                            value={row.teacherName}
+                            onChange={e => {
+                              const val = e.target.value;
+                              setImportRows(prev => prev.map((r, i) => i === index ? { ...r, teacherName: val } : r));
+                            }}
+                            className="w-full px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-transparent focus:ring-1 focus:ring-purple-500"
+                          />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-200 dark:border-slate-800">
+              <button
+                onClick={() => setShowImportModal(false)}
+                className="px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100"
+              >
+                ยกเลิก
+              </button>
+              <button
+                onClick={handleConfirmImport}
+                className="px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs flex items-center gap-2 shadow-md"
+              >
+                <Check className="w-4 h-4" />
+                ยืนยันนำเข้าข้อมูลเข้าสู่ระบบ
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Navigation Tab Bar */}
       <div className="flex border-b border-slate-200 dark:border-slate-800 gap-2 bg-white dark:bg-slate-900 p-2 rounded-2xl shadow-sm">

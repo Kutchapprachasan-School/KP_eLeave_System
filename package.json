@@ -9,7 +9,7 @@
     "start": "next start",
     "lint": "eslint",
     "postinstall": "prisma generate",
-    "test": "node --test eLeave/tests/unit/deployment.test.js eLeave/tests/unit/supervisionService.test.js eLeave/tests/unit/weeklyTimetable.test.js eLeave/tests/unit/evaluationModal.test.js eLeave/tests/unit/timetableService.test.js eLeave/tests/unit/timetableService_challenger.test.js eLeave/tests/unit/availabilityService.test.js eLeave/tests/unit/recommendationService.test.js eLeave/tests/unit/substituteWorkflowService.test.js eLeave/tests/unit/enterpriseTimetableEngine.test.js eLeave/tests/e2e/supervision.test.js"
+    "test": "node --test eLeave/tests/unit/deployment.test.js eLeave/tests/unit/supervisionService.test.js eLeave/tests/unit/weeklyTimetable.test.js eLeave/tests/unit/evaluationModal.test.js eLeave/tests/unit/timetableService.test.js eLeave/tests/unit/timetableService_challenger.test.js eLeave/tests/unit/availabilityService.test.js eLeave/tests/unit/recommendationService.test.js eLeave/tests/unit/substituteWorkflowService.test.js eLeave/tests/unit/enterpriseTimetableEngine.test.js eLeave/tests/unit/excelImportService.test.js eLeave/tests/e2e/supervision.test.js"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1090.0",
