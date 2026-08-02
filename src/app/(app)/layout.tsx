@@ -35,7 +35,9 @@ import {
   ChevronDown,
   ChevronRight,
   ArrowRightLeft,
-  CalendarDays as Calendar
+  CalendarDays as Calendar,
+  Building2,
+  Award
 } from "lucide-react";
 import { hasRepairPermission } from "@/lib/permissions";
 import { getNotifications } from "@/app/actions/admin";
