@@ -36,7 +36,7 @@ export default function SubstituteTeachingPage() {
 
   // Calculate Recommendations using AI Engine with 4-Factor Weighted Model
   const recService = new RecommendationService([], [
-    { teacherId: "t2", date: "2026-07-28" } // t2 has 1 past substitution penalty (-10)
+    { teacherId: "t2", date: "2026-07-28" }
   ]);
   const candidates = recService.rankCandidates(MOCK_TEACHERS, {
     subjectCode: "ว23101",
@@ -64,33 +64,27 @@ export default function SubstituteTeachingPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 p-4 md:p-8 space-y-8">
-      {/* Header Banner */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 p-6 md:p-8 text-white shadow-2xl">
-        <div className="absolute top-0 right-0 -mt-10 -mr-10 w-96 h-96 bg-white/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-          <div className="space-y-2">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/20 text-xs font-semibold backdrop-blur-md">
-              <ArrowRightLeft className="w-3.5 h-3.5 text-emerald-200" />
-              ระบบจัดครูสอนแทนออนไลน์ (Smart Substitute Routing)
-            </div>
-            <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight">
-              จัดครูสอนแทน & ใบบันทึกการปฏิบัติหน้าที่ (Order Slip)
-            </h1>
-            <p className="text-emerald-100 text-sm max-w-2xl leading-relaxed">
-              เชื่อมโยงตารางสอนแม่บท + eLeave, แนะนำครูด้วยโมเดล 4 ปัจจัย (Fairness Penalty) และพิมพ์ใบบันทึกการสอนแทน
-            </p>
-          </div>
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 p-4 md:p-8 space-y-6">
+      {/* Clean Minimal Top Header Bar (No Heavy Hero Banner) */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2 border-b border-slate-200 dark:border-slate-800">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+            <ArrowRightLeft className="w-6 h-6 text-teal-600 dark:text-teal-400" />
+            จัดครูสอนแทน (Substitute Routing)
+          </h1>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+            จัดครูสอนแทนรายคาบ อนุมัติ และออกใบบันทึกการสอนแทน
+          </p>
+        </div>
 
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => alert("พิมพ์รายงานคำสั่งปฏิบัติหน้าที่สอนแทนสำเร็จ!")}
-              className="px-4 py-2.5 rounded-xl bg-white/20 hover:bg-white/30 text-white text-xs font-bold backdrop-blur-md transition-all flex items-center gap-2"
-            >
-              <Printer className="w-4 h-4" />
-              พิมพ์คำสั่งการสอนแทน
-            </button>
-          </div>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => alert("พิมพ์คำสั่งการสอนแทนเรียบร้อย!")}
+            className="px-3.5 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200 text-xs font-bold hover:bg-slate-100 dark:hover:bg-slate-800 transition flex items-center gap-1.5 shadow-xs"
+          >
+            <Printer className="w-3.5 h-3.5 text-teal-600" />
+            พิมพ์คำสั่งสอนแทน
+          </button>
         </div>
       </div>
 
@@ -114,7 +108,7 @@ export default function SubstituteTeachingPage() {
               </div>
               <div className="flex justify-between border-b border-slate-100 pb-1.5">
                 <span className="font-bold text-slate-500">ครูผู้ปฏิบัติหน้าที่สอนแทน:</span>
-                <span className="font-bold text-emerald-600">{activeSlipModalPayload.substituteTeacherName}</span>
+                <span className="font-bold text-teal-600">{activeSlipModalPayload.substituteTeacherName}</span>
               </div>
               <div className="flex justify-between border-b border-slate-100 pb-1.5">
                 <span className="font-bold text-slate-500">รายวิชา & ชั้นเรียน:</span>
@@ -136,7 +130,7 @@ export default function SubstituteTeachingPage() {
 
               <button
                 onClick={() => window.print()}
-                className="px-5 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold flex items-center gap-2 shadow-md"
+                className="px-5 py-2 rounded-xl bg-teal-600 text-white text-xs font-bold flex items-center gap-2 shadow-md"
               >
                 <Printer className="w-4 h-4" />
                 พิมพ์ใบบันทึกการสอนแทน (A4)
@@ -151,7 +145,7 @@ export default function SubstituteTeachingPage() {
         {/* Left Panel: Request Input */}
         <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xl space-y-6">
           <div className="flex items-center gap-3">
-            <div className="p-3 rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+            <div className="p-3 rounded-2xl bg-teal-500/10 text-teal-600 dark:text-teal-400">
               <ArrowRightLeft className="w-6 h-6" />
             </div>
             <div>
@@ -203,38 +197,37 @@ export default function SubstituteTeachingPage() {
           </div>
         </div>
 
-        {/* Right Panel: AI Recommendation & 4-Factor Breakdown */}
+        {/* Right Panel: AI Recommendation */}
         <div className="lg:col-span-2 space-y-6">
           <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xl space-y-4">
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
                   <Sparkles className="w-5 h-5 text-amber-500" />
-                  รายชื่อครูที่แนะนำ (4-Factor AI Recommendation Matrix)
+                  รายชื่อครูที่แนะนำ (AI Recommendation)
                 </h3>
                 <p className="text-xs text-slate-500">
-                  คำนวณคะแนน match สาระวิชา, หักภาระงานสอนแทนสะสม (Fairness Penalty), และความพร้อมรายคาบ
+                  คำนวณความเหมาะสมจากวิชา ความพร้อม และกระจายภาระงานสอนแทน
                 </p>
               </div>
             </div>
 
             <div className="space-y-3">
-              {candidates.map((cand: any, idx: number) => (
+              {candidates.map((cand: any) => (
                 <div
                   key={cand.candidate.id}
-                  className="p-4 rounded-2xl border border-slate-200 dark:border-slate-800 hover:border-emerald-500 transition-all flex flex-col md:flex-row items-start md:items-center justify-between gap-4"
+                  className="p-4 rounded-2xl border border-slate-200 dark:border-slate-800 hover:border-teal-500 transition flex flex-col md:flex-row items-start md:items-center justify-between gap-4"
                 >
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
                       <span className="font-extrabold text-sm text-slate-900 dark:text-white">
                         {cand.candidate.name}
                       </span>
-                      <span className="px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 text-[10px] font-bold">
-                        Match Score: {cand.matchPercentage}%
+                      <span className="px-2 py-0.5 rounded-md bg-teal-100 text-teal-800 dark:bg-teal-950 dark:text-teal-300 text-[10px] font-bold">
+                        Match: {cand.matchPercentage}%
                       </span>
                     </div>
 
-                    {/* 4-Factor Breakdown Badges */}
                     <div className="flex flex-wrap items-center gap-1.5 pt-1">
                       {cand.explainabilityBreakdown.map((b: any, bIdx: number) => (
                         <span
@@ -251,10 +244,10 @@ export default function SubstituteTeachingPage() {
 
                   <button
                     onClick={() => handleAssignSubstitute(cand.candidate.id, cand.candidate.name)}
-                    className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md shrink-0 flex items-center gap-1.5"
+                    className="px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs shadow-md shrink-0 flex items-center gap-1.5"
                   >
                     <Send className="w-3.5 h-3.5" />
-                    มอบหมาย & พิมพ์ใบสอนแทน
+                    มอบหมาย & ออกใบสอนแทน
                   </button>
                 </div>
               ))}

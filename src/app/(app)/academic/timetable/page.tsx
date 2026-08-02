@@ -116,7 +116,7 @@ export default function TimetableBuilderPage() {
       setBlocks(result.blocks);
       setCascadeResult(result);
     } catch (e: any) {
-      alert("เกิดข้อผิดพลาดในการประมวลผล Progressive Cascade: " + e.message);
+      alert("เกิดข้อผิดพลาดในการประมวลผล: " + e.message);
     } finally {
       setIsSolving(false);
     }
@@ -168,41 +168,35 @@ export default function TimetableBuilderPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 p-4 md:p-8 space-y-6">
-      {/* Header Banner */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 p-6 md:p-8 text-white shadow-2xl">
-        <div className="absolute top-0 right-0 -mt-10 -mr-10 w-96 h-96 bg-white/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-          <div className="space-y-2">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/20 text-xs font-semibold backdrop-blur-md">
-              <Calendar className="w-3.5 h-3.5 text-amber-300" />
-              Next-Gen Enterprise Scheduling Platform (100/100 Spec)
-            </div>
-            <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight">
-              ระบบจัดตารางสอนแม่บทอัจฉริยะ (Master Timetable)
-            </h1>
-            <p className="text-purple-100 text-sm max-w-2xl leading-relaxed">
-               Progressive Optimization Cascade, Schedule Stability Score (&gt;95%), Multi-Level Lock Model และ Change Budget Policy
-            </p>
-          </div>
+      {/* Clean Minimal Top Header Bar (No Heavy Hero Banner) */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2 border-b border-slate-200 dark:border-slate-800">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+            <Calendar className="w-6 h-6 text-purple-600 dark:text-purple-400" />
+            จัดตารางสอนแม่บท (Master Timetable)
+          </h1>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+            จัดตารางสอน ตรวจสอบข้อขัดแย้ง ปรับสมดุลภาระงาน และพิมพ์ตารางสอน
+          </p>
+        </div>
 
-          <div className="flex flex-wrap items-center gap-3">
-            <button
-              onClick={() => setShowImportModal(true)}
-              className="px-4 py-2.5 rounded-xl bg-white/20 hover:bg-white/30 text-white text-xs font-bold backdrop-blur-md transition-all flex items-center gap-2"
-            >
-              <Upload className="w-4 h-4 text-emerald-300" />
-              นำเข้าข้อมูลด้วย Excel
-            </button>
+        <div className="flex flex-wrap items-center gap-2.5">
+          <button
+            onClick={() => setShowImportModal(true)}
+            className="px-3.5 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200 text-xs font-bold hover:bg-slate-100 dark:hover:bg-slate-800 transition flex items-center gap-1.5 shadow-xs"
+          >
+            <Upload className="w-3.5 h-3.5 text-emerald-500" />
+            นำเข้าด้วย Excel
+          </button>
 
-            <button
-              onClick={handleRunProgressiveCascade}
-              disabled={isSolving}
-              className="px-5 py-3 rounded-2xl font-extrabold text-xs bg-gradient-to-r from-amber-400 to-orange-500 text-slate-900 shadow-xl hover:shadow-amber-500/20 transition-all flex items-center gap-2 disabled:opacity-50"
-            >
-              <Sparkles className="w-4 h-4 text-slate-900" />
-              {isSolving ? "กำลังประมวลผล Cascade..." : "⚖️ สั่ง AI เฉลี่ยภาระงาน (Progressive Cascade)"}
-            </button>
-          </div>
+          <button
+            onClick={handleRunProgressiveCascade}
+            disabled={isSolving}
+            className="px-4 py-2 rounded-xl text-xs font-bold bg-purple-600 hover:bg-purple-700 text-white shadow-md transition flex items-center gap-1.5 disabled:opacity-50"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+            {isSolving ? "กำลังประมวลผล..." : "สั่ง AI เฉลี่ยภาระงาน"}
+          </button>
         </div>
       </div>
 
@@ -214,27 +208,27 @@ export default function TimetableBuilderPage() {
               <div>
                 <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
                   <FileSpreadsheet className="w-5 h-5 text-emerald-500" />
-                  นำเข้าข้อมูลวิชาและครูผู้สอนด้วย Excel / CSV
+                  นำเข้าข้อมูลด้วย Excel / CSV
                 </h2>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                  ดาวน์โหลด Template, ตรวจสอบข้อมูลรายแถว และแก้ไขข้อมูลบนเว็บก่อนกดยืนยัน
+                  ตรวจสอบและแก้ไขข้อมูลล่วงหน้าก่อนกดยืนยัน
                 </p>
               </div>
 
               <button
                 onClick={handleDownloadSampleTemplate}
-                className="px-3.5 py-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 text-emerald-700 dark:text-emerald-300 text-xs font-bold transition-all flex items-center gap-1.5"
+                className="px-3.5 py-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 text-emerald-700 dark:text-emerald-300 text-xs font-bold transition flex items-center gap-1.5"
               >
                 <Download className="w-4 h-4" />
-                ดาวน์โหลด Template ตัวอย่าง
+                ดาวน์โหลด Template
               </button>
             </div>
 
             {/* Interactive Preview Data Grid */}
             <div className="space-y-3">
               <div className="flex items-center justify-between text-xs font-bold text-slate-700 dark:text-slate-300">
-                <span>ตาราง Preview ตรวจสอบข้อมูล ({importRows.length} รายการ)</span>
-                <span className="text-slate-400 font-normal">💡 คลิกที่เซลล์เพื่อแก้ไขข้อมูลล่วงหน้าบนเว็บ</span>
+                <span>ตาราง Preview ({importRows.length} รายการ)</span>
+                <span className="text-slate-400 font-normal">💡 คลิกที่เซลล์เพื่อแก้ไขข้อมูล</span>
               </div>
 
               <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800">
@@ -284,7 +278,7 @@ export default function TimetableBuilderPage() {
                               const val = e.target.value;
                               setImportRows(prev => prev.map((r, i) => i === index ? { ...r, subjectName: val, isValid: Boolean(r.subjectCode && val && r.classroomName) } : r));
                             }}
-                            className="w-full px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-transparent font-semibold focus:ring-1 focus:ring-purple-500"
+                            className="w-full px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-transparent focus:ring-1 focus:ring-purple-500"
                           />
                         </td>
                         <td className="p-3 text-center">
@@ -330,16 +324,16 @@ export default function TimetableBuilderPage() {
             <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-200 dark:border-slate-800">
               <button
                 onClick={() => setShowImportModal(false)}
-                className="px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100"
+                className="px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-700 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100"
               >
                 ยกเลิก
               </button>
               <button
                 onClick={handleConfirmImport}
-                className="px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs flex items-center gap-2 shadow-md"
+                className="px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs flex items-center gap-2 shadow-md"
               >
                 <Check className="w-4 h-4" />
-                ยืนยันนำเข้าข้อมูลเข้าสู่ระบบ
+                ยืนยันนำเข้าข้อมูล
               </button>
             </div>
           </div>
@@ -347,76 +341,76 @@ export default function TimetableBuilderPage() {
       )}
 
       {/* Navigation Tab Bar */}
-      <div className="flex border-b border-slate-200 dark:border-slate-800 gap-2 bg-white dark:bg-slate-900 p-2 rounded-2xl shadow-sm">
+      <div className="flex border-b border-slate-200 dark:border-slate-800 gap-2 bg-white dark:bg-slate-900 p-1.5 rounded-2xl shadow-xs">
         <button
           onClick={() => setActiveTab("CANVAS")}
-          className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+          className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 ${
             activeTab === "CANVAS"
-              ? "bg-purple-600 text-white shadow-md"
+              ? "bg-purple-600 text-white shadow-xs"
               : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
           }`}
         >
-          <Calendar className="w-4 h-4" />
-          🎛️ ตารางInteractive Grid & AI Console
+          <Calendar className="w-3.5 h-3.5" />
+          ตาราง Interactive Grid
         </button>
 
         <button
           onClick={() => setActiveTab("ACTIVITIES")}
-          className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+          className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 ${
             activeTab === "ACTIVITIES"
-              ? "bg-purple-600 text-white shadow-md"
+              ? "bg-purple-600 text-white shadow-xs"
               : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
           }`}
         >
-          <Award className="w-4 h-4" />
-          ⚜️ กิจกรรมพัฒนาผู้เรียน & คาบล็อค
+          <Award className="w-3.5 h-3.5" />
+          กิจกรรมพัฒนาผู้เรียน & คาบล็อค
         </button>
 
         <button
           onClick={() => setActiveTab("BLOCKED_SLOTS")}
-          className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+          className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 ${
             activeTab === "BLOCKED_SLOTS"
-              ? "bg-purple-600 text-white shadow-md"
+              ? "bg-purple-600 text-white shadow-xs"
               : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
           }`}
         >
-          <Shield className="w-4 h-4" />
-          🚫 กำหนดเวลาห้ามสอนของครู
+          <Shield className="w-3.5 h-3.5" />
+          เวลาห้ามสอนของครู
         </button>
 
         <button
           onClick={() => setActiveTab("PRINT")}
-          className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+          className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 ${
             activeTab === "PRINT"
-              ? "bg-purple-600 text-white shadow-md"
+              ? "bg-purple-600 text-white shadow-xs"
               : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
           }`}
         >
-          <Printer className="w-4 h-4" />
-          🖨️ พิมพ์ตารางเรียน / ตารางสอน A4
+          <Printer className="w-3.5 h-3.5" />
+          พิมพ์ตารางเรียน / ตารางสอน A4
         </button>
       </div>
 
-      {/* TAB 1: Timetable Canvas & AI Console */}
+      {/* TAB 1: Timetable Canvas */}
       {activeTab === "CANVAS" && (
         <div className="space-y-6">
           {/* Action Filter & Change Budget Bar */}
-          <div className="flex flex-col md:flex-row items-center justify-between gap-4 bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-4 bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
             <div className="flex items-center gap-3 w-full md:w-auto">
               <div className="relative flex-1 md:w-56">
-                <Search className="w-4 h-4 absolute left-3 top-3 text-slate-400" />
+                <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-slate-400" />
                 <input
                   type="text"
                   placeholder="ค้นหาชื่อครู/วิชา/ห้อง..."
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
-                  className="w-full pl-9 pr-4 py-2 text-xs rounded-xl bg-slate-100 dark:bg-slate-800 border-none focus:ring-2 focus:ring-purple-500"
+                  className="w-full pl-8 pr-3 py-1.5 text-xs rounded-xl bg-slate-100 dark:bg-slate-800 border-none focus:ring-2 focus:ring-purple-500"
                 />
               </div>
               <select
                 value={selectedClass}
                 onChange={e => setSelectedClass(e.target.value)}
-                className="px-3 py-2 text-xs rounded-xl bg-slate-100 dark:bg-slate-800 font-semibold border-none focus:ring-2 focus:ring-purple-500"
+                className="px-3 py-1.5 text-xs rounded-xl bg-slate-100 dark:bg-slate-800 font-semibold border-none focus:ring-2 focus:ring-purple-500"
               >
                 <option value="ม.3/1">ชั้น ม.3/1</option>
                 <option value="ม.3/2">ชั้น ม.3/2</option>
@@ -424,16 +418,16 @@ export default function TimetableBuilderPage() {
               </select>
             </div>
 
-            {/* Change Budget Policy Inputs */}
+            {/* Change Budget Inputs */}
             <div className="flex items-center gap-3 text-xs">
-              <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700">
+              <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 px-3 py-1 rounded-xl border border-slate-200 dark:border-slate-700">
                 <Sliders className="w-3.5 h-3.5 text-purple-500" />
-                <span className="font-bold text-slate-600 dark:text-slate-300">Change Budget Max:</span>
+                <span className="font-bold text-slate-600 dark:text-slate-300">เพดานการย้ายคาบ:</span>
                 <input
                   type="number"
                   value={maxChangedSlotsBudget}
                   onChange={e => setMaxChangedSlotsBudget(parseInt(e.target.value, 10) || 10)}
-                  className="w-12 px-1.5 py-0.5 text-center font-bold text-purple-600 bg-transparent border-b border-purple-400"
+                  className="w-10 px-1 py-0.5 text-center font-bold text-purple-600 bg-transparent border-b border-purple-400"
                 />
                 <span className="text-slate-400">คาบ</span>
               </div>
@@ -442,31 +436,24 @@ export default function TimetableBuilderPage() {
 
           {/* Progressive Optimization Cascade Result Dashboard */}
           {cascadeResult && (
-            <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-200 dark:border-slate-800 shadow-xl space-y-4">
+            <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200 dark:border-slate-800 shadow-sm space-y-2">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="p-3 rounded-2xl font-black text-xl bg-gradient-to-r from-emerald-500 to-teal-600 text-white">
-                    🛡️ {cascadeResult.scheduleStabilityScore}%
+                  <div className="px-3 py-1.5 rounded-xl font-bold text-sm bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
+                    🛡️ ความคงเดิม: {cascadeResult.scheduleStabilityScore}%
                   </div>
                   <div>
-                    <h3 className="font-bold text-slate-900 dark:text-white text-base">
+                    <h3 className="font-bold text-slate-900 dark:text-white text-xs">
                       {cascadeResult.explainabilityReport.overallSummary}
                     </h3>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">
-                      Scope Level Executed: <strong className="text-purple-600 dark:text-purple-400">{cascadeResult.scopeLevelExecuted}</strong> | Time: {cascadeResult.executionTimeMs} ms
+                    <p className="text-[11px] text-slate-500">
+                      ผลกระทบ: สลับ {cascadeResult.impactSummary.changedSlotsCount} คาบ | ครู {cascadeResult.impactSummary.changedTeachersCount} ท่าน
                     </p>
                   </div>
                 </div>
 
-                <div className="flex gap-3">
-                  <div className="text-center px-4 py-2 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200">
-                    <span className="text-[10px] text-slate-400 block font-bold">Fairness Index</span>
-                    <span className="font-extrabold text-sm text-emerald-600">{cascadeResult.fairnessIndexBefore}% ➔ {cascadeResult.fairnessIndexAfter}% 🟢</span>
-                  </div>
-                  <div className="text-center px-4 py-2 rounded-2xl bg-purple-50 dark:bg-purple-950/40 border border-purple-200">
-                    <span className="text-[10px] text-slate-400 block font-bold">Impact Summary</span>
-                    <span className="font-extrabold text-sm text-purple-600">{cascadeResult.impactSummary.changedSlotsCount} คาบ | {cascadeResult.impactSummary.changedTeachersCount} ครู</span>
-                  </div>
+                <div className="text-xs font-extrabold text-emerald-600">
+                  Fairness: {cascadeResult.fairnessIndexBefore}% ➔ {cascadeResult.fairnessIndexAfter}% 🟢
                 </div>
               </div>
             </div>
@@ -549,46 +536,44 @@ export default function TimetableBuilderPage() {
       {/* TAB 2: Activity Scope Config */}
       {activeTab === "ACTIVITIES" && (
         <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-200 dark:border-slate-800 shadow-xl space-y-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-lg font-bold text-slate-900 dark:text-white">
-                ⚜️ กำหนดคาบล็อคกิจกรรมพัฒนาผู้เรียน & พักเที่ยง
-              </h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                กำหนดขอบเขตผู้เรียนที่ต้องเข้าร่วมกิจกรรม (ทั้งโรงเรียน / รายช่วงชั้น ม.ต้น-ม.ปลาย / รายห้องเรียน)
-              </p>
-            </div>
+          <div>
+            <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+              ⚜️ กิจกรรมพัฒนาผู้เรียน & คาบล็อค
+            </h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+              กำหนดขอบเขตผู้เรียนเข้าร่วมกิจกรรม
+            </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-            <div className="p-4 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-3">
-              <div className="font-bold text-purple-600 dark:text-purple-400 text-sm">🍚 พักกลางวัน (LUNCH)</div>
+            <div className="p-4 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-2">
+              <div className="font-bold text-purple-600 dark:text-purple-400 text-sm">🍚 พักกลางวัน</div>
               <p className="text-slate-500">คาบที่ 4 (11:00 - 11:50 น.) | ขอบเขต: ทั้งโรงเรียน</p>
-              <span className="inline-block px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700 font-bold">
+              <span className="inline-block px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-bold">
                 ✓ ล็อคทุกวันจันทร์ - ศุกร์
               </span>
             </div>
 
-            <div className="p-4 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-3">
-              <div className="font-bold text-amber-600 dark:text-amber-400 text-sm">⚜️ ลูกเสือ - เนตรนารี (SCOUT)</div>
-              <p className="text-slate-500">วันพุธ คาบที่ 7 (14:30 - 15:20 น.) | ขอบเขต: ม.ต้น (ม.1 - ม.3)</p>
-              <span className="inline-block px-2.5 py-1 rounded-full bg-purple-100 text-purple-700 font-bold">
+            <div className="p-4 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-2">
+              <div className="font-bold text-amber-600 dark:text-amber-400 text-sm">⚜️ ลูกเสือ - เนตรนารี</div>
+              <p className="text-slate-500">วันพุธ คาบที่ 7 (14:30 - 15:20 น.) | ขอบเขต: ม.ต้น</p>
+              <span className="inline-block px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 font-bold">
                 ✓ ล็อคช่วงชั้น ม.ต้น
               </span>
             </div>
 
-            <div className="p-4 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-3">
-              <div className="font-bold text-indigo-600 dark:text-indigo-400 text-sm">🧩 กิจกรรมชุมนุม (CLUB)</div>
-              <p className="text-slate-500">วันพฤหัสบดี คาบที่ 7 (14:30 - 15:20 น.) | ขอบเขต: ม.ปลาย (ม.4 - ม.6)</p>
-              <span className="inline-block px-2.5 py-1 rounded-full bg-indigo-100 text-indigo-700 font-bold">
+            <div className="p-4 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-2">
+              <div className="font-bold text-indigo-600 dark:text-indigo-400 text-sm">🧩 กิจกรรมชุมนุม</div>
+              <p className="text-slate-500">วันพฤหัสบดี คาบที่ 7 (14:30 - 15:20 น.) | ขอบเขต: ม.ปลาย</p>
+              <span className="inline-block px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 font-bold">
                 ✓ ล็อคช่วงชั้น ม.ปลาย
               </span>
             </div>
 
-            <div className="p-4 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-3">
-              <div className="font-bold text-blue-600 dark:text-blue-400 text-sm">☸️ สวดมนต์ / โฮมรูม (ASSEMBLY)</div>
+            <div className="p-4 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-2">
+              <div className="font-bold text-blue-600 dark:text-blue-400 text-sm">☸️ สวดมนต์ / โฮมรูม</div>
               <p className="text-slate-500">วันจันทร์ คาบที่ 1 (08:30 - 09:20 น.) | ขอบเขต: ทั้งโรงเรียน</p>
-              <span className="inline-block px-2.5 py-1 rounded-full bg-blue-100 text-blue-700 font-bold">
+              <span className="inline-block px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-bold">
                 ✓ ล็อคทั้งโรงเรียน
               </span>
             </div>
@@ -598,18 +583,18 @@ export default function TimetableBuilderPage() {
 
       {/* TAB 3: Teacher Unavailability Matrix */}
       {activeTab === "BLOCKED_SLOTS" && (
-        <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-200 dark:border-slate-800 shadow-xl space-y-6">
+        <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-200 dark:border-slate-800 shadow-xl space-y-4">
           <div>
             <h2 className="text-lg font-bold text-slate-900 dark:text-white">
-              🚫 กำหนดเวลาห้ามสอนของครูรายบุคคล (Teacher Blocked Slots Matrix)
+              🚫 กำหนดเวลาห้ามสอนของครูรายบุคคล
             </h2>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-              เลือกครูผู้สอนและคลิกคาบที่ไม่ต้องการให้จัดตารางสอน (เช่น ติดภารกิจฝ่ายการเงินงดสอนวันศุกร์บ่าย)
+              งดจัดสอนคาบที่ครูติดภารกิจประจำสัปดาห์
             </p>
           </div>
 
-          <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-300 text-xs">
-            💡 **ตัวอย่างเงื่อนไขครู**: ครูสมชาย สายวิทย์ (ฝ่ายการเงิน) งดจัดคาบสอนในวันศุกร์ คาบ 6-7 เพื่อไปถอนเงินประจำสัปดาห์
+          <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 text-amber-900 text-xs">
+            💡 **ตัวอย่าง**: ครูสมชาย สายวิทย์ (ฝ่ายการเงิน) งดจัดคาบสอนวันศุกร์ คาบ 6-7
           </div>
         </div>
       )}
@@ -617,12 +602,12 @@ export default function TimetableBuilderPage() {
       {/* TAB 4: Print & Customizer Dashboard */}
       {activeTab === "PRINT" && (
         <div className="space-y-6">
-          {/* Customizer Settings Controls */}
+          {/* Customizer Controls */}
           <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-200 dark:border-slate-800 shadow-xl space-y-4">
             <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
               <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
                 <Settings className="w-5 h-5 text-purple-500" />
-                ตั้งค่ารูปแบบการพิมพ์ A4 (Print Template Customizer Controls)
+                ตั้งค่ารูปแบบการพิมพ์ A4
               </h2>
               <button
                 onClick={() => window.print()}
@@ -635,7 +620,7 @@ export default function TimetableBuilderPage() {
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
               <div className="space-y-1">
-                <label className="font-bold text-slate-700 dark:text-slate-300">ชื่อโรงเรียน (Header)</label>
+                <label className="font-bold text-slate-700 dark:text-slate-300">ชื่อโรงเรียน</label>
                 <input
                   type="text"
                   value={printPreset.schoolName}
@@ -655,7 +640,7 @@ export default function TimetableBuilderPage() {
               </div>
 
               <div className="space-y-1">
-                <label className="font-bold text-slate-700 dark:text-slate-300">แนววางกระดาษ (Orientation)</label>
+                <label className="font-bold text-slate-700 dark:text-slate-300">แนววางกระดาษ</label>
                 <select
                   value={printPreset.orientation}
                   onChange={e => setPrintPreset(prev => ({ ...prev, orientation: e.target.value as any }))}
@@ -670,7 +655,6 @@ export default function TimetableBuilderPage() {
 
           {/* Real-time WYSIWYG A4 Print Preview Sheet */}
           <div className="bg-white text-slate-900 rounded-3xl p-8 border border-slate-300 shadow-2xl space-y-6 max-w-5xl mx-auto font-sans">
-            {/* Header Block */}
             <div className="text-center space-y-1 border-b border-slate-300 pb-4">
               <h1 className="text-xl font-black tracking-tight">{printPreset.schoolName}</h1>
               <p className="text-xs font-semibold text-slate-600">{printPreset.subHeaderText}</p>
@@ -679,7 +663,6 @@ export default function TimetableBuilderPage() {
               </h2>
             </div>
 
-            {/* Timetable Matrix Grid Preview */}
             <div className="overflow-x-auto">
               <table className="w-full text-center border-collapse border border-slate-400 text-xs">
                 <thead>
@@ -720,7 +703,6 @@ export default function TimetableBuilderPage() {
               </table>
             </div>
 
-            {/* Workload Summary Table */}
             {printPreset.showWorkloadSummary && (
               <div className="flex justify-between items-center bg-slate-50 p-4 rounded-xl border border-slate-300 text-xs">
                 <span className="font-bold">📊 สรุปภาระงานสอนรวม:</span>
@@ -730,7 +712,6 @@ export default function TimetableBuilderPage() {
               </div>
             )}
 
-            {/* 3-Column Signatures Block */}
             {printPreset.showSignaturesBlock && (
               <div className="grid grid-cols-3 gap-6 pt-8 text-center text-xs text-slate-700">
                 <div className="space-y-8">
