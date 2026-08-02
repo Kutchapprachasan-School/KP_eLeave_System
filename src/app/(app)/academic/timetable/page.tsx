@@ -11,7 +11,7 @@ import {
   AlertTriangle,
   FileSpreadsheet
 } from "lucide-react";
-import { TimetableService } from "@/../../eLeave/src/services/timetableService.js";
+import { TimetableService } from "@/lib/services/timetableService";
 
 // Mock Master Data
 const MOCK_SLOTS_INITIAL = [

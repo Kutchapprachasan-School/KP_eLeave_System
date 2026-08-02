@@ -13,8 +13,8 @@ import {
   Building2,
   FileSpreadsheet
 } from "lucide-react";
-import { RecommendationService } from "@/../../eLeave/src/services/recommendationService.js";
-import { SubstituteWorkflowService } from "@/../../eLeave/src/services/substituteWorkflowService.js";
+import { RecommendationService } from "@/lib/services/recommendationService";
+import { SubstituteWorkflowService } from "@/lib/services/substituteWorkflowService";
 
 const MOCK_TEACHERS = [
   { id: "t1", name: "ครูสมชาย สายวิทย์", departmentId: "DEP-SCI", subjectCode: "ว23101", maxWeekly: 20 },
