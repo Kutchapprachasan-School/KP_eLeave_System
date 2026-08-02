@@ -177,13 +177,13 @@ export default function AcademicSettingsPage() {
         </button>
 
         <button
-          onClick={() => setActiveTab("FACILITY")}
+          onClick={() => setActiveTab("ACTIVITIES")}
           className={`py-2 px-3.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shrink-0 ${
-            activeTab === "FACILITY" ? "bg-purple-600 text-white shadow-xs" : "text-slate-600 dark:text-slate-400 hover:bg-slate-100"
+            activeTab === "ACTIVITIES" ? "bg-purple-600 text-white shadow-xs" : "text-slate-600 dark:text-slate-400 hover:bg-slate-100"
           }`}
         >
-          <Laptop className="w-3.5 h-3.5" />
-          ทรัพยากรส่วนกลาง
+          <Lock className="w-3.5 h-3.5" />
+          คาบล็อคกิจกรรมพัฒนาผู้เรียน
         </button>
 
         <button
@@ -193,18 +193,27 @@ export default function AcademicSettingsPage() {
           }`}
         >
           <FileText className="w-3.5 h-3.5" />
-          ระบบสอบส่วนกลาง
+          ระบบสอบส่วนกลาง (วิชาการ)
         </button>
+      </div>
 
-        <button
-          onClick={() => setActiveTab("PA_GUIDELINES")}
-          className={`py-2 px-3.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shrink-0 ${
-            activeTab === "PA_GUIDELINES" ? "bg-purple-600 text-white shadow-xs" : "text-slate-600 dark:text-slate-400 hover:bg-slate-100"
-          }`}
-        >
-          <Award className="w-3.5 h-3.5" />
-          เกณฑ์ PA & ชั่วโมง PD
-        </button>
+      {/* Division Navigation Shortcuts */}
+      <div className="p-3 rounded-2xl bg-slate-100/70 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs">
+        <span className="font-bold text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+          <Settings className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+          ไปยังส่วนตั้งค่าตามฝ่ายงาน:
+        </span>
+        <div className="flex flex-wrap items-center gap-2">
+          <a href="/academic/facility" className="px-3 py-1 rounded-xl bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300 font-bold border border-teal-200 dark:border-teal-800 hover:bg-teal-100 transition flex items-center gap-1">
+            🏢 ฝ่ายบริหารทั่วไป (ทรัพยากรกลาง) ›
+          </a>
+          <a href="/academic/competency" className="px-3 py-1 rounded-xl bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 font-bold border border-rose-200 dark:border-rose-800 hover:bg-rose-100 transition flex items-center gap-1">
+            👥 ฝ่ายบุคคล (เกณฑ์ PA & PD) ›
+          </a>
+          <a href="/settings?section=document-settings" className="px-3 py-1 rounded-xl bg-orange-50 dark:bg-orange-950/40 text-orange-700 dark:text-orange-300 font-bold border border-orange-200 dark:border-orange-800 hover:bg-orange-100 transition flex items-center gap-1">
+            📄 ฝ่ายสารบรรณ (เอกสาร) ›
+          </a>
+        </div>
       </div>
 
       {/* TAB 1: Year & Time Slot Settings */}
