@@ -35,7 +35,7 @@ import {
   ChevronDown,
   ChevronRight,
   ArrowRightLeft,
-  Calendar
+  CalendarDays as Calendar
 } from "lucide-react";
 import { hasRepairPermission } from "@/lib/permissions";
 
@@ -891,21 +891,14 @@ function AppContent({ children }: { children: React.ReactNode }) {
             </div>
           )}
 
-          {/* Section 3: งานฝ่ายวิชาการ */}
+          {/* Section 3: วิชาการ */}
           {academicSubItems.length > 0 && (
             <div className="space-y-1.5">
               <div className="px-3 pb-0.5 text-[11.5px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
                 วิชาการ
               </div>
 
-              <CollapsibleGroup
-                title="งานฝ่ายวิชาการ"
-                icon={BookOpen}
-                items={academicSubItems}
-                pathname={pathname}
-                searchParams={searchParams}
-                renderNavItem={renderNavItem}
-              />
+              {academicSubItems.map((item) => renderNavItem(item))}
             </div>
           )}
 

@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { 
-  Calendar, 
+  CalendarDays as Calendar, 
   Sparkles, 
   Layers, 
   Search, 

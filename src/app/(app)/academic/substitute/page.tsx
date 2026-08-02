@@ -8,7 +8,7 @@ import {
   CheckCircle2, 
   AlertTriangle, 
   Users, 
-  Calendar,
+  CalendarDays as Calendar,
   Clock,
   Building2,
   FileSpreadsheet
