@@ -460,16 +460,20 @@ export default function LeaveDashboardClient() {
     );
   }
 
-  const { isOverview, usedDaysMap, leaveConfigs, pendingCount, totalStaff, approvalRate, monthlyData, deptStats, recentRequests, limitTimes = 6, limitDays = 15 } = stats;
+  const { isOverview, usedDaysMap = {}, leaveConfigs = [], pendingCount = 0, totalStaff = 0, approvalRate = 100, monthlyData = [], deptStats = [], recentRequests = [], limitTimes = 6, limitDays = 15 } = stats || {};
   
   let totalUsed = 0;
-  for (const type in usedDaysMap) {
-    totalUsed += usedDaysMap[type];
+  if (usedDaysMap && typeof usedDaysMap === "object") {
+    for (const type in usedDaysMap) {
+      totalUsed += (usedDaysMap[type] || 0);
+    }
   }
 
-  const totalQuota = leaveConfigs
-    ?.filter((c: any) => c.isActive !== false && c.maxDaysPerYear > 0)
-    .reduce((sum: number, c: any) => sum + c.maxDaysPerYear, 0) || 15;
+  const totalQuota = Array.isArray(leaveConfigs)
+    ? leaveConfigs
+        .filter((c: any) => c && c.isActive !== false && c.maxDaysPerYear > 0)
+        .reduce((sum: number, c: any) => sum + (c.maxDaysPerYear || 0), 0) || 15
+    : 15;
   const totalRemaining = Math.max(totalQuota - totalUsed, 0);
   const watchlistRemaining = Math.max(limitDays - (stats.userWatchlistStats?.totalDays ?? 0), 0);
   const user = session?.user as any;

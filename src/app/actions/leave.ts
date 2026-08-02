@@ -440,6 +440,9 @@ export async function getDashboardStats(
 ) {
   try {
     const session = await getSession();
+    if (!session?.user) {
+      throw new Error("Unauthorized");
+    }
     const user = session.user as any;
     
     // Check if user is a configured final approver
