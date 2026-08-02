@@ -2472,27 +2472,36 @@ export default function SettingsPage() {
 
   // --- Detail Section Header ---
 
-  const SectionHeader = ({ title }: { title: string }) => (
+  const SectionHeader = ({ title }: { title: string }) => {
+    const handleBack = () => {
+      const subsystemSections = [
+        "attendance-settings",
+        "document-settings",
+        "repair-settings",
+        "timetable-settings",
+        "substitute-settings",
+        "supervision-settings"
+      ];
+      if (activeSection && subsystemSections.includes(activeSection)) {
+        setActiveSection("subsystems");
+      } else {
+        setActiveSection(null);
+      }
+    };
 
-    <div className="flex items-center gap-3 mb-6">
-
-      <button
-
-        onClick={() => setActiveSection(null)}
-
-        className="w-9 h-9 rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 flex items-center justify-center hover:bg-gray-50 dark:hover:bg-gray-800 transition-all shrink-0 shadow-sm"
-
-      >
-
-        <ArrowLeft className="w-4 h-4 text-gray-700 dark:text-gray-300" />
-
-      </button>
-
-      <h2 className="text-lg font-bold text-gray-900 dark:text-white">{title}</h2>
-
-    </div>
-
-  );
+    return (
+      <div className="flex items-center gap-3 mb-6">
+        <button
+          type="button"
+          onClick={handleBack}
+          className="w-9 h-9 rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 flex items-center justify-center hover:bg-gray-50 dark:hover:bg-gray-800 transition-all shrink-0 shadow-sm"
+        >
+          <ArrowLeft className="w-4 h-4 text-gray-700 dark:text-gray-300" />
+        </button>
+        <h2 className="text-lg font-bold text-gray-900 dark:text-white">{title}</h2>
+      </div>
+    );
+  };
 
   // --- Sticky Save Bar ---
 
@@ -7301,16 +7310,7 @@ export default function SettingsPage() {
   const renderTimetableSettingsSection = () => {
     return (
       <div className="bg-white dark:bg-gray-900 rounded-2xl p-6 md:p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-100 dark:border-gray-800 space-y-6">
-        <div className="flex items-center justify-between">
-          <SectionHeader title="ตั้งค่าระบบจัดตารางสอน (Timetable Builder Settings)" />
-          <button
-            type="button"
-            onClick={() => setActiveSection(null)}
-            className="px-3.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 text-xs font-bold transition-all"
-          >
-            ← กลับไปหน้าตั้งค่าหลัก
-          </button>
-        </div>
+        <SectionHeader title="ตั้งค่าระบบจัดตารางสอน (Timetable Builder Settings)" />
 
         <form onSubmit={async (e) => {
           e.preventDefault();
@@ -7383,16 +7383,7 @@ export default function SettingsPage() {
   const renderSubstituteSettingsSection = () => {
     return (
       <div className="bg-white dark:bg-gray-900 rounded-2xl p-6 md:p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-100 dark:border-gray-800 space-y-6">
-        <div className="flex items-center justify-between">
-          <SectionHeader title="ตั้งค่าระบบจัดครูสอนแทน (Substitute Routing Settings)" />
-          <button
-            type="button"
-            onClick={() => setActiveSection(null)}
-            className="px-3.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 text-xs font-bold transition-all"
-          >
-            ← กลับไปหน้าตั้งค่าหลัก
-          </button>
-        </div>
+        <SectionHeader title="ตั้งค่าระบบจัดครูสอนแทน (Substitute Routing Settings)" />
 
         <form onSubmit={async (e) => {
           e.preventDefault();
@@ -7463,16 +7454,7 @@ export default function SettingsPage() {
   const renderSupervisionSettingsSection = () => {
     return (
       <div className="bg-white dark:bg-gray-900 rounded-2xl p-6 md:p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-100 dark:border-gray-800 space-y-6">
-        <div className="flex items-center justify-between">
-          <SectionHeader title="ตั้งค่าระบบนิเทศการสอนออนไลน์ (Instructional Supervision Settings)" />
-          <button
-            type="button"
-            onClick={() => setActiveSection(null)}
-            className="px-3.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 text-xs font-bold transition-all"
-          >
-            ← กลับไปหน้าตั้งค่าหลัก
-          </button>
-        </div>
+        <SectionHeader title="ตั้งค่าระบบนิเทศการสอนออนไลน์ (Instructional Supervision Settings)" />
 
         <form onSubmit={async (e) => {
           e.preventDefault();
