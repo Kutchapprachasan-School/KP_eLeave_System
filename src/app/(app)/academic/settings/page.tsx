@@ -14,13 +14,16 @@ import {
   RotateCcw,
   Check,
   Plus,
-  Trash2
+  Trash2,
+  Award,
+  FileText,
+  Laptop
 } from "lucide-react";
 import { AcademicSettingsService } from "@/lib/services/academicSettingsService";
 
 export default function AcademicSettingsPage() {
   const [settings, setSettings] = useState(AcademicSettingsService.getSettings());
-  const [activeTab, setActiveTab] = useState<"YEAR_TIME" | "WORKLOAD" | "DEPARTMENTS" | "CLASSROOMS" | "ACTIVITIES">("YEAR_TIME");
+  const [activeTab, setActiveTab] = useState<"YEAR_TIME" | "WORKLOAD" | "DEPARTMENTS" | "CLASSROOMS" | "ACTIVITIES" | "FACILITY" | "EXAM_CONFIG" | "PA_GUIDELINES">("YEAR_TIME");
   const [isSaved, setIsSaved] = useState(false);
 
   // New Department Form State
@@ -171,6 +174,36 @@ export default function AcademicSettingsPage() {
         >
           <Lock className="w-3.5 h-3.5" />
           คาบล็อคกิจกรรมพัฒนาผู้เรียน
+        </button>
+
+        <button
+          onClick={() => setActiveTab("FACILITY")}
+          className={`py-2 px-3.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shrink-0 ${
+            activeTab === "FACILITY" ? "bg-purple-600 text-white shadow-xs" : "text-slate-600 dark:text-slate-400 hover:bg-slate-100"
+          }`}
+        >
+          <Laptop className="w-3.5 h-3.5" />
+          ทรัพยากรส่วนกลาง
+        </button>
+
+        <button
+          onClick={() => setActiveTab("EXAM_CONFIG")}
+          className={`py-2 px-3.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shrink-0 ${
+            activeTab === "EXAM_CONFIG" ? "bg-purple-600 text-white shadow-xs" : "text-slate-600 dark:text-slate-400 hover:bg-slate-100"
+          }`}
+        >
+          <FileText className="w-3.5 h-3.5" />
+          ระบบสอบส่วนกลาง
+        </button>
+
+        <button
+          onClick={() => setActiveTab("PA_GUIDELINES")}
+          className={`py-2 px-3.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shrink-0 ${
+            activeTab === "PA_GUIDELINES" ? "bg-purple-600 text-white shadow-xs" : "text-slate-600 dark:text-slate-400 hover:bg-slate-100"
+          }`}
+        >
+          <Award className="w-3.5 h-3.5" />
+          เกณฑ์ PA & ชั่วโมง PD
         </button>
       </div>
 
@@ -534,6 +567,94 @@ export default function AcademicSettingsPage() {
                 ))}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 6: Facility Management */}
+      {activeTab === "FACILITY" && (
+        <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-200 dark:border-slate-800 shadow-xl space-y-6">
+          <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+            🏢 ตั้งค่ารายการทรัพยากรกลางส่วนกลาง (Facilities Catalog)
+          </h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            บริหารจัดการห้องประชุม รถโรงเรียน อุปกรณ์ส่วนกลาง และห้องปฏิบัติการสำหรับเปิดให้ครูและบุคลากรจองใช้งาน
+          </p>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="p-4 rounded-2xl bg-teal-50/50 dark:bg-teal-950/20 border border-teal-200 dark:border-teal-800/50">
+              <div className="text-xs font-bold text-teal-600 dark:text-teal-400 mb-1">ห้องประชุมส่วนกลาง</div>
+              <div className="text-xl font-black text-slate-900 dark:text-white">3 ห้อง</div>
+              <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">พร้อมเครื่องเสียงและโปรเจกเตอร์</div>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-200 dark:border-indigo-800/50">
+              <div className="text-xs font-bold text-indigo-600 dark:text-indigo-400 mb-1">ยานพาหนะโรงเรียน</div>
+              <div className="text-xl font-black text-slate-900 dark:text-white">2 คัน</div>
+              <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">รถบัส และรถตู้ส่วนกลาง</div>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-purple-50/50 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-800/50">
+              <div className="text-xs font-bold text-purple-600 dark:text-purple-400 mb-1">อุปกรณ์การสอน & Lab</div>
+              <div className="text-xl font-black text-slate-900 dark:text-white">5 ชุด</div>
+              <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">โน้ตบุ๊กเคลื่อนที่ & ชุดทดลอง</div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 7: Exam Configuration */}
+      {activeTab === "EXAM_CONFIG" && (
+        <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-200 dark:border-slate-800 shadow-xl space-y-6">
+          <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+            📝 ตั้งค่าระบบสอบส่วนกลาง (Exam Configuration)
+          </h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            กำหนดจำนวนโต๊ะสอบต่อห้อง, รูปแบบสลับผังที่นั่ง, และช่วงเวลาสอบประจำภาคเรียน
+          </p>
+
+          <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/60 space-y-4 max-w-lg">
+            <div>
+              <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">จำนวนโต๊ะสอบมาตรฐานต่อห้อง</label>
+              <input
+                type="number"
+                defaultValue={30}
+                className="w-full h-9 px-3 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-medium"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">รูปแบบผังที่นั่งป้องกันทุจริต</label>
+              <select className="w-full h-9 px-3 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-medium">
+                <option value="ALTERNATE">สลับชั้นเรียน (คละชั้น ม.1 และ ม.2)</option>
+                <option value="RANDOM">สุ่มเลขที่นั่งสอบ</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 8: PA Guidelines */}
+      {activeTab === "PA_GUIDELINES" && (
+        <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-200 dark:border-slate-800 shadow-xl space-y-6">
+          <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+            🏆 ตั้งค่าเกณฑ์ PA & ชั่วโมงพัฒนาตนเอง PD (PA & Competency Guidelines)
+          </h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            กำหนดเป้าหมายชั่วโมงพัฒนาตนเอง (PD Hours) ประจำปี และหลักเกณฑ์การประเมิน 5 ด้านตาม ก.ค.ศ.
+          </p>
+
+          <div className="p-4 rounded-2xl bg-rose-50/40 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-800/50 space-y-4 max-w-lg">
+            <div>
+              <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">เป้าหมายชั่วโมง PD ขั้นต่ำต่อปีการศึกษา</label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  defaultValue={20}
+                  className="w-32 h-9 px-3 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-bold"
+                />
+                <span className="text-xs text-slate-500 font-semibold">ชั่วโมง / ปี</span>
+              </div>
+            </div>
           </div>
         </div>
       )}
