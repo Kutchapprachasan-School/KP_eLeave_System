@@ -396,6 +396,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
   const [isFinalApprover, setIsFinalApprover] = useState(false);
   const [rolePermissions, setRolePermissions] = useState<any>(null);
   const [pendingDocsCount, setPendingDocsCount] = useState(0);
+  const [enableLeave, setEnableLeave] = useState(true);
   const [enableAttendance, setEnableAttendance] = useState(false);
   const [enableDocument, setEnableDocument] = useState(false);
   const [enableRepair, setEnableRepair] = useState(false);
@@ -458,6 +459,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
       const finalSchoolName = s.schoolName || t("loginTitle");
       const finalSubheader = s.subheader || "ระบบจัดการการลา";
       const finalLogoUrl = s.logoUrl || null;
+      const finalEnableLeave = (s as any).enableLeave !== false;
       const finalEnableAttendance = s.enableAttendance === true;
       const finalEnableDocument = s.enableDocument === true;
       const finalEnableRepair = (s as any).enableRepair === true;
@@ -472,6 +474,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
       setBrandName(finalSchoolName);
       setBrandLogo(finalLogoUrl);
       setBrandSubheader(finalSubheader);
+      setEnableLeave(finalEnableLeave);
       setEnableAttendance(finalEnableAttendance);
       setEnableDocument(finalEnableDocument);
       setEnableRepair(finalEnableRepair);
@@ -629,22 +632,27 @@ function AppContent({ children }: { children: React.ReactNode }) {
   const userRole = getUserRoleKey(user, isFinalApprover);
   const activePermissions = rolePermissions || DEFAULT_PERMISSIONS;
 
+  const showLeave = enableLeave || isAdmin;
   const showDocument = enableDocument || isAdmin;
   const showRepair = enableRepair || isAdmin;
   const showAttendance = enableAttendance || isAdmin;
 
   // Sub-items for Leave System (ระบบการลา)
-  const leaveSubItems = [
-    { href: "/request", label: "ขอลาออนไลน์", icon: FileText },
-    { href: "/history", label: "ประวัติการลา", icon: History },
-  ];
-  if (activePermissions.approvals?.includes(userRole)) {
+  const leaveSubItems = showLeave
+    ? [
+        { href: "/request", label: "ขอลาออนไลน์", icon: FileText },
+        { href: "/history", label: "ประวัติการลา", icon: History },
+      ]
+    : [];
+  if (showLeave && activePermissions.approvals?.includes(userRole)) {
     leaveSubItems.push({ href: "/approvals", label: "พิจารณาอนุมัติลา", icon: CheckSquare });
   }
-  if (activePermissions.reports?.includes(userRole)) {
+  if (showLeave && activePermissions.reports?.includes(userRole)) {
     leaveSubItems.push({ href: "/reports", label: "รายงานและสถิติ", icon: FileSpreadsheet });
   }
-  leaveSubItems.push({ href: "/manual", label: t("userManual"), icon: BookOpen });
+  if (showLeave) {
+    leaveSubItems.push({ href: "/manual", label: t("userManual"), icon: BookOpen });
+  }
 
   // Sub-items for Document System (ระบบสารบรรณ / เอกสาร)
   const documentSubItems = showDocument

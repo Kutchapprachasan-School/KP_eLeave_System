@@ -131,6 +131,7 @@ export async function getSystemSettings() {
       ...safeSettings,
 
       iappApiKey: (safeSettings as any).iappApiKey || "",
+      enableLeave: (safeSettings as any).enableLeave ?? true,
       enableAttendance: (safeSettings as any).enableAttendance ?? false,
       enableDocument: (safeSettings as any).enableDocument ?? false,
       enableRepair: (safeSettings as any).enableRepair ?? false,
@@ -388,6 +389,7 @@ export async function updateSystemSettings(data: {
   timezone?: string;
 
   iappApiKey?: string;
+  enableLeave?: boolean;
   enableAttendance?: boolean;
   enableDocument?: boolean;
   enableRepair?: boolean;
@@ -477,6 +479,7 @@ export async function updateSystemSettings(data: {
         timezone: data.timezone !== undefined ? data.timezone : undefined,
 
         iappApiKey: data.iappApiKey !== undefined ? data.iappApiKey : undefined,
+        enableLeave: data.enableLeave !== undefined ? data.enableLeave : undefined,
         enableAttendance: data.enableAttendance !== undefined ? data.enableAttendance : undefined,
         enableDocument: data.enableDocument !== undefined ? data.enableDocument : undefined,
         enableRepair: data.enableRepair !== undefined ? data.enableRepair : undefined,

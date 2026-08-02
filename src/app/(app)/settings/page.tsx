@@ -144,6 +144,7 @@ export default function SettingsPage() {
 
     const [timezone, setTimezone] = useState("Asia/Bangkok");
   const [iappApiKey, setIappApiKey] = useState("");
+  const [enableLeave, setEnableLeave] = useState(true);
   const [enableAttendance, setEnableAttendance] = useState(false);
   const [enableDocument, setEnableDocument] = useState(false);
   const [enableRepair, setEnableRepair] = useState(false);
@@ -445,6 +446,7 @@ export default function SettingsPage() {
 
             setTimezone(data.timezone || "Asia/Bangkok");
       setIappApiKey(data.iappApiKey || "");
+      setEnableLeave((data as any).enableLeave !== false);
       setEnableAttendance(data.enableAttendance === true);
       setEnableDocument(data.enableDocument === true);
       setEnableRepair((data as any).enableRepair === true);
@@ -711,9 +713,10 @@ export default function SettingsPage() {
 
   // Inline-save a single subsystem toggle
   const saveSubsystem = async (
-    key: "enableAttendance" | "enableDocument" | "enableRepair" | "enableTimetable" | "enableSubstitute" | "enableSupervision" | "enableExam" | "enableCompetency" | "enableFacility" | "enableAcademicSettings",
+    key: "enableLeave" | "enableAttendance" | "enableDocument" | "enableRepair" | "enableTimetable" | "enableSubstitute" | "enableSupervision" | "enableExam" | "enableCompetency" | "enableFacility" | "enableAcademicSettings",
     val: boolean
   ) => {
+    if (key === "enableLeave") setEnableLeave(val);
     if (key === "enableAttendance") setEnableAttendance(val);
     if (key === "enableDocument") setEnableDocument(val);
     if (key === "enableRepair") setEnableRepair(val);
@@ -728,6 +731,7 @@ export default function SettingsPage() {
       await updateSystemSettings({
         schoolName,
         subheader,
+        enableLeave:       key === "enableLeave"      ? val : enableLeave,
         enableAttendance: key === "enableAttendance" ? val : enableAttendance,
         enableDocument:   key === "enableDocument"   ? val : enableDocument,
         enableRepair:     key === "enableRepair"     ? val : enableRepair,
@@ -7148,7 +7152,7 @@ export default function SettingsPage() {
       desc: string;
       core?: boolean;
       enabled: boolean;
-      saveKey?: "enableAttendance" | "enableDocument" | "enableRepair" | "enableTimetable" | "enableSubstitute" | "enableSupervision" | "enableExam" | "enableCompetency" | "enableFacility" | "enableAcademicSettings";
+      saveKey?: "enableLeave" | "enableAttendance" | "enableDocument" | "enableRepair" | "enableTimetable" | "enableSubstitute" | "enableSupervision" | "enableExam" | "enableCompetency" | "enableFacility" | "enableAcademicSettings";
       settingsId?: string;
       customPath?: string;
     };
@@ -7160,11 +7164,12 @@ export default function SettingsPage() {
         activeColor: "text-emerald-600 dark:text-emerald-400",
         activeBg: "bg-emerald-100 dark:bg-emerald-950/30",
         activeBorder: "bg-emerald-50/40 dark:bg-emerald-950/10 border-emerald-200 dark:border-emerald-800",
-        toggleColor: "",
-        title: lang === "en" ? "Leave System" : "ระบบการลา",
-        desc: lang === "en" ? "Core leave management module" : "ระบบบริหารจัดการการลาหลัก",
-        core: true,
-        enabled: true,
+        toggleColor: "bg-emerald-600",
+        title: lang === "en" ? "Leave System" : "ระบบการลา (แกนหลัก)",
+        desc: lang === "en" ? "Core leave management module" : "ระบบบริหารจัดการการลาหลัก สิทธิ์วันลา และการอนุมัติใบลา",
+        enabled: enableLeave,
+        saveKey: "enableLeave",
+        settingsId: "leave-rules",
       },
       {
         id: "attendance",
