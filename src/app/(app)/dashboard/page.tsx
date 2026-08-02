@@ -1,6 +1,9 @@
 import { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 import { auth } from "@/lib/auth";
 import { getSystemSettings } from "@/app/actions/settings";
 import { getRepairDashboardStatsAction } from "@/app/actions/repair/report";
