@@ -145,6 +145,14 @@ model SystemSettings {
   enableRepairLineNotify       Boolean  @default(true)
   repairLineChannelAccessToken String?
   repairLineTargetGroupId      String?
+  enableLeave                  Boolean  @default(true)
+  enableTimetable              Boolean  @default(true)
+  enableSubstitute             Boolean  @default(true)
+  enableSupervision            Boolean  @default(true)
+  enableExam                   Boolean  @default(true)
+  enableCompetency             Boolean  @default(true)
+  enableFacility               Boolean  @default(true)
+  enableAcademicSettings       Boolean  @default(true)
 }
 
 model LeaveConfig {
@@ -161,10 +169,21 @@ model LeaveConfig {
 model SystemLog {
   id          String   @id @default(cuid())
   actionType  String
+  subsystem   String   @default("LEAVE")
   description String
   userId      String
   createdAt   DateTime @default(now())
   metadata    Json?
+}
+
+model SystemLogArchive {
+  id          String   @id @default(cuid())
+  year        Int
+  month       Int
+  batchName   String
+  logCount    Int      @default(0)
+  logsData    Json
+  createdAt   DateTime @default(now())
 }
 
 model LeaveArchive {

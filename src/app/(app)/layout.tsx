@@ -428,22 +428,32 @@ function AppContent({ children }: { children: React.ReactNode }) {
       const storedSchoolName = localStorage.getItem("eleave_schoolName");
       const storedSubheader = localStorage.getItem("eleave_subheader");
       const storedLogoUrl = localStorage.getItem("eleave_logoUrl");
+      const storedEnableLeave = localStorage.getItem("eleave_enableLeave");
       const storedEnableAttendance = localStorage.getItem("eleave_enableAttendance");
       const storedEnableDocument = localStorage.getItem("eleave_enableDocument");
       const storedEnableRepair = localStorage.getItem("eleave_enableRepair");
       const storedEnableTimetable = localStorage.getItem("eleave_enableTimetable");
       const storedEnableSubstitute = localStorage.getItem("eleave_enableSubstitute");
       const storedEnableSupervision = localStorage.getItem("eleave_enableSupervision");
+      const storedEnableExam = localStorage.getItem("eleave_enableExam");
+      const storedEnableCompetency = localStorage.getItem("eleave_enableCompetency");
+      const storedEnableFacility = localStorage.getItem("eleave_enableFacility");
+      const storedEnableAcademicSettings = localStorage.getItem("eleave_enableAcademicSettings");
 
       if (storedSchoolName) setBrandName(storedSchoolName);
       if (storedSubheader) setBrandSubheader(storedSubheader);
       if (storedLogoUrl) setBrandLogo(storedLogoUrl);
+      if (storedEnableLeave) setEnableLeave(storedEnableLeave === "true");
       if (storedEnableAttendance) setEnableAttendance(storedEnableAttendance === "true");
       if (storedEnableDocument) setEnableDocument(storedEnableDocument === "true");
       if (storedEnableRepair) setEnableRepair(storedEnableRepair === "true");
       if (storedEnableTimetable) setEnableTimetable(storedEnableTimetable === "true");
       if (storedEnableSubstitute) setEnableSubstitute(storedEnableSubstitute === "true");
       if (storedEnableSupervision) setEnableSupervision(storedEnableSupervision === "true");
+      if (storedEnableExam) setEnableExam(storedEnableExam === "true");
+      if (storedEnableCompetency) setEnableCompetency(storedEnableCompetency === "true");
+      if (storedEnableFacility) setEnableFacility(storedEnableFacility === "true");
+      if (storedEnableAcademicSettings) setEnableAcademicSettings(storedEnableAcademicSettings === "true");
       
       // If we loaded cached data, we can mark settings loading as finished to bypass default splash page
       if (storedSchoolName || storedLogoUrl) {
@@ -506,9 +516,17 @@ function AppContent({ children }: { children: React.ReactNode }) {
         } else {
           localStorage.removeItem("eleave_logoUrl");
         }
+        localStorage.setItem("eleave_enableLeave", String(finalEnableLeave));
         localStorage.setItem("eleave_enableAttendance", String(finalEnableAttendance));
         localStorage.setItem("eleave_enableDocument", String(finalEnableDocument));
         localStorage.setItem("eleave_enableRepair", String(finalEnableRepair));
+        localStorage.setItem("eleave_enableTimetable", String(finalEnableTimetable));
+        localStorage.setItem("eleave_enableSubstitute", String(finalEnableSubstitute));
+        localStorage.setItem("eleave_enableSupervision", String(finalEnableSupervision));
+        localStorage.setItem("eleave_enableExam", String(finalEnableExam));
+        localStorage.setItem("eleave_enableCompetency", String(finalEnableCompetency));
+        localStorage.setItem("eleave_enableFacility", String(finalEnableFacility));
+        localStorage.setItem("eleave_enableAcademicSettings", String(finalEnableAcademicSettings));
       }
 
       setIsLoadingSettings(false);
@@ -698,9 +716,6 @@ function AppContent({ children }: { children: React.ReactNode }) {
   }
   if (enableCompetency) {
     hrSubItems.push({ href: "/academic/competency", label: "แฟ้มสะสมงาน PA", icon: Award });
-  }
-  if (activePermissions.users?.includes(userRole)) {
-    hrSubItems.push({ href: "/users", label: "จัดการบุคลากร", icon: Users });
   }
 
   // Items for Settings category (ตั้งค่าระบบ)
