@@ -605,9 +605,8 @@ export async function updateSystemSettings(data: {
         enableAcademicSettings: data.enableAcademicSettings !== undefined ? data.enableAcademicSettings : true,
         repairLineChannelAccessToken: data.repairLineChannelAccessToken || null,
         repairLineTargetGroupId: data.repairLineTargetGroupId || null,
-        enableRepairLineNotify: data.enableRepairLineNotify !== undefined ? data.enableRepairLineNotify : true,
-
       }
+    };
 
     try {
       await prisma.systemSettings.upsert(upsertPayload);
