@@ -690,11 +690,8 @@ export default function SettingsPage() {
         lastLeaveMode,
 
         quotaExceededAction,
-
-                timezone,
-        iappApiKey,
-        enableAttendance,
-        enableDocument
+        timezone,
+        iappApiKey
       });
 
       alert("บันทึกการตั้งค่าทั่วไปสำเร็จ");
@@ -728,21 +725,13 @@ export default function SettingsPage() {
     if (key === "enableFacility") setEnableFacility(val);
     if (key === "enableAcademicSettings") setEnableAcademicSettings(val);
     try {
-      await updateSystemSettings({
-        schoolName,
-        subheader,
-        enableLeave:       key === "enableLeave"      ? val : enableLeave,
-        enableAttendance: key === "enableAttendance" ? val : enableAttendance,
-        enableDocument:   key === "enableDocument"   ? val : enableDocument,
-        enableRepair:     key === "enableRepair"     ? val : enableRepair,
-        enableTimetable:   key === "enableTimetable"   ? val : enableTimetable,
-        enableSubstitute:  key === "enableSubstitute"  ? val : enableSubstitute,
-        enableSupervision: key === "enableSupervision" ? val : enableSupervision,
-        enableExam:        key === "enableExam"        ? val : enableExam,
-        enableCompetency:  key === "enableCompetency"  ? val : enableCompetency,
-        enableFacility:    key === "enableFacility"    ? val : enableFacility,
-        enableAcademicSettings: key === "enableAcademicSettings" ? val : enableAcademicSettings,
+      const res = await updateSystemSettings({
+        [key]: val,
       });
+      if (!res.success) {
+        showToast("error", res.error || "เกิดข้อผิดพลาดในการบันทึก");
+        return;
+      }
       localStorage.setItem(`eleave_${key}`, String(val));
       window.dispatchEvent(new Event("storage"));
       showToast("success", lang === "en" ? "Saved" : "บันทึกสำเร็จ");
