@@ -1,7 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/db";
-import { getSession } from "@/lib/auth";
+import { getSession } from "@/lib/auth-session";
 
 export async function getSystemLogsAction(filter?: {
   subsystem?: string;
