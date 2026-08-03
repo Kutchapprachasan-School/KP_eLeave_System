@@ -90,26 +90,56 @@ async function requireHROrAdmin() {
 
 }
 
-export async function getSystemSettings() {
-
+export async function ensureSubsystemColumnsExist() {
   try {
+    await prisma.$executeRawUnsafe(`
+      ALTER TABLE "SystemSettings" ADD COLUMN IF NOT EXISTS "enableLeave" BOOLEAN DEFAULT true;
+      ALTER TABLE "SystemSettings" ADD COLUMN IF NOT EXISTS "enableTimetable" BOOLEAN DEFAULT true;
+      ALTER TABLE "SystemSettings" ADD COLUMN IF NOT EXISTS "enableSubstitute" BOOLEAN DEFAULT true;
+      ALTER TABLE "SystemSettings" ADD COLUMN IF NOT EXISTS "enableSupervision" BOOLEAN DEFAULT true;
+      ALTER TABLE "SystemSettings" ADD COLUMN IF NOT EXISTS "enableExam" BOOLEAN DEFAULT true;
+      ALTER TABLE "SystemSettings" ADD COLUMN IF NOT EXISTS "enableCompetency" BOOLEAN DEFAULT true;
+      ALTER TABLE "SystemSettings" ADD COLUMN IF NOT EXISTS "enableFacility" BOOLEAN DEFAULT true;
+      ALTER TABLE "SystemSettings" ADD COLUMN IF NOT EXISTS "enableAcademicSettings" BOOLEAN DEFAULT true;
+      ALTER TABLE "SystemLog" ADD COLUMN IF NOT EXISTS "subsystem" TEXT DEFAULT 'LEAVE';
+      CREATE TABLE IF NOT EXISTS "SystemLogArchive" (
+        "id" TEXT NOT NULL PRIMARY KEY,
+        "year" INTEGER NOT NULL,
+        "month" INTEGER NOT NULL,
+        "batchName" TEXT NOT NULL,
+        "logCount" INTEGER NOT NULL DEFAULT 0,
+        "logsData" JSONB NOT NULL,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+  } catch (e) {
+    console.warn("ensureSubsystemColumnsExist fallback warning:", e);
+  }
+}
 
-    let settings = await prisma.systemSettings.findUnique({
-
-      where: { id: "default" }
-
-    });
+export async function getSystemSettings() {
+  try {
+    let settings;
+    try {
+      settings = await prisma.systemSettings.findUnique({
+        where: { id: "default" }
+      });
+    } catch (fetchErr: any) {
+      if (fetchErr?.message?.includes("does not exist")) {
+        await ensureSubsystemColumnsExist();
+        settings = await prisma.systemSettings.findUnique({
+          where: { id: "default" }
+        });
+      } else {
+        throw fetchErr;
+      }
+    }
 
     if (!settings) {
-
       settings = await prisma.systemSettings.create({
-
         data: {
-
           id: "default",
-
           schoolName: "ชื่อโรงเรียน",
-
           subheader: "ระบบจัดการการลา",
 
           footerText: "© 2006 Panchapon Getrat KP-school",
@@ -424,8 +454,7 @@ export async function updateSystemSettings(data: {
       throw new Error("ท่านไม่มีสิทธิ์ในการแก้ไขการตั้งค่าระบบ");
     }
 
-    await prisma.systemSettings.upsert({
-
+    const upsertPayload = {
       where: { id: "default" },
 
       update: {
@@ -580,7 +609,16 @@ export async function updateSystemSettings(data: {
 
       }
 
-    });
+    try {
+      await prisma.systemSettings.upsert(upsertPayload);
+    } catch (upsertErr: any) {
+      if (upsertErr?.message?.includes("does not exist")) {
+        await ensureSubsystemColumnsExist();
+        await prisma.systemSettings.upsert(upsertPayload);
+      } else {
+        throw upsertErr;
+      }
+    }
 
     revalidatePath("/settings");
 
