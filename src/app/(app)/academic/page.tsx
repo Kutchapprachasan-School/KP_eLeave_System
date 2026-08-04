@@ -13,10 +13,19 @@ import {
   Building2, 
   Settings,
   ArrowRight,
-  BookOpen
+  BookOpen,
+  Layers
 } from "lucide-react";
 
 const ACADEMIC_MODULES = [
+  {
+    href: "/academic/planning",
+    title: "ศูนย์ควบคุมการวางแผนวิชาการ (Academic Planning Platform)",
+    description: "Control Plane 100/100: กำหนดนโยบายหลักสูตร, จำลองฉากทัศน์ Sandbox, ตรวจสอบ Readiness Gate 0-100% และกระจายภาระงานครู",
+    icon: Layers,
+    color: "from-purple-600 via-indigo-600 to-violet-700",
+    textColor: "text-purple-600 dark:text-purple-400"
+  },
   {
     href: "/academic/timetable",
     title: "จัดตารางสอนแม่บท (Master Timetable)",

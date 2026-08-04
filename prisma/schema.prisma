@@ -1,5 +1,6 @@
 generator client {
   provider        = "prisma-client-js"
+  output          = "../node_modules/@prisma/client"
   previewFeatures = ["partialIndexes"]
 }
 
@@ -981,4 +982,147 @@ model CompetencyEvaluation {
   dimension5Score Int         // จริยธรรมและวิทยฐานะ
   comments        String?     @db.Text
   evaluatedAt     DateTime    @default(now())
+}
+
+// ==========================================
+// ACADEMIC PLANNING PLATFORM (CONTROL PLANE 100/100)
+// ==========================================
+
+enum PlanningStatus {
+  SETUP
+  IN_PLANNING
+  UNDER_REVIEW
+  APPROVED
+  PUBLISHED
+  ARCHIVED
+}
+
+model PlanningSession {
+  id                  String           @id @default(cuid())
+  name                String           // "การวางแผนวิชาการ ภาคเรียนที่ 1/2569"
+  academicYear        Int              // 2569
+  term                Int              // 1
+  curriculumVersionId String?
+  status              PlanningStatus   @default(SETUP)
+  readinessScore      Float            @default(0.0) // 0.00 - 100.00%
+  approvalSteps       ApprovalStep[]
+  createdById         String?
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+
+  @@unique([academicYear, term])
+}
+
+model ApprovalStep {
+  id                String          @id @default(cuid())
+  planningSessionId String
+  planningSession   PlanningSession @relation(fields: [planningSessionId], references: [id], onDelete: Cascade)
+  stepOrder         Int             // 1: Dept Review, 2: Academic Review, 3: Director
+  roleRequired      String          // "HEAD_OF_DEPT", "ACADEMIC_DIRECTOR", "SCHOOL_DIRECTOR"
+  status            String          @default("PENDING") // "PENDING", "APPROVED", "REJECTED"
+  comment           String?
+  approvedById      String?
+  approvedAt        DateTime?
+}
+
+model ReadinessIndicator {
+  id          String   @id @default(cuid())
+  code        String   @unique // e.g., "RULE_OFFERING_COVERAGE"
+  name        String   // "ความครอบคลุมการเปิดรายวิชาทุกห้องเรียน"
+  weight      Float    // e.g., 25.0 (%)
+  enabled     Boolean  @default(true)
+  expression  String   // e.g., "offeringPercent >= 100"
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model ApprovalWorkflow {
+  id          String          @id @default(cuid())
+  name        String          @unique // e.g., "Standard 3-Stage Approval"
+  isDefault   Boolean         @default(true)
+  stages      ApprovalStage[]
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+}
+
+model ApprovalStage {
+  id          String           @id @default(cuid())
+  workflowId  String
+  workflow    ApprovalWorkflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  stageOrder  Int
+  stageName   String           // "หัวหน้ากลุ่มสาระการเรียนรู้", "รองผู้อำนวยการฝ่ายวิชาการ", "ผู้อำนวยการโรงเรียน"
+  roleName    String           // "HEAD_OF_DEPT", "ACADEMIC_DIRECTOR", "SCHOOL_DIRECTOR"
+  isMandatory Boolean          @default(true)
+}
+
+model AcademicCalendar {
+  id           String          @id @default(cuid())
+  academicYear Int             @unique
+  term         Int             @default(1)
+  title        String          // "ปฏิทินวิชาการ 2569"
+  events       AcademicEvent[]
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+}
+
+model AcademicEvent {
+  id                 String           @id @default(cuid())
+  calendarId         String
+  calendar           AcademicCalendar @relation(fields: [calendarId], references: [id], onDelete: Cascade)
+  eventType          String           // "OPENING_DAY", "EXAM_WEEK", "HOLIDAY", "SCOUT_CAMP", "SPORTS_DAY", "PA_OBSERVATION"
+  title              String
+  startDate          DateTime
+  endDate            DateTime
+  locksTimetable     Boolean          @default(false)
+  locksSupervision   Boolean          @default(false)
+  description        String?
+  createdAt          DateTime         @default(now())
+}
+
+model ResourceItem {
+  id           String                @id @default(cuid())
+  code         String                @unique
+  name         String                // "ห้องปฏิบัติการเคมี 1", "หอประชุมใหญ่"
+  resourceType String                // "SCIENCE_LAB", "COMPUTER_LAB", "MUSIC_ROOM", "GYM", "STADIUM", "BUS", "AUDITORIUM"
+  capacity     Int                   @default(40)
+  location     String?
+  reservations ResourceReservation[]
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
+}
+
+model ResourceReservation {
+  id           String       @id @default(cuid())
+  resourceId   String
+  resource     ResourceItem @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  reservedBy   String
+  reservedFor  String       // e.g., "ทดลองปฏิกิริยาเคมี ม.5/1"
+  startTime    DateTime
+  endTime      DateTime
+  status       String       @default("APPROVED") // PENDING, APPROVED, CANCELLED
+  createdAt    DateTime     @default(now())
+}
+
+model PlanningSandboxScenario {
+  id           String   @id @default(cuid())
+  name         String   // e.g., "Scenario A: เพิ่มคาบเน้นคณิต-วิทย์"
+  description  String?
+  academicYear Int
+  term         Int
+  isPublished  Boolean  @default(false)
+  payloadJson  Json     // Sandbox delta parameters
+  createdById  String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model CourseWeightFactor {
+  id                String   @id @default(cuid())
+  subjectCode       String   @unique
+  preparationWeight Float    @default(1.0)
+  labWeight          Float    @default(1.1)
+  assessmentWeight Float    @default(1.0)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 }

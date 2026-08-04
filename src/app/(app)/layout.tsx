@@ -37,7 +37,8 @@ import {
   ArrowRightLeft,
   CalendarDays as Calendar,
   Building2,
-  Award
+  Award,
+  Layers
 } from "lucide-react";
 import { hasRepairPermission } from "@/lib/permissions";
 import { getNotifications } from "@/app/actions/admin";
@@ -693,6 +694,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
 
   // Sub-items for Academic Affairs System (งานฝ่ายวิชาการ)
   const academicSubItems = [];
+  academicSubItems.push({ href: "/academic/planning", label: "ศูนย์วางแผนวิชาการ", icon: Layers });
   if (enableTimetable) {
     academicSubItems.push({ href: "/academic/timetable", label: "จัดตารางสอน", icon: Calendar });
   }
