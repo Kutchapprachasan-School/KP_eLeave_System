@@ -661,15 +661,15 @@ function AppContent({ children }: { children: React.ReactNode }) {
   // Sub-items for Leave System (ระบบการลา)
   const leaveSubItems = showLeave
     ? [
-        { href: "/request", label: "ขอลาออนไลน์", icon: FileText },
-        { href: "/history", label: "ประวัติการลา", icon: History },
+        { href: "/hr/leave/request", label: "ขอลาออนไลน์", icon: FileText },
+        { href: "/hr/leave/history", label: "ประวัติการลา", icon: History },
       ]
     : [];
   if (showLeave && activePermissions.approvals?.includes(userRole)) {
-    leaveSubItems.push({ href: "/approvals", label: "พิจารณาอนุมัติลา", icon: CheckSquare });
+    leaveSubItems.push({ href: "/hr/leave/approvals", label: "พิจารณาอนุมัติลา", icon: CheckSquare });
   }
   if (showLeave && activePermissions.reports?.includes(userRole)) {
-    leaveSubItems.push({ href: "/reports", label: "รายงานและสถิติ", icon: FileSpreadsheet });
+    leaveSubItems.push({ href: "/hr/leave/reports", label: "รายงานและสถิติ", icon: FileSpreadsheet });
   }
   if (showLeave) {
     leaveSubItems.push({ href: "/manual", label: t("userManual"), icon: BookOpen });
@@ -730,7 +730,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
   const renderNavItem = (item: any, isSubItem: boolean = false) => {
     const isExactMatch = item.href.includes("?")
       ? pathname === item.href.split("?")[0] && (searchParams?.get(item.href.split("?")[1].split("=")[0]) === item.href.split("?")[1].split("=")[1])
-      : pathname === item.href;
+      : (pathname === item.href || (item.href === "/hr/leave/request" && pathname === "/request") || (item.href === "/hr/leave/history" && pathname === "/history") || (item.href === "/hr/leave/approvals" && pathname === "/approvals") || (item.href === "/hr/leave/reports" && pathname === "/reports") || (item.href === "/hr/attendance" && pathname === "/attendance") || (item.href === "/hr/competency" && pathname === "/academic/competency") || (item.href === "/general/facility" && pathname === "/academic/facility"));
 
     const isActive = isExactMatch || (item.href.startsWith("/settings") && !item.href.includes("?") && pathname.startsWith("/settings") && !searchParams?.get("section"));
     const Icon = item.icon;
@@ -769,8 +769,8 @@ function AppContent({ children }: { children: React.ReactNode }) {
     if ((path.startsWith("/document") || path.startsWith("/general/document")) && !enableDocument && !isAdmin) return false;
     if ((path.startsWith("/repair") || path.startsWith("/general/repair")) && !enableRepair && !isAdmin) return false;
     if ((path.startsWith("/repair") || path.startsWith("/general/repair")) && !hasRepairPermission(user, "repair:view.own") && !hasRepairPermission(user, "repair:view.all")) return false;
-    if (path.startsWith("/reports") && !activePerms.reports?.includes(key)) return false;
-    if (path.startsWith("/approvals") && !activePerms.approvals?.includes(key)) return false;
+    if ((path.startsWith("/reports") || path.startsWith("/hr/leave/reports")) && !activePerms.reports?.includes(key)) return false;
+    if ((path.startsWith("/approvals") || path.startsWith("/hr/leave/approvals")) && !activePerms.approvals?.includes(key)) return false;
     if (path.startsWith("/logs") && !activePerms.logs?.includes(key)) return false;
     if (path.startsWith("/users") && !activePerms.users?.includes(key)) return false;
     if (path.startsWith("/settings")) {
