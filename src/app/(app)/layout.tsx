@@ -707,17 +707,11 @@ function AppContent({ children }: { children: React.ReactNode }) {
   if (enableExam) {
     academicSubItems.push({ href: "/academic/exam", label: "จัดตารางสอบ & ผังที่นั่ง", icon: FileText });
   }
+  if (enableCompetency) {
+    academicSubItems.push({ href: "/academic/competency", label: "แฟ้มสะสมงาน PA", icon: Award });
+  }
   if (enableAcademicSettings && isAdmin) {
     academicSubItems.push({ href: "/academic/settings", label: "ตั้งค่าระบบวิชาการ", icon: Settings });
-  }
-
-  // Sub-items for HR & Attendance System (งานบุคคล / ลงเวลา)
-  const hrSubItems = [];
-  if (showAttendance) {
-    hrSubItems.push({ href: "/attendance", label: "ลงเวลาปฏิบัติราชการ", icon: Clock });
-  }
-  if (enableCompetency) {
-    hrSubItems.push({ href: "/academic/competency", label: "แฟ้มสะสมงาน PA", icon: Award });
   }
 
   // Items for Settings category (ตั้งค่าระบบ)
@@ -796,7 +790,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
     { href: "/history", label: t("history"), icon: History },
   ];
   if (showAttendance) {
-    mobileNavItems.push({ href: "/attendance", label: lang === "en" ? "Attendance" : "ลงเวลา", icon: Clock });
+    mobileNavItems.push({ href: "/attendance", label: lang === "en" ? "Attendance" : "ลงเวลาปฏิบัติราชการ", icon: Clock });
   }
   if (showDocument) {
     mobileNavItems.push({ href: "/document", label: lang === "en" ? "Documents" : "เอกสาร", icon: ClipboardList });
@@ -893,8 +887,8 @@ function AppContent({ children }: { children: React.ReactNode }) {
               บุคคล
             </div>
 
-            {/* ลงเวลา */}
-            {showAttendance && renderNavItem({ href: "/attendance", label: "ลงเวลา", icon: Clock })}
+            {/* ลงเวลาปฏิบัติราชการ */}
+            {showAttendance && renderNavItem({ href: "/attendance", label: "ลงเวลาปฏิบัติราชการ", icon: Clock })}
 
             {/* ระบบการลา (Collapsible Group) */}
             <CollapsibleGroup
@@ -953,16 +947,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
             </div>
           )}
 
-          {/* Section 4: งานบุคคล */}
-          {hrSubItems.length > 0 && (
-            <div className="space-y-1.5">
-              <div className="px-3 pb-0.5 text-[11.5px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-                งานบุคคล
-              </div>
 
-              {hrSubItems.map((item) => renderNavItem(item))}
-            </div>
-          )}
 
           {/* Section 5: ตั้งค่าระบบ */}
           {settingsNavItems.length > 0 && (
