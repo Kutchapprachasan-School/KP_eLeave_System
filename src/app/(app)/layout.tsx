@@ -413,7 +413,8 @@ function AppContent({ children }: { children: React.ReactNode }) {
   const [enableBudget, setEnableBudget] = useState(false);
   const [enableStudentAffairs, setEnableStudentAffairs] = useState(false);
   const [enableStudentCouncil, setEnableStudentCouncil] = useState(false);
-  const [enableAcademicPlanning, setEnableAcademicPlanning] = useState(true);
+  const [enableAcademicPlanning, setEnableAcademicPlanning] = useState(false);
+  const [academicPlanningAllowedUserIds, setAcademicPlanningAllowedUserIds] = useState<string[]>([]);
   const [brandSubheader, setBrandSubheader] = useState("ระบบจัดการการลา");
   const [isLoadingSettings, setIsLoadingSettings] = useState(true);
 
@@ -498,7 +499,8 @@ function AppContent({ children }: { children: React.ReactNode }) {
       const finalEnableBudget = (s as any).enableBudget === true;
       const finalEnableStudentAffairs = (s as any).enableStudentAffairs === true;
       const finalEnableStudentCouncil = (s as any).enableStudentCouncil === true;
-      const finalEnableAcademicPlanning = (s as any).enableAcademicPlanning !== false;
+      const finalEnableAcademicPlanning = (s as any).enableAcademicPlanning === true;
+      const allowedAP = ((s as any).academicPlanningAllowedUserIds || "").split(",").map((id: string) => id.trim()).filter(Boolean);
 
       setBrandName(finalSchoolName);
       setBrandLogo(finalLogoUrl);
@@ -518,6 +520,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
       setEnableStudentAffairs(finalEnableStudentAffairs);
       setEnableStudentCouncil(finalEnableStudentCouncil);
       setEnableAcademicPlanning(finalEnableAcademicPlanning);
+      setAcademicPlanningAllowedUserIds(allowedAP);
       
       if (s.finalApproverUserIds && session?.user?.id) {
         const allowedIds = s.finalApproverUserIds.split(",").map((id: string) => id.trim()).filter(Boolean);
@@ -680,7 +683,8 @@ function AppContent({ children }: { children: React.ReactNode }) {
   const showBudget = enableBudget || isAdmin;
   const showStudentAffairs = enableStudentAffairs || isAdmin;
   const showStudentCouncil = enableStudentCouncil || isAdmin;
-  const showAcademicPlanning = enableAcademicPlanning || isAdmin;
+  const isAcademicPlanningAllowed = isAdmin || (user?.id && academicPlanningAllowedUserIds.includes(user.id));
+  const showAcademicPlanning = enableAcademicPlanning && isAcademicPlanningAllowed;
 
   // Sub-items for Leave System (ระบบการลา)
   const leaveSubItems = showLeave
@@ -746,6 +750,9 @@ function AppContent({ children }: { children: React.ReactNode }) {
   } else if (activePermissions.manual_import?.includes(userRole)) {
     settingsNavItems.push({ href: "/settings?section=manual-import", label: "กรอกข้อมูลใบลาเอง", icon: Plus });
   }
+  if (isAcademicPlanningAllowed) {
+    settingsNavItems.push({ href: "/academic/planning", label: "ศูนย์วางแผนวิชาการ", icon: Layers });
+  }
   if (activePermissions.users?.includes(userRole)) {
     settingsNavItems.push({ href: "/users", label: "จัดการบุคคล", icon: Users });
   }
@@ -798,7 +805,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
     if (path.startsWith("/budget") && !enableBudget && !isAdmin) return false;
     if (path.startsWith("/student-affairs") && !enableStudentAffairs && !isAdmin) return false;
     if (path.startsWith("/student-council") && !enableStudentCouncil && !isAdmin) return false;
-    if (path.startsWith("/academic/planning") && !enableAcademicPlanning && !isAdmin) return false;
+    if (path.startsWith("/academic/planning") && !isAcademicPlanningAllowed) return false;
     if ((path.startsWith("/reports") || path.startsWith("/hr/leave/reports")) && !activePerms.reports?.includes(key)) return false;
     if ((path.startsWith("/approvals") || path.startsWith("/hr/leave/approvals")) && !activePerms.approvals?.includes(key)) return false;
     if (path.startsWith("/logs") && !activePerms.logs?.includes(key)) return false;

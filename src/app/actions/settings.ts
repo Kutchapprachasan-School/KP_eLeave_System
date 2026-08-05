@@ -104,7 +104,8 @@ export async function ensureSubsystemColumnsExist() {
       ALTER TABLE "SystemSettings" ADD COLUMN IF NOT EXISTS "enableBudget" BOOLEAN DEFAULT false;
       ALTER TABLE "SystemSettings" ADD COLUMN IF NOT EXISTS "enableStudentAffairs" BOOLEAN DEFAULT false;
       ALTER TABLE "SystemSettings" ADD COLUMN IF NOT EXISTS "enableStudentCouncil" BOOLEAN DEFAULT false;
-      ALTER TABLE "SystemSettings" ADD COLUMN IF NOT EXISTS "enableAcademicPlanning" BOOLEAN DEFAULT true;
+      ALTER TABLE "SystemSettings" ADD COLUMN IF NOT EXISTS "enableAcademicPlanning" BOOLEAN DEFAULT false;
+      ALTER TABLE "SystemSettings" ADD COLUMN IF NOT EXISTS "academicPlanningAllowedUserIds" TEXT DEFAULT '';
       ALTER TABLE "SystemLog" ADD COLUMN IF NOT EXISTS "subsystem" TEXT DEFAULT 'LEAVE';
       CREATE TABLE IF NOT EXISTS "SystemLogArchive" (
         "id" TEXT NOT NULL PRIMARY KEY,
@@ -179,7 +180,8 @@ export async function getSystemSettings() {
       enableBudget: (safeSettings as any).enableBudget ?? false,
       enableStudentAffairs: (safeSettings as any).enableStudentAffairs ?? false,
       enableStudentCouncil: (safeSettings as any).enableStudentCouncil ?? false,
-      enableAcademicPlanning: (safeSettings as any).enableAcademicPlanning ?? true,
+      enableAcademicPlanning: (safeSettings as any).enableAcademicPlanning === true,
+      academicPlanningAllowedUserIds: (safeSettings as any).academicPlanningAllowedUserIds || "",
 
       timetablePeriodsPerDay: (safeSettings as any).timetablePeriodsPerDay ?? 8,
       timetableStartTime: (safeSettings as any).timetableStartTime || "08:30",
@@ -442,6 +444,7 @@ export async function updateSystemSettings(data: {
   enableStudentAffairs?: boolean;
   enableStudentCouncil?: boolean;
   enableAcademicPlanning?: boolean;
+  academicPlanningAllowedUserIds?: string;
   timetablePeriodsPerDay?: number;
   timetableStartTime?: string;
   timetablePeriodDuration?: number;
@@ -535,6 +538,7 @@ export async function updateSystemSettings(data: {
         enableStudentAffairs: data.enableStudentAffairs !== undefined ? data.enableStudentAffairs : undefined,
         enableStudentCouncil: data.enableStudentCouncil !== undefined ? data.enableStudentCouncil : undefined,
         enableAcademicPlanning: data.enableAcademicPlanning !== undefined ? data.enableAcademicPlanning : undefined,
+        academicPlanningAllowedUserIds: data.academicPlanningAllowedUserIds !== undefined ? data.academicPlanningAllowedUserIds : undefined,
         timetablePeriodsPerDay: data.timetablePeriodsPerDay !== undefined ? data.timetablePeriodsPerDay : undefined,
         timetableStartTime: data.timetableStartTime !== undefined ? data.timetableStartTime : undefined,
         timetablePeriodDuration: data.timetablePeriodDuration !== undefined ? data.timetablePeriodDuration : undefined,

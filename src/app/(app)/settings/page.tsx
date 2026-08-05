@@ -158,7 +158,10 @@ export default function SettingsPage() {
   const [enableBudget, setEnableBudget] = useState(false);
   const [enableStudentAffairs, setEnableStudentAffairs] = useState(false);
   const [enableStudentCouncil, setEnableStudentCouncil] = useState(false);
-  const [enableAcademicPlanning, setEnableAcademicPlanning] = useState(true);
+  const [enableAcademicPlanning, setEnableAcademicPlanning] = useState(false);
+  const [academicPlanningAllowedUserIds, setAcademicPlanningAllowedUserIds] = useState<string[]>([]);
+  const [apSearchQuery, setApSearchQuery] = useState("");
+  const [showApDropdown, setShowApDropdown] = useState(false);
 
   const [timetablePeriodsPerDay, setTimetablePeriodsPerDay] = useState(8);
   const [timetableStartTime, setTimetableStartTime] = useState("08:30");
@@ -464,7 +467,12 @@ export default function SettingsPage() {
       setEnableBudget((data as any).enableBudget === true);
       setEnableStudentAffairs((data as any).enableStudentAffairs === true);
       setEnableStudentCouncil((data as any).enableStudentCouncil === true);
-      setEnableAcademicPlanning((data as any).enableAcademicPlanning !== false);
+      setEnableAcademicPlanning((data as any).enableAcademicPlanning === true);
+      if ((data as any).academicPlanningAllowedUserIds) {
+        setAcademicPlanningAllowedUserIds(
+          (data as any).academicPlanningAllowedUserIds.split(",").map((s: string) => s.trim()).filter(Boolean)
+        );
+      }
       setTimetablePeriodsPerDay((data as any).timetablePeriodsPerDay ?? 8);
       setTimetableStartTime((data as any).timetableStartTime || "08:30");
       setTimetablePeriodDuration((data as any).timetablePeriodDuration ?? 50);
@@ -643,7 +651,7 @@ export default function SettingsPage() {
 
     }
 
-    if (activeSection === "repair-settings" && userList.length === 0) {
+    if ((activeSection === "repair-settings" || activeSection === "subsystems") && userList.length === 0) {
 
       getSimpleUsersList().then(setUserList).catch(console.error);
 
@@ -7434,6 +7442,117 @@ export default function SettingsPage() {
               </div>
             </div>
           ))}
+        </div>
+
+        {/* ─── Academic Planning: Teacher Delegation ─── */}
+        <div className="mt-6 bg-purple-50/50 dark:bg-purple-950/20 rounded-2xl border border-purple-200 dark:border-purple-800 p-5">
+          <div className="flex items-center gap-2 mb-3">
+            <Layers className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+            <h4 className="font-bold text-sm text-purple-900 dark:text-purple-200">
+              {lang === "en" ? "Academic Planning — Authorized Teachers" : "ศูนย์วางแผนวิชาการ — กำหนดครูที่เข้าถึงได้"}
+            </h4>
+          </div>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
+            {lang === "en"
+              ? "Only Admin and the teachers listed below can access the Academic Planning Platform, even when the toggle is ON."
+              : "เฉพาะแอดมินและครูที่ระบุด้านล่างเท่านั้นที่สามารถเข้าถึงศูนย์วางแผนวิชาการได้ แม้ระบบจะเปิดใช้งานแล้ว"}
+          </p>
+
+          {/* Selected teachers tags */}
+          <div className="flex flex-wrap gap-2 mb-3">
+            {academicPlanningAllowedUserIds.map((userId) => {
+              const u = userList.find((x: any) => x.id === userId);
+              return (
+                <span
+                  key={userId}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-purple-100 dark:bg-purple-900/50 text-purple-800 dark:text-purple-200 text-xs font-medium border border-purple-200 dark:border-purple-700"
+                >
+                  {u ? `${u.prefix || ""}${u.firstName} ${u.lastName}` : userId}
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const updated = academicPlanningAllowedUserIds.filter((id) => id !== userId);
+                      setAcademicPlanningAllowedUserIds(updated);
+                      try {
+                        await updateSystemSettings({ academicPlanningAllowedUserIds: updated.join(",") });
+                        showToast("success", lang === "en" ? "Removed" : "ลบสำเร็จ");
+                      } catch (e: any) {
+                        showToast("error", e?.message ?? "เกิดข้อผิดพลาด");
+                      }
+                    }}
+                    className="hover:text-red-600 dark:hover:text-red-400 transition-colors"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </span>
+              );
+            })}
+            {academicPlanningAllowedUserIds.length === 0 && (
+              <span className="text-xs text-gray-400 dark:text-gray-500 italic">
+                {lang === "en" ? "No teachers assigned yet — only Admin can access" : "ยังไม่ได้กำหนดครู — เฉพาะแอดมินเข้าถึงได้"}
+              </span>
+            )}
+          </div>
+
+          {/* Search & Add */}
+          <div className="relative">
+            <input
+              type="text"
+              placeholder={lang === "en" ? "Search teacher to add..." : "ค้นหาครูเพื่อเพิ่ม..."}
+              value={apSearchQuery}
+              onChange={(e) => {
+                setApSearchQuery(e.target.value);
+                setShowApDropdown(true);
+              }}
+              onFocus={() => setShowApDropdown(true)}
+              className="w-full px-4 py-2.5 rounded-xl bg-white dark:bg-gray-900 border border-purple-200 dark:border-purple-700 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-400 dark:focus:ring-purple-600"
+            />
+            {showApDropdown && apSearchQuery.length > 0 && (
+              <div className="absolute z-50 w-full mt-1 max-h-48 overflow-y-auto bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl">
+                {userList
+                  .filter(
+                    (u: any) =>
+                      !academicPlanningAllowedUserIds.includes(u.id) &&
+                      (`${u.prefix || ""}${u.firstName} ${u.lastName}`
+                        .toLowerCase()
+                        .includes(apSearchQuery.toLowerCase()))
+                  )
+                  .slice(0, 10)
+                  .map((u: any) => (
+                    <button
+                      key={u.id}
+                      type="button"
+                      onClick={async () => {
+                        const updated = [...academicPlanningAllowedUserIds, u.id];
+                        setAcademicPlanningAllowedUserIds(updated);
+                        setApSearchQuery("");
+                        setShowApDropdown(false);
+                        try {
+                          await updateSystemSettings({ academicPlanningAllowedUserIds: updated.join(",") });
+                          showToast("success", lang === "en" ? "Added" : "เพิ่มสำเร็จ");
+                        } catch (e: any) {
+                          showToast("error", e?.message ?? "เกิดข้อผิดพลาด");
+                        }
+                      }}
+                      className="w-full text-left px-4 py-2 text-sm hover:bg-purple-50 dark:hover:bg-purple-950/30 transition-colors flex items-center gap-2"
+                    >
+                      <UserCheck className="w-4 h-4 text-purple-500" />
+                      <span>{u.prefix || ""}{u.firstName} {u.lastName}</span>
+                      <span className="ml-auto text-xs text-gray-400">{u.position || ""}</span>
+                    </button>
+                  ))}
+                {userList.filter(
+                  (u: any) =>
+                    !academicPlanningAllowedUserIds.includes(u.id) &&
+                    (`${u.prefix || ""}${u.firstName} ${u.lastName}`
+                      .toLowerCase()
+                      .includes(apSearchQuery.toLowerCase()))
+                ).length === 0 && (
+                  <p className="px-4 py-2 text-xs text-gray-400">{lang === "en" ? "No results" : "ไม่พบผลลัพธ์"}</p>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     );
