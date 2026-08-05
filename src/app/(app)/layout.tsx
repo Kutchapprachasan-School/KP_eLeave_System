@@ -765,10 +765,10 @@ function AppContent({ children }: { children: React.ReactNode }) {
   const checkPermission = (path: string): boolean => {
     const key = getUserRoleKey(user, isFinalApprover);
     const activePerms = rolePermissions || DEFAULT_PERMISSIONS;
-    if (path.startsWith("/attendance") && !enableAttendance && !isAdmin) return false;
-    if (path.startsWith("/document") && !enableDocument && !isAdmin) return false;
-    if (path.startsWith("/repair") && !enableRepair && !isAdmin) return false;
-    if (path.startsWith("/repair") && !hasRepairPermission(user, "repair:view.own") && !hasRepairPermission(user, "repair:view.all")) return false;
+    if ((path.startsWith("/attendance") || path.startsWith("/hr/attendance")) && !enableAttendance && !isAdmin) return false;
+    if ((path.startsWith("/document") || path.startsWith("/general/document")) && !enableDocument && !isAdmin) return false;
+    if ((path.startsWith("/repair") || path.startsWith("/general/repair")) && !enableRepair && !isAdmin) return false;
+    if ((path.startsWith("/repair") || path.startsWith("/general/repair")) && !hasRepairPermission(user, "repair:view.own") && !hasRepairPermission(user, "repair:view.all")) return false;
     if (path.startsWith("/reports") && !activePerms.reports?.includes(key)) return false;
     if (path.startsWith("/approvals") && !activePerms.approvals?.includes(key)) return false;
     if (path.startsWith("/logs") && !activePerms.logs?.includes(key)) return false;
@@ -887,7 +887,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
             </div>
 
             {/* ลงเวลาปฏิบัติราชการ */}
-            {showAttendance && renderNavItem({ href: "/attendance", label: "ลงเวลาปฏิบัติราชการ", icon: Clock })}
+            {showAttendance && renderNavItem({ href: "/hr/attendance", label: "ลงเวลาปฏิบัติราชการ", icon: Clock })}
 
             {/* แฟ้มสะสมงาน PA */}
             {enableCompetency && renderNavItem({ href: "/hr/competency", label: "แฟ้มสะสมงาน PA", icon: Award })}
