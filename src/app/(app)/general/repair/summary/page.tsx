@@ -1,7 +1,11 @@
-"use client";
+import { Metadata } from "next";
+import RepairSummaryReportPage from "@/app/(app)/repair/_components/RepairSummaryReportPage";
 
-import RepairSummaryPage from "@/app/(app)/repair/summary/page";
+export const metadata: Metadata = {
+  title: "สรุปการดำเนินงานระบบแจ้งซ่อม | งานบริหารทั่วไป",
+  description: "รายงานสรุปผลการดำเนินงานแจ้งซ่อม รายเดือน รอบประเมิน และรายปี",
+};
 
 export default function GeneralRepairSummaryPage() {
-  return <RepairSummaryPage />;
+  return <RepairSummaryReportPage />;
 }

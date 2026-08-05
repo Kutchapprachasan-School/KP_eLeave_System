@@ -1,7 +1,11 @@
-"use client";
+import { Metadata } from "next";
+import RepairNewPage from "@/app/(app)/repair/_components/RepairNewPage";
 
-import NewRepairPage from "@/app/(app)/repair/new/page";
+export const metadata: Metadata = {
+  title: "แจ้งซ่อมใหม่ | งานบริหารทั่วไป",
+  description: "กรอกรายละเอียดแจ้งซ่อม",
+};
 
 export default function GeneralNewRepairPage() {
-  return <NewRepairPage />;
+  return <RepairNewPage />;
 }
