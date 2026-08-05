@@ -38,7 +38,10 @@ import {
   Scale,
   FileCheck,
   SlidersHorizontal,
-  Workflow
+  Workflow,
+  ArrowRightLeft,
+  CheckSquare,
+  Award
 } from "lucide-react";
 
 // --- Academic Year Options ---
@@ -46,6 +49,80 @@ const ACADEMIC_YEARS = [
   { id: "2569-2", label: "ปีการศึกษา 2569 (ภาคเรียนที่ 2)", status: "Active Policy", isCurrent: true },
   { id: "2570-1", label: "ปีการศึกษา 2570 (ภาคเรียนที่ 1)", status: "Draft Simulation", isCurrent: false },
   { id: "2569-1", label: "ปีการศึกษา 2569 (ภาคเรียนที่ 1)", status: "Archived", isCurrent: false },
+];
+
+// --- Operational Subsystems (Execution & Operations Layer) ---
+const OPERATIONAL_MODULES = [
+  {
+    href: "/academic/timetable",
+    title: "จัดตารางสอนแม่บท (Master Timetable)",
+    subtitle: "Timetable Execution Engine",
+    description: "จัดตารางสอนอัตโนมัติด้วย AI Solver, ตรวจสอบข้อขัดแย้ง, ตารางคาบล็อคกิจกรรม และพิมพ์ตารางสอน A4",
+    icon: Calendar,
+    badge: "AI Solver Ready",
+    badgeColor: "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300",
+    gradient: "from-purple-600 to-indigo-600",
+  },
+  {
+    href: "/academic/substitute",
+    title: "จัดครูสอนแทนอัจฉริยะ (Smart Substitute Routing)",
+    subtitle: "Real-time Substitute Operations",
+    description: "ซิงค์ตารางสอน + eLeave ดึงครูว่างเรียลไทม์ คำนวณคะแนน 4 ปัจจัย และพิมพ์ใบสั่งการสอนแทน",
+    icon: ArrowRightLeft,
+    badge: "eLeave Sync Active",
+    badgeColor: "bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300",
+    gradient: "from-teal-500 to-cyan-600",
+  },
+  {
+    href: "/academic/supervision",
+    title: "นิเทศการสอนออนไลน์ (Instructional Supervision)",
+    subtitle: "Supervision & Quality Assurance",
+    description: "ปฏิทินนิเทศรายสัปดาห์ซิงค์จากตารางสอน, ประเมิน 5 ด้าน, แนบวิดีโอ/แผนการสอน และ Workflow 3 สิทธิ์",
+    icon: CheckSquare,
+    badge: "5 Dimensions QA",
+    badgeColor: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
+    gradient: "from-blue-500 to-indigo-600",
+  },
+  {
+    href: "/academic/exam",
+    title: "จัดตารางสอบ & ผังที่นั่งสอบ (Exam Generator)",
+    subtitle: "Exam Scheduling & Seating",
+    description: "จัดตารางสอบกลางภาค/ปลายภาค, ผังที่นั่งสอบสลับเลขที่ป้องกันการลอกข้อสอบ และพิมพ์ใบติดหน้าห้องสอบ A4",
+    icon: FileText,
+    badge: "Anti-Cheating Engine",
+    badgeColor: "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300",
+    gradient: "from-indigo-500 to-purple-600",
+  },
+  {
+    href: "/academic/competency",
+    title: "แฟ้มสะสมงาน & สมรรถนะครู (PA Portfolio)",
+    subtitle: "Teacher PA & PD Tracker",
+    description: "ประเมินสมรรถนะการสอน 5 ด้าน, บันทึกข้อตกลง PA 2569, ชั่วโมงอบรม PD Hours และพิมพ์แฟ้มสะสมงาน A4",
+    icon: Award,
+    badge: "PA 2569 Ready",
+    badgeColor: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
+    gradient: "from-amber-500 to-orange-600",
+  },
+  {
+    href: "/academic/facility",
+    title: "จองทรัพยากร & ห้องปฏิบัติการ (Facility Platform)",
+    subtitle: "Resource Booking & Labs",
+    description: "แคตตาล็อกจองห้องแล็บ หอประชุม อุปกรณ์ และรถโรงเรียน ป้องกันการจองซ้ำซ้อนด้วย Conflict Engine",
+    icon: Building2,
+    badge: "Conflict Free Engine",
+    badgeColor: "bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300",
+    gradient: "from-cyan-500 to-blue-600",
+  },
+  {
+    href: "/academic/settings",
+    title: "ตั้งค่าระบบบริหารงานวิชาการ (Academic Settings)",
+    subtitle: "Academic Core Configuration",
+    description: "ตั้งค่าปีการศึกษา/ภาคเรียน, คาบเรียนประจำวัน, เกณฑ์ภาระงานสอนครู, กลุ่มสาระการเรียนรู้ และห้องเรียน",
+    icon: Settings,
+    badge: "System Config",
+    badgeColor: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
+    gradient: "from-slate-600 to-slate-800",
+  },
 ];
 
 // --- 9 Quick Links Subdomains ---
@@ -891,6 +968,60 @@ export default function AcademicPlanningControlCenter() {
               </div>
             ))}
           </div>
+        </div>
+      </div>
+
+      {/* --- OPERATIONAL SUBSYSTEMS (EXECUTION & OPERATIONS LAYER) --- */}
+      <div className="space-y-4 pt-6 border-t border-slate-200 dark:border-slate-800">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Cpu className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+            <h2 className="text-xl font-black text-slate-900 dark:text-white">
+              ระบบย่อยปฏิบัติการวิชาการ (Execution & Operational Subsystems)
+            </h2>
+          </div>
+          <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+            ศูนย์รวมระบบย่อยสำหรับจัดตารางสอน สอนแทน นิเทศ การสอบ PA ทรัพยากร และตั้งค่าวิชาการ
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {OPERATIONAL_MODULES.map((mod) => {
+            const Icon = mod.icon;
+            return (
+              <Link key={mod.href} href={mod.href} className="group">
+                <div className="h-full bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-2xl hover:border-indigo-500/50 transition-all duration-300 flex flex-col justify-between space-y-4">
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${mod.gradient} flex items-center justify-center text-white shadow-md group-hover:scale-105 transition-transform`}>
+                        <Icon className="w-6 h-6" />
+                      </div>
+                      <span className={`px-2.5 py-1 rounded-full text-xs font-black ${mod.badgeColor}`}>
+                        {mod.badge}
+                      </span>
+                    </div>
+
+                    <div>
+                      <h3 className="font-extrabold text-base text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                        {mod.title}
+                      </h3>
+                      <p className="text-[11px] font-semibold text-indigo-600 dark:text-indigo-400">
+                        {mod.subtitle}
+                      </p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 leading-relaxed">
+                        {mod.description}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs font-bold text-indigo-600 dark:text-indigo-400 pt-3 border-t border-slate-100 dark:border-slate-800">
+                    <span>เข้าสู่ระบบย่อย</span>
+                    <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                  </div>
+                </div>
+              </Link>
+            );
+          })}
         </div>
       </div>
 
