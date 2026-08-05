@@ -29,7 +29,7 @@ import { getHolidays, createHoliday, updateHoliday, deleteHoliday, searchInterne
 
 import { useSession } from "@/lib/auth-client";
 
-import { Save, Image as ImageIcon, ShieldAlert, DownloadCloud, Lock, Code, Settings2, Archive, UploadCloud, Database, FileJson, AlertTriangle, CheckCircle2, ChevronRight, ArrowLeft, Bell, Type, Users, BookOpen, HardDrive, UserCog, FileSpreadsheet, X, CalendarDays, CalendarDays as Calendar, ArrowRightLeft, CheckSquare, FileX, Plus, Clock, ClipboardList, MapPin, FolderOpen, Hash, UserCheck, Pencil, Trash2, ToggleLeft, ToggleRight, Sparkles, AlertCircle, Check, Eye, LayoutGrid, Wrench, Loader2, XCircle, MessageSquare, Building2, Award, FileText, Settings } from "lucide-react";
+import { Save, Image as ImageIcon, ShieldAlert, DownloadCloud, Lock, Code, Settings2, Archive, UploadCloud, Database, FileJson, AlertTriangle, CheckCircle2, ChevronRight, ArrowLeft, Bell, Type, Users, BookOpen, HardDrive, UserCog, FileSpreadsheet, X, CalendarDays, CalendarDays as Calendar, ArrowRightLeft, CheckSquare, FileX, Plus, Clock, ClipboardList, MapPin, FolderOpen, Hash, UserCheck, Pencil, Trash2, ToggleLeft, ToggleRight, Sparkles, AlertCircle, Check, Eye, LayoutGrid, Wrench, Loader2, XCircle, MessageSquare, Building2, Award, FileText, Settings, Wallet, Vote, Layers } from "lucide-react";
 
 import { useToast } from "@/components/toast-provider";
 
@@ -155,6 +155,10 @@ export default function SettingsPage() {
   const [enableCompetency, setEnableCompetency] = useState(true);
   const [enableFacility, setEnableFacility] = useState(true);
   const [enableAcademicSettings, setEnableAcademicSettings] = useState(true);
+  const [enableBudget, setEnableBudget] = useState(false);
+  const [enableStudentAffairs, setEnableStudentAffairs] = useState(false);
+  const [enableStudentCouncil, setEnableStudentCouncil] = useState(false);
+  const [enableAcademicPlanning, setEnableAcademicPlanning] = useState(true);
 
   const [timetablePeriodsPerDay, setTimetablePeriodsPerDay] = useState(8);
   const [timetableStartTime, setTimetableStartTime] = useState("08:30");
@@ -457,6 +461,10 @@ export default function SettingsPage() {
       setEnableCompetency((data as any).enableCompetency !== false);
       setEnableFacility((data as any).enableFacility !== false);
       setEnableAcademicSettings((data as any).enableAcademicSettings !== false);
+      setEnableBudget((data as any).enableBudget === true);
+      setEnableStudentAffairs((data as any).enableStudentAffairs === true);
+      setEnableStudentCouncil((data as any).enableStudentCouncil === true);
+      setEnableAcademicPlanning((data as any).enableAcademicPlanning !== false);
       setTimetablePeriodsPerDay((data as any).timetablePeriodsPerDay ?? 8);
       setTimetableStartTime((data as any).timetableStartTime || "08:30");
       setTimetablePeriodDuration((data as any).timetablePeriodDuration ?? 50);
@@ -710,7 +718,7 @@ export default function SettingsPage() {
 
   // Inline-save a single subsystem toggle
   const saveSubsystem = async (
-    key: "enableLeave" | "enableAttendance" | "enableDocument" | "enableRepair" | "enableTimetable" | "enableSubstitute" | "enableSupervision" | "enableExam" | "enableCompetency" | "enableFacility" | "enableAcademicSettings",
+    key: "enableLeave" | "enableAttendance" | "enableDocument" | "enableRepair" | "enableTimetable" | "enableSubstitute" | "enableSupervision" | "enableExam" | "enableCompetency" | "enableFacility" | "enableAcademicSettings" | "enableBudget" | "enableStudentAffairs" | "enableStudentCouncil" | "enableAcademicPlanning",
     val: boolean
   ) => {
     if (key === "enableLeave") setEnableLeave(val);
@@ -724,6 +732,10 @@ export default function SettingsPage() {
     if (key === "enableCompetency") setEnableCompetency(val);
     if (key === "enableFacility") setEnableFacility(val);
     if (key === "enableAcademicSettings") setEnableAcademicSettings(val);
+    if (key === "enableBudget") setEnableBudget(val);
+    if (key === "enableStudentAffairs") setEnableStudentAffairs(val);
+    if (key === "enableStudentCouncil") setEnableStudentCouncil(val);
+    if (key === "enableAcademicPlanning") setEnableAcademicPlanning(val);
     try {
       const res = await updateSystemSettings({
         [key]: val,
@@ -7289,6 +7301,58 @@ export default function SettingsPage() {
         enabled: enableAcademicSettings,
         saveKey: "enableAcademicSettings",
         customPath: "/academic/settings",
+      },
+      {
+        id: "academic_planning",
+        icon: <Layers className="w-5 h-5" />,
+        activeColor: "text-purple-600 dark:text-purple-400",
+        activeBg: "bg-purple-100 dark:bg-purple-950/40",
+        activeBorder: "bg-purple-50/40 dark:bg-purple-950/10 border-purple-200 dark:border-purple-800",
+        toggleColor: "bg-purple-600",
+        title: lang === "en" ? "Academic Planning Platform" : "ศูนย์วางแผนวิชาการ",
+        desc: lang === "en" ? "Academic planning control plane, curriculum sandbox & readiness gate" : "ศูนย์ควบคุมการวางแผนวิชาการ โครงสร้างหลักสูตร ฉากทัศน์จำลอง และเกณฑ์ความพร้อม",
+        enabled: enableAcademicPlanning,
+        saveKey: "enableAcademicPlanning",
+        customPath: "/academic/planning",
+      },
+      {
+        id: "budget",
+        icon: <Wallet className="w-5 h-5" />,
+        activeColor: "text-emerald-600 dark:text-emerald-400",
+        activeBg: "bg-emerald-100 dark:bg-emerald-950/40",
+        activeBorder: "bg-emerald-50/40 dark:bg-emerald-950/10 border-emerald-200 dark:border-emerald-800",
+        toggleColor: "bg-emerald-600",
+        title: lang === "en" ? "Budget & Financial System" : "ระบบบริหารงานงบประมาณ",
+        desc: lang === "en" ? "Budget allocation, procurement, expense tracking & financial reports" : "ตั้งงบประมาณโครงการ ควบคุมการเบิกจ่าย พัสดุ และรายงานทางการเงิน",
+        enabled: enableBudget,
+        saveKey: "enableBudget",
+        customPath: "/budget",
+      },
+      {
+        id: "student_affairs",
+        icon: <Users className="w-5 h-5" />,
+        activeColor: "text-rose-600 dark:text-rose-400",
+        activeBg: "bg-rose-100 dark:bg-rose-950/40",
+        activeBorder: "bg-rose-50/40 dark:bg-rose-950/10 border-rose-200 dark:border-rose-800",
+        toggleColor: "bg-rose-600",
+        title: lang === "en" ? "Student Affairs System" : "ระบบบริหารงานกิจการนักเรียน",
+        desc: lang === "en" ? "Student discipline, behavior scoring, care system & morning attendance" : "บันทึกวินัยนักเรียน ตัดคะแนนพฤติกรรม ระบบดูแลช่วยเหลือ และเช็คชื่อเสาธง",
+        enabled: enableStudentAffairs,
+        saveKey: "enableStudentAffairs",
+        customPath: "/student-affairs",
+      },
+      {
+        id: "student_council",
+        icon: <Vote className="w-5 h-5" />,
+        activeColor: "text-blue-600 dark:text-blue-400",
+        activeBg: "bg-blue-100 dark:bg-blue-950/40",
+        activeBorder: "bg-blue-50/40 dark:bg-blue-950/10 border-blue-200 dark:border-blue-800",
+        toggleColor: "bg-blue-600",
+        title: lang === "en" ? "Student Council System" : "ระบบบริหารงานสภานักเรียน",
+        desc: lang === "en" ? "Student e-voting election, student council activities & student voice" : "เลือกตั้งสภานักเรียนออนไลน์ E-Voting ปฏิทินกิจกรรมนักเรียน และตู้รับข้อเสนอแนะ",
+        enabled: enableStudentCouncil,
+        saveKey: "enableStudentCouncil",
+        customPath: "/student-council",
       },
     ];
 

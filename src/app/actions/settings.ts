@@ -101,6 +101,10 @@ export async function ensureSubsystemColumnsExist() {
       ALTER TABLE "SystemSettings" ADD COLUMN IF NOT EXISTS "enableCompetency" BOOLEAN DEFAULT true;
       ALTER TABLE "SystemSettings" ADD COLUMN IF NOT EXISTS "enableFacility" BOOLEAN DEFAULT true;
       ALTER TABLE "SystemSettings" ADD COLUMN IF NOT EXISTS "enableAcademicSettings" BOOLEAN DEFAULT true;
+      ALTER TABLE "SystemSettings" ADD COLUMN IF NOT EXISTS "enableBudget" BOOLEAN DEFAULT false;
+      ALTER TABLE "SystemSettings" ADD COLUMN IF NOT EXISTS "enableStudentAffairs" BOOLEAN DEFAULT false;
+      ALTER TABLE "SystemSettings" ADD COLUMN IF NOT EXISTS "enableStudentCouncil" BOOLEAN DEFAULT false;
+      ALTER TABLE "SystemSettings" ADD COLUMN IF NOT EXISTS "enableAcademicPlanning" BOOLEAN DEFAULT true;
       ALTER TABLE "SystemLog" ADD COLUMN IF NOT EXISTS "subsystem" TEXT DEFAULT 'LEAVE';
       CREATE TABLE IF NOT EXISTS "SystemLogArchive" (
         "id" TEXT NOT NULL PRIMARY KEY,
@@ -172,6 +176,10 @@ export async function getSystemSettings() {
       enableCompetency: (safeSettings as any).enableCompetency ?? true,
       enableFacility: (safeSettings as any).enableFacility ?? true,
       enableAcademicSettings: (safeSettings as any).enableAcademicSettings ?? true,
+      enableBudget: (safeSettings as any).enableBudget ?? false,
+      enableStudentAffairs: (safeSettings as any).enableStudentAffairs ?? false,
+      enableStudentCouncil: (safeSettings as any).enableStudentCouncil ?? false,
+      enableAcademicPlanning: (safeSettings as any).enableAcademicPlanning ?? true,
 
       timetablePeriodsPerDay: (safeSettings as any).timetablePeriodsPerDay ?? 8,
       timetableStartTime: (safeSettings as any).timetableStartTime || "08:30",
@@ -430,6 +438,10 @@ export async function updateSystemSettings(data: {
   enableCompetency?: boolean;
   enableFacility?: boolean;
   enableAcademicSettings?: boolean;
+  enableBudget?: boolean;
+  enableStudentAffairs?: boolean;
+  enableStudentCouncil?: boolean;
+  enableAcademicPlanning?: boolean;
   timetablePeriodsPerDay?: number;
   timetableStartTime?: string;
   timetablePeriodDuration?: number;
@@ -519,6 +531,10 @@ export async function updateSystemSettings(data: {
         enableCompetency: data.enableCompetency !== undefined ? data.enableCompetency : undefined,
         enableFacility: data.enableFacility !== undefined ? data.enableFacility : undefined,
         enableAcademicSettings: data.enableAcademicSettings !== undefined ? data.enableAcademicSettings : undefined,
+        enableBudget: data.enableBudget !== undefined ? data.enableBudget : undefined,
+        enableStudentAffairs: data.enableStudentAffairs !== undefined ? data.enableStudentAffairs : undefined,
+        enableStudentCouncil: data.enableStudentCouncil !== undefined ? data.enableStudentCouncil : undefined,
+        enableAcademicPlanning: data.enableAcademicPlanning !== undefined ? data.enableAcademicPlanning : undefined,
         timetablePeriodsPerDay: data.timetablePeriodsPerDay !== undefined ? data.timetablePeriodsPerDay : undefined,
         timetableStartTime: data.timetableStartTime !== undefined ? data.timetableStartTime : undefined,
         timetablePeriodDuration: data.timetablePeriodDuration !== undefined ? data.timetablePeriodDuration : undefined,

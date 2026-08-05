@@ -410,6 +410,10 @@ function AppContent({ children }: { children: React.ReactNode }) {
   const [enableCompetency, setEnableCompetency] = useState(true);
   const [enableFacility, setEnableFacility] = useState(true);
   const [enableAcademicSettings, setEnableAcademicSettings] = useState(true);
+  const [enableBudget, setEnableBudget] = useState(false);
+  const [enableStudentAffairs, setEnableStudentAffairs] = useState(false);
+  const [enableStudentCouncil, setEnableStudentCouncil] = useState(false);
+  const [enableAcademicPlanning, setEnableAcademicPlanning] = useState(true);
   const [brandSubheader, setBrandSubheader] = useState("ระบบจัดการการลา");
   const [isLoadingSettings, setIsLoadingSettings] = useState(true);
 
@@ -442,6 +446,10 @@ function AppContent({ children }: { children: React.ReactNode }) {
       const storedEnableCompetency = localStorage.getItem("eleave_enableCompetency");
       const storedEnableFacility = localStorage.getItem("eleave_enableFacility");
       const storedEnableAcademicSettings = localStorage.getItem("eleave_enableAcademicSettings");
+      const storedEnableBudget = localStorage.getItem("eleave_enableBudget");
+      const storedEnableStudentAffairs = localStorage.getItem("eleave_enableStudentAffairs");
+      const storedEnableStudentCouncil = localStorage.getItem("eleave_enableStudentCouncil");
+      const storedEnableAcademicPlanning = localStorage.getItem("eleave_enableAcademicPlanning");
 
       if (storedSchoolName) setBrandName(storedSchoolName);
       if (storedSubheader) setBrandSubheader(storedSubheader);
@@ -457,6 +465,10 @@ function AppContent({ children }: { children: React.ReactNode }) {
       if (storedEnableCompetency) setEnableCompetency(storedEnableCompetency === "true");
       if (storedEnableFacility) setEnableFacility(storedEnableFacility === "true");
       if (storedEnableAcademicSettings) setEnableAcademicSettings(storedEnableAcademicSettings === "true");
+      if (storedEnableBudget) setEnableBudget(storedEnableBudget === "true");
+      if (storedEnableStudentAffairs) setEnableStudentAffairs(storedEnableStudentAffairs === "true");
+      if (storedEnableStudentCouncil) setEnableStudentCouncil(storedEnableStudentCouncil === "true");
+      if (storedEnableAcademicPlanning) setEnableAcademicPlanning(storedEnableAcademicPlanning === "true");
       
       // If we loaded cached data, we can mark settings loading as finished to bypass default splash page
       if (storedSchoolName || storedLogoUrl) {
@@ -483,6 +495,10 @@ function AppContent({ children }: { children: React.ReactNode }) {
       const finalEnableCompetency = (s as any).enableCompetency !== false;
       const finalEnableFacility = (s as any).enableFacility !== false;
       const finalEnableAcademicSettings = (s as any).enableAcademicSettings !== false;
+      const finalEnableBudget = (s as any).enableBudget === true;
+      const finalEnableStudentAffairs = (s as any).enableStudentAffairs === true;
+      const finalEnableStudentCouncil = (s as any).enableStudentCouncil === true;
+      const finalEnableAcademicPlanning = (s as any).enableAcademicPlanning !== false;
 
       setBrandName(finalSchoolName);
       setBrandLogo(finalLogoUrl);
@@ -498,6 +514,10 @@ function AppContent({ children }: { children: React.ReactNode }) {
       setEnableCompetency(finalEnableCompetency);
       setEnableFacility(finalEnableFacility);
       setEnableAcademicSettings(finalEnableAcademicSettings);
+      setEnableBudget(finalEnableBudget);
+      setEnableStudentAffairs(finalEnableStudentAffairs);
+      setEnableStudentCouncil(finalEnableStudentCouncil);
+      setEnableAcademicPlanning(finalEnableAcademicPlanning);
       
       if (s.finalApproverUserIds && session?.user?.id) {
         const allowedIds = s.finalApproverUserIds.split(",").map((id: string) => id.trim()).filter(Boolean);
@@ -657,6 +677,10 @@ function AppContent({ children }: { children: React.ReactNode }) {
   const showDocument = enableDocument || isAdmin;
   const showRepair = enableRepair || isAdmin;
   const showAttendance = enableAttendance || isAdmin;
+  const showBudget = enableBudget || isAdmin;
+  const showStudentAffairs = enableStudentAffairs || isAdmin;
+  const showStudentCouncil = enableStudentCouncil || isAdmin;
+  const showAcademicPlanning = enableAcademicPlanning || isAdmin;
 
   // Sub-items for Leave System (ระบบการลา)
   const leaveSubItems = showLeave
@@ -696,7 +720,9 @@ function AppContent({ children }: { children: React.ReactNode }) {
 
   // Sub-items for Academic Affairs System (งานฝ่ายวิชาการ)
   const academicSubItems = [];
-  academicSubItems.push({ href: "/academic/planning", label: "ศูนย์วางแผนวิชาการ", icon: Layers });
+  if (showAcademicPlanning) {
+    academicSubItems.push({ href: "/academic/planning", label: "ศูนย์วางแผนวิชาการ", icon: Layers });
+  }
   if (enableTimetable) {
     academicSubItems.push({ href: "/academic/timetable", label: "จัดตารางสอน", icon: Calendar });
   }
@@ -769,6 +795,10 @@ function AppContent({ children }: { children: React.ReactNode }) {
     if ((path.startsWith("/document") || path.startsWith("/general/document")) && !enableDocument && !isAdmin) return false;
     if ((path.startsWith("/repair") || path.startsWith("/general/repair")) && !enableRepair && !isAdmin) return false;
     if ((path.startsWith("/repair") || path.startsWith("/general/repair")) && !hasRepairPermission(user, "repair:view.own") && !hasRepairPermission(user, "repair:view.all")) return false;
+    if (path.startsWith("/budget") && !enableBudget && !isAdmin) return false;
+    if (path.startsWith("/student-affairs") && !enableStudentAffairs && !isAdmin) return false;
+    if (path.startsWith("/student-council") && !enableStudentCouncil && !isAdmin) return false;
+    if (path.startsWith("/academic/planning") && !enableAcademicPlanning && !isAdmin) return false;
     if ((path.startsWith("/reports") || path.startsWith("/hr/leave/reports")) && !activePerms.reports?.includes(key)) return false;
     if ((path.startsWith("/approvals") || path.startsWith("/hr/leave/approvals")) && !activePerms.approvals?.includes(key)) return false;
     if (path.startsWith("/logs") && !activePerms.logs?.includes(key)) return false;
@@ -950,28 +980,34 @@ function AppContent({ children }: { children: React.ReactNode }) {
           )}
 
           {/* Section 4: งบประมาณ */}
-          <div className="space-y-1.5">
-            <div className="px-3 pb-0.5 text-[11.5px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-              งบประมาณ
+          {showBudget && (
+            <div className="space-y-1.5">
+              <div className="px-3 pb-0.5 text-[11.5px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                งบประมาณ
+              </div>
+              {renderNavItem({ href: "/budget", label: "บริหารงานงบประมาณ", icon: Wallet })}
             </div>
-            {renderNavItem({ href: "/budget", label: "บริหารงานงบประมาณ", icon: Wallet })}
-          </div>
+          )}
 
           {/* Section 5: กิจการนักเรียน */}
-          <div className="space-y-1.5">
-            <div className="px-3 pb-0.5 text-[11.5px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-              กิจการนักเรียน
+          {showStudentAffairs && (
+            <div className="space-y-1.5">
+              <div className="px-3 pb-0.5 text-[11.5px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                กิจการนักเรียน
+              </div>
+              {renderNavItem({ href: "/student-affairs", label: "บริหารงานกิจการนักเรียน", icon: Users })}
             </div>
-            {renderNavItem({ href: "/student-affairs", label: "บริหารงานกิจการนักเรียน", icon: Users })}
-          </div>
+          )}
 
           {/* Section 6: สภานักเรียน */}
-          <div className="space-y-1.5">
-            <div className="px-3 pb-0.5 text-[11.5px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-              สภานักเรียน
+          {showStudentCouncil && (
+            <div className="space-y-1.5">
+              <div className="px-3 pb-0.5 text-[11.5px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                สภานักเรียน
+              </div>
+              {renderNavItem({ href: "/student-council", label: "บริหารงานสภานักเรียน", icon: Vote })}
             </div>
-            {renderNavItem({ href: "/student-council", label: "บริหารงานสภานักเรียน", icon: Vote })}
-          </div>
+          )}
 
           {/* Section 7: ตั้งค่าระบบ */}
           {settingsNavItems.length > 0 && (
