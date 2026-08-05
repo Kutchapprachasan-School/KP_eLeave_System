@@ -38,7 +38,9 @@ import {
   CalendarDays as Calendar,
   Building2,
   Award,
-  Layers
+  Layers,
+  Wallet,
+  Vote
 } from "lucide-react";
 import { hasRepairPermission } from "@/lib/permissions";
 import { getNotifications } from "@/app/actions/admin";
@@ -707,9 +709,6 @@ function AppContent({ children }: { children: React.ReactNode }) {
   if (enableExam) {
     academicSubItems.push({ href: "/academic/exam", label: "จัดตารางสอบ & ผังที่นั่ง", icon: FileText });
   }
-  if (enableCompetency) {
-    academicSubItems.push({ href: "/academic/competency", label: "แฟ้มสะสมงาน PA", icon: Award });
-  }
   if (enableAcademicSettings && isAdmin) {
     academicSubItems.push({ href: "/academic/settings", label: "ตั้งค่าระบบวิชาการ", icon: Settings });
   }
@@ -890,6 +889,9 @@ function AppContent({ children }: { children: React.ReactNode }) {
             {/* ลงเวลาปฏิบัติราชการ */}
             {showAttendance && renderNavItem({ href: "/attendance", label: "ลงเวลาปฏิบัติราชการ", icon: Clock })}
 
+            {/* แฟ้มสะสมงาน PA */}
+            {enableCompetency && renderNavItem({ href: "/hr/competency", label: "แฟ้มสะสมงาน PA", icon: Award })}
+
             {/* ระบบการลา (Collapsible Group) */}
             <CollapsibleGroup
               title="ระบบการลา"
@@ -908,7 +910,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
             </div>
 
             {/* จองทรัพยากรกลาง */}
-            {enableFacility && renderNavItem({ href: "/academic/facility", label: "จองทรัพยากรกลาง", icon: Building2 })}
+            {enableFacility && renderNavItem({ href: "/general/facility", label: "จองทรัพยากรกลาง", icon: Building2 })}
 
             {/* ระบบสารบรรณ (Collapsible Group) */}
             {documentSubItems.length > 0 && (
@@ -947,9 +949,31 @@ function AppContent({ children }: { children: React.ReactNode }) {
             </div>
           )}
 
+          {/* Section 4: งบประมาณ */}
+          <div className="space-y-1.5">
+            <div className="px-3 pb-0.5 text-[11.5px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+              งบประมาณ
+            </div>
+            {renderNavItem({ href: "/budget", label: "บริหารงานงบประมาณ", icon: Wallet })}
+          </div>
 
+          {/* Section 5: กิจการนักเรียน */}
+          <div className="space-y-1.5">
+            <div className="px-3 pb-0.5 text-[11.5px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+              กิจการนักเรียน
+            </div>
+            {renderNavItem({ href: "/student-affairs", label: "บริหารงานกิจการนักเรียน", icon: Users })}
+          </div>
 
-          {/* Section 5: ตั้งค่าระบบ */}
+          {/* Section 6: สภานักเรียน */}
+          <div className="space-y-1.5">
+            <div className="px-3 pb-0.5 text-[11.5px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+              สภานักเรียน
+            </div>
+            {renderNavItem({ href: "/student-council", label: "บริหารงานสภานักเรียน", icon: Vote })}
+          </div>
+
+          {/* Section 7: ตั้งค่าระบบ */}
           {settingsNavItems.length > 0 && (
             <div className="space-y-1.5">
               <div className="px-3 pb-0.5 text-[11.5px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
