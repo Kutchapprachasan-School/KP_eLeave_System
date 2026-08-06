@@ -47,6 +47,26 @@ const COMMON_RECIPIENTS = [
   "ทุกคนในสถานศึกษา"
 ];
 
+const DEPARTMENT_OPTIONS = [
+  "บุคคล",
+  "งบประมาณ",
+  "ทั่วไป",
+  "วิชาการ",
+  "กิจการนักเรียน",
+  "งานสารบรรณ",
+];
+
+const SUBJECT_GROUP_OPTIONS = [
+  "กลุ่มสาระการเรียนรู้ภาษาไทย",
+  "กลุ่มสาระการเรียนรู้คณิตศาสตร์",
+  "กลุ่มสาระการเรียนรู้วิทยาศาสตร์และเทคโนโลยี",
+  "กลุ่มสาระการเรียนรู้สังคมศึกษา ศาสนา และวัฒนธรรม",
+  "กลุ่มสาระการเรียนรู้สุขศึกษาและพลศึกษา",
+  "กลุ่มสาระการเรียนรู้ศิลปะ",
+  "กลุ่มสาระการเรียนรู้การงานอาชีพ",
+  "กลุ่มสาระการเรียนรู้ภาษาต่างประเทศ",
+];
+
 export default function OutboundForm({
   sections,
   issuing,
@@ -57,13 +77,13 @@ export default function OutboundForm({
   onRefresh,
   onGoToHistory,
 }: OutboundFormProps) {
-  // Default "จากหน่วยงาน" to requester's name
+  // Default "จากหน่วยงาน" to requester's department or "บุคคล"
   const [formData, setFormData] = useState({
     docType: "MEMO",
     outgoingSubtype: "OUTGOING_NORMAL",
     memoSectionId: sections[0]?.id || "",
-    unitType: "DEPARTMENT" as "DEPARTMENT" | "SUBJECT_GROUP",
-    origin: username || department || "งานสารบรรณ",
+    unitType: (department && department.includes("กลุ่มสาระ") ? "SUBJECT_GROUP" : "DEPARTMENT") as "DEPARTMENT" | "SUBJECT_GROUP",
+    origin: (department && department.includes("กลุ่มสาระ")) ? department : "บุคคล",
     to: "ผู้อำนวยการโรงเรียน",
     title: "",
     requester: username || "",
@@ -87,12 +107,17 @@ export default function OutboundForm({
 
   useEffect(() => {
     if (username || department) {
-      setFormData(prev => ({
-        ...prev,
-        requester: prev.requester || username || "",
-        origin: (prev.origin === "งานสารบรรณ" || !prev.origin) ? (username || department || "งานสารบรรณ") : prev.origin,
-        department: department || prev.department || ""
-      }));
+      setFormData(prev => {
+        const isSubGroup = Boolean(department && department.includes("กลุ่มสาระ"));
+        const defaultOrigin = isSubGroup ? department : (DEPARTMENT_OPTIONS.includes(prev.origin) ? prev.origin : "บุคคล");
+        return {
+          ...prev,
+          requester: prev.requester || username || "",
+          unitType: isSubGroup ? "SUBJECT_GROUP" : prev.unitType,
+          origin: defaultOrigin,
+          department: department || prev.department || ""
+        };
+      });
     }
   }, [username, department]);
 
@@ -335,7 +360,7 @@ export default function OutboundForm({
           )}
 
           {/* Requester Unit Radio Selector (ฝ่ายงาน vs กลุ่มสาระ) */}
-          <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/70 space-y-2">
+          <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/70 space-y-2">
             <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">
               หน่วยงาน/สังกัด เจ้าของเรื่อง *
             </label>
@@ -349,7 +374,7 @@ export default function OutboundForm({
                   onChange={() => setFormData({ 
                     ...formData, 
                     unitType: "DEPARTMENT",
-                    origin: department || "ฝ่ายบริหารงานทั่วไป"
+                    origin: DEPARTMENT_OPTIONS[0]
                   })}
                   className="accent-purple-600"
                 />
@@ -361,11 +386,14 @@ export default function OutboundForm({
                   name="unitType"
                   value="SUBJECT_GROUP"
                   checked={formData.unitType === "SUBJECT_GROUP"}
-                  onChange={() => setFormData({ 
-                    ...formData, 
-                    unitType: "SUBJECT_GROUP",
-                    origin: "กลุ่มสาระการเรียนรู้"
-                  })}
+                  onChange={() => {
+                    const defaultSG = (department && department.includes("กลุ่มสาระ")) ? department : SUBJECT_GROUP_OPTIONS[0];
+                    setFormData({ 
+                      ...formData, 
+                      unitType: "SUBJECT_GROUP",
+                      origin: defaultSG
+                    });
+                  }}
                   className="accent-purple-600"
                 />
                 📚 กลุ่มสาระการเรียนรู้
@@ -378,21 +406,33 @@ export default function OutboundForm({
                 onChange={(e) => setFormData({ ...formData, origin: e.target.value })}
                 className="w-full h-9 px-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-xs font-medium text-slate-900 dark:text-white outline-none cursor-pointer"
               >
-                <option value="ฝ่ายบริหารงานบุคคล">ฝ่ายบริหารงานบุคคล</option>
-                <option value="ฝ่ายวิชาการ">ฝ่ายวิชาการ</option>
-                <option value="ฝ่ายบริหารงานงบประมาณ">ฝ่ายบริหารงานงบประมาณ</option>
-                <option value="ฝ่ายบริหารทั่วไป">ฝ่ายบริหารทั่วไป</option>
-                <option value="งานสารบรรณ">งานสารบรรณ</option>
+                {DEPARTMENT_OPTIONS.map((dept) => (
+                  <option key={dept} value={dept}>{dept}</option>
+                ))}
               </select>
             ) : (
-              <input
-                type="text"
-                required
-                placeholder="ระบุกลุ่มสาระการเรียนรู้..."
-                value={formData.origin}
-                onChange={(e) => setFormData({ ...formData, origin: e.target.value })}
-                className="w-full h-9 px-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-xs text-slate-900 dark:text-white outline-none"
-              />
+              <div>
+                {department && department.includes("กลุ่มสาระ") ? (
+                  <input
+                    type="text"
+                    required
+                    value={formData.origin}
+                    onChange={(e) => setFormData({ ...formData, origin: e.target.value })}
+                    className="w-full h-9 px-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-xs text-slate-900 dark:text-white outline-none font-medium"
+                    placeholder="กลุ่มสาระ..."
+                  />
+                ) : (
+                  <select
+                    value={formData.origin}
+                    onChange={(e) => setFormData({ ...formData, origin: e.target.value })}
+                    className="w-full h-9 px-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-xs font-medium text-slate-900 dark:text-white outline-none cursor-pointer"
+                  >
+                    {SUBJECT_GROUP_OPTIONS.map((sg) => (
+                      <option key={sg} value={sg}>{sg}</option>
+                    ))}
+                  </select>
+                )}
+              </div>
             )}
           </div>
 
@@ -455,30 +495,19 @@ export default function OutboundForm({
             />
           </div>
 
-          {/* Origin / Requester (Hidden or Compact) */}
-          <div className="grid grid-cols-2 gap-3 pt-1">
-            <div>
-              <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1">
-                จากหน่วยงาน
-              </label>
-              <input
-                type="text"
-                value={formData.origin}
-                onChange={(e) => setFormData({ ...formData, origin: e.target.value })}
-                className="w-full h-8 px-2.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-[11px] text-slate-700 dark:text-slate-300 outline-none"
-              />
-            </div>
-            <div>
-              <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1">
-                ผู้ขอออกเลข
-              </label>
-              <input
-                type="text"
-                value={formData.requester}
-                onChange={(e) => setFormData({ ...formData, requester: e.target.value })}
-                className="w-full h-8 px-2.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-[11px] text-slate-700 dark:text-slate-300 outline-none"
-              />
-            </div>
+          {/* Requester (Clean Single Input) */}
+          <div className="pt-1">
+            <label className="block text-xs font-semibold text-slate-800 dark:text-slate-200 mb-1.5">
+              ผู้ขอออกเลข *
+            </label>
+            <input
+              type="text"
+              required
+              value={formData.requester}
+              onChange={(e) => setFormData({ ...formData, requester: e.target.value })}
+              className="w-full h-10 px-3 rounded-xl border border-slate-200 dark:border-slate-750 bg-white dark:bg-slate-950 text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all outline-none font-medium"
+              placeholder="ชื่อผู้ขอออกเลข..."
+            />
           </div>
 
           {/* Card Slot: Show Green Success Card if lastIssuedDoc exists, otherwise show Amber Reference Card */}
@@ -566,7 +595,7 @@ export default function OutboundForm({
           </div>
 
           {/* History List Table */}
-          {outboundDocs.length === 0 ? (
+          {(!outboundDocs || outboundDocs.length === 0) ? (
             <div className="text-center py-12 text-xs text-slate-400">
               ยังไม่มีประวัติการขอออกเลขหนังสือ
             </div>
