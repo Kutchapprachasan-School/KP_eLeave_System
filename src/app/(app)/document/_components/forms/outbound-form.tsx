@@ -180,26 +180,26 @@ export default function OutboundForm({
     <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 md:p-6 shadow-xs relative">
       <div className="lg:grid lg:grid-cols-12 lg:gap-8 space-y-6 lg:space-y-0 items-start">
         {/* Left Column: Input Form */}
-        <form onSubmit={handleSubmit} className="lg:col-span-5 space-y-4">
-          <div className="flex items-center gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
-            <div className="w-6 h-6 rounded-full bg-purple-100 dark:bg-purple-950/80 text-purple-600 dark:text-purple-400 flex items-center justify-center text-xs font-bold">
+        <form onSubmit={handleSubmit} className="lg:col-span-5 space-y-4.5">
+          <div className="flex items-center gap-2.5 pb-2.5 border-b border-slate-100 dark:border-slate-800">
+            <div className="w-7 h-7 rounded-full bg-purple-100 dark:bg-purple-950/80 text-purple-600 dark:text-purple-400 flex items-center justify-center text-sm font-bold">
               +
             </div>
-            <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+            <h3 className="text-base font-bold text-slate-900 dark:text-white">
               ออกเลขหนังสือใหม่
             </h3>
           </div>
 
           {/* DocType Dropdown */}
           <div>
-            <label className="block text-xs font-semibold text-slate-800 dark:text-slate-200 mb-1.5">
+            <label className="block text-sm font-semibold text-slate-800 dark:text-slate-200 mb-1.5">
               ประเภทเอกสาร *
             </label>
             <div className="relative">
               <select
                 value={formData.docType}
                 onChange={(e) => setFormData({ ...formData, docType: e.target.value })}
-                className="w-full h-10 pl-3 pr-9 rounded-xl border border-slate-200 dark:border-slate-750 bg-white dark:bg-slate-950 text-xs font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all appearance-none cursor-pointer outline-none"
+                className="w-full h-11 pl-3.5 pr-9 rounded-xl border border-slate-200 dark:border-slate-750 bg-white dark:bg-slate-950 text-sm font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all appearance-none cursor-pointer outline-none"
               >
                 <option value="MEMO">บันทึกข้อความ</option>
                 <option value="OUTGOING">หนังสือส่ง</option>
@@ -215,30 +215,30 @@ export default function OutboundForm({
 
           {/* Sub-option for หนังสือส่ง */}
           {formData.docType === "OUTGOING" && (
-            <div className="p-2.5 rounded-xl bg-purple-50/60 dark:bg-purple-950/40 border border-purple-100 dark:border-purple-900/60 space-y-1.5">
-              <label className="block text-[11px] font-bold text-purple-800 dark:text-purple-300">
+            <div className="p-3 rounded-xl bg-purple-50/60 dark:bg-purple-950/40 border border-purple-100 dark:border-purple-900/60 space-y-2">
+              <label className="block text-xs font-bold text-purple-800 dark:text-purple-300">
                 ประเภทหนังสือส่ง *
               </label>
               <div className="flex items-center gap-4">
-                <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 cursor-pointer">
+                <label className="flex items-center gap-1.5 text-sm font-semibold text-slate-700 dark:text-slate-200 cursor-pointer">
                   <input
                     type="radio"
                     name="outgoingSubtype"
                     value="OUTGOING_NORMAL"
                     checked={formData.outgoingSubtype === "OUTGOING_NORMAL"}
                     onChange={() => setFormData({ ...formData, outgoingSubtype: "OUTGOING_NORMAL" })}
-                    className="accent-purple-600"
+                    className="accent-purple-600 w-4 h-4"
                   />
                   ปกติ
                 </label>
-                <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 cursor-pointer">
+                <label className="flex items-center gap-1.5 text-sm font-semibold text-slate-700 dark:text-slate-200 cursor-pointer">
                   <input
                     type="radio"
                     name="outgoingSubtype"
                     value="OUTGOING_CIRCULAR"
                     checked={formData.outgoingSubtype === "OUTGOING_CIRCULAR"}
                     onChange={() => setFormData({ ...formData, outgoingSubtype: "OUTGOING_CIRCULAR" })}
-                    className="accent-purple-600"
+                    className="accent-purple-600 w-4 h-4"
                   />
                   หนังสือเวียน
                 </label>
@@ -248,8 +248,8 @@ export default function OutboundForm({
 
           {/* Certificate Bulk & Dynamic Role Options */}
           {formData.docType === "CERTIFICATE" && (
-            <div className="p-3 rounded-xl bg-amber-50/70 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 space-y-2.5">
-              <label className="flex items-center gap-2 text-xs font-bold text-amber-900 dark:text-amber-200 cursor-pointer">
+            <div className="p-3.5 rounded-xl bg-amber-50/70 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 space-y-3">
+              <label className="flex items-center gap-2 text-sm font-bold text-amber-900 dark:text-amber-200 cursor-pointer">
                 <input
                   type="checkbox"
                   checked={formData.isBulkBatch}
@@ -262,7 +262,7 @@ export default function OutboundForm({
               {formData.isBulkBatch && (
                 <div className="pl-6 space-y-2 pt-1 border-t border-amber-200/60 dark:border-amber-800/40">
                   <div>
-                    <label className="block text-[11px] font-semibold text-amber-800 dark:text-amber-300 mb-1">
+                    <label className="block text-xs font-semibold text-amber-800 dark:text-amber-300 mb-1">
                       จำนวนเลขที่ต้องการออก (ฉบับ) *
                     </label>
                     <input
@@ -271,17 +271,17 @@ export default function OutboundForm({
                       max={100}
                       value={formData.quantity}
                       onChange={(e) => setFormData({ ...formData, quantity: parseInt(e.target.value) || 2 })}
-                      className="w-full h-8 px-2.5 rounded-lg border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-900 text-xs text-amber-900 dark:text-amber-100 outline-none"
+                      className="w-full h-9 px-3 rounded-lg border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-900 text-sm text-amber-900 dark:text-amber-100 outline-none"
                     />
                   </div>
                 </div>
               )}
 
               <div className="pt-1">
-                <label className="block text-[11px] font-bold text-amber-900 dark:text-amber-200 mb-1">
+                <label className="block text-xs font-bold text-amber-900 dark:text-amber-200 mb-1.5">
                   ประเภทบทบาท / การเข้าร่วม *
                 </label>
-                <div className="grid grid-cols-2 gap-1.5 text-xs text-slate-700 dark:text-slate-200">
+                <div className="grid grid-cols-2 gap-2 text-sm text-slate-700 dark:text-slate-200">
                   <label className="flex items-center gap-1.5 cursor-pointer">
                     <input
                       type="radio"
@@ -289,7 +289,7 @@ export default function OutboundForm({
                       value="PARTICIPANT"
                       checked={formData.roleType === "PARTICIPANT"}
                       onChange={() => setFormData({ ...formData, roleType: "PARTICIPANT" })}
-                      className="accent-amber-600"
+                      className="accent-amber-600 w-4 h-4"
                     />
                     เข้าร่วมกิจกรรม
                   </label>
@@ -300,7 +300,7 @@ export default function OutboundForm({
                       value="SPEAKER"
                       checked={formData.roleType === "SPEAKER"}
                       onChange={() => setFormData({ ...formData, roleType: "SPEAKER" })}
-                      className="accent-amber-600"
+                      className="accent-amber-600 w-4 h-4"
                     />
                     วิทยากร
                   </label>
@@ -311,7 +311,7 @@ export default function OutboundForm({
                       value="COMMITTEE"
                       checked={formData.roleType === "COMMITTEE"}
                       onChange={() => setFormData({ ...formData, roleType: "COMMITTEE" })}
-                      className="accent-amber-600"
+                      className="accent-amber-600 w-4 h-4"
                     />
                     กรรมการ / คณะทำงาน
                   </label>
@@ -322,7 +322,7 @@ export default function OutboundForm({
                       value="OTHER"
                       checked={formData.roleType === "OTHER"}
                       onChange={() => setFormData({ ...formData, roleType: "OTHER" })}
-                      className="accent-amber-600"
+                      className="accent-amber-600 w-4 h-4"
                     />
                     อื่นๆ
                   </label>
@@ -335,7 +335,7 @@ export default function OutboundForm({
                     placeholder="ระบุชื่อบทบาท..."
                     value={formData.roleTitle}
                     onChange={(e) => setFormData({ ...formData, roleTitle: e.target.value })}
-                    className="w-full h-8 mt-1.5 px-2.5 rounded-lg border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-900 text-xs text-amber-900 dark:text-amber-100 outline-none"
+                    className="w-full h-9 mt-2 px-3 rounded-lg border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-900 text-sm text-amber-900 dark:text-amber-100 outline-none"
                   />
                 )}
               </div>
@@ -345,14 +345,14 @@ export default function OutboundForm({
           {/* Memo Section Select */}
           {formData.docType === "MEMO" && (
             <div>
-              <label className="block text-xs font-semibold text-slate-800 dark:text-slate-200 mb-1.5">
+              <label className="block text-sm font-semibold text-slate-800 dark:text-slate-200 mb-1.5">
                 หมวดหมู่เอกสาร *
               </label>
               <div className="relative">
                 <select
                   value={formData.memoSectionId}
                   onChange={(e) => setFormData({ ...formData, memoSectionId: e.target.value })}
-                  className="w-full h-10 pl-3 pr-9 rounded-xl border border-slate-200 dark:border-slate-750 bg-white dark:bg-slate-950 text-xs font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all appearance-none cursor-pointer outline-none"
+                  className="w-full h-11 pl-3.5 pr-9 rounded-xl border border-slate-200 dark:border-slate-750 bg-white dark:bg-slate-950 text-sm font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all appearance-none cursor-pointer outline-none"
                   style={selectedSection?.color ? { borderLeftWidth: '4px', borderLeftColor: selectedSection.color } : {}}
                 >
                   <option value="" disabled>-- เลือกหมวดหมู่บันทึกข้อความ --</option>
@@ -368,12 +368,12 @@ export default function OutboundForm({
           )}
 
           {/* Requester Unit Radio Selector (ฝ่ายงาน vs กลุ่มสาระ) */}
-          <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/70 space-y-2">
-            <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">
+          <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/70 space-y-2.5">
+            <label className="block text-sm font-bold text-slate-800 dark:text-slate-200">
               หน่วยงาน/สังกัด เจ้าของเรื่อง *
             </label>
             <div className="flex items-center gap-4">
-              <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300 cursor-pointer">
+              <label className="flex items-center gap-1.5 text-sm font-semibold text-slate-700 dark:text-slate-300 cursor-pointer">
                 <input
                   type="radio"
                   name="unitType"
@@ -384,11 +384,11 @@ export default function OutboundForm({
                     unitType: "DEPARTMENT",
                     origin: DEPARTMENT_OPTIONS[0]
                   })}
-                  className="accent-purple-600"
+                  className="accent-purple-600 w-4 h-4"
                 />
                 🏢 ฝ่ายงาน
               </label>
-              <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300 cursor-pointer">
+              <label className="flex items-center gap-1.5 text-sm font-semibold text-slate-700 dark:text-slate-300 cursor-pointer">
                 <input
                   type="radio"
                   name="unitType"
@@ -402,7 +402,7 @@ export default function OutboundForm({
                       origin: defaultSG
                     });
                   }}
-                  className="accent-purple-600"
+                  className="accent-purple-600 w-4 h-4"
                 />
                 📚 กลุ่มสาระการเรียนรู้
               </label>
@@ -412,7 +412,7 @@ export default function OutboundForm({
               <select
                 value={formData.origin}
                 onChange={(e) => setFormData({ ...formData, origin: e.target.value })}
-                className="w-full h-9 px-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-xs font-medium text-slate-900 dark:text-white outline-none cursor-pointer"
+                className="w-full h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm font-medium text-slate-900 dark:text-white outline-none cursor-pointer"
               >
                 {DEPARTMENT_OPTIONS.map((dept) => (
                   <option key={dept} value={dept}>{dept}</option>
@@ -426,14 +426,14 @@ export default function OutboundForm({
                     required
                     value={formData.origin}
                     onChange={(e) => setFormData({ ...formData, origin: e.target.value })}
-                    className="w-full h-9 px-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-xs text-slate-900 dark:text-white outline-none font-medium"
+                    className="w-full h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm text-slate-900 dark:text-white outline-none font-medium"
                     placeholder="กลุ่มสาระ..."
                   />
                 ) : (
                   <select
                     value={formData.origin}
                     onChange={(e) => setFormData({ ...formData, origin: e.target.value })}
-                    className="w-full h-9 px-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-xs font-medium text-slate-900 dark:text-white outline-none cursor-pointer"
+                    className="w-full h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm font-medium text-slate-900 dark:text-white outline-none cursor-pointer"
                   >
                     {SUBJECT_GROUP_OPTIONS.map((sg) => (
                       <option key={sg} value={sg}>{sg}</option>
@@ -446,7 +446,7 @@ export default function OutboundForm({
 
           {/* Date Picker */}
           <div>
-            <label className="block text-xs font-semibold text-slate-800 dark:text-slate-200 mb-1.5">
+            <label className="block text-sm font-semibold text-slate-800 dark:text-slate-200 mb-1.5">
               วันที่ออกเลข *
             </label>
             <input
@@ -455,10 +455,10 @@ export default function OutboundForm({
               value={formData.date}
               max={formData.docType === "CERTIFICATE" ? undefined : todayStr}
               onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-              className="w-full h-10 px-3 rounded-xl border border-slate-200 dark:border-slate-750 bg-white dark:bg-slate-950 text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all outline-none"
+              className="w-full h-11 px-3.5 rounded-xl border border-slate-200 dark:border-slate-750 bg-white dark:bg-slate-950 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all outline-none"
             />
             {formData.docType !== "CERTIFICATE" && (
-              <span className="text-[10px] text-slate-400 dark:text-slate-500 mt-1 block">
+              <span className="text-xs text-slate-400 dark:text-slate-500 mt-1 block">
                 * เอกสารทั่วไปไม่อนุญาตให้ลงวันที่ล่วงหน้าในอนาคต (ลงได้สูงสุดถึงวันนี้)
               </span>
             )}
@@ -466,7 +466,7 @@ export default function OutboundForm({
 
           {/* Title */}
           <div>
-            <label className="block text-xs font-semibold text-slate-800 dark:text-slate-200 mb-1.5">
+            <label className="block text-sm font-semibold text-slate-800 dark:text-slate-200 mb-1.5">
               เรื่อง
             </label>
             <textarea
@@ -475,14 +475,14 @@ export default function OutboundForm({
               placeholder="ระบุชื่อเรื่อง..."
               value={formData.title}
               onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-              className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-750 bg-white dark:bg-slate-950 text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all outline-none resize-none"
+              className="w-full p-3.5 rounded-xl border border-slate-200 dark:border-slate-750 bg-white dark:bg-slate-950 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all outline-none resize-none"
             />
           </div>
 
           {/* To / Recipient */}
           <div>
             <div className="flex justify-between items-center mb-1.5">
-              <label className="block text-xs font-semibold text-slate-800 dark:text-slate-200">
+              <label className="block text-sm font-semibold text-slate-800 dark:text-slate-200">
                 เรียน / ถึง
               </label>
               <SearchableCombobox
@@ -499,13 +499,13 @@ export default function OutboundForm({
               placeholder="เช่น ผู้อำนวยการ..."
               value={formData.to}
               onChange={(e) => setFormData({ ...formData, to: e.target.value })}
-              className="w-full h-10 px-3 rounded-xl border border-slate-200 dark:border-slate-750 bg-white dark:bg-slate-950 text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all outline-none"
+              className="w-full h-11 px-3.5 rounded-xl border border-slate-200 dark:border-slate-750 bg-white dark:bg-slate-950 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all outline-none"
             />
           </div>
 
           {/* Requester (Clean Single Input) */}
           <div className="pt-1">
-            <label className="block text-xs font-semibold text-slate-800 dark:text-slate-200 mb-1.5">
+            <label className="block text-sm font-semibold text-slate-800 dark:text-slate-200 mb-1.5">
               ผู้ขอออกเลข *
             </label>
             <input
@@ -513,25 +513,25 @@ export default function OutboundForm({
               required
               value={formData.requester}
               onChange={(e) => setFormData({ ...formData, requester: e.target.value })}
-              className="w-full h-10 px-3 rounded-xl border border-slate-200 dark:border-slate-750 bg-white dark:bg-slate-950 text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all outline-none font-medium"
+              className="w-full h-11 px-3.5 rounded-xl border border-slate-200 dark:border-slate-750 bg-white dark:bg-slate-950 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all outline-none font-medium"
               placeholder="ชื่อผู้ขอออกเลข..."
             />
           </div>
 
           {/* Card Slot: Show Green Success Card if lastIssuedDoc exists, otherwise show Amber Reference Card */}
           {lastIssuedDoc ? (
-            <div className="bg-emerald-50 dark:bg-emerald-950/70 border-2 border-emerald-500/60 dark:border-emerald-600/60 rounded-xl p-3.5 space-y-2 text-center shadow-md animate-in zoom-in-95 duration-200">
-              <div className="flex items-center justify-center gap-1.5 text-xs font-black text-emerald-700 dark:text-emerald-300">
-                <span className="text-base">🎉</span>
+            <div className="bg-emerald-50 dark:bg-emerald-950/70 border-2 border-emerald-500/60 dark:border-emerald-600/60 rounded-xl p-4 space-y-2 text-center shadow-md animate-in zoom-in-95 duration-200">
+              <div className="flex items-center justify-center gap-1.5 text-sm font-black text-emerald-700 dark:text-emerald-300">
+                <span className="text-lg">🎉</span>
                 ออกเลขหนังสือของคุณสำเร็จเรียบร้อย!
               </div>
-              <div className="text-xl sm:text-2xl font-black font-mono text-emerald-600 dark:text-emerald-400">
+              <div className="text-2xl sm:text-3xl font-black font-mono text-emerald-600 dark:text-emerald-400">
                 {lastIssuedDoc.docNo}
               </div>
-              <div className="text-xs font-bold text-slate-800 dark:text-slate-100 line-clamp-1">
+              <div className="text-sm font-bold text-slate-800 dark:text-slate-100 line-clamp-1">
                 เรื่อง: {lastIssuedDoc.title}
               </div>
-              <div className="text-[11px] text-slate-600 dark:text-slate-400 flex items-center justify-center gap-2">
+              <div className="text-xs text-slate-600 dark:text-slate-400 flex items-center justify-center gap-2">
                 <span>ถึง: {lastIssuedDoc.to}</span>
                 <span>•</span>
                 <span>วันที่: {new Date(lastIssuedDoc.date).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" })}</span>
@@ -540,29 +540,29 @@ export default function OutboundForm({
                 <button
                   type="button"
                   onClick={() => navigator.clipboard.writeText(lastIssuedDoc.docNo)}
-                  className="px-3.5 py-1.5 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 text-xs font-bold transition flex items-center gap-1.5 shadow-xs cursor-pointer active:scale-95"
+                  className="px-4 py-2 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 text-sm font-bold transition flex items-center gap-1.5 shadow-xs cursor-pointer active:scale-95"
                 >
                   📋 คัดลอกเลขหนังสือ
                 </button>
                 <button
                   type="button"
                   onClick={() => setLastIssuedDoc(null)}
-                  className="px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 text-xs font-semibold transition cursor-pointer"
+                  className="px-3.5 py-2 rounded-xl bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 text-sm font-semibold transition cursor-pointer"
                 >
                   ออกเลขฉบับต่อไป
                 </button>
               </div>
             </div>
           ) : (
-            <div className="bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200/70 dark:border-amber-800/50 rounded-xl p-3.5 space-y-1 text-center shadow-2xs">
-              <span className="text-[11px] font-bold text-amber-800 dark:text-amber-300 flex items-center justify-center gap-1">
+            <div className="bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200/70 dark:border-amber-800/50 rounded-xl p-4 space-y-1.5 text-center shadow-2xs">
+              <span className="text-xs font-bold text-amber-800 dark:text-amber-300 flex items-center justify-center gap-1">
                 📌 เลขล่าสุดที่ถูกขอในหมวดนี้ (อ้างอิง)
               </span>
-              <div className="text-lg sm:text-xl font-black font-mono text-amber-900 dark:text-amber-200">
+              <div className="text-xl sm:text-2xl font-black font-mono text-amber-900 dark:text-amber-200">
                 {latestCategoryDoc ? latestCategoryDoc.docNo : "ยังไม่มีประวัติในหมวดนี้"}
               </div>
               {latestDocDateStr && (
-                <span className="text-[11px] font-semibold text-amber-700/90 dark:text-amber-400/90 block pt-0.5">
+                <span className="text-xs font-semibold text-amber-700/90 dark:text-amber-400/90 block pt-0.5">
                   📅 ออกเมื่อวันที่: {latestDocDateStr}
                 </span>
               )}
@@ -573,7 +573,7 @@ export default function OutboundForm({
           <button
             type="submit"
             disabled={issuing}
-            className="w-full h-11 rounded-xl bg-purple-600 hover:bg-purple-700 active:scale-[0.99] text-white text-xs font-bold transition-all flex items-center justify-center gap-2 shadow-md shadow-purple-600/20 disabled:opacity-50 cursor-pointer border border-purple-500/20"
+            className="w-full h-12 rounded-xl bg-purple-600 hover:bg-purple-700 active:scale-[0.99] text-sm font-bold transition-all flex items-center justify-center gap-2 shadow-md shadow-purple-600/20 disabled:opacity-50 cursor-pointer border border-purple-500/20"
           >
             <Send className="w-4 h-4" />
             {issuing ? "กำลังขอออกเลขเอกสาร..." : "🚀 ยืนยันขอเลข"}
@@ -585,8 +585,8 @@ export default function OutboundForm({
           {/* Header */}
           <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
             <div className="flex items-center gap-2">
-              <span className="text-base">🕒</span>
-              <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+              <span className="text-lg">🕒</span>
+              <h3 className="text-base font-bold text-slate-900 dark:text-white">
                 ประวัติการออกเลขล่าสุด
               </h3>
             </div>
@@ -594,9 +594,9 @@ export default function OutboundForm({
               <button
                 type="button"
                 onClick={onRefresh}
-                className="text-xs font-bold text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 flex items-center gap-1.5 px-2.5 py-1 rounded-lg hover:bg-purple-50 dark:hover:bg-purple-950/50 transition cursor-pointer"
+                className="text-xs font-bold text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-purple-50 dark:hover:bg-purple-950/50 transition cursor-pointer"
               >
-                <RefreshCw className="w-3.5 h-3.5" />
+                <RefreshCw className="w-4 h-4" />
                 รีเฟรช
               </button>
             )}
@@ -604,20 +604,20 @@ export default function OutboundForm({
 
           {/* History List Table */}
           {(!localDocs || localDocs.length === 0) ? (
-            <div className="text-center py-12 text-xs text-slate-400">
+            <div className="text-center py-12 text-sm text-slate-400">
               ยังไม่มีประวัติการขอออกเลขหนังสือ
             </div>
           ) : (
             <div className="space-y-3">
               <div className="overflow-x-auto custom-scrollbar">
-                <table className="w-full text-left text-xs border-collapse">
+                <table className="w-full text-left text-sm border-collapse">
                   <thead>
-                    <tr className="border-b border-slate-100 dark:border-slate-800 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                      <th className="py-2 px-2.5">เลขที่</th>
-                      <th className="py-2 px-2">ประเภท</th>
-                      <th className="py-2 px-2">วันที่</th>
-                      <th className="py-2 px-2.5">เรื่อง</th>
-                      <th className="py-2 px-2">ผู้ขอ</th>
+                    <tr className="border-b border-slate-100 dark:border-slate-800 text-xs font-bold text-slate-400 uppercase tracking-wider">
+                      <th className="py-2.5 px-3">เลขที่</th>
+                      <th className="py-2.5 px-2">ประเภท</th>
+                      <th className="py-2.5 px-2">วันที่</th>
+                      <th className="py-2.5 px-3">เรื่อง</th>
+                      <th className="py-2.5 px-2">ผู้ขอ</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
@@ -636,23 +636,23 @@ export default function OutboundForm({
                         <tr
                           key={doc.id || idx}
                           onClick={() => setSelectedPreviewDoc(doc)}
-                          className="hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition cursor-pointer group"
+                          className="hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition cursor-pointer group text-sm"
                         >
-                          <td className="py-3 px-2.5 font-mono font-bold text-slate-900 dark:text-white group-hover:text-purple-600 dark:group-hover:text-purple-400 whitespace-nowrap">
+                          <td className="py-3.5 px-3 font-mono font-bold text-slate-900 dark:text-white group-hover:text-purple-600 dark:group-hover:text-purple-400 whitespace-nowrap">
                             {doc.docNo}
                           </td>
-                          <td className="py-3 px-2 whitespace-nowrap">
-                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${badge.bg}`}>
+                          <td className="py-3.5 px-2 whitespace-nowrap">
+                            <span className={`px-2.5 py-0.5 rounded text-xs font-bold border ${badge.bg}`}>
                               {badge.text}
                             </span>
                           </td>
-                          <td className="py-3 px-2 text-slate-600 dark:text-slate-400 whitespace-nowrap text-[11px]">
+                          <td className="py-3.5 px-2 text-slate-600 dark:text-slate-400 whitespace-nowrap text-xs">
                             {formattedDate}
                           </td>
-                          <td className="py-3 px-2.5 max-w-[200px] truncate text-slate-700 dark:text-slate-300 font-medium">
+                          <td className="py-3.5 px-3 max-w-[200px] truncate text-slate-700 dark:text-slate-300 font-medium">
                             {doc.title}
                           </td>
-                          <td className="py-3 px-2 text-slate-600 dark:text-slate-400 whitespace-nowrap">
+                          <td className="py-3.5 px-2 text-slate-600 dark:text-slate-400 whitespace-nowrap">
                             {doc.requester || doc.origin || '-'}
                           </td>
                         </tr>
@@ -663,7 +663,7 @@ export default function OutboundForm({
               </div>
 
               {/* Footer subtext & shortcut button to full history */}
-              <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-2 text-[11px]">
+              <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs">
                 <span className="text-slate-400 dark:text-slate-500 font-medium">
                   📌 แสดงเฉพาะ 10 รายการล่าสุด
                 </span>
@@ -671,7 +671,7 @@ export default function OutboundForm({
                   <button
                     type="button"
                     onClick={onGoToHistory}
-                    className="w-full sm:w-auto px-3.5 py-2 rounded-xl bg-purple-50 dark:bg-purple-950/60 hover:bg-purple-100 dark:hover:bg-purple-900/60 text-purple-700 dark:text-purple-300 text-xs font-bold border border-purple-200/60 dark:border-purple-800/60 transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+                    className="w-full sm:w-auto px-4 py-2 rounded-xl bg-purple-50 dark:bg-purple-950/60 hover:bg-purple-100 dark:hover:bg-purple-900/60 text-purple-700 dark:text-purple-300 text-sm font-bold border border-purple-200/60 dark:border-purple-800/60 transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
                   >
                     <span>🔍</span>
                     ดูประวัติและทะเบียนออกเลขหนังสือทั้งหมด
@@ -689,8 +689,8 @@ export default function OutboundForm({
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 max-w-md w-full shadow-xl space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
               <div className="flex items-center gap-2">
-                <span className="text-sm">📄</span>
-                <h3 className="text-xs font-bold text-slate-900 dark:text-white">รายละเอียดเอกสารออกเลข</h3>
+                <span className="text-base">📄</span>
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white">รายละเอียดเอกสารออกเลข</h3>
               </div>
               <button
                 type="button"
@@ -701,11 +701,11 @@ export default function OutboundForm({
               </button>
             </div>
 
-            <div className="space-y-3 text-xs">
+            <div className="space-y-3 text-sm">
               <div className="bg-purple-50/60 dark:bg-purple-950/40 border border-purple-100 dark:border-purple-900/40 rounded-xl p-3.5 flex items-center justify-between">
                 <div>
-                  <span className="text-[10px] text-slate-500 dark:text-slate-400 block font-medium">เลขที่ออกเอกสาร</span>
-                  <span className="font-mono text-sm font-extrabold text-purple-600 dark:text-purple-400">{selectedPreviewDoc.docNo}</span>
+                  <span className="text-xs text-slate-500 dark:text-slate-400 block font-medium">เลขที่ออกเอกสาร</span>
+                  <span className="font-mono text-base font-extrabold text-purple-600 dark:text-purple-400">{selectedPreviewDoc.docNo}</span>
                 </div>
                 <span className="px-2.5 py-1 rounded-lg text-xs font-extrabold bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800/40">
                   {selectedPreviewDoc.status === "ISSUED" || !selectedPreviewDoc.status
@@ -720,27 +720,27 @@ export default function OutboundForm({
 
               <div className="grid grid-cols-2 gap-2.5">
                 <div className="bg-slate-50 dark:bg-slate-800/40 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800">
-                  <span className="text-[10px] text-slate-400 block font-medium">วันที่ออกเลข</span>
+                  <span className="text-xs text-slate-400 block font-medium">วันที่ออกเลข</span>
                   <span className="font-semibold text-slate-800 dark:text-slate-200">{selectedPreviewDoc.date ? new Date(selectedPreviewDoc.date).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' }) : '-'}</span>
                 </div>
                 <div className="bg-slate-50 dark:bg-slate-800/40 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800">
-                  <span className="text-[10px] text-slate-400 block font-medium">ประเภท</span>
+                  <span className="text-xs text-slate-400 block font-medium">ประเภท</span>
                   <span className="font-semibold text-slate-800 dark:text-slate-200">{selectedPreviewDoc.docType === "MEMO" ? (selectedPreviewDoc.memoSection?.name || "บันทึกข้อความ") : (DOC_TYPE_NAMES[selectedPreviewDoc.docType] || selectedPreviewDoc.docType)}</span>
                 </div>
               </div>
 
               <div className="bg-slate-50 dark:bg-slate-800/40 p-3 rounded-xl border border-slate-100 dark:border-slate-800 space-y-1">
-                <span className="text-[10px] text-slate-400 block font-medium">เรื่อง (ชื่อเอกสาร)</span>
+                <span className="text-xs text-slate-400 block font-medium">เรื่อง (ชื่อเอกสาร)</span>
                 <p className="font-semibold text-slate-900 dark:text-white leading-relaxed">{selectedPreviewDoc.title}</p>
               </div>
 
               <div className="grid grid-cols-2 gap-2.5">
                 <div className="bg-slate-50 dark:bg-slate-800/40 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800">
-                  <span className="text-[10px] text-slate-400 block font-medium">ผู้ขอออกเลข</span>
+                  <span className="text-xs text-slate-400 block font-medium">ผู้ขอออกเลข</span>
                   <span className="font-semibold text-slate-800 dark:text-slate-200">{selectedPreviewDoc.requester || '-'}</span>
                 </div>
                 <div className="bg-slate-50 dark:bg-slate-800/40 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800">
-                  <span className="text-[10px] text-slate-400 block font-medium">กลุ่มงาน/หน่วยงาน</span>
+                  <span className="text-xs text-slate-400 block font-medium">กลุ่มงาน/หน่วยงาน</span>
                   <span className="font-semibold text-slate-800 dark:text-slate-200">{selectedPreviewDoc.department || selectedPreviewDoc.origin || '-'}</span>
                 </div>
               </div>
@@ -749,7 +749,7 @@ export default function OutboundForm({
                 <button
                   type="button"
                   onClick={() => setSelectedPreviewDoc(null)}
-                  className="px-4 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold text-xs transition cursor-pointer"
+                  className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold text-sm transition cursor-pointer"
                 >
                   ปิดหน้าต่าง
                 </button>
