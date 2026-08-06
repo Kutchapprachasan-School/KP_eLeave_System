@@ -72,7 +72,7 @@ export async function issueOutboundDocAtomic(data: OutboundFormData, userId: str
       let defaultPrefix = "ศทก";
       if (data.docType === "COMMAND") defaultPrefix = "คำสั่งที่";
       else if (data.docType === "ANNOUNCEMENT") defaultPrefix = "ประกาศที่";
-      else if (isOutgoing) defaultPrefix = "ที่ ศทก";
+      else if (isOutgoing) defaultPrefix = "ศธ.๐๔๓๔๙.๐๑";
 
       config = await tx.documentConfig.create({
         data: {
@@ -107,11 +107,22 @@ export async function issueOutboundDocAtomic(data: OutboundFormData, userId: str
 
     // 5. Build Suffix & Pattern
     const finalYear = config.yearFormat === "TH_BE" ? thYear : year;
+    let targetPrefix = config.prefix;
     let pattern = "[PREFIX] [SEQ]/[YEAR]";
-    if (data.docType === "OUTGOING_NORMAL") {
-      pattern = "[PREFIX] [SEQ]";
-    } else if (data.docType === "OUTGOING_CIRCULAR") {
-      pattern = "[PREFIX] ว[SEQ]";
+
+    if (isOutgoing) {
+      // Clean prefix for outgoing document numbers to ensure standard format "ศธ.๐๔๓๔๙.๐๑"
+      let cleanPrefix = config.prefix.replace(/[\/\sว]+$/g, "").trim();
+      if (!cleanPrefix || cleanPrefix === "ที่ ศทก" || cleanPrefix === "ศทก" || cleanPrefix.includes("ศทก")) {
+        cleanPrefix = "ศธ.๐๔๓๔๙.๐๑";
+      }
+      targetPrefix = cleanPrefix;
+
+      if (data.docType === "OUTGOING_CIRCULAR") {
+        pattern = "[PREFIX]/ว[SEQ]";
+      } else {
+        pattern = "[PREFIX]/[SEQ]";
+      }
     }
 
     // 6. Bulk Certificate Batch Processing vs Single Document
@@ -123,7 +134,7 @@ export async function issueOutboundDocAtomic(data: OutboundFormData, userId: str
       const curSeq = nextSeq + i;
       const docNo = formatDocNumber(
         pattern,
-        config.prefix,
+        targetPrefix,
         curSeq,
         finalYear,
         config.paddingDigits,
