@@ -1,5 +1,5 @@
 export type DocumentStatus = "DRAFT" | "ISSUED" | "PRINTED" | "CANCELLED" | "RESERVED";
-export type DocType = "MEMO" | "COMMAND" | "OUTGOING_NORMAL" | "OUTGOING_CIRCULAR" | "ANNOUNCEMENT";
+export type DocType = "MEMO" | "COMMAND" | "OUTGOING_NORMAL" | "OUTGOING_CIRCULAR" | "ANNOUNCEMENT" | "CERTIFICATE";
 export type IncomingDocStatus = "PENDING" | "ROUTING" | "COMPLETED" | "CANCELLED";
 
 export interface MemoSectionDTO {
@@ -79,7 +79,12 @@ export interface OutboundFormData {
   requester: string;
   date: string;
   department?: string;
+  unitType?: "DEPARTMENT" | "SUBJECT_GROUP";
   connectBudget?: boolean;
+  isBulkBatch?: boolean;
+  quantity?: number;
+  roleType?: "PARTICIPANT" | "SPEAKER" | "COMMITTEE" | "OTHER";
+  roleTitle?: string;
 }
 
 export interface QuickIssueResult {

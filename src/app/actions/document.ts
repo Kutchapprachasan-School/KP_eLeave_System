@@ -308,11 +308,34 @@ export async function issueDocNumber(docId: string, customDateStr?: string): Pro
 export async function cancelDoc(id: string, reason: string): Promise<ActionResponse> {
   try {
     const user = await getSessionUser();
+    const doc = await prisma.documentRecord.findUnique({ where: { id } });
+    if (!doc) throw new Error("Document not found");
+
+    const isAdmin = user.role === "ADMIN" || user.role === "SUPERADMIN" || user.role === "DOCUMENT_ADMIN";
+    const isOwner = doc.createdById === user.id;
+
+    if (!isAdmin && !isOwner) {
+      return {
+        success: false,
+        code: "UNAUTHORIZED",
+        error: "คุณไม่มีสิทธิ์ยกเลิกเลขหนังสือของผู้อื่น (สามารถยกเลิกได้เฉพาะเลขที่ตนเองขอเท่านั้น)",
+      };
+    }
+
     const updated = await prisma.documentRecord.update({
       where: { id },
       data: {
         status: "CANCELLED",
         cancelReason: reason
+      }
+    });
+
+    await prisma.documentAuditLog.create({
+      data: {
+        documentId: id,
+        actionType: "CANCEL",
+        changedById: user.id,
+        changes: JSON.stringify({ reason, previousStatus: doc.status }),
       }
     });
 
@@ -328,6 +351,116 @@ export async function cancelDoc(id: string, reason: string): Promise<ActionRespo
     return { success: true, data: updated };
   } catch (err: any) {
     return handleActionError(err, "cancelDoc");
+  }
+}
+
+export async function updateDocumentDetails(
+  id: string,
+  data: {
+    title: string;
+    to: string;
+    origin: string;
+    department?: string;
+    unitType?: string;
+  }
+): Promise<ActionResponse> {
+  try {
+    const user = await getSessionUser();
+    const doc = await prisma.documentRecord.findUnique({ where: { id } });
+    if (!doc) throw new Error("Document not found");
+
+    const isAdmin = user.role === "ADMIN" || user.role === "SUPERADMIN" || user.role === "DOCUMENT_ADMIN";
+    const isOwner = doc.createdById === user.id;
+
+    if (!isAdmin && !isOwner) {
+      return {
+        success: false,
+        code: "UNAUTHORIZED",
+        error: "คุณไม่มีสิทธิ์แก้ไขข้อมูลหนังสือของผู้อื่น (สามารถแก้ไขได้เฉพาะเลขที่ตนเองขอเท่านั้น)",
+      };
+    }
+
+    const previousData = {
+      title: doc.title,
+      to: doc.to,
+      origin: doc.origin,
+      department: doc.department,
+      unitType: doc.unitType
+    };
+
+    const updated = await prisma.documentRecord.update({
+      where: { id },
+      data: {
+        title: data.title.trim(),
+        to: data.to.trim(),
+        origin: data.origin.trim(),
+        department: data.department?.trim() || null,
+        unitType: data.unitType || "DEPARTMENT",
+      }
+    });
+
+    await prisma.documentAuditLog.create({
+      data: {
+        documentId: id,
+        actionType: "EDIT",
+        changedById: user.id,
+        changes: JSON.stringify({ previousData, newData: data }),
+      }
+    });
+
+    safeRevalidatePath("/document");
+    return { success: true, data: updated };
+  } catch (err: any) {
+    return handleActionError(err, "updateDocumentDetails");
+  }
+}
+
+export async function exportDocumentReportAction(filters: {
+  year: number;
+  month?: number | null;
+  docType?: string | null;
+}): Promise<ActionResponse> {
+  try {
+    const user = await getSessionUser();
+    const isAdmin = user.role === "ADMIN" || user.role === "SUPERADMIN" || user.role === "DOCUMENT_ADMIN";
+    if (!isAdmin) {
+      return {
+        success: false,
+        code: "UNAUTHORIZED",
+        error: "สิทธิ์การออกรายงานและส่งออกข้อมูลสงวนไว้สำหรับเจ้าหน้าที่สารบรรณและผู้ดูแลระบบเท่านั้น",
+      };
+    }
+
+    const where: any = { year: filters.year };
+
+    if (filters.docType && filters.docType !== "ALL") {
+      where.docType = filters.docType;
+    }
+
+    if (filters.month && filters.month >= 1 && filters.month <= 12) {
+      const startDate = new Date(filters.year - 543, filters.month - 1, 1);
+      const endDate = new Date(filters.year - 543, filters.month, 0, 23, 59, 59);
+      where.date = {
+        gte: startDate,
+        lte: endDate
+      };
+    }
+
+    const docs = await prisma.documentRecord.findMany({
+      where,
+      include: {
+        user: { select: { name: true, position: true } },
+        memoSection: true
+      },
+      orderBy: [
+        { seqNo: "asc" },
+        { createdAt: "asc" }
+      ]
+    });
+
+    return { success: true, data: docs };
+  } catch (err: any) {
+    return handleActionError(err, "exportDocumentReportAction");
   }
 }
 

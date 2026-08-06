@@ -146,6 +146,8 @@ function DocumentPageContent() {
           setSelectedYear={filters.setSelectedYearTable}
           selectedStatus={filters.selectedStatus}
           setSelectedStatus={filters.setSelectedStatus}
+          currentUserId={session?.user?.id}
+          userRole={(session?.user as any)?.role}
         />
       ) : filters.view === "issue" ? (
         <OutboundView

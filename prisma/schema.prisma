@@ -38,6 +38,7 @@ model User {
   attendances         Attendance[]       @relation("UserAttendances")
   nonces              AttendanceNonce[]
   documentRecords     DocumentRecord[]
+  documentAuditLogs   DocumentAuditLog[]
   createdRoutings     DocumentRouting[]  @relation("RoutingAssigner")
   assignedRoutings    DocumentRouting[]  @relation("RoutingAssignee")
   templates           DocumentTemplate[]
@@ -263,10 +264,28 @@ model DocumentRecord {
   requester      String?
   attachmentName String?
   attachmentUrl  String?
+  unitType       String?            @default("DEPARTMENT")
+  isBulkBatch    Boolean            @default(false)
+  batchId        String?
+  quantity       Int?               @default(1)
+  roleType       String?
+  roleTitle      String?
   user           User               @relation(fields: [createdById], references: [id], onDelete: Cascade)
   memoSection    MemoSection?       @relation(fields: [memoSectionId], references: [id])
   outgoingLinks  DocumentRelation[] @relation("FromDocument")
   incomingLinks  DocumentRelation[] @relation("ToDocument")
+  auditLogs      DocumentAuditLog[]
+}
+
+model DocumentAuditLog {
+  id          String         @id @default(cuid())
+  documentId  String
+  actionType  String
+  changedById String
+  changes     String         @db.Text
+  createdAt   DateTime       @default(now())
+  document    DocumentRecord @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  changedBy   User           @relation(fields: [changedById], references: [id], onDelete: Cascade)
 }
 
 model SigneePreset {

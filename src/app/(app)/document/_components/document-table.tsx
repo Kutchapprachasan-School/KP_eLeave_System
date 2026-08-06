@@ -2,11 +2,13 @@
 
 import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
-import { Search, RefreshCw, X, FolderOpen, Eye, Ban, ShieldAlert, AlertTriangle, Link2, Copy, ChevronLeft, ChevronRight, Trash2 } from "lucide-react";
+import { Search, RefreshCw, X, FolderOpen, Eye, Ban, ShieldAlert, AlertTriangle, Link2, Copy, ChevronLeft, ChevronRight, Trash2, Edit3, FileSpreadsheet, Printer } from "lucide-react";
 import { getDocTypeThaiLabel } from "@/lib/document-utils";
 import { parseDocRefAndUrgency } from "@/lib/amss-list-parser";
 import { deleteIncomingDoc } from "@/app/actions/incoming";
+import { updateDocumentDetails } from "@/app/actions/document";
 import { SlideOverSheet } from "@/features/document/ui/components/slide-over-sheet";
+import { DocumentReportModal } from "@/features/document/ui/components/document-report-modal";
 
 type MemoSection = { id: string; name: string; code: string; color?: string };
 
@@ -28,6 +30,7 @@ type DocumentTableProps = {
   selectedStatus: string;
   setSelectedStatus: (val: string) => void;
   currentUserId?: string;
+  userRole?: string;
 };
 
 export default function DocumentTable({
@@ -48,6 +51,7 @@ export default function DocumentTable({
   selectedStatus,
   setSelectedStatus,
   currentUserId,
+  userRole,
 }: DocumentTableProps) {
   const [localTab, setLocalTab] = useState<"outbound" | "inbound">(activeTab);
   const [selectedTimeRange, setSelectedTimeRange] = useState<string>("");
@@ -55,6 +59,13 @@ export default function DocumentTable({
   const [pageSize, setPageSize] = useState<number>(10);
   const [previewDoc, setPreviewDoc] = useState<any | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [editingDoc, setEditingDoc] = useState<any | null>(null);
+  const [editFormData, setEditFormData] = useState({ title: "", to: "", origin: "" });
+  const [editSaving, setEditSaving] = useState(false);
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+
+  const isAdminUser = userRole === "ADMIN" || userRole === "SUPERADMIN" || userRole === "DOCUMENT_ADMIN";
+  const canEditOrCancelDoc = (doc: any) => isAdminUser || (currentUserId && doc.createdById === currentUserId);
 
   useEffect(() => {
     setLocalTab(activeTab);
@@ -90,6 +101,34 @@ export default function DocumentTable({
       iconColor: undefined,
     };
   }, [activeSection]);
+
+  const handleOpenEdit = (doc: any) => {
+    setEditingDoc(doc);
+    setEditFormData({
+      title: doc.title || "",
+      to: doc.to || "",
+      origin: doc.origin || doc.department || "",
+    });
+  };
+
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingDoc || editSaving) return;
+    setEditSaving(true);
+    try {
+      const res = await updateDocumentDetails(editingDoc.id, editFormData);
+      if (res.success) {
+        setEditingDoc(null);
+        onRefresh();
+      } else {
+        alert(res.error || "เกิดข้อผิดพลาดในการบันทึกข้อมูล");
+      }
+    } catch (err: any) {
+      alert(err.message || "เกิดข้อผิดพลาด");
+    } finally {
+      setEditSaving(false);
+    }
+  };
 
   // Filters logic
   const filteredData = useMemo(() => {
@@ -367,6 +406,17 @@ export default function DocumentTable({
             ล้างตัวกรอง
           </button>
         )}
+
+        {isAdminUser && (
+          <button
+            type="button"
+            onClick={() => setIsReportModalOpen(true)}
+            className="flex items-center gap-1.5 px-3.5 h-10 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold transition shadow-xs cursor-pointer active:scale-95 ml-auto"
+          >
+            <FileSpreadsheet className="w-4 h-4" />
+            ออกรายงาน (PDF/Excel)
+          </button>
+        )}
       </div>
 
       {/* Data Table */}
@@ -459,7 +509,17 @@ export default function DocumentTable({
                           >
                             <Eye className="w-3.5 h-3.5" />
                           </button>
-                          {d.status !== "CANCELLED" && (
+                          {canEditOrCancelDoc(d) && d.status !== "CANCELLED" && (
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEdit(d)}
+                              className="w-7 h-7 rounded-lg border border-amber-200 dark:border-amber-800/80 bg-amber-50/50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400 hover:bg-amber-100 transition flex items-center justify-center cursor-pointer"
+                              title="แก้ไขข้อมูลหนังสือฉบับนี้"
+                            >
+                              <Edit3 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                          {canEditOrCancelDoc(d) && d.status !== "CANCELLED" && (
                             <button
                               type="button"
                               onClick={() => onCancelDocClick(d.id)}
@@ -699,6 +759,90 @@ export default function DocumentTable({
           </div>
         )}
       </SlideOverSheet>
+
+      {/* Edit Document Details Modal */}
+      {editingDoc && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <Edit3 className="w-4 h-4 text-amber-500" />
+                แก้ไขข้อมูลหนังสือ ({editingDoc.docNo || "ยังไม่ออกเลข"})
+              </h3>
+              <button
+                onClick={() => setEditingDoc(null)}
+                className="w-7 h-7 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 flex items-center justify-center"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEdit} className="space-y-3 text-xs">
+              <div>
+                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  เรื่อง *
+                </label>
+                <textarea
+                  rows={3}
+                  required
+                  value={editFormData.title}
+                  onChange={(e) => setEditFormData({ ...editFormData, title: e.target.value })}
+                  className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white outline-none resize-none"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  เรียน / ถึง *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={editFormData.to}
+                  onChange={(e) => setEditFormData({ ...editFormData, to: e.target.value })}
+                  className="w-full h-9 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  หน่วยงานเจ้าของเรื่อง / จากหน่วยงาน *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={editFormData.origin}
+                  onChange={(e) => setEditFormData({ ...editFormData, origin: e.target.value })}
+                  className="w-full h-9 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white outline-none"
+                />
+              </div>
+
+              <div className="pt-2 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingDoc(null)}
+                  className="px-4 h-9 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-semibold"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="submit"
+                  disabled={editSaving}
+                  className="px-4 h-9 rounded-xl bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white font-bold transition cursor-pointer"
+                >
+                  {editSaving ? "กำลังบันทึก..." : "บันทึกการแก้ไข"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Document Report Modal */}
+      <DocumentReportModal
+        isOpen={isReportModalOpen}
+        onClose={() => setIsReportModalOpen(false)}
+      />
     </div>
   );
 }

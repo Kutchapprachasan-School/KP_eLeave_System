@@ -19,6 +19,8 @@ interface OutboundHistoryViewProps {
   setSelectedYear: (val: string) => void;
   selectedStatus: string;
   setSelectedStatus: (val: string) => void;
+  currentUserId?: string;
+  userRole?: string;
 }
 
 export function OutboundHistoryView({
@@ -37,6 +39,8 @@ export function OutboundHistoryView({
   setSelectedYear,
   selectedStatus,
   setSelectedStatus,
+  currentUserId,
+  userRole,
 }: OutboundHistoryViewProps) {
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
@@ -57,6 +61,8 @@ export function OutboundHistoryView({
         setSelectedYear={setSelectedYear}
         selectedStatus={selectedStatus}
         setSelectedStatus={setSelectedStatus}
+        currentUserId={currentUserId}
+        userRole={userRole}
       />
     </div>
   );

@@ -41,20 +41,29 @@ export async function issueOutboundDocAtomic(data: OutboundFormData, userId: str
   const year = docDate.getFullYear();
   const thYear = year + 543;
   const isOutgoing = data.docType.startsWith("OUTGOING");
+  const isCert = data.docType === "CERTIFICATE" || data.docType === "CERT";
   const baseDocType = isOutgoing ? "OUTGOING" : data.docType;
 
+  // 1. Anti-forward-dating check: General docs cannot be dated in the future
+  const activeDateMs = new Date(new Date(data.date).setHours(0, 0, 0, 0)).getTime();
+  const todayMs = new Date(new Date().setHours(0, 0, 0, 0)).getTime();
+
+  if (!isCert && activeDateMs > todayMs) {
+    throw new Error("ไม่อนุญาตให้ออกเลขเอกสารล่วงหน้า (ยกเว้นเกียรติบัตรที่สามารถลงวันที่ล่วงหน้าหรือย้อนหลังได้)");
+  }
+
   return prisma.$transaction(async (tx) => {
-    // 1. Acquire advisory lock key based on doc scope
-    const scopeKey = `doc-seq-${baseDocType}-${data.memoSectionId || "default"}-${thYear}`;
+    // 2. Acquire advisory lock key based on doc scope and target year
+    const scopeKey = `doc-seq-${data.docType}-${data.memoSectionId || "default"}-${thYear}`;
     const lockKey = generateAdvisoryLockKey(scopeKey);
 
     // PostgreSQL transaction-level advisory lock
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(${lockKey})`;
 
-    // 2. Find or initialize DocumentConfig
+    // 3. Find or initialize DocumentConfig
     let config = await tx.documentConfig.findFirst({
       where: {
-        docType: isOutgoing ? { in: ["OUTGOING", "OUTGOING_NORMAL", "OUTGOING_CIRCULAR"] } : data.docType,
+        docType: data.docType,
         memoSectionId: data.docType === "MEMO" ? data.memoSectionId || null : null,
       },
     });
@@ -67,7 +76,7 @@ export async function issueOutboundDocAtomic(data: OutboundFormData, userId: str
 
       config = await tx.documentConfig.create({
         data: {
-          docType: isOutgoing ? "OUTGOING" : data.docType,
+          docType: data.docType,
           memoSectionId: data.docType === "MEMO" ? data.memoSectionId || null : null,
           prefix: defaultPrefix,
           useThaiNumerals: true,
@@ -78,10 +87,10 @@ export async function issueOutboundDocAtomic(data: OutboundFormData, userId: str
       });
     }
 
-    // 3. Check anti-backdating rule against latest issued document
+    // 4. Calculate sequence number for target year (thYear)
     const latestDoc = await tx.documentRecord.findFirst({
       where: {
-        docType: isOutgoing ? { in: ["OUTGOING", "OUTGOING_NORMAL", "OUTGOING_CIRCULAR"] } : data.docType,
+        docType: data.docType,
         memoSectionId: data.docType === "MEMO" ? data.memoSectionId || null : null,
         year: thYear,
         status: { in: ["ISSUED", "PRINTED"] },
@@ -89,84 +98,88 @@ export async function issueOutboundDocAtomic(data: OutboundFormData, userId: str
       orderBy: { seqNo: "desc" },
     });
 
-    if (latestDoc && latestDoc.date) {
-      const activeDateMs = new Date(new Date(data.date).setHours(0, 0, 0, 0)).getTime();
-      const latestDateMs = new Date(new Date(latestDoc.date).setHours(0, 0, 0, 0)).getTime();
-      if (activeDateMs < latestDateMs) {
-        throw new Error(
-          `ไม่สามารถออกเลขย้อนหลังข้ามลำดับเวลาได้ (เลขล่าสุดออก ณ วันที่ ${new Date(
-            latestDoc.date
-          ).toLocaleDateString("th-TH")})`
-        );
-      }
+    let nextSeq: number;
+    if (latestDoc && latestDoc.seqNo !== null && latestDoc.seqNo !== undefined) {
+      nextSeq = latestDoc.seqNo + 1;
+    } else {
+      nextSeq = 1;
     }
 
-    // 4. Calculate sequence number for this specific year (thYear)
-    let nextSeq: number;
+    // 5. Build Suffix & Pattern
+    const finalYear = config.yearFormat === "TH_BE" ? thYear : year;
+    let pattern = "[PREFIX] [SEQ]/[YEAR]";
+    if (data.docType === "OUTGOING_NORMAL") {
+      pattern = "[PREFIX] [SEQ]";
+    } else if (data.docType === "OUTGOING_CIRCULAR") {
+      pattern = "[PREFIX] ว[SEQ]";
+    }
 
-    if (latestDoc && latestDoc.seqNo !== null && latestDoc.seqNo !== undefined) {
-      // Documents exist in this year -> increment from the max seqNo of this year
-      nextSeq = latestDoc.seqNo + 1;
-      
-      if (nextSeq > config.currentSeq) {
-        await tx.documentConfig.update({
-          where: { id: config.id },
-          data: { currentSeq: nextSeq },
-        });
-      }
-    } else {
-      // First document of this year!
-      // Use configured sequence or start at 1
-      const configuredSeq = (config.currentSeq || 0) + 1;
-      nextSeq = configuredSeq > 0 ? configuredSeq : 1;
+    // 6. Bulk Certificate Batch Processing vs Single Document
+    const qty = isCert && data.isBulkBatch && data.quantity && data.quantity > 1 ? data.quantity : 1;
+    const batchId = qty > 1 ? `batch-cert-${Date.now()}-${Math.random().toString(36).substring(2, 7)}` : null;
 
+    let firstRecord: any = null;
+    for (let i = 0; i < qty; i++) {
+      const curSeq = nextSeq + i;
+      const docNo = formatDocNumber(
+        pattern,
+        config.prefix,
+        curSeq,
+        finalYear,
+        config.paddingDigits,
+        config.useThaiNumerals
+      );
+
+      const record = await tx.documentRecord.create({
+        data: {
+          docType: data.docType,
+          memoSectionId: data.docType === "MEMO" ? data.memoSectionId || null : null,
+          docNo,
+          seqNo: curSeq,
+          year: thYear,
+          title: qty > 1 ? `${data.title.trim()} (${i + 1}/${qty})` : data.title.trim(),
+          to: data.to.trim(),
+          origin: data.origin.trim(),
+          date: new Date(data.date),
+          content: "",
+          signeeName: "",
+          signeePosition: "",
+          status: "ISSUED",
+          requester: data.requester.trim(),
+          department: data.department?.trim() || null,
+          unitType: data.unitType || "DEPARTMENT",
+          isBulkBatch: qty > 1,
+          batchId,
+          quantity: qty,
+          roleType: data.roleType || null,
+          roleTitle: data.roleTitle || null,
+          createdById: userId,
+        },
+      });
+
+      if (i === 0) firstRecord = record;
+    }
+
+    // 7. Update DocumentConfig currentSeq
+    const maxSeqIssued = nextSeq + qty - 1;
+    if (maxSeqIssued > (config.currentSeq || 0)) {
       await tx.documentConfig.update({
         where: { id: config.id },
-        data: { currentSeq: nextSeq },
+        data: { currentSeq: maxSeqIssued },
       });
     }
 
-    const finalYear = config.yearFormat === "TH_BE" ? thYear : year;
-    const docNo = formatDocNumber(
-      "[PREFIX] [SEQ]/[YEAR]",
-      config.prefix,
-      nextSeq,
-      finalYear,
-      config.paddingDigits,
-      config.useThaiNumerals
-    );
-
-    // 5. Create DocumentRecord directly as ISSUED within transaction
-    const documentRecord = await tx.documentRecord.create({
-      data: {
-        docType: data.docType,
-        memoSectionId: data.docType === "MEMO" ? data.memoSectionId || null : null,
-        docNo,
-        seqNo: nextSeq,
-        year: thYear,
-        title: data.title.trim(),
-        to: data.to.trim(),
-        origin: data.origin.trim(),
-        date: new Date(data.date),
-        content: "",
-        signeeName: "",
-        signeePosition: "",
-        status: "ISSUED",
-        requester: data.requester.trim(),
-        department: data.department?.trim() || null,
-        createdById: userId,
-      },
-    });
-
-    // 6. Record Audit Log in SystemLog
+    // 8. Record Audit Log in SystemLog
     await tx.systemLog.create({
       data: {
         userId,
         actionType: "DOC_ISSUE",
-        description: `ขอออกเลขทะเบียนเอกสารใหม่: ${docNo} (${data.title})`,
+        description: qty > 1
+          ? `ขอออกเลขทะเบียนเกียรติบัตรแบบชุด (${qty} หมายเลข): Batch ID ${batchId}`
+          : `ขอออกเลขทะเบียนเอกสารใหม่: ${firstRecord?.docNo} (${data.title})`,
       },
     });
 
-    return documentRecord;
-  }, { timeout: 10000 });
+    return firstRecord;
+  }, { timeout: 15000 });
 }

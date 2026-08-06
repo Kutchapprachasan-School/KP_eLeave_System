@@ -18,6 +18,11 @@ type OutboundFormProps = {
     requester: string;
     date: string;
     department?: string;
+    unitType?: "DEPARTMENT" | "SUBJECT_GROUP";
+    isBulkBatch?: boolean;
+    quantity?: number;
+    roleType?: "PARTICIPANT" | "SPEAKER" | "COMMITTEE" | "OTHER";
+    roleTitle?: string;
   }) => Promise<any>;
   username?: string;
   department?: string;
@@ -57,12 +62,17 @@ export default function OutboundForm({
     docType: "MEMO",
     outgoingSubtype: "OUTGOING_NORMAL",
     memoSectionId: sections[0]?.id || "",
+    unitType: "DEPARTMENT" as "DEPARTMENT" | "SUBJECT_GROUP",
     origin: username || department || "งานสารบรรณ",
     to: "ผู้อำนวยการโรงเรียน",
     title: "",
     requester: username || "",
     date: new Date().toISOString().split("T")[0],
     department: department || "",
+    isBulkBatch: false,
+    quantity: 10,
+    roleType: "PARTICIPANT" as "PARTICIPANT" | "SPEAKER" | "COMMITTEE" | "OTHER",
+    roleTitle: "",
   });
 
   const [selectedPreviewDoc, setSelectedPreviewDoc] = useState<any | null>(null);
@@ -102,16 +112,9 @@ export default function OutboundForm({
     ? new Date(latestCategoryDoc.date).toLocaleDateString("th-TH", { day: "numeric", month: "long", year: "numeric" })
     : null;
 
-  const selectedDateMs = new Date(new Date(formData.date).setHours(0, 0, 0, 0)).getTime();
-  const latestDateMs = latestCategoryDoc?.date
-    ? new Date(new Date(latestCategoryDoc.date).setHours(0, 0, 0, 0)).getTime()
-    : 0;
-
-  const isBackdatedError = latestDateMs > 0 && selectedDateMs < latestDateMs;
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (issuing || isBackdatedError) return;
+    if (issuing) return;
     
     const activeDocType = formData.docType === "OUTGOING" ? formData.outgoingSubtype : formData.docType;
 
@@ -124,6 +127,11 @@ export default function OutboundForm({
       requester: formData.requester.trim(),
       date: formData.date,
       department: (department || formData.department || "").trim() || undefined,
+      unitType: formData.unitType,
+      isBulkBatch: formData.docType === "CERTIFICATE" ? formData.isBulkBatch : false,
+      quantity: formData.docType === "CERTIFICATE" && formData.isBulkBatch ? formData.quantity : 1,
+      roleType: formData.docType === "CERTIFICATE" ? formData.roleType : undefined,
+      roleTitle: formData.docType === "CERTIFICATE" && formData.roleType === "OTHER" ? formData.roleTitle : undefined,
     });
 
     if (resultDoc && resultDoc.docNo) {
@@ -131,19 +139,14 @@ export default function OutboundForm({
     }
   };
 
-  // Get the selected memo section for color display
   const selectedSection = sections.find(s => s.id === formData.memoSectionId);
 
-  const getDocBadge = (type: string) => {
-    if (type === "MEMO") return { text: "ภายใน", bg: "bg-blue-100 dark:bg-blue-950/70 text-blue-700 dark:text-blue-300" };
-    if (type === "COMMAND") return { text: "คำสั่ง", bg: "bg-rose-100 dark:bg-rose-950/70 text-rose-700 dark:text-rose-300" };
-    return { text: "ภายนอก", bg: "bg-emerald-100 dark:bg-emerald-950/70 text-emerald-700 dark:text-emerald-300" };
-  };
+  const todayStr = new Date().toISOString().split("T")[0];
 
   return (
     <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 md:p-6 shadow-xs relative">
       <div className="lg:grid lg:grid-cols-12 lg:gap-8 space-y-6 lg:space-y-0 items-start">
-        {/* Left Column (5 cols on lg): The Input Form (+ ออกเลขหนังสือใหม่) */}
+        {/* Left Column: Input Form */}
         <form onSubmit={handleSubmit} className="lg:col-span-5 space-y-4">
           <div className="flex items-center gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
             <div className="w-6 h-6 rounded-full bg-purple-100 dark:bg-purple-950/80 text-purple-600 dark:text-purple-400 flex items-center justify-center text-xs font-bold">
@@ -157,7 +160,7 @@ export default function OutboundForm({
           {/* DocType Dropdown */}
           <div>
             <label className="block text-xs font-semibold text-slate-800 dark:text-slate-200 mb-1.5">
-              ประเภท
+              ประเภทเอกสาร *
             </label>
             <div className="relative">
               <select
@@ -169,6 +172,7 @@ export default function OutboundForm({
                 <option value="OUTGOING">หนังสือส่ง</option>
                 <option value="COMMAND">คำสั่ง</option>
                 <option value="ANNOUNCEMENT">ประกาศ</option>
+                <option value="CERTIFICATE">เกียรติบัตร</option>
               </select>
               <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-slate-400">
                 <ChevronDown className="w-4 h-4" />
@@ -209,6 +213,102 @@ export default function OutboundForm({
             </div>
           )}
 
+          {/* Certificate Bulk & Dynamic Role Options */}
+          {formData.docType === "CERTIFICATE" && (
+            <div className="p-3 rounded-xl bg-amber-50/70 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 space-y-2.5">
+              <label className="flex items-center gap-2 text-xs font-bold text-amber-900 dark:text-amber-200 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={formData.isBulkBatch}
+                  onChange={(e) => setFormData({ ...formData, isBulkBatch: e.target.checked })}
+                  className="w-4 h-4 rounded text-amber-600 focus:ring-amber-500 accent-amber-600 cursor-pointer"
+                />
+                🎓 ขอออกเลขเกียรติบัตรเป็นชุด (Bulk Batch Request)
+              </label>
+
+              {formData.isBulkBatch && (
+                <div className="pl-6 space-y-2 pt-1 border-t border-amber-200/60 dark:border-amber-800/40">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-amber-800 dark:text-amber-300 mb-1">
+                      จำนวนเลขที่ต้องการออก (ฉบับ) *
+                    </label>
+                    <input
+                      type="number"
+                      min={2}
+                      max={100}
+                      value={formData.quantity}
+                      onChange={(e) => setFormData({ ...formData, quantity: parseInt(e.target.value) || 2 })}
+                      className="w-full h-8 px-2.5 rounded-lg border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-900 text-xs text-amber-900 dark:text-amber-100 outline-none"
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div className="pt-1">
+                <label className="block text-[11px] font-bold text-amber-900 dark:text-amber-200 mb-1">
+                  ประเภทบทบาท / การเข้าร่วม *
+                </label>
+                <div className="grid grid-cols-2 gap-1.5 text-xs text-slate-700 dark:text-slate-200">
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="roleType"
+                      value="PARTICIPANT"
+                      checked={formData.roleType === "PARTICIPANT"}
+                      onChange={() => setFormData({ ...formData, roleType: "PARTICIPANT" })}
+                      className="accent-amber-600"
+                    />
+                    เข้าร่วมกิจกรรม
+                  </label>
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="roleType"
+                      value="SPEAKER"
+                      checked={formData.roleType === "SPEAKER"}
+                      onChange={() => setFormData({ ...formData, roleType: "SPEAKER" })}
+                      className="accent-amber-600"
+                    />
+                    วิทยากร
+                  </label>
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="roleType"
+                      value="COMMITTEE"
+                      checked={formData.roleType === "COMMITTEE"}
+                      onChange={() => setFormData({ ...formData, roleType: "COMMITTEE" })}
+                      className="accent-amber-600"
+                    />
+                    กรรมการ / คณะทำงาน
+                  </label>
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="roleType"
+                      value="OTHER"
+                      checked={formData.roleType === "OTHER"}
+                      onChange={() => setFormData({ ...formData, roleType: "OTHER" })}
+                      className="accent-amber-600"
+                    />
+                    อื่นๆ
+                  </label>
+                </div>
+
+                {formData.roleType === "OTHER" && (
+                  <input
+                    type="text"
+                    required
+                    placeholder="ระบุชื่อบทบาท..."
+                    value={formData.roleTitle}
+                    onChange={(e) => setFormData({ ...formData, roleTitle: e.target.value })}
+                    className="w-full h-8 mt-1.5 px-2.5 rounded-lg border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-900 text-xs text-amber-900 dark:text-amber-100 outline-none"
+                  />
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Memo Section Select */}
           {formData.docType === "MEMO" && (
             <div>
@@ -234,6 +334,68 @@ export default function OutboundForm({
             </div>
           )}
 
+          {/* Requester Unit Radio Selector (ฝ่ายงาน vs กลุ่มสาระ) */}
+          <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/70 space-y-2">
+            <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">
+              หน่วยงาน/สังกัด เจ้าของเรื่อง *
+            </label>
+            <div className="flex items-center gap-4">
+              <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300 cursor-pointer">
+                <input
+                  type="radio"
+                  name="unitType"
+                  value="DEPARTMENT"
+                  checked={formData.unitType === "DEPARTMENT"}
+                  onChange={() => setFormData({ 
+                    ...formData, 
+                    unitType: "DEPARTMENT",
+                    origin: department || "ฝ่ายบริหารงานทั่วไป"
+                  })}
+                  className="accent-purple-600"
+                />
+                🏢 ฝ่ายงาน
+              </label>
+              <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300 cursor-pointer">
+                <input
+                  type="radio"
+                  name="unitType"
+                  value="SUBJECT_GROUP"
+                  checked={formData.unitType === "SUBJECT_GROUP"}
+                  onChange={() => setFormData({ 
+                    ...formData, 
+                    unitType: "SUBJECT_GROUP",
+                    origin: "กลุ่มสาระการเรียนรู้"
+                  })}
+                  className="accent-purple-600"
+                />
+                📚 กลุ่มสาระการเรียนรู้
+              </label>
+            </div>
+
+            {formData.unitType === "DEPARTMENT" ? (
+              <select
+                value={formData.origin}
+                onChange={(e) => setFormData({ ...formData, origin: e.target.value })}
+                className="w-full h-9 px-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-xs font-medium text-slate-900 dark:text-white outline-none cursor-pointer"
+              >
+                <option value="ฝ่ายบริหารงานบุคคล">ฝ่ายบริหารงานบุคคล</option>
+                <option value="ฝ่ายวิชาการ">ฝ่ายวิชาการ</option>
+                <option value="ฝ่ายบริหารงานงบประมาณ">ฝ่ายบริหารงานงบประมาณ</option>
+                <option value="ฝ่ายบริหารทั่วไป">ฝ่ายบริหารทั่วไป</option>
+                <option value="งานสารบรรณ">งานสารบรรณ</option>
+              </select>
+            ) : (
+              <input
+                type="text"
+                required
+                placeholder="ระบุกลุ่มสาระการเรียนรู้..."
+                value={formData.origin}
+                onChange={(e) => setFormData({ ...formData, origin: e.target.value })}
+                className="w-full h-9 px-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-xs text-slate-900 dark:text-white outline-none"
+              />
+            )}
+          </div>
+
           {/* Date Picker */}
           <div>
             <label className="block text-xs font-semibold text-slate-800 dark:text-slate-200 mb-1.5">
@@ -243,9 +405,15 @@ export default function OutboundForm({
               type="date"
               required
               value={formData.date}
+              max={formData.docType === "CERTIFICATE" ? undefined : todayStr}
               onChange={(e) => setFormData({ ...formData, date: e.target.value })}
               className="w-full h-10 px-3 rounded-xl border border-slate-200 dark:border-slate-750 bg-white dark:bg-slate-950 text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all outline-none"
             />
+            {formData.docType !== "CERTIFICATE" && (
+              <span className="text-[10px] text-slate-400 dark:text-slate-500 mt-1 block">
+                * เอกสารทั่วไปไม่อนุญาตให้ลงวันที่ล่วงหน้าในอนาคต (ลงได้สูงสุดถึงวันนี้)
+              </span>
+            )}
           </div>
 
           {/* Title */}
@@ -364,20 +532,10 @@ export default function OutboundForm({
             </div>
           )}
 
-          {/* Anti-backdating Warning */}
-          {isBackdatedError && (
-            <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800/60 text-amber-800 dark:text-amber-300 text-xs font-semibold flex items-start gap-2">
-              <span className="text-sm">⚠️</span>
-              <span>
-                ไม่สามารถขอออกเลขย้อนหลังเกินกว่าวันที่ของเลขล่าสุดได้ (เลขล่าสุดถูกขอเมื่อวันที่ {latestDocDateStr})
-              </span>
-            </div>
-          )}
-
-          {/* Purple Submit Action Button */}
+          {/* Submit Action Button */}
           <button
             type="submit"
-            disabled={issuing || isBackdatedError}
+            disabled={issuing}
             className="w-full h-11 rounded-xl bg-purple-600 hover:bg-purple-700 active:scale-[0.99] text-white text-xs font-bold transition-all flex items-center justify-center gap-2 shadow-md shadow-purple-600/20 disabled:opacity-50 cursor-pointer border border-purple-500/20"
           >
             <Send className="w-4 h-4" />
@@ -427,6 +585,13 @@ export default function OutboundForm({
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
                     {outboundDocs.slice(0, 10).map((doc, idx) => {
+                      const getDocBadge = (type: string) => {
+                        if (type === "MEMO") return { text: "ภายใน", bg: "bg-blue-100 dark:bg-blue-950/70 text-blue-700 dark:text-blue-300" };
+                        if (type === "COMMAND") return { text: "คำสั่ง", bg: "bg-rose-100 dark:bg-rose-950/70 text-rose-700 dark:text-rose-300" };
+                        if (type === "ANNOUNCEMENT") return { text: "ประกาศ", bg: "bg-purple-100 dark:bg-purple-950/70 text-purple-700 dark:text-purple-300" };
+                        if (type === "CERTIFICATE") return { text: "เกียรติบัตร", bg: "bg-amber-100 dark:bg-amber-950/70 text-amber-700 dark:text-amber-300" };
+                        return { text: "ภายนอก", bg: "bg-emerald-100 dark:bg-emerald-950/70 text-emerald-700 dark:text-emerald-300" };
+                      };
                       const badge = getDocBadge(doc.docType);
                       const formattedDate = doc.date ? new Date(doc.date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' }) : '';
                       
