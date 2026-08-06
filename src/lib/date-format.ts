@@ -3,7 +3,7 @@ export function formatLeaveDate(dateInput: string | Date | null | undefined, lan
   const d = new Date(dateInput);
   if (isNaN(d.getTime())) return "";
 
-  const day = String(d.getDate()).padStart(2, "0");
+  const day = String(d.getDate());
   
   if (lang === "th") {
     const thaiMonthsShort = [
@@ -11,8 +11,7 @@ export function formatLeaveDate(dateInput: string | Date | null | undefined, lan
       "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."
     ];
     const month = thaiMonthsShort[d.getMonth()];
-    // Short BE year (e.g. 2569 -> 69)
-    const yearBE = String(d.getFullYear() + 543).slice(-2);
+    const yearBE = String(d.getFullYear() + 543);
     return `${day} ${month} ${yearBE}`;
   } else {
     const englishMonthsShort = [
@@ -20,8 +19,7 @@ export function formatLeaveDate(dateInput: string | Date | null | undefined, lan
       "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
     ];
     const month = englishMonthsShort[d.getMonth()];
-    // Short CE year (e.g. 2026 -> 26)
-    const yearCE = String(d.getFullYear()).slice(-2);
+    const yearCE = String(d.getFullYear());
     return `${day} ${month} ${yearCE}`;
   }
 }

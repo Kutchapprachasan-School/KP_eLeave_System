@@ -8,6 +8,7 @@ import { motion } from "framer-motion";
 import { Calendar, FileText, Send, Clock, Briefcase, Plus, AlertCircle, Paperclip, X, Image as ImageIcon, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { useToast } from "@/components/toast-provider";
+import { formatLeaveDate } from "@/lib/date-format";
 
 function getTodayStr() {
   const d = new Date();
@@ -432,10 +433,11 @@ export default function RequestLeavePage() {
                   )}
                 </div>
                 <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Calendar className="h-5 w-5 text-slate-400" />
+                  <input name="startDate" type="date" required value={startDate} onChange={(e) => handleStartDateChange(e.target.value)} className="w-full h-11 pl-10 pr-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all opacity-0 absolute inset-0 z-10 cursor-pointer" />
+                  <div className="w-full h-11 pl-3.5 pr-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-medium text-slate-900 dark:text-white flex items-center justify-between pointer-events-none">
+                    <span>{formatLeaveDate(startDate, lang) || startDate}</span>
+                    <Calendar className="h-5 w-5 text-purple-600 dark:text-purple-400" />
                   </div>
-                  <input name="startDate" type="date" required value={startDate} onChange={(e) => handleStartDateChange(e.target.value)} className="w-full h-11 pl-10 pr-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all" />
                 </div>
               </div>
               <div>
@@ -452,10 +454,11 @@ export default function RequestLeavePage() {
                   )}
                 </div>
                 <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Calendar className="h-5 w-5 text-slate-400" />
+                  <input name="endDate" type="date" required value={endDate} min={startDate} onChange={(e) => handleEndDateChange(e.target.value)} className="w-full h-11 pl-10 pr-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all opacity-0 absolute inset-0 z-10 cursor-pointer" />
+                  <div className="w-full h-11 pl-3.5 pr-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-medium text-slate-900 dark:text-white flex items-center justify-between pointer-events-none">
+                    <span>{formatLeaveDate(endDate, lang) || endDate}</span>
+                    <Calendar className="h-5 w-5 text-purple-600 dark:text-purple-400" />
                   </div>
-                  <input name="endDate" type="date" required value={endDate} min={startDate} onChange={(e) => handleEndDateChange(e.target.value)} className="w-full h-11 pl-10 pr-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all" />
                 </div>
               </div>
             </div>

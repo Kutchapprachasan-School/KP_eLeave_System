@@ -22,6 +22,7 @@ import {
   saveDocumentConfig,
 } from "@/app/actions/document-settings";
 import { formatDocNumber } from "@/lib/document-utils";
+import { formatLeaveDate } from "@/lib/date-format";
 
 import { uploadLogo } from "@/app/actions/upload";
 
@@ -5835,19 +5836,19 @@ export default function SettingsPage() {
 
                     </label>
 
-                    <input
-
-                      type="date"
-
-                      required
-
-                      value={holidayStartDateInput}
-
-                      onChange={(e) => setHolidayStartDateInput(e.target.value)}
-
-                      className="w-full h-10 px-3 rounded-xl border border-gray-250 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 text-gray-900 dark:text-white"
-
-                    />
+                    <div className="relative">
+                      <input
+                        type="date"
+                        required
+                        value={holidayStartDateInput}
+                        onChange={(e) => setHolidayStartDateInput(e.target.value)}
+                        className="w-full h-10 px-3 rounded-xl border border-gray-250 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 text-gray-900 dark:text-white opacity-0 absolute inset-0 z-10 cursor-pointer"
+                      />
+                      <div className="w-full h-10 px-3 rounded-xl border border-gray-250 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm font-medium text-gray-900 dark:text-white flex items-center justify-between pointer-events-none">
+                        <span>{formatLeaveDate(holidayStartDateInput, lang) || (lang === "en" ? "Select date" : "เลือกวันที่")}</span>
+                        <Calendar className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                      </div>
+                    </div>
 
                   </div>
 
@@ -5859,17 +5860,18 @@ export default function SettingsPage() {
 
                     </label>
 
-                    <input
-
-                      type="date"
-
-                      value={holidayEndDateInput}
-
-                      onChange={(e) => setHolidayEndDateInput(e.target.value)}
-
-                      className="w-full h-10 px-3 rounded-xl border border-gray-250 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 text-gray-900 dark:text-white"
-
-                    />
+                    <div className="relative">
+                      <input
+                        type="date"
+                        value={holidayEndDateInput}
+                        onChange={(e) => setHolidayEndDateInput(e.target.value)}
+                        className="w-full h-10 px-3 rounded-xl border border-gray-250 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 text-gray-900 dark:text-white opacity-0 absolute inset-0 z-10 cursor-pointer"
+                      />
+                      <div className="w-full h-10 px-3 rounded-xl border border-gray-250 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm font-medium text-gray-900 dark:text-white flex items-center justify-between pointer-events-none">
+                        <span>{formatLeaveDate(holidayEndDateInput, lang) || (lang === "en" ? "Select date" : "เลือกวันที่")}</span>
+                        <Calendar className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                      </div>
+                    </div>
 
                   </div>
 
@@ -6521,17 +6523,18 @@ export default function SettingsPage() {
 
               </label>
 
-              <input
-
-                type="date"
-
-                value={manualStartDate}
-
-                onChange={(e) => setManualStartDate(e.target.value)}
-
-                className="w-full h-11 px-4 rounded-xl border border-gray-250 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 text-gray-900 dark:text-white"
-
-              />
+              <div className="relative">
+                <input
+                  type="date"
+                  value={manualStartDate}
+                  onChange={(e) => setManualStartDate(e.target.value)}
+                  className="w-full h-11 px-4 rounded-xl border border-gray-250 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 text-gray-900 dark:text-white opacity-0 absolute inset-0 z-10 cursor-pointer"
+                />
+                <div className="w-full h-11 px-4 rounded-xl border border-gray-250 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm font-medium text-gray-900 dark:text-white flex items-center justify-between pointer-events-none">
+                  <span>{formatLeaveDate(manualStartDate, lang) || (lang === "en" ? "Select date" : "เลือกวันที่")}</span>
+                  <Calendar className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                </div>
+              </div>
 
             </div>
 
@@ -6543,17 +6546,18 @@ export default function SettingsPage() {
 
               </label>
 
-              <input
-
-                type="date"
-
-                value={manualEndDate}
-
-                onChange={(e) => setManualEndDate(e.target.value)}
-
-                className="w-full h-11 px-4 rounded-xl border border-gray-250 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 text-gray-900 dark:text-white"
-
-              />
+              <div className="relative">
+                <input
+                  type="date"
+                  value={manualEndDate}
+                  onChange={(e) => setManualEndDate(e.target.value)}
+                  className="w-full h-11 px-4 rounded-xl border border-gray-250 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 text-gray-900 dark:text-white opacity-0 absolute inset-0 z-10 cursor-pointer"
+                />
+                <div className="w-full h-11 px-4 rounded-xl border border-gray-250 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm font-medium text-gray-900 dark:text-white flex items-center justify-between pointer-events-none">
+                  <span>{formatLeaveDate(manualEndDate, lang) || (lang === "en" ? "Select date" : "เลือกวันที่")}</span>
+                  <Calendar className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                </div>
+              </div>
 
             </div>
 

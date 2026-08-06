@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import { Save, Sparkles, ChevronDown, Eye, Send, RefreshCw, Calendar } from "lucide-react";
 import { SearchableCombobox } from "@/features/document/ui/components/forms/searchable-combobox";
+import { useI18n } from "@/lib/i18n";
+import { formatLeaveDate } from "@/lib/date-format";
 
 type MemoSection = { id: string; name: string; code: string; color?: string };
 
@@ -67,15 +69,8 @@ const SUBJECT_GROUP_OPTIONS = [
   "กลุ่มสาระการเรียนรู้ภาษาต่างประเทศ",
 ];
 
-function formatThaiDateDisplay(dateStr: string): string {
-  if (!dateStr) return "";
-  const d = new Date(dateStr);
-  if (isNaN(d.getTime())) return dateStr;
-  return d.toLocaleDateString("th-TH", {
-    day: "numeric",
-    month: "short",
-    year: "numeric"
-  });
+function formatThaiDateDisplay(dateStr: string, lang: "th" | "en" = "th"): string {
+  return formatLeaveDate(dateStr, lang);
 }
 
 export default function OutboundForm({
@@ -88,6 +83,8 @@ export default function OutboundForm({
   onRefresh,
   onGoToHistory,
 }: OutboundFormProps) {
+  const { lang } = useI18n();
+
   // Default "จากหน่วยงาน" to requester's department or "บุคคล"
   const [formData, setFormData] = useState({
     docType: "MEMO",
@@ -152,7 +149,7 @@ export default function OutboundForm({
   const latestCategoryDoc = selectedCategoryDocs[0];
 
   const latestDocDateStr = latestCategoryDoc?.date
-    ? formatThaiDateDisplay(latestCategoryDoc.date)
+    ? formatThaiDateDisplay(latestCategoryDoc.date, lang)
     : null;
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -470,7 +467,7 @@ export default function OutboundForm({
                 className="w-full h-11 px-3.5 rounded-xl border border-slate-200 dark:border-slate-750 bg-white dark:bg-slate-950 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all outline-none opacity-0 absolute inset-0 z-10 cursor-pointer"
               />
               <div className="w-full h-11 px-3.5 rounded-xl border border-slate-200 dark:border-slate-750 bg-white dark:bg-slate-950 text-sm font-medium text-slate-900 dark:text-white flex items-center justify-between pointer-events-none">
-                <span>{formatThaiDateDisplay(formData.date) || formData.date}</span>
+                <span>{formatThaiDateDisplay(formData.date, lang) || formData.date}</span>
                 <Calendar className="w-4 h-4 text-purple-600 dark:text-purple-400" />
               </div>
             </div>
@@ -647,7 +644,7 @@ export default function OutboundForm({
                         return { text: "ภายนอก", bg: "bg-emerald-100 dark:bg-emerald-950/70 text-emerald-700 dark:text-emerald-300" };
                       };
                       const badge = getDocBadge(doc.docType);
-                      const formattedDate = doc.date ? formatThaiDateDisplay(doc.date) : '';
+                      const formattedDate = doc.date ? formatThaiDateDisplay(doc.date, lang) : '';
                       
                       return (
                         <tr
