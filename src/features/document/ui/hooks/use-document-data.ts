@@ -64,8 +64,10 @@ export function useDocumentData() {
       if (outStatsRes?.success && outStatsRes.data) {
         setOutboundStats(outStatsRes.data);
       }
-      if (outListRes?.success && outListRes.data) {
+      if (outListRes?.success && Array.isArray(outListRes.data)) {
         setOutboundDocs(outListRes.data as OutboundDocument[]);
+      } else if (Array.isArray(outListRes)) {
+        setOutboundDocs(outListRes as OutboundDocument[]);
       }
       setInboundDocs((inList || []) as IncomingDoc[]);
       setUsers(staff || []);

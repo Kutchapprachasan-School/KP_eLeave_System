@@ -97,6 +97,13 @@ export default function OutboundForm({
 
   const [selectedPreviewDoc, setSelectedPreviewDoc] = useState<any | null>(null);
   const [lastIssuedDoc, setLastIssuedDoc] = useState<any | null>(null);
+  const [localDocs, setLocalDocs] = useState<any[]>(outboundDocs || []);
+
+  useEffect(() => {
+    if (outboundDocs && Array.isArray(outboundDocs)) {
+      setLocalDocs(outboundDocs);
+    }
+  }, [outboundDocs]);
 
   // Sync props when sections or user profile finish loading asynchronously
   useEffect(() => {
@@ -121,9 +128,9 @@ export default function OutboundForm({
     }
   }, [username, department]);
 
-  const selectedCategoryDocs = (outboundDocs || []).filter(d => {
+  const selectedCategoryDocs = (localDocs || []).filter(d => {
     if (formData.docType === "MEMO") {
-      return d.docType === "MEMO" && (!formData.memoSectionId || d.memoSectionId === formData.memoSectionId || d.memoSection?.id === formData.memoSectionId);
+      return d.docType === "MEMO";
     }
     if (formData.docType === "OUTGOING") {
       return d.docType.startsWith("OUTGOING");
@@ -161,6 +168,7 @@ export default function OutboundForm({
 
     if (resultDoc && resultDoc.docNo) {
       setLastIssuedDoc(resultDoc);
+      setLocalDocs(prev => [resultDoc, ...prev]);
     }
   };
 
@@ -595,7 +603,7 @@ export default function OutboundForm({
           </div>
 
           {/* History List Table */}
-          {(!outboundDocs || outboundDocs.length === 0) ? (
+          {(!localDocs || localDocs.length === 0) ? (
             <div className="text-center py-12 text-xs text-slate-400">
               ยังไม่มีประวัติการขอออกเลขหนังสือ
             </div>
@@ -613,7 +621,7 @@ export default function OutboundForm({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
-                    {outboundDocs.slice(0, 10).map((doc, idx) => {
+                    {localDocs.slice(0, 10).map((doc, idx) => {
                       const getDocBadge = (type: string) => {
                         if (type === "MEMO") return { text: "ภายใน", bg: "bg-blue-100 dark:bg-blue-950/70 text-blue-700 dark:text-blue-300" };
                         if (type === "COMMAND") return { text: "คำสั่ง", bg: "bg-rose-100 dark:bg-rose-950/70 text-rose-700 dark:text-rose-300" };

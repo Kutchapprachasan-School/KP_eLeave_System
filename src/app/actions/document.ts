@@ -521,7 +521,7 @@ export async function getDocumentsList(filters: {
   memoSectionId?: string;
   status?: string;
   year?: number;
-}): Promise<ActionResponse> {
+} = {}): Promise<ActionResponse> {
   try {
     const where: any = {};
     if (filters.docType) where.docType = filters.docType;
