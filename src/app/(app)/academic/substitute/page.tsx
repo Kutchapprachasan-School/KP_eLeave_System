@@ -2,7 +2,8 @@
 
 export const dynamic = 'force-dynamic';
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { getSystemSettings } from "@/app/actions/settings";
 import { 
   ArrowRightLeft, 
   Sparkles, 
@@ -36,6 +37,20 @@ export default function SubstituteTeachingPage() {
   const [assignedLog, setAssignedLog] = useState<any[]>([]);
   const [activeSlipModalPayload, setActiveSlipModalPayload] = useState<any | null>(null);
 
+  const [settingsPolicy, setSettingsPolicy] = useState("DEPARTMENT");
+  const [settingsWorkloadPenalty, setSettingsWorkloadPenalty] = useState(10);
+  const [settingsLineNotify, setSettingsLineNotify] = useState(true);
+
+  useEffect(() => {
+    getSystemSettings().then((s) => {
+      if (s) {
+        setSettingsPolicy((s as any).substitutePolicy || "DEPARTMENT");
+        setSettingsWorkloadPenalty((s as any).substituteWorkloadPenalty ?? 10);
+        setSettingsLineNotify((s as any).substituteLineNotify ?? true);
+      }
+    }).catch(console.error);
+  }, []);
+
   // Calculate Recommendations using AI Engine with 4-Factor Weighted Model
   const recService = new RecommendationService([], [
     { teacherId: "t2", date: "2026-07-28" }
@@ -44,7 +59,9 @@ export default function SubstituteTeachingPage() {
     subjectCode: "ว23101",
     departmentId: "DEP-SCI",
     gradeExperience: "ม.ต้น",
-    slotSuitability: "เหมาะสม"
+    slotSuitability: "เหมาะสม",
+    policy: settingsPolicy,
+    workloadPenalty: settingsWorkloadPenalty
   });
 
   const handleAssignSubstitute = (candidateId: string, candidateName: string) => {

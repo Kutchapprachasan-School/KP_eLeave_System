@@ -7561,6 +7561,25 @@ export default function SettingsPage() {
 
   // ─── Timetable Settings Section ──────────────────────────────────────────────
   const renderTimetableSettingsSection = () => {
+    const generatePeriodPreview = () => {
+      const periods = [];
+      const [h, m] = timetableStartTime.split(':').map(Number);
+      let startMin = h * 60 + m;
+      for (let i = 0; i < timetablePeriodsPerDay; i++) {
+        const endMin = startMin + timetablePeriodDuration;
+        const startH = String(Math.floor(startMin / 60)).padStart(2, '0');
+        const startM = String(startMin % 60).padStart(2, '0');
+        const endH = String(Math.floor(endMin / 60)).padStart(2, '0');
+        const endM = String(endMin % 60).padStart(2, '0');
+        periods.push({ num: i + 1, time: `${startH}:${startM} - ${endH}:${endM}` });
+        startMin = endMin;
+      }
+      return periods;
+    };
+
+    const totalMinutes = timetablePeriodsPerDay * timetablePeriodDuration;
+    const isOverLimit = totalMinutes > 480;
+
     return (
       <div className="bg-white dark:bg-gray-900 rounded-2xl p-6 md:p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-100 dark:border-gray-800 space-y-6">
         <SectionHeader title="ตั้งค่าระบบจัดตารางสอน (Timetable Builder Settings)" />
@@ -7614,6 +7633,34 @@ export default function SettingsPage() {
             </div>
           </div>
 
+          <div className="bg-slate-50 dark:bg-slate-800 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-slate-100 dark:bg-slate-700">
+                  <th className="px-4 py-2 font-bold text-slate-600 dark:text-slate-300 border-b border-slate-200 dark:border-slate-600">คาบที่ (Period)</th>
+                  <th className="px-4 py-2 font-bold text-slate-600 dark:text-slate-300 border-b border-slate-200 dark:border-slate-600">เวลา (Time Range)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {generatePeriodPreview().map((p, idx) => (
+                  <tr key={idx} className="border-b border-slate-100 dark:border-slate-700/50 last:border-0 hover:bg-slate-100/50 dark:hover:bg-slate-700/30">
+                    <td className="px-4 py-2 text-slate-700 dark:text-slate-300">คาบที่ {p.num}</td>
+                    <td className="px-4 py-2 text-slate-700 dark:text-slate-300 font-mono">{p.time}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {isOverLimit && (
+            <div className="p-4 rounded-xl bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 text-red-900 dark:text-red-300">
+              <div className="font-bold mb-1">⚠️ คำเตือน: เวลาเรียนรวมเกิน 8 ชั่วโมง</div>
+              <p className="text-[11px] text-red-700 dark:text-red-400">
+                เวลาเรียนรวมต่อวัน ({totalMinutes} นาที) เกินกว่าเกณฑ์ที่แนะนำ (480 นาที) อาจส่งผลกระทบต่อความเหนื่อยล้าของนักเรียนและครู
+              </p>
+            </div>
+          )}
+
           <div className="p-4 rounded-xl bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800 text-purple-900 dark:text-purple-300">
             <div className="font-bold mb-1">🛡️ ระบบป้องกันคาบชน 4 มิติ (4-Way Collision Protection):</div>
             <p className="text-[11px] text-purple-700 dark:text-purple-400">
@@ -7634,6 +7681,39 @@ export default function SettingsPage() {
 
   // ─── Substitute Settings Section ──────────────────────────────────────────────
   const renderSubstituteSettingsSection = () => {
+    const renderPolicyExplanation = () => {
+      switch (substitutePolicy) {
+        case "DEPARTMENT":
+          return (
+            <div className="p-4 rounded-xl bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 text-blue-900 dark:text-blue-300 mt-3">
+              <div className="font-bold mb-1">นโยบาย DEPARTMENT</div>
+              <p className="text-[11px] text-blue-700 dark:text-blue-400">
+                เน้นครูในกลุ่มสาระฯ เดียวกันก่อน เพื่อความต่อเนื่องของเนื้อหา
+              </p>
+            </div>
+          );
+        case "CENTRALIZED":
+          return (
+            <div className="p-4 rounded-xl bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 text-green-900 dark:text-green-300 mt-3">
+              <div className="font-bold mb-1">นโยบาย CENTRALIZED</div>
+              <p className="text-[11px] text-green-700 dark:text-green-400">
+                เน้นครูที่มีคาบว่างตรงกันโดยไม่จำกัดกลุ่มสาระฯ
+              </p>
+            </div>
+          );
+        case "HYBRID":
+        default:
+          return (
+            <div className="p-4 rounded-xl bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800 text-purple-900 dark:text-purple-300 mt-3">
+              <div className="font-bold mb-1">นโยบาย HYBRID</div>
+              <p className="text-[11px] text-purple-700 dark:text-purple-400">
+                รวมคะแนนความเชี่ยวชาญ คาบว่าง และภาระงานสอน
+              </p>
+            </div>
+          );
+      }
+    };
+
     return (
       <div className="bg-white dark:bg-gray-900 rounded-2xl p-6 md:p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-100 dark:border-gray-800 space-y-6">
         <SectionHeader title="ตั้งค่าระบบจัดครูสอนแทน (Substitute Routing Settings)" />
@@ -7664,6 +7744,7 @@ export default function SettingsPage() {
               <option value="CENTRALIZED">CENTRALIZED - พิจารณาครูว่างทั้งโรงเรียนอย่างเท่าเทียม</option>
               <option value="HYBRID">HYBRID - กลุ่มสาระเดียวกันเป็นลำดับแรก หากไม่มีให้ขยายเป็นทั้งโรงเรียน</option>
             </select>
+            {renderPolicyExplanation()}
           </div>
 
           <div>
@@ -7674,9 +7755,24 @@ export default function SettingsPage() {
               max={50}
               value={substituteWorkloadPenalty}
               onChange={e => setSubstituteWorkloadPenalty(Number(e.target.value))}
-              className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700"
+              className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 mb-2"
             />
+            
+            <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2.5 mb-2 overflow-hidden">
+              <div 
+                className="bg-amber-500 h-2.5 rounded-full transition-all duration-300" 
+                style={{ width: `${(substituteWorkloadPenalty / 50) * 100}%` }}
+              ></div>
+            </div>
+            
             <p className="text-[11px] text-slate-400 mt-1">หักคะแนน Match Score สำหรับครูที่เคยสอนแทนในรอบ 30 วันที่ผ่านมา (ป้องกันครูหน้าเดิมรับงานซ้ำ)</p>
+          </div>
+
+          <div className="p-4 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-300">
+            <div className="font-bold mb-1">🧮 สูตรคำนวณคะแนนสอนแทน (Scoring Formula):</div>
+            <p className="text-[11px] font-mono text-amber-700 dark:text-amber-400">
+              S<sub>substitute</sub> = S<sub>match</sub> - (TeachingLoad × W<sub>penalty</sub>)
+            </p>
           </div>
 
           <div className="flex items-center gap-3 pt-2">
@@ -7705,12 +7801,16 @@ export default function SettingsPage() {
 
   // ─── Supervision Settings Section ───────────────────────────────────────────
   const renderSupervisionSettingsSection = () => {
+    const totalRatio = supervisionDirectorRatio + supervisionDeptRatio + supervisionSelfRatio;
+    const isValid = totalRatio === 100;
+
     return (
       <div className="bg-white dark:bg-gray-900 rounded-2xl p-6 md:p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-100 dark:border-gray-800 space-y-6">
         <SectionHeader title="ตั้งค่าระบบนิเทศการสอนออนไลน์ (Instructional Supervision Settings)" />
 
         <form onSubmit={async (e) => {
           e.preventDefault();
+          if (!isValid) return;
           try {
             await updateSystemSettings({
               schoolName,
@@ -7725,39 +7825,58 @@ export default function SettingsPage() {
             showToast("error", err?.message ?? "เกิดข้อผิดพลาด");
           }
         }} className="space-y-4 text-xs">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">สัดส่วนคะแนน ผอ. (%)</label>
-              <input
-                type="number"
-                min={0}
-                max={100}
-                value={supervisionDirectorRatio}
-                onChange={e => setSupervisionDirectorRatio(Number(e.target.value))}
-                className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700"
-              />
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">สัดส่วนคะแนน ผอ. (%)</label>
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  value={supervisionDirectorRatio}
+                  onChange={e => setSupervisionDirectorRatio(Number(e.target.value))}
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700"
+                />
+              </div>
+              <div>
+                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">สัดส่วนคะแนน หัวหน้าหมวด (%)</label>
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  value={supervisionDeptRatio}
+                  onChange={e => setSupervisionDeptRatio(Number(e.target.value))}
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700"
+                />
+              </div>
+              <div>
+                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">สัดส่วนคะแนน ประเมินตนเอง (%)</label>
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  value={supervisionSelfRatio}
+                  onChange={e => setSupervisionSelfRatio(Number(e.target.value))}
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700"
+                />
+              </div>
             </div>
-            <div>
-              <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">สัดส่วนคะแนน หัวหน้าหมวด (%)</label>
-              <input
-                type="number"
-                min={0}
-                max={100}
-                value={supervisionDeptRatio}
-                onChange={e => setSupervisionDeptRatio(Number(e.target.value))}
-                className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700"
-              />
-            </div>
-            <div>
-              <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">สัดส่วนคะแนน ประเมินตนเอง (%)</label>
-              <input
-                type="number"
-                min={0}
-                max={100}
-                value={supervisionSelfRatio}
-                onChange={e => setSupervisionSelfRatio(Number(e.target.value))}
-                className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700"
-              />
+
+            <div className="space-y-1 mt-2">
+              <div className="flex justify-between items-center text-[11px] font-bold">
+                <span className="text-slate-600 dark:text-slate-400">สัดส่วนคะแนนรวม</span>
+                <span className={isValid ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}>
+                  {totalRatio}% {isValid ? "✓" : "✗"}
+                </span>
+              </div>
+              <div className="w-full flex h-3 rounded-full overflow-hidden bg-slate-200 dark:bg-slate-700">
+                <div className="bg-indigo-500 h-full transition-all duration-300" style={{ width: `${supervisionDirectorRatio}%` }}></div>
+                <div className="bg-emerald-500 h-full transition-all duration-300" style={{ width: `${supervisionDeptRatio}%` }}></div>
+                <div className="bg-amber-500 h-full transition-all duration-300" style={{ width: `${supervisionSelfRatio}%` }}></div>
+              </div>
+              {!isValid && (
+                <p className="text-[11px] text-red-500 mt-1">⚠️ สัดส่วนคะแนนรวมต้องเท่ากับ 100% พอดี (ปัจจุบัน {totalRatio}%)</p>
+              )}
             </div>
           </div>
 
@@ -7773,9 +7892,19 @@ export default function SettingsPage() {
             />
           </div>
 
+          <div className="p-4 rounded-xl bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 text-blue-900 dark:text-blue-300">
+            <div className="font-bold mb-1">ℹ️ เกณฑ์การประเมิน (Evaluation Criteria):</div>
+            <p className="text-[11px] text-blue-700 dark:text-blue-400">
+              คะแนนสุทธิคำนวณจากสัดส่วนของแต่ละภาคส่วนรวมกัน หากไม่ถึงเกณฑ์ที่กำหนด ระบบจะแจ้งเตือนการพัฒนาในเทอมถัดไป
+            </p>
+          </div>
+
           <button
             type="submit"
-            className="px-5 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-700 text-white font-bold transition-all shadow-md"
+            disabled={!isValid}
+            className={`px-5 py-2.5 rounded-xl text-white font-bold transition-all shadow-md ${
+              isValid ? "bg-cyan-600 hover:bg-cyan-700" : "bg-slate-400 cursor-not-allowed opacity-70"
+            }`}
           >
             บันทึกการตั้งค่านิเทศการสอน
           </button>

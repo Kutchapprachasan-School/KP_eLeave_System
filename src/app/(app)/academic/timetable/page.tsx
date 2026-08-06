@@ -2,7 +2,8 @@
 
 export const dynamic = 'force-dynamic';
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { getSystemSettings } from "@/app/actions/settings";
 import { 
   CalendarDays as Calendar, 
   Sparkles, 
@@ -77,6 +78,38 @@ export default function TimetableBuilderPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [blocks, setBlocks] = useState<ScheduleBlock[]>(INITIAL_BLOCKS);
   const [isSolving, setIsSolving] = useState(false);
+
+  const [settingsPeriodsPerDay, setSettingsPeriodsPerDay] = useState(8);
+  const [settingsStartTime, setSettingsStartTime] = useState("08:30");
+  const [settingsPeriodDuration, setSettingsPeriodDuration] = useState(50);
+
+  useEffect(() => {
+    getSystemSettings().then((s) => {
+      if (s) {
+        setSettingsPeriodsPerDay((s as any).timetablePeriodsPerDay ?? 8);
+        setSettingsStartTime((s as any).timetableStartTime || "08:30");
+        setSettingsPeriodDuration((s as any).timetablePeriodDuration ?? 50);
+      }
+    }).catch(console.error);
+  }, []);
+
+  const PERIODS = Array.from({length: settingsPeriodsPerDay}, (_, i) => i + 1);
+
+  const getPeriodTimeStr = (p: number) => {
+    if (p === 4) return "พักกลางวัน";
+    const [startH, startM] = settingsStartTime.split(":").map(Number);
+    let currentMins = startH * 60 + startM;
+    for (let i = 1; i < p; i++) {
+      currentMins += settingsPeriodDuration;
+    }
+    if (p > 4) {
+      currentMins += settingsPeriodDuration; // lunch period
+    }
+    const endMins = currentMins + settingsPeriodDuration;
+    const formatTime = (mins: number) => `${Math.floor(mins / 60).toString().padStart(2, "0")}:${(mins % 60).toString().padStart(2, "0")}`;
+    return `${formatTime(currentMins)} - ${formatTime(endMins)}`;
+  };
+
 
   // Progressive Optimization State
   const [cascadeResult, setCascadeResult] = useState<EnterpriseOptimizationResult | null>(null);
@@ -471,7 +504,7 @@ export default function TimetableBuilderPage() {
                     <th key={p} className="p-4 font-bold text-center border-l border-slate-200 dark:border-slate-800">
                       คาบที่ {p}
                       <span className="block text-[10px] text-slate-400 font-normal mt-0.5">
-                        {p === 4 ? "พักกลางวัน" : `${8 + (p <= 4 ? p - 1 : p)}:30 - ${8 + (p <= 4 ? p : p + 1)}:20`}
+                        {getPeriodTimeStr(p)}
                       </span>
                     </th>
                   ))}
@@ -674,7 +707,7 @@ export default function TimetableBuilderPage() {
                       <th key={p} className="p-2 border border-slate-400">
                         คาบที่ {p}
                         <span className="block text-[9px] font-normal text-slate-500">
-                          {p === 4 ? "พักกลางวัน" : `${8 + (p <= 4 ? p - 1 : p)}:30 - ${8 + (p <= 4 ? p : p + 1)}:20`}
+                          {getPeriodTimeStr(p)}
                         </span>
                       </th>
                     ))}

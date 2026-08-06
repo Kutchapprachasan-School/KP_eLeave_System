@@ -2,7 +2,8 @@
 
 export const dynamic = 'force-dynamic';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { getSystemSettings } from "@/app/actions/settings";
 
 // Mock Initial Supervision Dataset
 const initialSessions = [
@@ -101,6 +102,22 @@ export default function AcademicSupervisionApp() {
   const [departmentFilter, setDepartmentFilter] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [showScheduleModal, setShowScheduleModal] = useState(false);
+
+  const [settingsMinPerTerm, setSettingsMinPerTerm] = useState(2);
+  const [settingsDirectorRatio, setSettingsDirectorRatio] = useState(40);
+  const [settingsDeptRatio, setSettingsDeptRatio] = useState(40);
+  const [settingsSelfRatio, setSettingsSelfRatio] = useState(20);
+
+  useEffect(() => {
+    getSystemSettings().then((s) => {
+      if (s) {
+        setSettingsMinPerTerm(s?.supervisionMinPerTerm ?? 2);
+        setSettingsDirectorRatio(s?.supervisionDirectorRatio ?? 40);
+        setSettingsDeptRatio(s?.supervisionDeptRatio ?? 40);
+        setSettingsSelfRatio(s?.supervisionSelfRatio ?? 20);
+      }
+    }).catch(console.error);
+  }, []);
 
   // Form State for Evaluation Modal
   const [rubricScores, setRubricScores] = useState({ c1: 5, c2: 5, c3: 5, c4: 5, c5: 5 });
@@ -308,7 +325,7 @@ export default function AcademicSupervisionApp() {
             <span>📋</span>
           </div>
           <div className="text-2xl font-black text-slate-900 dark:text-white">{metrics.total} <span className="text-xs font-normal text-slate-400">คาบ</span></div>
-          <div className="text-[11px] text-purple-600 font-semibold">ภาคเรียนที่ 1/2569</div>
+          <div className="text-[11px] text-purple-600 font-semibold">เป้าหมายขั้นต่ำ: {settingsMinPerTerm} ครั้ง/คน/เทอม</div>
         </div>
 
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm space-y-1">

@@ -107,6 +107,20 @@ export async function ensureSubsystemColumnsExist() {
       ALTER TABLE "SystemSettings" ADD COLUMN IF NOT EXISTS "enableAcademicPlanning" BOOLEAN DEFAULT false;
       ALTER TABLE "SystemSettings" ADD COLUMN IF NOT EXISTS "academicPlanningAllowedUserIds" TEXT DEFAULT '';
       ALTER TABLE "SystemLog" ADD COLUMN IF NOT EXISTS "subsystem" TEXT DEFAULT 'LEAVE';
+
+      ALTER TABLE "SystemSettings" ADD COLUMN IF NOT EXISTS "timetablePeriodsPerDay" INTEGER DEFAULT 8;
+      ALTER TABLE "SystemSettings" ADD COLUMN IF NOT EXISTS "timetableStartTime" TEXT DEFAULT '08:30';
+      ALTER TABLE "SystemSettings" ADD COLUMN IF NOT EXISTS "timetablePeriodDuration" INTEGER DEFAULT 50;
+
+      ALTER TABLE "SystemSettings" ADD COLUMN IF NOT EXISTS "substitutePolicy" TEXT DEFAULT 'DEPARTMENT';
+      ALTER TABLE "SystemSettings" ADD COLUMN IF NOT EXISTS "substituteWorkloadPenalty" INTEGER DEFAULT 10;
+      ALTER TABLE "SystemSettings" ADD COLUMN IF NOT EXISTS "enableSubstituteLineNotify" BOOLEAN DEFAULT true;
+
+      ALTER TABLE "SystemSettings" ADD COLUMN IF NOT EXISTS "supervisionMinPerTerm" INTEGER DEFAULT 2;
+      ALTER TABLE "SystemSettings" ADD COLUMN IF NOT EXISTS "supervisionDirectorRatio" INTEGER DEFAULT 40;
+      ALTER TABLE "SystemSettings" ADD COLUMN IF NOT EXISTS "supervisionDeptRatio" INTEGER DEFAULT 40;
+      ALTER TABLE "SystemSettings" ADD COLUMN IF NOT EXISTS "supervisionSelfRatio" INTEGER DEFAULT 20;
+
       CREATE TABLE IF NOT EXISTS "SystemLogArchive" (
         "id" TEXT NOT NULL PRIMARY KEY,
         "year" INTEGER NOT NULL,
