@@ -138,7 +138,7 @@ export default function OutboundForm({
 
   const selectedCategoryDocs = (localDocs || []).filter(d => {
     if (formData.docType === "MEMO") {
-      return d.docType === "MEMO";
+      return d.docType === "MEMO" && (d.memoSectionId === formData.memoSectionId || d.memoSection?.id === formData.memoSectionId);
     }
     if (formData.docType === "OUTGOING") {
       return d.docType.startsWith("OUTGOING");
@@ -151,6 +151,10 @@ export default function OutboundForm({
   const latestDocDateStr = latestCategoryDoc?.date
     ? formatThaiDateDisplay(latestCategoryDoc.date, lang)
     : null;
+
+  const minDateIso = (formData.docType !== "CERTIFICATE" && latestCategoryDoc?.date)
+    ? new Date(latestCategoryDoc.date).toISOString().split("T")[0]
+    : undefined;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -462,6 +466,7 @@ export default function OutboundForm({
                 type="date"
                 required
                 value={formData.date}
+                min={minDateIso}
                 max={formData.docType === "CERTIFICATE" ? undefined : todayStr}
                 onChange={(e) => setFormData({ ...formData, date: e.target.value })}
                 className="w-full h-11 px-3.5 rounded-xl border border-slate-200 dark:border-slate-750 bg-white dark:bg-slate-950 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all outline-none opacity-0 absolute inset-0 z-10 cursor-pointer"
@@ -473,7 +478,7 @@ export default function OutboundForm({
             </div>
             {formData.docType !== "CERTIFICATE" && (
               <span className="text-xs text-slate-400 dark:text-slate-500 mt-1 block">
-                * เอกสารทั่วไปไม่อนุญาตให้ลงวันที่ล่วงหน้าในอนาคต (ลงได้สูงสุดถึงวันนี้)
+                * ไม่อนุญาตให้ลงวันที่ย้อนหลังก่อนเลขล่าสุด ({latestDocDateStr || "ไม่มีข้อมูลย้อนหลัง"}) หรือลงวันที่ล่วงหน้า
               </span>
             )}
           </div>

@@ -98,6 +98,20 @@ export async function issueOutboundDocAtomic(data: OutboundFormData, userId: str
       orderBy: { seqNo: "desc" },
     });
 
+    // Anti-back-dating check: General docs cannot be dated earlier than the latest issued doc in this category
+    if (!isCert && latestDoc && latestDoc.date) {
+      const latestDateMs = new Date(new Date(latestDoc.date).setHours(0, 0, 0, 0)).getTime();
+      if (activeDateMs < latestDateMs) {
+        const thaiDigits = ["๐", "๑", "๒", "๓", "๔", "๕", "๖", "๗", "๘", "๙"];
+        const formattedLatestDate = new Date(latestDoc.date).toLocaleDateString("th-TH", {
+          day: "numeric",
+          month: "short",
+          year: "numeric"
+        });
+        throw new Error(`ไม่อนุญาตให้ออกเลขเอกสารย้อนหลังก่อนวันที่ของเลขล่าสุดที่ขอในหมวดนี้ (${formattedLatestDate})`);
+      }
+    }
+
     let nextSeq: number;
     if (latestDoc && latestDoc.seqNo !== null && latestDoc.seqNo !== undefined) {
       nextSeq = latestDoc.seqNo + 1;
