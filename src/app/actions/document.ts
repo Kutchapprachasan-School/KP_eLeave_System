@@ -682,9 +682,27 @@ export async function getDocumentsList(filters: {
 
     const list = await prisma.documentRecord.findMany({
       where,
-      include: {
+      select: {
+        id: true,
+        docNo: true,
+        docType: true,
+        date: true,
+        title: true,
+        requester: true,
+        origin: true,
+        department: true,
+        unitType: true,
+        status: true,
+        memoSectionId: true,
+        isBulkBatch: true,
+        batchId: true,
+        quantity: true,
+        content: true,
+        createdById: true,
+        createdAt: true,
+        isPinned: true,
         user: { select: { name: true } },
-        memoSection: true
+        memoSection: { select: { id: true, name: true, code: true, color: true } }
       },
       orderBy: [
         { isPinned: "desc" },
