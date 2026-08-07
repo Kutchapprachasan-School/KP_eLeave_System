@@ -2,10 +2,56 @@
 
 import prisma from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
-import { formatDocNumber } from "@/lib/document-utils";
+import { formatDocNumber, toThaiNumerals } from "@/lib/document-utils";
 import { ActionResponse } from "@/lib/utils";
 import { issueOutboundDocAtomic } from "@/features/document/application/use-cases/issue-outbound-doc.use-case";
 import { generateAdvisoryLockKey } from "@/core/infrastructure/db/advisory-lock";
+
+function formatCertDocNumber(
+  prefix: string | null | undefined,
+  seq: number,
+  year: number,
+  padding: number = 1,
+  useThai: boolean = false
+): string {
+  const p = (prefix ?? "").trim();
+  let seqStr = String(seq).padStart(padding, "0");
+  let yearStr = String(year);
+  if (useThai) {
+    seqStr = toThaiNumerals(seqStr);
+    yearStr = toThaiNumerals(yearStr);
+  }
+  if (!p) {
+    return `${seqStr}/${yearStr}`;
+  }
+  return `${p}/${seqStr}`;
+}
+
+function formatCertDocRange(
+  prefix: string | null | undefined,
+  startSeq: number,
+  endSeq: number,
+  year: number,
+  padding: number = 1,
+  useThai: boolean = false
+): string {
+  const p = (prefix ?? "").trim();
+  let startSeqStr = String(startSeq).padStart(padding, "0");
+  let endSeqStr = String(endSeq).padStart(padding, "0");
+  let yearStr = String(year);
+  if (useThai) {
+    startSeqStr = toThaiNumerals(startSeqStr);
+    endSeqStr = toThaiNumerals(endSeqStr);
+    yearStr = toThaiNumerals(yearStr);
+  }
+  if (startSeq === endSeq) {
+    return !p ? `${startSeqStr}/${yearStr}` : `${p}/${startSeqStr}`;
+  }
+  if (!p) {
+    return `${startSeqStr}-${endSeqStr}/${yearStr}`;
+  }
+  return `${p}/${startSeqStr} - ${p}/${endSeqStr}`;
+}
 
 // Helper to check user session
 async function getSessionUser() {
@@ -236,8 +282,8 @@ export async function issueActivityCertificatesBatch(data: {
         config = await tx.documentConfig.create({
           data: {
             docType: "CERTIFICATE",
-            prefix: "ศธ.๐๔๓๔๙.๐๑",
-            useThaiNumerals: true,
+            prefix: "",
+            useThaiNumerals: false,
             paddingDigits: 1,
             yearFormat: "TH_BE",
             currentSeq: 0
@@ -256,8 +302,9 @@ export async function issueActivityCertificatesBatch(data: {
       }
 
       let curSeq = startSeq;
-      const targetPrefix = config.prefix || "ศธ.๐๔๓๔๙.๐๑";
-      const pattern = "[PREFIX]/ว[SEQ]";
+      const targetPrefix = config.prefix !== undefined && config.prefix !== null ? config.prefix.trim() : "";
+      const useThai = config.useThaiNumerals ?? false;
+      const padding = config.paddingDigits ?? 1;
 
       const breakdownResults = validItems.map((item) => {
         const itemQuantity = Number(item.quantity);
@@ -265,8 +312,9 @@ export async function issueActivityCertificatesBatch(data: {
         const itemEndSeq = curSeq + itemQuantity - 1;
         curSeq = itemEndSeq + 1;
 
-        const startNo = formatDocNumber(pattern, targetPrefix, itemStartSeq, thYear, config.paddingDigits, config.useThaiNumerals);
-        const endNo = formatDocNumber(pattern, targetPrefix, itemEndSeq, thYear, config.paddingDigits, config.useThaiNumerals);
+        const startNo = formatCertDocNumber(targetPrefix, itemStartSeq, thYear, padding, useThai);
+        const endNo = formatCertDocNumber(targetPrefix, itemEndSeq, thYear, padding, useThai);
+        const rangeText = formatCertDocRange(targetPrefix, itemStartSeq, itemEndSeq, thYear, padding, useThai);
 
         return {
           roleTitle: item.roleTitle.trim(),
@@ -275,14 +323,12 @@ export async function issueActivityCertificatesBatch(data: {
           endSeq: itemEndSeq,
           startNo,
           endNo,
-          rangeText: itemQuantity === 1 ? startNo : `${startNo} - ${endNo}`
+          rangeText
         };
       });
 
       const overallEndSeq = curSeq - 1;
-      const startDocNo = formatDocNumber(pattern, targetPrefix, startSeq, thYear, config.paddingDigits, config.useThaiNumerals);
-      const endDocNo = formatDocNumber(pattern, targetPrefix, overallEndSeq, thYear, config.paddingDigits, config.useThaiNumerals);
-      const overallRangeNo = totalQuantity === 1 ? startDocNo : `${startDocNo} - ${endDocNo}`;
+      const overallRangeNo = formatCertDocRange(targetPrefix, startSeq, overallEndSeq, thYear, padding, useThai);
 
       const batchId = `batch-cert-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
 

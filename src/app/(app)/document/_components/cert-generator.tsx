@@ -410,14 +410,23 @@ export default function CertGenerator({ onBack }: { onBack: () => void }) {
                       <div className="flex items-start justify-between gap-3">
                         <div>
                           <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-mono text-sm font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/50 px-2.5 py-0.5 rounded-lg border border-amber-200/50">
+                            <span className={`font-mono text-sm font-bold px-2.5 py-0.5 rounded-lg border ${
+                              batch.status === "CANCELLED"
+                                ? "line-through text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/50 border-rose-200/60 decoration-rose-500 decoration-2"
+                                : "text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/50 border-amber-200/50"
+                            }`}>
                               {batch.docNo}
                             </span>
                             <span className="text-xs font-bold px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
                               รวม {batch.quantity || 1} หมายเลข
                             </span>
+                            {batch.status === "CANCELLED" && (
+                              <span className="text-xs font-extrabold px-2 py-0.5 rounded-md bg-rose-100 dark:bg-rose-950 text-rose-600 dark:text-rose-400">
+                                ยกเลิกแล้ว
+                              </span>
+                            )}
                           </div>
-                          <h4 className="text-sm font-bold text-slate-900 dark:text-white mt-2">
+                          <h4 className={`text-sm mt-2 ${batch.status === "CANCELLED" ? "line-through text-slate-400 dark:text-slate-500" : "font-bold text-slate-900 dark:text-white"}`}>
                             {batch.title}
                           </h4>
                           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">

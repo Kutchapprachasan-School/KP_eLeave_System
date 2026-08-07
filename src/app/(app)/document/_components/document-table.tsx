@@ -456,13 +456,17 @@ export default function DocumentTable({
               paginatedRows.map((d) => {
                 if (localTab === "outbound") {
                   return (
-                    <tr key={d.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition">
+                    <tr key={d.id} className={`transition ${d.status === "CANCELLED" ? "bg-rose-50/40 dark:bg-rose-950/20 opacity-80" : "hover:bg-slate-50/80 dark:hover:bg-slate-800/40"}`}>
                       <td className="py-3 px-4 font-mono font-medium text-indigo-600 dark:text-indigo-400 whitespace-nowrap">
                         {d.docNo ? (
                           <button
                             type="button"
                             onClick={() => setPreviewDoc(d)}
-                            className="hover:underline hover:text-indigo-700 dark:hover:text-indigo-300 font-bold transition text-left cursor-pointer"
+                            className={`font-bold transition text-left cursor-pointer ${
+                              d.status === "CANCELLED"
+                                ? "line-through text-rose-600 dark:text-rose-400 decoration-rose-500 decoration-2"
+                                : "hover:underline hover:text-indigo-700 dark:hover:text-indigo-300"
+                            }`}
                             title="คลิกเพื่อดูรายละเอียดเอกสาร"
                           >
                             {d.docNo}
@@ -504,7 +508,7 @@ export default function DocumentTable({
                           day: "numeric",
                         }) : "-"}
                       </td>
-                      <td className="py-3 px-4 font-normal text-slate-800 dark:text-slate-200 max-w-xs truncate" title={d.title}>
+                      <td className={`py-3 px-4 max-w-xs truncate ${d.status === "CANCELLED" ? "line-through text-slate-400 dark:text-slate-500" : "font-normal text-slate-800 dark:text-slate-200"}`} title={d.title}>
                         {d.title}
                       </td>
                       <td className="py-3 px-4 text-slate-600 dark:text-slate-400 whitespace-nowrap">
@@ -546,12 +550,16 @@ export default function DocumentTable({
                   );
                 } else {
                   return (
-                    <tr key={d.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition">
+                    <tr key={d.id} className={`transition ${d.status === "CANCELLED" ? "bg-rose-50/40 dark:bg-rose-950/20 opacity-80" : "hover:bg-slate-50/80 dark:hover:bg-slate-800/40"}`}>
                       <td className="py-3 px-4 font-mono font-medium text-indigo-600 dark:text-indigo-400 whitespace-nowrap">
                         <button
                           type="button"
                           onClick={() => setPreviewDoc(d)}
-                          className="hover:underline hover:text-indigo-700 dark:hover:text-indigo-300 font-bold transition text-left cursor-pointer"
+                          className={`font-bold transition text-left cursor-pointer ${
+                            d.status === "CANCELLED"
+                              ? "line-through text-rose-600 dark:text-rose-400 decoration-rose-500 decoration-2"
+                              : "hover:underline hover:text-indigo-700 dark:hover:text-indigo-300"
+                          }`}
                           title="คลิกเพื่อดูรายละเอียดหนังสือรับ"
                         >
                           {d.receiveNo}
@@ -767,11 +775,42 @@ export default function DocumentTable({
             </div>
 
             {previewDoc.content && (
-              <div className="p-3.5 rounded-xl border border-slate-100 dark:border-slate-800 space-y-1">
+              <div className="p-3.5 rounded-xl border border-slate-100 dark:border-slate-800 space-y-2">
                 <span className="text-[10px] text-slate-400 block font-medium">รายละเอียดเพิ่มเติม</span>
-                <p className="text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-wrap">
-                  {previewDoc.content}
-                </p>
+                {(() => {
+                  try {
+                    const trimmed = previewDoc.content.trim();
+                    if (trimmed.startsWith("[")) {
+                      const parsed = JSON.parse(trimmed);
+                      if (Array.isArray(parsed) && parsed.length > 0 && parsed[0].roleTitle) {
+                        return (
+                          <div className="space-y-2 pt-1">
+                            <p className="text-xs font-bold text-slate-600 dark:text-slate-400 flex items-center gap-1.5">
+                              🏷️ การแบ่งช่วงเลขทะเบียนตามบทบาทในกิจกรรม:
+                            </p>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                              {parsed.map((item: any, idx: number) => (
+                                <div key={idx} className="p-2.5 rounded-xl bg-amber-50/60 dark:bg-amber-950/30 border border-amber-200/60 dark:border-amber-900/40 text-xs">
+                                  <div className="font-bold text-amber-900 dark:text-amber-200">
+                                    {item.roleTitle} <span className="text-slate-500 font-normal">({item.quantity} เลข)</span>
+                                  </div>
+                                  <div className="text-[11px] font-mono font-bold text-amber-700 dark:text-amber-300 mt-0.5">
+                                    {item.rangeText || (item.startNo === item.endNo ? item.startNo : `${item.startNo} - ${item.endNo}`)}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      }
+                    }
+                  } catch (e) {}
+                  return (
+                    <p className="text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-wrap">
+                      {previewDoc.content}
+                    </p>
+                  );
+                })()}
               </div>
             )}
           </div>

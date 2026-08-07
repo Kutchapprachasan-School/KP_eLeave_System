@@ -195,6 +195,7 @@ async function fetchDocumentConfigsDirect() {
     { docType: "OUTGOING_CIRCULAR", prefix: "ที่ ศทก" },
     { docType: "COMMAND", prefix: "คำสั่งที่" },
     { docType: "ANNOUNCEMENT", prefix: "ประกาศที่" },
+    { docType: "CERTIFICATE", prefix: "" },
   ];
 
   for (const item of baseTypes) {
