@@ -1,7 +1,7 @@
 "use server";
 
 import prisma from "@/lib/prisma";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag, unstable_cache } from "next/cache";
 import { getSession } from "@/lib/auth-session";
 
 async function checkAuth() {
@@ -28,21 +28,25 @@ async function checkAuth() {
 function safeRevalidatePath(path: string) {
   try {
     revalidatePath(path);
+    revalidateTag("memo-sections");
   } catch (e) {
     // Ignore error when running in CLI test environment
   }
 }
 
-// MemoSection Actions
-export async function getMemoSections() {
-  await checkAuth();
-  return prisma.memoSection.findMany({
-    orderBy: [
-      { sortOrder: "asc" },
-      { code: "asc" }
-    ]
-  });
-}
+// MemoSection Actions with 1-hour Server Cache
+export const getMemoSections = unstable_cache(
+  async () => {
+    return prisma.memoSection.findMany({
+      orderBy: [
+        { sortOrder: "asc" },
+        { code: "asc" }
+      ]
+    });
+  },
+  ["memo-sections-cache"],
+  { revalidate: 3600, tags: ["memo-sections"] }
+);
 
 export async function upsertMemoSection(
   id: string | null,

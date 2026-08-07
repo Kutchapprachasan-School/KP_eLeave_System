@@ -8,7 +8,7 @@ import { prisma } from "@/lib/db";
 
 import { headers, cookies } from "next/headers";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag, unstable_cache } from "next/cache";
 
 async function getActualUser() {
 
@@ -138,7 +138,7 @@ export async function ensureSubsystemColumnsExist() {
   }
 }
 
-export async function getSystemSettings() {
+async function fetchSystemSettingsDirect() {
   try {
     let settings;
     try {
@@ -321,8 +321,15 @@ export async function getSystemSettings() {
     };
 
   }
-
 }
+
+export const getSystemSettings = unstable_cache(
+  async () => {
+    return fetchSystemSettingsDirect();
+  },
+  ["system-settings-cache"],
+  { revalidate: 3600, tags: ["system-settings"] }
+);
 
 export async function getEligibleInspectors() {
 
@@ -659,6 +666,7 @@ export async function updateSystemSettings(data: {
       }
     }
 
+    try { revalidateTag("system-settings"); } catch (e) {}
     revalidatePath("/settings");
 
     revalidatePath("/");
