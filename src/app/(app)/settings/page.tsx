@@ -156,6 +156,8 @@ export default function SettingsPage() {
   const [enableCompetency, setEnableCompetency] = useState(true);
   const [enableFacility, setEnableFacility] = useState(true);
   const [enableAcademicSettings, setEnableAcademicSettings] = useState(true);
+  const [enableAmssSync, setEnableAmssSync] = useState(true);
+  const [enableCertificate, setEnableCertificate] = useState(true);
   const [enableBudget, setEnableBudget] = useState(false);
   const [enableStudentAffairs, setEnableStudentAffairs] = useState(false);
   const [enableStudentCouncil, setEnableStudentCouncil] = useState(false);
@@ -465,6 +467,8 @@ export default function SettingsPage() {
       setEnableCompetency((data as any).enableCompetency !== false);
       setEnableFacility((data as any).enableFacility !== false);
       setEnableAcademicSettings((data as any).enableAcademicSettings !== false);
+      setEnableAmssSync((data as any).enableAmssSync !== false);
+      setEnableCertificate((data as any).enableCertificate !== false);
       setEnableBudget((data as any).enableBudget === true);
       setEnableStudentAffairs((data as any).enableStudentAffairs === true);
       setEnableStudentCouncil((data as any).enableStudentCouncil === true);
@@ -727,7 +731,7 @@ export default function SettingsPage() {
 
   // Inline-save a single subsystem toggle
   const saveSubsystem = async (
-    key: "enableLeave" | "enableAttendance" | "enableDocument" | "enableRepair" | "enableTimetable" | "enableSubstitute" | "enableSupervision" | "enableExam" | "enableCompetency" | "enableFacility" | "enableAcademicSettings" | "enableBudget" | "enableStudentAffairs" | "enableStudentCouncil" | "enableAcademicPlanning",
+    key: "enableLeave" | "enableAttendance" | "enableDocument" | "enableRepair" | "enableTimetable" | "enableSubstitute" | "enableSupervision" | "enableExam" | "enableCompetency" | "enableFacility" | "enableAcademicSettings" | "enableBudget" | "enableStudentAffairs" | "enableStudentCouncil" | "enableAcademicPlanning" | "enableAmssSync" | "enableCertificate",
     val: boolean
   ) => {
     if (key === "enableLeave") setEnableLeave(val);
@@ -741,6 +745,8 @@ export default function SettingsPage() {
     if (key === "enableCompetency") setEnableCompetency(val);
     if (key === "enableFacility") setEnableFacility(val);
     if (key === "enableAcademicSettings") setEnableAcademicSettings(val);
+    if (key === "enableAmssSync") setEnableAmssSync(val);
+    if (key === "enableCertificate") setEnableCertificate(val);
     if (key === "enableBudget") setEnableBudget(val);
     if (key === "enableStudentAffairs") setEnableStudentAffairs(val);
     if (key === "enableStudentCouncil") setEnableStudentCouncil(val);
@@ -7204,11 +7210,35 @@ export default function SettingsPage() {
         activeBg: "bg-orange-100 dark:bg-orange-950/40",
         activeBorder: "bg-orange-50/40 dark:bg-orange-950/10 border-orange-200 dark:border-orange-800",
         toggleColor: "bg-orange-500",
-        title: lang === "en" ? "Document System" : "ระบบจัดการเอกสาร",
+        title: lang === "en" ? "Document System" : "ระบบจัดการเอกสารสารบรรณ",
         desc: lang === "en" ? "Incoming/outgoing documents tracking" : "บันทึกและส่งต่อหนังสือราชการรับ-ส่ง",
         enabled: enableDocument,
         saveKey: "enableDocument",
         settingsId: "document-settings",
+      },
+      {
+        id: "amss_sync",
+        icon: <ArrowRightLeft className="w-5 h-5" />,
+        activeColor: "text-sky-600 dark:text-sky-400",
+        activeBg: "bg-sky-100 dark:bg-sky-950/40",
+        activeBorder: "bg-sky-50/40 dark:bg-sky-950/10 border-sky-200 dark:border-sky-800",
+        toggleColor: "bg-sky-500",
+        title: lang === "en" ? "AMSS Sync System" : "ระบบเชื่อมโยงข้อมูล AMSS (ย่อย)",
+        desc: lang === "en" ? "Auto browser sync and document import from AMSS" : "ระบบดึงและเชื่อมโยงหนังสือรับ-ส่งอัตโนมัติจากระบบ AMSS",
+        enabled: enableAmssSync,
+        saveKey: "enableAmssSync",
+      },
+      {
+        id: "certificate",
+        icon: <Award className="w-5 h-5" />,
+        activeColor: "text-amber-600 dark:text-amber-400",
+        activeBg: "bg-amber-100 dark:bg-amber-950/40",
+        activeBorder: "bg-amber-50/40 dark:bg-amber-950/10 border-amber-200 dark:border-amber-800",
+        toggleColor: "bg-amber-500",
+        title: lang === "en" ? "Certificates System" : "ระบบออกเกียรติบัตร (ย่อย)",
+        desc: lang === "en" ? "Activity certificate batch numbering & A4 printing" : "การขอเลขเกียรติบัตรรายกิจกรรม และพิมพ์เกียรติบัตร",
+        enabled: enableCertificate,
+        saveKey: "enableCertificate",
       },
       {
         id: "repair",

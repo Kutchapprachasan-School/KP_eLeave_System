@@ -155,6 +155,8 @@ model SystemSettings {
   enableCompetency             Boolean  @default(true)
   enableFacility               Boolean  @default(true)
   enableAcademicSettings       Boolean  @default(true)
+  enableAmssSync               Boolean  @default(true)
+  enableCertificate            Boolean  @default(true)
 }
 
 model LeaveConfig {
