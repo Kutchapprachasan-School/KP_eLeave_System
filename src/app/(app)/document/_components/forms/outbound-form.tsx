@@ -225,6 +225,12 @@ export default function OutboundForm({
             </div>
           </div>
 
+          {formData.docType === "CERTIFICATE" && (
+            <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 text-xs text-amber-800 dark:text-amber-300 font-medium">
+              💡 สำหรับการออกเลขเกียรติบัตรรายกิจกรรม (แบบระบุหลายประเภท เช่น เข้าร่วม/วิทยากร) กรุณาไปที่เมนู <strong>&quot;ขอเลขเกียรติบัตร&quot;</strong> บนแถบเมนูด้านบน
+            </div>
+          )}
+
           {/* Sub-option for หนังสือส่ง */}
           {formData.docType === "OUTGOING" && (
             <div className="p-3 rounded-xl bg-purple-50/60 dark:bg-purple-950/40 border border-purple-100 dark:border-purple-900/60 space-y-2">

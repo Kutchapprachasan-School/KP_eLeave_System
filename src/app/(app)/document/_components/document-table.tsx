@@ -458,7 +458,18 @@ export default function DocumentTable({
                   return (
                     <tr key={d.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition">
                       <td className="py-3 px-4 font-mono font-medium text-indigo-600 dark:text-indigo-400 whitespace-nowrap">
-                        {d.docNo || <span className="text-amber-500 text-xs">รอออกเลข</span>}
+                        {d.docNo ? (
+                          <button
+                            type="button"
+                            onClick={() => setPreviewDoc(d)}
+                            className="hover:underline hover:text-indigo-700 dark:hover:text-indigo-300 font-bold transition text-left cursor-pointer"
+                            title="คลิกเพื่อดูรายละเอียดเอกสาร"
+                          >
+                            {d.docNo}
+                          </button>
+                        ) : (
+                          <span className="text-amber-500 text-xs">รอออกเลข</span>
+                        )}
                       </td>
                       <td className="py-3 px-4 whitespace-nowrap">
                         {(() => {
@@ -536,8 +547,15 @@ export default function DocumentTable({
                 } else {
                   return (
                     <tr key={d.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition">
-                      <td className="py-3 px-4 font-mono font-normal text-slate-800 dark:text-slate-200 whitespace-nowrap">
-                        {d.receiveNo}
+                      <td className="py-3 px-4 font-mono font-medium text-indigo-600 dark:text-indigo-400 whitespace-nowrap">
+                        <button
+                          type="button"
+                          onClick={() => setPreviewDoc(d)}
+                          className="hover:underline hover:text-indigo-700 dark:hover:text-indigo-300 font-bold transition text-left cursor-pointer"
+                          title="คลิกเพื่อดูรายละเอียดหนังสือรับ"
+                        >
+                          {d.receiveNo}
+                        </button>
                       </td>
                       <td className="py-3 px-4 font-mono">
                         {(() => {

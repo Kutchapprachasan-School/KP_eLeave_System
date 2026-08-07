@@ -42,6 +42,8 @@ export const DOC_TYPE_THAI_MAP: Record<string, string> = {
   OUTGOING_NORMAL: "หนังสือส่ง (ปกติ)",
   OUTGOING_CIRCULAR: "หนังสือส่ง (จดหมายเวียน)",
   ANNOUNCEMENT: "ประกาศโรงเรียน",
+  CERTIFICATE: "เกียรติบัตร",
+  CERT: "เกียรติบัตร",
 };
 
 export function getDocTypeThaiLabel(docType: string, memoSectionName?: string | null): string {

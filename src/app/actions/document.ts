@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { formatDocNumber } from "@/lib/document-utils";
 import { ActionResponse } from "@/lib/utils";
 import { issueOutboundDocAtomic } from "@/features/document/application/use-cases/issue-outbound-doc.use-case";
+import { generateAdvisoryLockKey } from "@/core/infrastructure/db/advisory-lock";
 
 // Helper to check user session
 async function getSessionUser() {
@@ -189,6 +190,148 @@ export async function quickIssueDoc(data: {
     return { success: true, data: issuedDoc };
   } catch (err: any) {
     return handleActionError(err, "quickIssueDoc");
+  }
+}
+
+export async function issueActivityCertificatesBatch(data: {
+  title: string;
+  origin: string;
+  date: string;
+  requester: string;
+  department?: string;
+  items: { roleTitle: string; quantity: number }[];
+}): Promise<ActionResponse> {
+  try {
+    const user = await getSessionUser();
+    const docDate = new Date(data.date);
+    if (isNaN(docDate.getTime())) {
+      throw new Error("วันที่ของเอกสารไม่ถูกต้อง");
+    }
+    if (!data.title || !data.title.trim()) {
+      throw new Error("กรุณาระบุชื่อกิจกรรม/โครงการ");
+    }
+    if (!data.items || data.items.length === 0) {
+      throw new Error("กรุณาระบุอย่างน้อย 1 ประเภทเกียรติบัตรในกิจกรรม");
+    }
+
+    const validItems = data.items.filter(it => it.roleTitle && it.roleTitle.trim() && Number(it.quantity) > 0);
+    if (validItems.length === 0) {
+      throw new Error("จำนวนเกียรติบัตรต้องมากกว่า 0");
+    }
+
+    const totalQuantity = validItems.reduce((sum, item) => sum + Number(item.quantity), 0);
+    const year = docDate.getFullYear();
+    const thYear = year + 543;
+
+    const batchDoc = await prisma.$transaction(async (tx) => {
+      const scopeKey = `doc-seq-CERTIFICATE-default-${thYear}`;
+      const lockKey = generateAdvisoryLockKey(scopeKey);
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(${lockKey})`;
+
+      let config = await tx.documentConfig.findFirst({
+        where: { docType: "CERTIFICATE", memoSectionId: null }
+      });
+
+      if (!config) {
+        config = await tx.documentConfig.create({
+          data: {
+            docType: "CERTIFICATE",
+            prefix: "ศธ.๐๔๓๔๙.๐๑",
+            useThaiNumerals: true,
+            paddingDigits: 1,
+            yearFormat: "TH_BE",
+            currentSeq: 0
+          }
+        });
+      }
+
+      const latestDoc = await tx.documentRecord.findFirst({
+        where: { docType: "CERTIFICATE", year: thYear, status: { in: ["ISSUED", "PRINTED"] } },
+        orderBy: { seqNo: "desc" }
+      });
+
+      let startSeq = 1;
+      if (latestDoc && latestDoc.seqNo !== null && latestDoc.seqNo !== undefined) {
+        startSeq = latestDoc.seqNo + 1;
+      }
+
+      let curSeq = startSeq;
+      const targetPrefix = config.prefix || "ศธ.๐๔๓๔๙.๐๑";
+      const pattern = "[PREFIX]/ว[SEQ]";
+
+      const breakdownResults = validItems.map((item) => {
+        const itemQuantity = Number(item.quantity);
+        const itemStartSeq = curSeq;
+        const itemEndSeq = curSeq + itemQuantity - 1;
+        curSeq = itemEndSeq + 1;
+
+        const startNo = formatDocNumber(pattern, targetPrefix, itemStartSeq, thYear, config.paddingDigits, config.useThaiNumerals);
+        const endNo = formatDocNumber(pattern, targetPrefix, itemEndSeq, thYear, config.paddingDigits, config.useThaiNumerals);
+
+        return {
+          roleTitle: item.roleTitle.trim(),
+          quantity: itemQuantity,
+          startSeq: itemStartSeq,
+          endSeq: itemEndSeq,
+          startNo,
+          endNo,
+          rangeText: itemQuantity === 1 ? startNo : `${startNo} - ${endNo}`
+        };
+      });
+
+      const overallEndSeq = curSeq - 1;
+      const startDocNo = formatDocNumber(pattern, targetPrefix, startSeq, thYear, config.paddingDigits, config.useThaiNumerals);
+      const endDocNo = formatDocNumber(pattern, targetPrefix, overallEndSeq, thYear, config.paddingDigits, config.useThaiNumerals);
+      const overallRangeNo = totalQuantity === 1 ? startDocNo : `${startDocNo} - ${endDocNo}`;
+
+      const batchId = `batch-cert-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+
+      const created = await tx.documentRecord.create({
+        data: {
+          docType: "CERTIFICATE",
+          docNo: overallRangeNo,
+          seqNo: overallEndSeq,
+          year: thYear,
+          title: data.title.trim(),
+          origin: data.origin ? data.origin.trim() : "กลุ่มสาระการเรียนรู้",
+          to: "ผู้เข้าร่วมกิจกรรม",
+          date: docDate,
+          content: JSON.stringify(breakdownResults),
+          signeeName: "",
+          signeePosition: "",
+          status: "ISSUED",
+          requester: data.requester.trim(),
+          department: data.department?.trim() || null,
+          unitType: "DEPARTMENT",
+          isBulkBatch: true,
+          batchId: batchId,
+          quantity: totalQuantity,
+          roleType: "OTHER",
+          roleTitle: breakdownResults.map(b => `${b.roleTitle} (${b.quantity} เลข)`).join(", "),
+          createdById: user.id
+        }
+      });
+
+      await tx.documentConfig.update({
+        where: { id: config.id },
+        data: { currentSeq: overallEndSeq }
+      });
+
+      await tx.systemLog.create({
+        data: {
+          actionType: "DOC_ISSUE_CERT_BATCH",
+          description: `ออกเลขเกียรติบัตรรายกิจกรรม ${data.title}: ${overallRangeNo} (รวม ${totalQuantity} หมายเลข) โดย ${user.name || data.requester}`,
+          userId: user.id
+        }
+      });
+
+      return created;
+    });
+
+    safeRevalidatePath("/document");
+    return { success: true, data: batchDoc };
+  } catch (err: any) {
+    return handleActionError(err, "issueActivityCertificatesBatch");
   }
 }
 
