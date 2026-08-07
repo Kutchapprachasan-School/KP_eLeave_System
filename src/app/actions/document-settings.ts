@@ -29,12 +29,14 @@ function safeRevalidatePath(path: string) {
   try {
     revalidatePath(path);
     revalidateTag("memo-sections");
+    revalidateTag("signee-presets");
+    revalidateTag("document-configs");
   } catch (e) {
     // Ignore error when running in CLI test environment
   }
 }
 
-// MemoSection Actions with 1-hour Server Cache
+// MemoSection Actions with 24-hour Server Cache (On-demand revalidation on edit)
 export const getMemoSections = unstable_cache(
   async () => {
     return prisma.memoSection.findMany({
@@ -45,7 +47,7 @@ export const getMemoSections = unstable_cache(
     });
   },
   ["memo-sections-cache"],
-  { revalidate: 3600, tags: ["memo-sections"] }
+  { revalidate: 86400, tags: ["memo-sections"] }
 );
 
 export async function upsertMemoSection(
@@ -124,13 +126,20 @@ export async function deleteMemoSection(id: string) {
   return { success: true };
 }
 
-// SigneePreset Actions
-export async function getSigneePresets() {
-  await checkAuth();
+// SigneePreset Actions with 24-hour Server Cache
+async function fetchSigneePresetsDirect() {
   return prisma.signeePreset.findMany({
     orderBy: [{ isCommon: "desc" }, { name: "asc" }]
   });
 }
+
+export const getSigneePresets = unstable_cache(
+  async () => {
+    return fetchSigneePresetsDirect();
+  },
+  ["signee-presets-cache"],
+  { revalidate: 86400, tags: ["signee-presets"] }
+);
 
 export async function upsertSigneePreset(id: string | null, name: string, position: string, isCommon: boolean = true) {
   await checkAuth();
@@ -157,9 +166,8 @@ export async function deleteSigneePreset(id: string) {
   return { success: true };
 }
 
-// DocumentConfig Actions
-export async function getDocumentConfigs() {
-  await checkAuth();
+// DocumentConfig Actions with 24-hour Server Cache
+async function fetchDocumentConfigsDirect() {
   let existing = await prisma.documentConfig.findMany({
     include: { memoSection: true }
   });
@@ -210,6 +218,14 @@ export async function getDocumentConfigs() {
   return existing;
 }
 
+export const getDocumentConfigs = unstable_cache(
+  async () => {
+    return fetchDocumentConfigsDirect();
+  },
+  ["document-configs-cache"],
+  { revalidate: 86400, tags: ["document-configs"] }
+);
+
 export async function saveDocumentConfig(
   id: string,
   prefix: string,
@@ -231,5 +247,5 @@ export async function saveDocumentConfig(
     }
   });
   safeRevalidatePath("/document/settings");
-  return updated;
+  return { success: true, data: updated };
 }
