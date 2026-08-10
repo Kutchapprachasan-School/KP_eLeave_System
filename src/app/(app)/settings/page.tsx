@@ -159,6 +159,8 @@ export default function SettingsPage() {
   const [enableStudentAffairs, setEnableStudentAffairs] = useState(false);
   const [enableStudentCouncil, setEnableStudentCouncil] = useState(false);
   const [enableAcademicPlanning, setEnableAcademicPlanning] = useState(false);
+  const [enableAmssSync, setEnableAmssSync] = useState(true);
+  const [enableCertificate, setEnableCertificate] = useState(true);
   const [academicPlanningAllowedUserIds, setAcademicPlanningAllowedUserIds] = useState<string[]>([]);
   const [apSearchQuery, setApSearchQuery] = useState("");
   const [showApDropdown, setShowApDropdown] = useState(false);
@@ -468,6 +470,8 @@ export default function SettingsPage() {
       setEnableStudentAffairs((data as any).enableStudentAffairs === true);
       setEnableStudentCouncil((data as any).enableStudentCouncil === true);
       setEnableAcademicPlanning((data as any).enableAcademicPlanning === true);
+      setEnableAmssSync((data as any).enableAmssSync !== false);
+      setEnableCertificate((data as any).enableCertificate !== false);
       if ((data as any).academicPlanningAllowedUserIds) {
         setAcademicPlanningAllowedUserIds(
           (data as any).academicPlanningAllowedUserIds.split(",").map((s: string) => s.trim()).filter(Boolean)
@@ -726,7 +730,7 @@ export default function SettingsPage() {
 
   // Inline-save a single subsystem toggle
   const saveSubsystem = async (
-    key: "enableLeave" | "enableAttendance" | "enableDocument" | "enableRepair" | "enableTimetable" | "enableSubstitute" | "enableSupervision" | "enableExam" | "enableCompetency" | "enableFacility" | "enableAcademicSettings" | "enableBudget" | "enableStudentAffairs" | "enableStudentCouncil" | "enableAcademicPlanning",
+    key: "enableLeave" | "enableAttendance" | "enableDocument" | "enableRepair" | "enableTimetable" | "enableSubstitute" | "enableSupervision" | "enableExam" | "enableCompetency" | "enableFacility" | "enableAcademicSettings" | "enableBudget" | "enableStudentAffairs" | "enableStudentCouncil" | "enableAcademicPlanning" | "enableAmssSync" | "enableCertificate",
     val: boolean
   ) => {
     if (key === "enableLeave") setEnableLeave(val);
@@ -744,6 +748,8 @@ export default function SettingsPage() {
     if (key === "enableStudentAffairs") setEnableStudentAffairs(val);
     if (key === "enableStudentCouncil") setEnableStudentCouncil(val);
     if (key === "enableAcademicPlanning") setEnableAcademicPlanning(val);
+    if (key === "enableAmssSync") setEnableAmssSync(val);
+    if (key === "enableCertificate") setEnableCertificate(val);
     try {
       const res = await updateSystemSettings({
         [key]: val,

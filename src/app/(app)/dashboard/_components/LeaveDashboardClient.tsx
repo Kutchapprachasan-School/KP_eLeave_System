@@ -77,6 +77,7 @@ export default function LeaveDashboardClient() {
   const [leaderboardFilter, setLeaderboardFilter] = useState<"times" | "days">("times");
   const [viewMode, setViewMode] = useState<"school" | "personal">("school");
   const [trendViewMode, setTrendViewMode] = useState<"types" | "total">("types");
+  const [hideZeroMonths, setHideZeroMonths] = useState<boolean>(true);
 
   // Calendar states
   const [calendarView, setCalendarView] = useState<"week" | "month" | "year">("month");
@@ -763,37 +764,66 @@ export default function LeaveDashboardClient() {
 
         {/* Monthly Trend Line Chart */}
         <motion.div variants={itemVariants} className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white/60 dark:border-slate-800 rounded-3xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] lg:col-span-2 flex flex-col">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-            <h3 className="text-lg font-bold text-slate-900 dark:text-white">{t("monthlyTrend")}</h3>
-            
-            {/* View Mode Toggle */}
-            <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl text-xs font-semibold self-start sm:self-auto shadow-inner">
-              <button
-                onClick={() => setTrendViewMode("types")}
-                className={`px-3 py-1.5 rounded-lg transition-all ${
-                  trendViewMode === "types"
-                    ? "bg-white dark:bg-slate-700 text-purple-600 dark:text-purple-300 shadow-sm"
-                    : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
-                }`}
-              >
-                {lang === "th" ? "แยกตามประเภท" : "By Leave Type"}
-              </button>
-              <button
-                onClick={() => setTrendViewMode("total")}
-                className={`px-3 py-1.5 rounded-lg transition-all ${
-                  trendViewMode === "total"
-                    ? "bg-white dark:bg-slate-700 text-purple-600 dark:text-purple-300 shadow-sm"
-                    : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
-                }`}
-              >
-                {lang === "th" ? "ยอดรวม" : "Total"}
-              </button>
-            </div>
-          </div>
+          {/* Active Monthly Data Filter (Excludes 0-leave months like April when hideZeroMonths is true) */}
+          {(() => {
+            const chartMonthlyData = (() => {
+              if (!hideZeroMonths) return monthlyData || [];
+              const nonZero = monthlyData?.filter((m: any) => (m.total || 0) > 0);
+              return (nonZero && nonZero.length > 0) ? nonZero : monthlyData || [];
+            })();
 
-          <div className="min-h-[250px] h-[250px] w-full flex-1">
-            <ResponsiveContainer width="99%" height="100%">
-              <LineChart data={monthlyData} margin={{ top: 20, right: 15, left: -20, bottom: 5 }}>
+            return (
+              <>
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-white">{t("monthlyTrend")}</h3>
+                  
+                  <div className="flex items-center gap-2.5 flex-wrap">
+                    {/* Zero Months Filter Toggle */}
+                    <button
+                      type="button"
+                      onClick={() => setHideZeroMonths(!hideZeroMonths)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer border ${
+                        hideZeroMonths
+                          ? "bg-purple-50 text-purple-700 dark:bg-purple-950/50 dark:text-purple-300 border-purple-200 dark:border-purple-800 shadow-2xs"
+                          : "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400 border-slate-200 dark:border-slate-700"
+                      }`}
+                      title={lang === "th" ? "ซ่อนเดือนที่มีการลาเป็น 0 (เช่น ช่วงปิดเทอม)" : "Hide 0-leave months"}
+                    >
+                      <span className="w-2 h-2 rounded-full bg-purple-500 shrink-0" />
+                      {hideZeroMonths ? (lang === "th" ? "ซ่อนเดือนที่เป็น 0 (ปิดเทอม)" : "Zero-months hidden") : (lang === "th" ? "แสดงครบทุกเดือน" : "Show all months")}
+                    </button>
+
+                    {/* View Mode Toggle */}
+                    <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl text-xs font-semibold self-start sm:self-auto shadow-inner">
+                      <button
+                        type="button"
+                        onClick={() => setTrendViewMode("types")}
+                        className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                          trendViewMode === "types"
+                            ? "bg-white dark:bg-slate-700 text-purple-600 dark:text-purple-300 shadow-sm"
+                            : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
+                        }`}
+                      >
+                        {lang === "th" ? "แยกตามประเภท" : "By Leave Type"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setTrendViewMode("total")}
+                        className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                          trendViewMode === "total"
+                            ? "bg-white dark:bg-slate-700 text-purple-600 dark:text-purple-300 shadow-sm"
+                            : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
+                        }`}
+                      >
+                        {lang === "th" ? "ยอดรวม" : "Total"}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="min-h-[250px] h-[250px] w-full flex-1">
+                  <ResponsiveContainer width="99%" height="100%">
+                    <LineChart data={chartMonthlyData} margin={{ top: 20, right: 15, left: -20, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(148, 163, 184, 0.1)" />
                 <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: "#94A3B8" }} dy={10} />
                 <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: "#94A3B8" }} />
@@ -916,7 +946,10 @@ export default function LeaveDashboardClient() {
               </LineChart>
             </ResponsiveContainer>
           </div>
-        </motion.div>
+        </>
+      );
+    })()}
+  </motion.div>
 
       </div>
 
