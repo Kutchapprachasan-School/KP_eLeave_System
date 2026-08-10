@@ -413,7 +413,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
   const [enableBudget, setEnableBudget] = useState(false);
   const [enableStudentAffairs, setEnableStudentAffairs] = useState(false);
   const [enableStudentCouncil, setEnableStudentCouncil] = useState(false);
-  const [enableAcademicPlanning, setEnableAcademicPlanning] = useState(false);
+  const [enableAcademicPlanning, setEnableAcademicPlanning] = useState(true);
   const [academicPlanningAllowedUserIds, setAcademicPlanningAllowedUserIds] = useState<string[]>([]);
   const [brandSubheader, setBrandSubheader] = useState("ระบบจัดการการลา");
   const [isLoadingSettings, setIsLoadingSettings] = useState(true);
@@ -499,7 +499,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
       const finalEnableBudget = (s as any).enableBudget === true;
       const finalEnableStudentAffairs = (s as any).enableStudentAffairs === true;
       const finalEnableStudentCouncil = (s as any).enableStudentCouncil === true;
-      const finalEnableAcademicPlanning = (s as any).enableAcademicPlanning === true;
+      const finalEnableAcademicPlanning = (s as any).enableAcademicPlanning !== false;
       const allowedAP = ((s as any).academicPlanningAllowedUserIds || "").split(",").map((id: string) => id.trim()).filter(Boolean);
 
       setBrandName(finalSchoolName);
@@ -1061,8 +1061,8 @@ function AppContent({ children }: { children: React.ReactNode }) {
           {/* Section 3: วิชาการ */}
           {(academicPlanningSubItems.length > 0 || timetableSubItems.length > 0 || substituteSubItems.length > 0 || supervisionSubItems.length > 0 || examSubItems.length > 0 || (enableAcademicSettings && isAdmin)) && (
             <div className="space-y-1.5">
-              <div className="px-3 pb-0.5 text-[11.5px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-                วิชาการ
+              <div className="px-3 pb-0.5 text-[11.5px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                <span>🎓</span> วิชาการ
               </div>
 
               {/* ศูนย์วางแผนวิชาการ */}
@@ -1126,7 +1126,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
               )}
 
               {/* ตั้งค่าระบบวิชาการ */}
-              {enableAcademicSettings && isAdmin && renderNavItem({ href: "/academic/settings", label: "ตั้งค่าระบบวิชาการ", icon: Settings })}
+              {enableAcademicSettings && isAdmin && renderNavItem({ href: "/academic/settings", label: "ตั้งค่าระบบวิชาการ (เฉพาะแอดมิน)", icon: Settings })}
             </div>
           )}
 
