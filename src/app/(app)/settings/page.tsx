@@ -7161,7 +7161,7 @@ export default function SettingsPage() {
       desc: string;
       core?: boolean;
       enabled: boolean;
-      saveKey?: "enableLeave" | "enableAttendance" | "enableDocument" | "enableRepair" | "enableTimetable" | "enableSubstitute" | "enableSupervision" | "enableExam" | "enableCompetency" | "enableFacility" | "enableAcademicSettings";
+      saveKey?: "enableLeave" | "enableAttendance" | "enableDocument" | "enableRepair" | "enableTimetable" | "enableSubstitute" | "enableSupervision" | "enableExam" | "enableCompetency" | "enableFacility" | "enableAcademicSettings" | "enableBudget" | "enableStudentAffairs" | "enableStudentCouncil" | "enableAcademicPlanning";
       settingsId?: string;
       customPath?: string;
     };
@@ -7364,81 +7364,148 @@ export default function SettingsPage() {
       },
     ];
 
+    const SUB_CATEGORIES = [
+      {
+        id: "personnel",
+        title: lang === "en" ? "Personnel Affairs Subsystems" : "หมวดงานฝ่ายบุคคล (Personnel Affairs)",
+        desc: lang === "en" ? "Leave management, daily attendance clocking, and PA competency portfolio" : "ระบบการลา ลงเวลาปฏิบัติราชการ และแฟ้มสะสมงานสมรรถนะครู (PA)",
+        badgeColor: "bg-indigo-100 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800",
+        items: SUBS.filter((s) => ["leave", "attendance", "competency"].includes(s.id)),
+      },
+      {
+        id: "general",
+        title: lang === "en" ? "General Affairs & Facilities" : "หมวดงานฝ่ายทั่วไป & อาคารสถานที่ (General Affairs)",
+        desc: lang === "en" ? "Document tracking AMSS++, facility reservations, and building repair tracking" : "ระบบสารบรรณหนังสือรับ-ส่ง จองทรัพยากรกลาง และแจ้งซ่อมแซมอาคารสถานที่",
+        badgeColor: "bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 border-amber-200 dark:border-amber-800",
+        items: SUBS.filter((s) => ["document", "facility", "repair"].includes(s.id)),
+      },
+      {
+        id: "academic",
+        title: lang === "en" ? "Academic Affairs Subsystems" : "หมวดงานฝ่ายวิชาการ (Academic Affairs)",
+        desc: lang === "en" ? "Planning control plane, master timetable, substitute assignment, supervision, exams, & settings" : "ศูนย์วางแผนวิชาการ ตารางสอน สอนแทน นิเทศการสอน ตารางสอบ และโครงสร้างวิชาการ",
+        badgeColor: "bg-purple-100 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300 border-purple-200 dark:border-purple-800",
+        items: SUBS.filter((s) => ["academic_planning", "timetable", "substitute", "supervision", "exam", "academic_settings"].includes(s.id)),
+      },
+      {
+        id: "budget",
+        title: lang === "en" ? "Budget & Financial Systems" : "หมวดงานฝ่ายงบประมาณ (Budget & Financial)",
+        desc: lang === "en" ? "Project budgeting, procurement, and financial disbursement tracking" : "ตั้งงบประมาณโครงการ ควบคุมการเบิกจ่าย พัสดุ และรายงานทางการเงิน",
+        badgeColor: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800",
+        items: SUBS.filter((s) => ["budget"].includes(s.id)),
+      },
+      {
+        id: "student_affairs",
+        title: lang === "en" ? "Student Affairs Systems" : "หมวดงานฝ่ายกิจการนักเรียน (Student Affairs)",
+        desc: lang === "en" ? "Student discipline, behavior score system, student care, & morning attendance" : "บันทึกวินัยนักเรียน ตัดคะแนนพฤติกรรม ระบบดูแลช่วยเหลือ และเช็คชื่อเสาธง",
+        badgeColor: "bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 border-rose-200 dark:border-rose-800",
+        items: SUBS.filter((s) => ["student_affairs"].includes(s.id)),
+      },
+      {
+        id: "student_council",
+        title: lang === "en" ? "Student Council Systems" : "หมวดงานสภานักเรียน (Student Council)",
+        desc: lang === "en" ? "E-voting student council elections, student activities & suggestion box" : "เลือกตั้งสภานักเรียนออนไลน์ E-Voting ปฏิทินกิจกรรม และตู้รับข้อเสนอแนะ",
+        badgeColor: "bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 border-blue-200 dark:border-blue-800",
+        items: SUBS.filter((s) => ["student_council"].includes(s.id)),
+      },
+    ];
+
     return (
       <div className="bg-white dark:bg-gray-900 rounded-2xl p-6 md:p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-100 dark:border-gray-800">
         <SectionHeader title={sectionTitles.subsystems} />
         <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
           {lang === "en"
-            ? "Toggle subsystems on or off. Click 'Settings ›' to configure each module."
-            : "เปิด/ปิดการใช้งานระบบย่อย กดปุ่ม 'ตั้งค่า ›' เพื่อเข้าตั้งค่าของแต่ละระบบ"}
+            ? "Toggle subsystems on or off by department categories. Click 'Settings ›' to configure each module."
+            : "เปิด/ปิดการใช้งานระบบย่อยแยกตามหมวดหมู่ฝ่ายงาน กดปุ่ม 'ตั้งค่า ›' เพื่อเข้าตั้งค่าของแต่ละระบบ"}
         </p>
 
-        <div className="space-y-3">
-          {SUBS.map((sys) => (
-            <div
-              key={sys.id}
-              className={`flex items-center gap-4 p-4 rounded-2xl border transition-all ${
-                sys.enabled
-                  ? sys.activeBorder
-                  : "bg-white dark:bg-gray-950 border-gray-200 dark:border-gray-800"
-              }`}
-            >
-              {/* Icon */}
-              <div
-                className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-colors ${
-                  sys.enabled
-                    ? `${sys.activeBg} ${sys.activeColor}`
-                    : "bg-gray-50 dark:bg-gray-800 text-gray-400"
-                }`}
-              >
-                {sys.icon}
-              </div>
-
-              {/* Text */}
-              <div className="flex-1 min-w-0">
-                <p className="font-semibold text-gray-900 dark:text-white text-sm">{sys.title}</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{sys.desc}</p>
-              </div>
-
-              {/* Right controls */}
-              <div className="flex items-center gap-2 shrink-0">
-                {sys.core ? (
-                  <span className="px-3 py-1 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300 text-xs font-bold">
-                    {lang === "en" ? "Core" : "ระบบหลัก"}
+        <div className="space-y-8">
+          {SUB_CATEGORIES.map((cat) => (
+            <div key={cat.id} className="space-y-3">
+              {/* Category Header */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
+                <div className="flex items-center gap-2">
+                  <span className={`px-3 py-1 rounded-xl text-xs font-bold border ${cat.badgeColor}`}>
+                    {cat.title}
                   </span>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => saveSubsystem(sys.saveKey!, !sys.enabled)}
-                    className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors focus:outline-none ${
-                      sys.enabled ? sys.toggleColor : "bg-gray-200 dark:bg-gray-700"
-                    }`}
-                    title={sys.enabled ? (lang === "en" ? "Disable" : "ปิดใช้งาน") : (lang === "en" ? "Enable" : "เปิดใช้งาน")}
-                  >
-                    <span
-                      className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
-                        sys.enabled ? "translate-x-6" : "translate-x-1"
-                      }`}
-                    />
-                  </button>
-                )}
+                  <span className="text-xs text-slate-400 dark:text-slate-500 font-medium">
+                    ({cat.items.length} {lang === "en" ? "modules" : "ระบบย่อย"})
+                  </span>
+                </div>
+                <span className="text-[11.5px] text-slate-400 dark:text-slate-500">
+                  {cat.desc}
+                </span>
+              </div>
 
-                {(sys.settingsId || sys.customPath) && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (sys.customPath) {
-                        router.push(sys.customPath);
-                      } else if (sys.settingsId) {
-                        setActiveSection(sys.settingsId);
-                      }
-                    }}
-                    className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+              {/* Subsystems List */}
+              <div className="space-y-3">
+                {cat.items.map((sys) => (
+                  <div
+                    key={sys.id}
+                    className={`flex items-center gap-4 p-4 rounded-2xl border transition-all ${
+                      sys.enabled
+                        ? sys.activeBorder
+                        : "bg-white dark:bg-gray-950 border-gray-200 dark:border-gray-800 opacity-85 hover:opacity-100"
+                    }`}
                   >
-                    {lang === "en" ? "Settings" : "ตั้งค่า"}
-                    <ChevronRight className="w-3.5 h-3.5" />
-                  </button>
-                )}
+                    {/* Icon */}
+                    <div
+                      className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-colors ${
+                        sys.enabled
+                          ? `${sys.activeBg} ${sys.activeColor}`
+                          : "bg-gray-50 dark:bg-gray-800 text-gray-400"
+                      }`}
+                    >
+                      {sys.icon}
+                    </div>
+
+                    {/* Text */}
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-gray-900 dark:text-white text-sm">{sys.title}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{sys.desc}</p>
+                    </div>
+
+                    {/* Right controls */}
+                    <div className="flex items-center gap-2 shrink-0">
+                      {sys.core ? (
+                        <span className="px-3 py-1 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300 text-xs font-bold">
+                          {lang === "en" ? "Core" : "ระบบหลัก"}
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => saveSubsystem(sys.saveKey!, !sys.enabled)}
+                          className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors focus:outline-none ${
+                            sys.enabled ? sys.toggleColor : "bg-gray-200 dark:bg-gray-700"
+                          }`}
+                          title={sys.enabled ? (lang === "en" ? "Disable" : "ปิดใช้งาน") : (lang === "en" ? "Enable" : "เปิดใช้งาน")}
+                        >
+                          <span
+                            className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
+                              sys.enabled ? "translate-x-6" : "translate-x-1"
+                            }`}
+                          />
+                        </button>
+                      )}
+
+                      {(sys.settingsId || sys.customPath) && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (sys.customPath) {
+                              router.push(sys.customPath);
+                            } else if (sys.settingsId) {
+                              setActiveSection(sys.settingsId);
+                            }
+                          }}
+                          className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                        >
+                          {lang === "en" ? "Settings" : "ตั้งค่า"}
+                          <ChevronRight className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           ))}

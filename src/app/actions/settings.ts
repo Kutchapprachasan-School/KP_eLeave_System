@@ -138,21 +138,10 @@ export async function ensureSubsystemColumnsExist() {
 
 export async function getSystemSettings() {
   try {
-    let settings;
-    try {
-      settings = await prisma.systemSettings.findUnique({
-        where: { id: "default" }
-      });
-    } catch (fetchErr: any) {
-      if (fetchErr?.message?.includes("does not exist")) {
-        await ensureSubsystemColumnsExist();
-        settings = await prisma.systemSettings.findUnique({
-          where: { id: "default" }
-        });
-      } else {
-        throw fetchErr;
-      }
-    }
+    await ensureSubsystemColumnsExist();
+    let settings = await prisma.systemSettings.findUnique({
+      where: { id: "default" }
+    });
 
     if (!settings) {
       settings = await prisma.systemSettings.create({
@@ -475,6 +464,7 @@ export async function updateSystemSettings(data: {
 
 }) {
   try {
+    await ensureSubsystemColumnsExist();
     const { session, isAdmin, isHR } = await requireAdminOrHR();
     const user = session?.user as any;
     const isRepairManager = user?.role === "REPAIR_MANAGER" || user?.position === "ผู้ดูแลระบบซ่อม";
