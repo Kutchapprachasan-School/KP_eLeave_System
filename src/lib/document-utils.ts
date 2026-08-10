@@ -18,7 +18,8 @@ export function formatDocNumber(
   seq: number,
   year: number,
   padding: number,
-  useThai: boolean
+  useThai: boolean,
+  docType?: string
 ): string {
   let seqStr = String(seq).padStart(padding, "0");
   let yearStr = String(year);
@@ -27,12 +28,23 @@ export function formatDocNumber(
     yearStr = toThaiNumerals(yearStr);
   }
   
-  let formatted = pattern
-    .replace("[PREFIX]", prefix)
+  let activePattern = pattern;
+  const isOutgoing = docType && (docType.startsWith("OUTGOING") || docType === "OUTGOING_NORMAL" || docType === "OUTGOING_CIRCULAR");
+
+  if (isOutgoing) {
+    // For OUTGOING documents: format is Prefix + Seq (no /YEAR suffix, no extra space after trailing slash)
+    activePattern = "[PREFIX][SEQ]";
+  } else if (prefix && (prefix.endsWith("/") || prefix.endsWith("."))) {
+    // If prefix ends with slash or dot, remove space between [PREFIX] and [SEQ]
+    activePattern = activePattern.replace("[PREFIX] [SEQ]", "[PREFIX][SEQ]");
+  }
+
+  let formatted = activePattern
+    .replace("[PREFIX]", prefix || "")
     .replace("[SEQ]", seqStr)
     .replace("[YEAR]", yearStr);
     
-  return formatted;
+  return formatted.trim();
 }
 
 export const DOC_TYPE_THAI_MAP: Record<string, string> = {

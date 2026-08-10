@@ -98,6 +98,9 @@ export default function DocumentTable({
 
     if (localTab === "outbound") {
       return outboundDocs.filter((d) => {
+        // Exclude Certificate records from general Outbound Documents table
+        if (d.docType === "CERTIFICATE") return false;
+
         const matchesSearch =
           !searchQuery.trim() ||
           Boolean(d.title?.toLowerCase().includes(searchQuery.toLowerCase())) ||

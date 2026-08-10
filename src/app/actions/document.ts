@@ -270,7 +270,8 @@ export async function issueDocNumber(docId: string, customDateStr?: string): Pro
         nextSeq,
         finalYear,
         config.paddingDigits,
-        config.useThaiNumerals
+        config.useThaiNumerals,
+        record.docType
       );
 
       // Save and update document record
@@ -357,7 +358,8 @@ export async function getDocPreviewNumber(docType: string, sectionId?: string): 
       nextSeq,
       finalYear,
       paddingDigits,
-      useThaiNumerals
+      useThaiNumerals,
+      docType
     );
 
     return { success: true, data: preview };
