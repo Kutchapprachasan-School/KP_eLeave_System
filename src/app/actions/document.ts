@@ -547,3 +547,88 @@ export async function getDocumentTrendStats(): Promise<ActionResponse> {
     return handleActionError(err, "getDocumentTrendStats");
   }
 }
+
+export async function issueActivityCertificatesBatch(payload: {
+  title: string;
+  origin: string;
+  date: string;
+  requester: string;
+  items: { roleTitle: string; quantity: number }[];
+}): Promise<ActionResponse> {
+  try {
+    const user = await getSessionUser();
+    if (!user) throw new Error("Unauthorized");
+
+    const totalQty = payload.items.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
+    if (totalQty <= 0) throw new Error("จำนวนเกียรติบัตรต้องมากกว่า 0");
+
+    const year = new Date(payload.date || Date.now()).getFullYear();
+    const thYear = year + 543;
+
+    // Get config or sequence for CERTIFICATE
+    let config = await prisma.documentConfig.findFirst({
+      where: { docType: "CERTIFICATE" },
+    });
+
+    if (!config) {
+      config = await prisma.documentConfig.create({
+        data: {
+          docType: "CERTIFICATE",
+          prefix: "",
+          currentSeq: 0,
+          useThaiNumerals: false,
+          paddingDigits: 1,
+          yearFormat: "TH_BE",
+        },
+      });
+    }
+
+    const startSeq = config.currentSeq + 1;
+    const endSeq = config.currentSeq + totalQty;
+
+    // Update config currentSeq
+    await prisma.documentConfig.update({
+      where: { id: config.id },
+      data: { currentSeq: endSeq },
+    });
+
+    // Build role range items string for content breakdown
+    let curr = startSeq;
+    const breakdownItems = payload.items.map((item) => {
+      const itemStart = curr;
+      const itemEnd = curr + item.quantity - 1;
+      curr += item.quantity;
+      const rangeText = itemStart === itemEnd ? `${itemStart}/${thYear}` : `${itemStart}-${itemEnd}/${thYear}`;
+      return `${item.roleTitle}: ${rangeText} (${item.quantity} ใบ)`;
+    });
+
+    const rangeDocNo = startSeq === endSeq ? `${startSeq}/${thYear}` : `${startSeq}-${endSeq}/${thYear}`;
+
+    const newRecord = await prisma.documentRecord.create({
+      data: {
+        docType: "CERTIFICATE",
+        docNo: rangeDocNo,
+        seqNo: startSeq,
+        year: year,
+        title: payload.title,
+        to: "ผู้รับเกียรติบัตร",
+        origin: payload.origin || "โรงเรียนกุดจับประชาสรรค์",
+        date: new Date(payload.date || Date.now()),
+        content: breakdownItems.join("\n"),
+        signeeName: "ผู้อำนวยการโรงเรียนกุดจับประชาสรรค์",
+        signeePosition: "ผู้อำนวยการโรงเรียน",
+        status: "ISSUED",
+        createdById: user.id,
+        requester: payload.requester || user.name || "ครูผู้รับผิดชอบ",
+        quantity: totalQty,
+        isBulkBatch: true,
+      },
+    });
+
+    safeRevalidatePath("/document");
+    return { success: true, data: newRecord };
+  } catch (err: any) {
+    return handleActionError(err, "issueActivityCertificatesBatch");
+  }
+}
+
