@@ -1,6 +1,6 @@
 "use client";
 // trigger vercel build: stable version 1.0.1
-import { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
 import { useSearchParams, useRouter } from "next/navigation";
