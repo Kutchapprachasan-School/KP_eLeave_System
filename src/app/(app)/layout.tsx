@@ -722,26 +722,42 @@ function AppContent({ children }: { children: React.ReactNode }) {
       ]
     : [];
 
-  // Sub-items for Academic Affairs System (งานฝ่ายวิชาการ)
-  const academicSubItems = [];
-  if (showAcademicPlanning) {
-    academicSubItems.push({ href: "/academic/planning", label: "ศูนย์วางแผนวิชาการ", icon: Layers });
-  }
-  if (enableTimetable) {
-    academicSubItems.push({ href: "/academic/timetable", label: "จัดตารางสอน", icon: Calendar });
-  }
-  if (enableSubstitute) {
-    academicSubItems.push({ href: "/academic/substitute", label: "จัดครูสอนแทน", icon: ArrowRightLeft });
-  }
-  if (enableSupervision) {
-    academicSubItems.push({ href: "/academic/supervision", label: "นิเทศการสอนออนไลน์", icon: CheckSquare });
-  }
-  if (enableExam) {
-    academicSubItems.push({ href: "/academic/exam", label: "จัดตารางสอบ & ผังที่นั่ง", icon: FileText });
-  }
-  if (enableAcademicSettings && isAdmin) {
-    academicSubItems.push({ href: "/academic/settings", label: "ตั้งค่าระบบวิชาการ", icon: Settings });
-  }
+  // Sub-items for Academic Affairs Systems (งานฝ่ายวิชาการ - แยกเป็นระบบย่อย)
+  const academicPlanningSubItems = showAcademicPlanning
+    ? [
+        { href: "/academic/planning", label: "ภาพรวมศูนย์วางแผน", icon: Layers },
+        { href: "/academic/planning/curriculum", label: "โครงสร้างหลักสูตร", icon: BookOpen },
+        { href: "/academic/planning/sandbox", label: "ฉากทัศน์จำลอง (Sandbox)", icon: Layers },
+        { href: "/academic/planning/workload", label: "ภาระงานสอน & ETU", icon: Activity },
+      ]
+    : [];
+
+  const timetableSubItems = enableTimetable
+    ? [
+        { href: "/academic/timetable", label: "จัดตารางสอนออนไลน์", icon: Calendar },
+        { href: "/academic/timetable?view=matrix", label: "ตารางสอนรวมรายห้อง/ครู", icon: FileText },
+      ]
+    : [];
+
+  const substituteSubItems = enableSubstitute
+    ? [
+        { href: "/academic/substitute", label: "จัดครูสอนแทนออนไลน์", icon: ArrowRightLeft },
+        { href: "/academic/substitute?view=history", label: "บันทึกและประวัติสอนแทน", icon: ClipboardList },
+      ]
+    : [];
+
+  const supervisionSubItems = enableSupervision
+    ? [
+        { href: "/academic/supervision", label: "นิเทศการสอนออนไลน์", icon: CheckSquare },
+        { href: "/academic/supervision?view=summary", label: "สรุปผลและรายงานนิเทศ", icon: FileSpreadsheet },
+      ]
+    : [];
+
+  const examSubItems = enableExam
+    ? [
+        { href: "/academic/exam", label: "จัดตารางสอบ & ผังที่นั่ง", icon: FileText },
+      ]
+    : [];
 
   // Items for Settings category (ตั้งค่าระบบ)
   const settingsNavItems = [];
@@ -976,13 +992,74 @@ function AppContent({ children }: { children: React.ReactNode }) {
           </div>
 
           {/* Section 3: วิชาการ */}
-          {academicSubItems.length > 0 && (
+          {(academicPlanningSubItems.length > 0 || timetableSubItems.length > 0 || substituteSubItems.length > 0 || supervisionSubItems.length > 0 || examSubItems.length > 0 || (enableAcademicSettings && isAdmin)) && (
             <div className="space-y-1.5">
               <div className="px-3 pb-0.5 text-[11.5px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
                 วิชาการ
               </div>
 
-              {academicSubItems.map((item) => renderNavItem(item))}
+              {/* ศูนย์วางแผนวิชาการ */}
+              {academicPlanningSubItems.length > 0 && (
+                <CollapsibleGroup
+                  title="ศูนย์วางแผนวิชาการ"
+                  icon={Layers}
+                  items={academicPlanningSubItems}
+                  pathname={pathname}
+                  searchParams={searchParams}
+                  renderNavItem={renderNavItem}
+                />
+              )}
+
+              {/* ระบบจัดตารางสอน */}
+              {timetableSubItems.length > 0 && (
+                <CollapsibleGroup
+                  title="ระบบจัดตารางสอน"
+                  icon={Calendar}
+                  items={timetableSubItems}
+                  pathname={pathname}
+                  searchParams={searchParams}
+                  renderNavItem={renderNavItem}
+                />
+              )}
+
+              {/* ระบบจัดครูสอนแทน */}
+              {substituteSubItems.length > 0 && (
+                <CollapsibleGroup
+                  title="ระบบจัดครูสอนแทน"
+                  icon={ArrowRightLeft}
+                  items={substituteSubItems}
+                  pathname={pathname}
+                  searchParams={searchParams}
+                  renderNavItem={renderNavItem}
+                />
+              )}
+
+              {/* ระบบนิเทศการสอน */}
+              {supervisionSubItems.length > 0 && (
+                <CollapsibleGroup
+                  title="ระบบนิเทศการสอน"
+                  icon={CheckSquare}
+                  items={supervisionSubItems}
+                  pathname={pathname}
+                  searchParams={searchParams}
+                  renderNavItem={renderNavItem}
+                />
+              )}
+
+              {/* ระบบจัดตารางสอบ */}
+              {examSubItems.length > 0 && (
+                <CollapsibleGroup
+                  title="ระบบจัดตารางสอบ"
+                  icon={FileText}
+                  items={examSubItems}
+                  pathname={pathname}
+                  searchParams={searchParams}
+                  renderNavItem={renderNavItem}
+                />
+              )}
+
+              {/* ตั้งค่าระบบวิชาการ */}
+              {enableAcademicSettings && isAdmin && renderNavItem({ href: "/academic/settings", label: "ตั้งค่าระบบวิชาการ", icon: Settings })}
             </div>
           )}
 
