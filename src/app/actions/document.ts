@@ -620,8 +620,6 @@ export async function issueActivityCertificatesBatch(payload: {
         status: "ISSUED",
         createdById: user.id,
         requester: payload.requester || user.name || "ครูผู้รับผิดชอบ",
-        quantity: totalQty,
-        isBulkBatch: true,
       },
     });
 

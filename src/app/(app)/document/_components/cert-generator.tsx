@@ -168,6 +168,14 @@ export default function CertGenerator({ onBack }: { onBack: () => void }) {
       {/* Dynamic inline styles for A4 landscape print orientation */}
       <style jsx global>{`
         @media print {
+          html, body {
+            background: white !important;
+            color: black !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
           body * {
             visibility: hidden;
           }
@@ -175,20 +183,22 @@ export default function CertGenerator({ onBack }: { onBack: () => void }) {
             visibility: visible;
           }
           #print-certificate-area {
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 297mm;
-            height: 210mm;
-            margin: 0;
-            padding: 20mm;
-            box-sizing: border-box;
+            position: fixed !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: 297mm !important;
+            height: 210mm !important;
+            margin: 0 !important;
+            padding: 12mm 16mm !important;
+            box-sizing: border-box !important;
             background: white !important;
-            border: 12px double #d97706 !important;
+            border: 10px double #d97706 !important;
             box-shadow: none !important;
             display: flex !important;
             flex-direction: column !important;
             justify-content: space-between !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
           }
           @page {
             size: A4 landscape;
@@ -241,7 +251,7 @@ export default function CertGenerator({ onBack }: { onBack: () => void }) {
             }`}
           >
             <Printer className="w-4 h-4" />
-            พิมพ์เกียรติบัตร (A4 Landscape)
+            พิมพ์เกียรติบัตร
           </button>
         </div>
       </div>
@@ -675,7 +685,7 @@ export default function CertGenerator({ onBack }: { onBack: () => void }) {
               className="text-xs bg-rose-600 hover:bg-rose-700 text-white font-extrabold px-4.5 py-2.5 rounded-xl transition flex items-center gap-2 cursor-pointer shadow-xs active:scale-95 shrink-0"
             >
               <Printer className="w-4 h-4" />
-              สั่งพิมพ์เกียรติบัตร (A4 Landscape)
+              พิมพ์
             </button>
           </div>
 
