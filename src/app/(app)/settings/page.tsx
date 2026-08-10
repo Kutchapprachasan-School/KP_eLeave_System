@@ -7439,72 +7439,144 @@ export default function SettingsPage() {
               {/* Subsystems List */}
               <div className="space-y-3">
                 {cat.items.map((sys) => (
-                  <div
-                    key={sys.id}
-                    className={`flex items-center gap-4 p-4 rounded-2xl border transition-all ${
-                      sys.enabled
-                        ? sys.activeBorder
-                        : "bg-white dark:bg-gray-950 border-gray-200 dark:border-gray-800 opacity-85 hover:opacity-100"
-                    }`}
-                  >
-                    {/* Icon */}
+                  <React.Fragment key={sys.id}>
                     <div
-                      className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-colors ${
+                      className={`flex items-center gap-4 p-4 rounded-2xl border transition-all ${
                         sys.enabled
-                          ? `${sys.activeBg} ${sys.activeColor}`
-                          : "bg-gray-50 dark:bg-gray-800 text-gray-400"
+                          ? sys.activeBorder
+                          : "bg-white dark:bg-gray-950 border-gray-200 dark:border-gray-800 opacity-85 hover:opacity-100"
                       }`}
                     >
-                      {sys.icon}
-                    </div>
+                      {/* Icon */}
+                      <div
+                        className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-colors ${
+                          sys.enabled
+                            ? `${sys.activeBg} ${sys.activeColor}`
+                            : "bg-gray-50 dark:bg-gray-800 text-gray-400"
+                        }`}
+                      >
+                        {sys.icon}
+                      </div>
 
-                    {/* Text */}
-                    <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-gray-900 dark:text-white text-sm">{sys.title}</p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{sys.desc}</p>
-                    </div>
+                      {/* Text */}
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-gray-900 dark:text-white text-sm">{sys.title}</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{sys.desc}</p>
+                      </div>
 
-                    {/* Right controls */}
-                    <div className="flex items-center gap-2 shrink-0">
-                      {sys.core ? (
-                        <span className="px-3 py-1 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300 text-xs font-bold">
-                          {lang === "en" ? "Core" : "ระบบหลัก"}
-                        </span>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => saveSubsystem(sys.saveKey!, !sys.enabled)}
-                          className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors focus:outline-none ${
-                            sys.enabled ? sys.toggleColor : "bg-gray-200 dark:bg-gray-700"
-                          }`}
-                          title={sys.enabled ? (lang === "en" ? "Disable" : "ปิดใช้งาน") : (lang === "en" ? "Enable" : "เปิดใช้งาน")}
-                        >
-                          <span
-                            className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
-                              sys.enabled ? "translate-x-6" : "translate-x-1"
+                      {/* Right controls */}
+                      <div className="flex items-center gap-2 shrink-0">
+                        {sys.core ? (
+                          <span className="px-3 py-1 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300 text-xs font-bold">
+                            {lang === "en" ? "Core" : "ระบบหลัก"}
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => saveSubsystem(sys.saveKey!, !sys.enabled)}
+                            className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors focus:outline-none ${
+                              sys.enabled ? sys.toggleColor : "bg-gray-200 dark:bg-gray-700"
                             }`}
-                          />
-                        </button>
-                      )}
+                            title={sys.enabled ? (lang === "en" ? "Disable" : "ปิดใช้งาน") : (lang === "en" ? "Enable" : "เปิดใช้งาน")}
+                          >
+                            <span
+                              className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
+                                sys.enabled ? "translate-x-6" : "translate-x-1"
+                              }`}
+                            />
+                          </button>
+                        )}
 
-                      {(sys.settingsId || sys.customPath) && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (sys.customPath) {
-                              router.push(sys.customPath);
-                            } else if (sys.settingsId) {
-                              setActiveSection(sys.settingsId);
-                            }
-                          }}
-                          className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
-                        >
-                          {lang === "en" ? "Settings" : "ตั้งค่า"}
-                          <ChevronRight className="w-3.5 h-3.5" />
-                        </button>
-                      )}
+                        {(sys.settingsId || sys.customPath) && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (sys.customPath) {
+                                router.push(sys.customPath);
+                              } else if (sys.settingsId) {
+                                setActiveSection(sys.settingsId);
+                              }
+                            }}
+                            className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                          >
+                            {lang === "en" ? "Settings" : "ตั้งค่า"}
+                            <ChevronRight className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
                     </div>
-                  </div>
+
+                    {sys.id === "document" && (
+                      <div className="mt-2.5 mb-3 ml-4 sm:ml-6 pl-4 border-l-2 border-orange-300 dark:border-orange-800 space-y-2.5">
+                        <p className="text-xs font-bold text-orange-900 dark:text-orange-300 flex items-center gap-1.5 pt-1">
+                          <Sparkles className="w-3.5 h-3.5 text-orange-500" />
+                          {lang === "en" ? "Document Sub-modules & Sub-systems:" : "ฟังก์ชันและระบบย่อยในระบบจัดการเอกสาร:"}
+                        </p>
+
+                        {/* AMSS Sync Subsystem */}
+                        <div className="flex items-center justify-between p-3 sm:p-3.5 rounded-2xl bg-sky-50/70 dark:bg-sky-950/30 border border-sky-200/80 dark:border-sky-900/50 shadow-2xs">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="w-8 h-8 rounded-xl bg-sky-100 dark:bg-sky-900/60 text-sky-600 dark:text-sky-400 flex items-center justify-center shrink-0">
+                              <ArrowRightLeft className="w-4 h-4" />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="font-bold text-xs text-slate-900 dark:text-white">
+                                {lang === "en" ? "AMSS Sync System (Sub-module)" : "ระบบเชื่อมโยงข้อมูล AMSS (ย่อย)"}
+                              </p>
+                              <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                                {lang === "en" ? "Auto browser sync and document import from AMSS" : "ระบบดึงและเชื่อมโยงหนังสือรับ-ส่งอัตโนมัติจากระบบ AMSS"}
+                              </p>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => saveSubsystem("enableAmssSync", !enableAmssSync)}
+                            className={`relative inline-flex h-6.5 w-11 items-center rounded-full transition-colors focus:outline-none shrink-0 ml-2 cursor-pointer ${
+                              enableAmssSync ? "bg-sky-500" : "bg-gray-200 dark:bg-gray-700"
+                            }`}
+                            title={enableAmssSync ? (lang === "en" ? "Disable" : "ปิดใช้งาน") : (lang === "en" ? "Enable" : "เปิดใช้งาน")}
+                          >
+                            <span
+                              className={`inline-block h-4.5 w-4.5 transform rounded-full bg-white shadow transition-transform ${
+                                enableAmssSync ? "translate-x-5.5" : "translate-x-1"
+                              }`}
+                            />
+                          </button>
+                        </div>
+
+                        {/* Certificate Subsystem */}
+                        <div className="flex items-center justify-between p-3 sm:p-3.5 rounded-2xl bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200/80 dark:border-amber-900/50 shadow-2xs">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="w-8 h-8 rounded-xl bg-amber-100 dark:bg-amber-900/60 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+                              <Award className="w-4 h-4" />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="font-bold text-xs text-slate-900 dark:text-white">
+                                {lang === "en" ? "Certificates System (Sub-module)" : "ระบบออกเกียรติบัตร (ย่อย)"}
+                              </p>
+                              <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                                {lang === "en" ? "Activity certificate batch numbering & A4 printing" : "การขอเลขเกียรติบัตรรายกิจกรรม และพิมพ์เกียรติบัตร"}
+                              </p>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => saveSubsystem("enableCertificate", !enableCertificate)}
+                            className={`relative inline-flex h-6.5 w-11 items-center rounded-full transition-colors focus:outline-none shrink-0 ml-2 cursor-pointer ${
+                              enableCertificate ? "bg-amber-500" : "bg-gray-200 dark:bg-gray-700"
+                            }`}
+                            title={enableCertificate ? (lang === "en" ? "Disable" : "ปิดใช้งาน") : (lang === "en" ? "Enable" : "เปิดใช้งาน")}
+                          >
+                            <span
+                              className={`inline-block h-4.5 w-4.5 transform rounded-full bg-white shadow transition-transform ${
+                                enableCertificate ? "translate-x-5.5" : "translate-x-1"
+                              }`}
+                            />
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </React.Fragment>
                 ))}
               </div>
             </div>
