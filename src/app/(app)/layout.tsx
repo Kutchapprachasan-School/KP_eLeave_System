@@ -562,6 +562,46 @@ function AppContent({ children }: { children: React.ReactNode }) {
     });
   }, [session?.user?.id, t]);
 
+  useEffect(() => {
+    const handleStorageChange = () => {
+      if (typeof window === "undefined") return;
+      const storedEnableLeave = localStorage.getItem("eleave_enableLeave");
+      const storedEnableAttendance = localStorage.getItem("eleave_enableAttendance");
+      const storedEnableDocument = localStorage.getItem("eleave_enableDocument");
+      const storedEnableRepair = localStorage.getItem("eleave_enableRepair");
+      const storedEnableTimetable = localStorage.getItem("eleave_enableTimetable");
+      const storedEnableSubstitute = localStorage.getItem("eleave_enableSubstitute");
+      const storedEnableSupervision = localStorage.getItem("eleave_enableSupervision");
+      const storedEnableExam = localStorage.getItem("eleave_enableExam");
+      const storedEnableCompetency = localStorage.getItem("eleave_enableCompetency");
+      const storedEnableFacility = localStorage.getItem("eleave_enableFacility");
+      const storedEnableAcademicSettings = localStorage.getItem("eleave_enableAcademicSettings");
+      const storedEnableBudget = localStorage.getItem("eleave_enableBudget");
+      const storedEnableStudentAffairs = localStorage.getItem("eleave_enableStudentAffairs");
+      const storedEnableStudentCouncil = localStorage.getItem("eleave_enableStudentCouncil");
+      const storedEnableAcademicPlanning = localStorage.getItem("eleave_enableAcademicPlanning");
+
+      if (storedEnableLeave) setEnableLeave(storedEnableLeave === "true");
+      if (storedEnableAttendance) setEnableAttendance(storedEnableAttendance === "true");
+      if (storedEnableDocument) setEnableDocument(storedEnableDocument === "true");
+      if (storedEnableRepair) setEnableRepair(storedEnableRepair === "true");
+      if (storedEnableTimetable) setEnableTimetable(storedEnableTimetable === "true");
+      if (storedEnableSubstitute) setEnableSubstitute(storedEnableSubstitute === "true");
+      if (storedEnableSupervision) setEnableSupervision(storedEnableSupervision === "true");
+      if (storedEnableExam) setEnableExam(storedEnableExam === "true");
+      if (storedEnableCompetency) setEnableCompetency(storedEnableCompetency === "true");
+      if (storedEnableFacility) setEnableFacility(storedEnableFacility === "true");
+      if (storedEnableAcademicSettings) setEnableAcademicSettings(storedEnableAcademicSettings === "true");
+      if (storedEnableBudget) setEnableBudget(storedEnableBudget === "true");
+      if (storedEnableStudentAffairs) setEnableStudentAffairs(storedEnableStudentAffairs === "true");
+      if (storedEnableStudentCouncil) setEnableStudentCouncil(storedEnableStudentCouncil === "true");
+      if (storedEnableAcademicPlanning) setEnableAcademicPlanning(storedEnableAcademicPlanning === "true");
+    };
+
+    window.addEventListener("storage", handleStorageChange);
+    return () => window.removeEventListener("storage", handleStorageChange);
+  }, []);
+
   if (isPending || isLoadingSettings) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-br from-slate-50 via-slate-100 to-indigo-50/50 dark:from-slate-950 dark:via-slate-900 dark:to-indigo-950/20 p-6 overflow-hidden">
@@ -756,6 +796,33 @@ function AppContent({ children }: { children: React.ReactNode }) {
   const examSubItems = enableExam
     ? [
         { href: "/academic/exam", label: "จัดตารางสอบ & ผังที่นั่ง", icon: FileText },
+      ]
+    : [];
+
+  // Sub-items for Budget System (ระบบบริหารงานงบประมาณ & เบิกจ่าย)
+  const budgetSubItems = showBudget
+    ? [
+        { href: "/budget", label: "บริหารงานงบประมาณ & พัสดุ", icon: Wallet },
+        { href: "/budget?view=projects", label: "จัดสรรงบโครงการ & แผนงาน", icon: FileText },
+        { href: "/budget?view=reports", label: "รายงานและการเบิกจ่าย", icon: FileSpreadsheet },
+      ]
+    : [];
+
+  // Sub-items for Student Affairs System (ระบบบริหารงานกิจการนักเรียน & วินัย)
+  const studentAffairsSubItems = showStudentAffairs
+    ? [
+        { href: "/student-affairs", label: "บริหารงานกิจการนักเรียน", icon: Users },
+        { href: "/student-affairs?view=discipline", label: "บันทึกวินัย & พฤติกรรม", icon: CheckSquare },
+        { href: "/student-affairs?view=care", label: "ระบบดูแลช่วยเหลือนักเรียน", icon: BookOpen },
+      ]
+    : [];
+
+  // Sub-items for Student Council System (ระบบบริหารงานสภานักเรียน E-Voting)
+  const studentCouncilSubItems = showStudentCouncil
+    ? [
+        { href: "/student-council", label: "เลือกตั้งออนไลน์ E-Voting", icon: Vote },
+        { href: "/student-council?view=activities", label: "กิจกรรมสภานักเรียน", icon: Calendar },
+        { href: "/student-council?view=suggestions", label: "ตู้รับข้อเสนอแนะนักเรียน", icon: Archive },
       ]
     : [];
 
@@ -1064,32 +1131,53 @@ function AppContent({ children }: { children: React.ReactNode }) {
           )}
 
           {/* Section 4: งบประมาณ */}
-          {showBudget && (
+          {budgetSubItems.length > 0 && (
             <div className="space-y-1.5">
               <div className="px-3 pb-0.5 text-[11.5px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
                 งบประมาณ
               </div>
-              {renderNavItem({ href: "/budget", label: "บริหารงานงบประมาณ", icon: Wallet })}
+              <CollapsibleGroup
+                title="ระบบบริหารงานงบประมาณ"
+                icon={Wallet}
+                items={budgetSubItems}
+                pathname={pathname}
+                searchParams={searchParams}
+                renderNavItem={renderNavItem}
+              />
             </div>
           )}
 
           {/* Section 5: กิจการนักเรียน */}
-          {showStudentAffairs && (
+          {studentAffairsSubItems.length > 0 && (
             <div className="space-y-1.5">
               <div className="px-3 pb-0.5 text-[11.5px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
                 กิจการนักเรียน
               </div>
-              {renderNavItem({ href: "/student-affairs", label: "บริหารงานกิจการนักเรียน", icon: Users })}
+              <CollapsibleGroup
+                title="ระบบกิจการนักเรียน"
+                icon={Users}
+                items={studentAffairsSubItems}
+                pathname={pathname}
+                searchParams={searchParams}
+                renderNavItem={renderNavItem}
+              />
             </div>
           )}
 
           {/* Section 6: สภานักเรียน */}
-          {showStudentCouncil && (
+          {studentCouncilSubItems.length > 0 && (
             <div className="space-y-1.5">
               <div className="px-3 pb-0.5 text-[11.5px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
                 สภานักเรียน
               </div>
-              {renderNavItem({ href: "/student-council", label: "บริหารงานสภานักเรียน", icon: Vote })}
+              <CollapsibleGroup
+                title="ระบบสภานักเรียน"
+                icon={Vote}
+                items={studentCouncilSubItems}
+                pathname={pathname}
+                searchParams={searchParams}
+                renderNavItem={renderNavItem}
+              />
             </div>
           )}
 
