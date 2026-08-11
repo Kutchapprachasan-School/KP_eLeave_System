@@ -7165,6 +7165,37 @@ export default function SettingsPage() {
   };
 
   const renderSubsystemsSection = () => {
+    const saveSubsystem = async (key: string, val: boolean) => {
+      if (key === "enableLeave") setEnableLeave(val);
+      if (key === "enableAttendance") setEnableAttendance(val);
+      if (key === "enableDocument") setEnableDocument(val);
+      if (key === "enableRepair") setEnableRepair(val);
+      if (key === "enableTimetable") setEnableTimetable(val);
+      if (key === "enableSubstitute") setEnableSubstitute(val);
+      if (key === "enableSupervision") setEnableSupervision(val);
+      if (key === "enableExam") setEnableExam(val);
+      if (key === "enableCompetency") setEnableCompetency(val);
+      if (key === "enableFacility") setEnableFacility(val);
+      if (key === "enableAcademicSettings") setEnableAcademicSettings(val);
+      if (key === "enableBudget") setEnableBudget(val);
+      if (key === "enableStudentAffairs") setEnableStudentAffairs(val);
+      if (key === "enableStudentCouncil") setEnableStudentCouncil(val);
+      if (key === "enableAcademicPlanning") setEnableAcademicPlanning(val);
+      if (key === "enableAmssSync") setEnableAmssSync(val);
+      if (key === "enableCertificate") setEnableCertificate(val);
+
+      if (typeof window !== "undefined") {
+        localStorage.setItem(`eleave_${key}`, String(val));
+      }
+
+      try {
+        await updateSystemSettings({ [key]: val } as any);
+        showToast("success", lang === "en" ? "Setting updated" : "บันทึกการตั้งค่าแล้ว");
+      } catch (e: any) {
+        showToast("error", e?.message ?? "เกิดข้อผิดพลาดในการบันทึก");
+      }
+    };
+
     // Each subsystem: auto-save toggle + optional "ตั้งค่า" navigation
     type SubDef = {
       id: string;

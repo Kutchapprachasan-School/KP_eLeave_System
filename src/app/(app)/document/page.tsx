@@ -199,6 +199,10 @@ function DocumentPageContent() {
     );
   }
 
+  const isUserAdmin = session?.user?.role === "ADMIN" || (session?.user as any)?.position === "แอดมิน";
+  const canAccessAmss = data.enableAmssSync || isUserAdmin;
+  const canAccessCert = data.enableCertificate || isUserAdmin;
+
   return (
     <div className="space-y-6 max-w-7xl mx-auto px-1">
       <PageHeader
@@ -210,7 +214,25 @@ function DocumentPageContent() {
 
       {/* Views */}
       {filters.view === "cert" ? (
-        <CertView onBack={() => filters.setView("inbound")} />
+        canAccessCert ? (
+          <CertView onBack={() => filters.setView("inbound")} />
+        ) : (
+          <div className="p-8 rounded-3xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-center space-y-3">
+            <h3 className="text-base font-bold text-amber-900 dark:text-amber-200">
+              🔒 ระบบออกเกียรติบัตรถูกปิดใช้งานชั่วคราว
+            </h3>
+            <p className="text-xs text-amber-700 dark:text-amber-300">
+              ผู้ดูแลระบบได้ทำการปิดใช้งานฟังก์ชันออกเกียรติบัตรไว้ หากต้องการใช้งานโปรดติดต่อแอดมินระบบ
+            </p>
+            <button
+              type="button"
+              onClick={() => filters.setView("issue")}
+              className="px-4 py-2 rounded-xl bg-amber-600 text-white text-xs font-bold hover:bg-amber-700 transition"
+            >
+              กลับสู่หน้าหลักขอเลขหนังสือ
+            </button>
+          </div>
+        )
       ) : filters.view === "outbound_history" ? (
         <OutboundHistoryView
           sections={data.sections}
@@ -256,28 +278,46 @@ function DocumentPageContent() {
           onGoToHistory={() => filters.setView("outbound_history")}
         />
       ) : filters.view === "inbound" ? (
-        <InboundView
-          sections={data.sections}
-          outboundDocs={data.outboundDocs}
-          inboundDocs={data.inboundDocs}
-          amssCredsExist={data.amssCredsExist}
-          autoBrowserTrigger={autoBrowserTrigger}
-          enableAmssSync={data.enableAmssSync}
-          onRefresh={data.loadData}
-          onCancelDocClick={(id) => setDocToCancel(id)}
-          onShowCredentialsModal={() => setShowAmssCredentialsModal(true)}
-          onShowImportModal={() => setShowAmssImportModal(true)}
-          showToast={showToast}
-          searchQuery={filters.searchQuery}
-          setSearchQuery={filters.setSearchQuery}
-          selectedDocType={filters.selectedDocType}
-          setSelectedDocType={filters.setSelectedDocType}
-          selectedYear={filters.selectedYearTable}
-          setSelectedYear={filters.setSelectedYearTable}
-          selectedStatus={filters.selectedStatus}
-          setSelectedStatus={filters.setSelectedStatus}
-          currentUserId={session?.user?.id}
-        />
+        canAccessAmss ? (
+          <InboundView
+            sections={data.sections}
+            outboundDocs={data.outboundDocs}
+            inboundDocs={data.inboundDocs}
+            amssCredsExist={data.amssCredsExist}
+            autoBrowserTrigger={autoBrowserTrigger}
+            enableAmssSync={data.enableAmssSync}
+            onRefresh={data.loadData}
+            onCancelDocClick={(id) => setDocToCancel(id)}
+            onShowCredentialsModal={() => setShowAmssCredentialsModal(true)}
+            onShowImportModal={() => setShowAmssImportModal(true)}
+            showToast={showToast}
+            searchQuery={filters.searchQuery}
+            setSearchQuery={filters.setSearchQuery}
+            selectedDocType={filters.selectedDocType}
+            setSelectedDocType={filters.setSelectedDocType}
+            selectedYear={filters.selectedYearTable}
+            setSelectedYear={filters.setSelectedYearTable}
+            selectedStatus={filters.selectedStatus}
+            setSelectedStatus={filters.setSelectedStatus}
+            currentUserId={session?.user?.id}
+          />
+        ) : (
+          <div className="p-8 rounded-3xl bg-sky-50 dark:bg-sky-950/40 border border-sky-200 dark:border-sky-800 text-center space-y-3">
+            <h3 className="text-base font-bold text-sky-900 dark:text-sky-200">
+              🔒 ระบบเชื่อมโยง AMSS++ ถูกปิดใช้งานชั่วคราว
+            </h3>
+            <p className="text-xs text-sky-700 dark:text-sky-300">
+              ผู้ดูแลระบบได้ทำการปิดใช้งานฟังก์ชันดึงและเชื่อมโยงหนังสือรับจาก AMSS++ ไว้ หากต้องการใช้งานโปรดติดต่อแอดมินระบบ
+            </p>
+            <button
+              type="button"
+              onClick={() => filters.setView("issue")}
+              className="px-4 py-2 rounded-xl bg-sky-600 text-white text-xs font-bold hover:bg-sky-700 transition"
+            >
+              กลับสู่หน้าหลักขอเลขหนังสือ
+            </button>
+          </div>
+        )
       ) : null}
 
       <CancelDocModal
