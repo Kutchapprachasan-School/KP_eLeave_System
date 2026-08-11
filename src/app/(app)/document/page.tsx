@@ -4,7 +4,7 @@ import { useState, useCallback, Suspense } from "react";
 import Link from "next/link";
 import { ClipboardList, RefreshCw } from "lucide-react";
 
-import { quickIssueDoc, cancelDoc, restoreDoc, updateOutboundDoc } from "@/app/actions/document";
+import { quickIssueDoc, cancelDoc, restoreDoc, updateOutboundDoc, requestDocAction, approveDocRequest, rejectDocRequest } from "@/app/actions/document";
 import { useSession } from "@/lib/auth-client";
 import { useToast } from "@/components/toast-provider";
 import AmssImportModal from "@/components/AmssImportModal";
@@ -106,6 +106,57 @@ function DocumentPageContent() {
     }
   };
 
+  const handleRequestDocAction = async (id: string, type: "CANCEL" | "EDIT" | "RESTORE", payload?: any) => {
+    try {
+      const res = await requestDocAction(id, type, payload);
+      if (res.success) {
+        showToast("ยื่นคำร้องขอเรียบร้อยแล้ว รอเจ้าหน้าที่ธุรการหรือแอดมินอนุมัติ", "success");
+        await data.loadData();
+        return true;
+      } else {
+        showToast(res.error || "ยื่นคำร้องขอไม่สำเร็จ", "error");
+        return false;
+      }
+    } catch (err: any) {
+      showToast(err.message || "เกิดข้อผิดพลาดในการยื่นคำร้องขอ", "error");
+      return false;
+    }
+  };
+
+  const handleApproveDocRequest = async (id: string) => {
+    try {
+      const res = await approveDocRequest(id);
+      if (res.success) {
+        showToast("อนุมัติคำร้องขอจัดการเอกสารเรียบร้อยแล้ว", "success");
+        await data.loadData();
+        return true;
+      } else {
+        showToast(res.error || "อนุมัติคำร้องขอไม่สำเร็จ", "error");
+        return false;
+      }
+    } catch (err: any) {
+      showToast(err.message || "เกิดข้อผิดพลาดในการอนุมัติคำร้องขอ", "error");
+      return false;
+    }
+  };
+
+  const handleRejectDocRequest = async (id: string, reason?: string) => {
+    try {
+      const res = await rejectDocRequest(id, reason);
+      if (res.success) {
+        showToast("ปฏิเสธคำร้องขอเรียบร้อยแล้ว", "success");
+        await data.loadData();
+        return true;
+      } else {
+        showToast(res.error || "ปฏิเสธคำร้องขอไม่สำเร็จ", "error");
+        return false;
+      }
+    } catch (err: any) {
+      showToast(err.message || "เกิดข้อผิดพลาดในการปฏิเสธคำร้องขอ", "error");
+      return false;
+    }
+  };
+
   const getHeaderInfo = () => {
     switch (filters.view) {
       case "outbound_history":
@@ -169,6 +220,9 @@ function DocumentPageContent() {
           onCancelDocClick={(id) => setDocToCancel(id)}
           onRestoreDocClick={handleRestoreDoc}
           onUpdateDocClick={handleUpdateDoc}
+          onRequestDocAction={handleRequestDocAction}
+          onApproveDocRequest={handleApproveDocRequest}
+          onRejectDocRequest={handleRejectDocRequest}
           searchQuery={filters.searchQuery}
           setSearchQuery={filters.setSearchQuery}
           selectedDocType={filters.selectedDocType}
@@ -179,6 +233,16 @@ function DocumentPageContent() {
           setSelectedYear={filters.setSelectedYearTable}
           selectedStatus={filters.selectedStatus}
           setSelectedStatus={filters.setSelectedStatus}
+          currentUserId={session?.user?.id}
+          currentUser={{
+            id: session?.user?.id,
+            name: session?.user?.name || undefined,
+            username: (session?.user as any)?.username || undefined,
+            role: (session?.user as any)?.role || undefined,
+            position: (session?.user as any)?.position || undefined,
+          }}
+          documentManageMode={data.documentManageMode}
+          docAdminUserIds={data.docAdminUserIds}
         />
       ) : filters.view === "issue" ? (
         <OutboundView

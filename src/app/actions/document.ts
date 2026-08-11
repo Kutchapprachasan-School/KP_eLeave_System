@@ -470,6 +470,203 @@ export async function updateOutboundDoc(
   }
 }
 
+export async function ensureDocRequestColumnsExist() {
+  try {
+    await prisma.$executeRawUnsafe(`
+      ALTER TABLE "DocumentRecord" ADD COLUMN IF NOT EXISTS "pendingRequestType" TEXT;
+      ALTER TABLE "DocumentRecord" ADD COLUMN IF NOT EXISTS "pendingRequestReason" TEXT;
+      ALTER TABLE "DocumentRecord" ADD COLUMN IF NOT EXISTS "pendingRequestData" TEXT;
+      ALTER TABLE "DocumentRecord" ADD COLUMN IF NOT EXISTS "pendingRequestedBy" TEXT;
+      ALTER TABLE "DocumentRecord" ADD COLUMN IF NOT EXISTS "pendingRequestedAt" TIMESTAMP(3);
+      ALTER TABLE "SystemSettings" ADD COLUMN IF NOT EXISTS "documentManageMode" TEXT DEFAULT 'DIRECT';
+    `);
+  } catch (e) {
+    console.warn("ensureDocRequestColumnsExist fallback warning:", e);
+  }
+}
+
+export async function requestDocAction(
+  id: string,
+  type: "CANCEL" | "EDIT" | "RESTORE",
+  payload?: {
+    reason?: string;
+    title?: string;
+    to?: string;
+    origin?: string;
+    requester?: string;
+    signeeName?: string;
+    signeePosition?: string;
+  }
+): Promise<ActionResponse> {
+  try {
+    await ensureDocRequestColumnsExist();
+    const user = await getSessionUser();
+    const fullUser = await prisma.user.findUnique({ where: { id: user.id } });
+    if (!fullUser) throw new Error("Unauthorized");
+
+    const doc = await prisma.documentRecord.findUnique({ where: { id } });
+    if (!doc) throw new Error("Document not found");
+
+    const isOwner = doc.createdById === user.id || doc.requester === fullUser.name || doc.requester === fullUser.username;
+    const isAdminOrOfficer = fullUser.role === "ADMIN" || fullUser.position === "แอดมิน" || fullUser.role === "SARABUN";
+
+    if (!isOwner && !isAdminOrOfficer) {
+      throw new Error("คุณไม่มีสิทธิ์ยื่นคำร้องขอจัดการเอกสารนี้");
+    }
+
+    const updated = await prisma.documentRecord.update({
+      where: { id },
+      data: {
+        pendingRequestType: type,
+        pendingRequestReason: payload?.reason || null,
+        pendingRequestData: payload ? JSON.stringify(payload) : null,
+        pendingRequestedBy: fullUser.name || user.name || user.id,
+        pendingRequestedAt: new Date(),
+      },
+    });
+
+    const typeLabel = type === "CANCEL" ? "ยกเลิกเอกสาร" : type === "EDIT" ? "แก้ไขรายละเอียดเอกสาร" : "คืนค่าสถานะเอกสาร";
+
+    await prisma.systemLog.create({
+      data: {
+        actionType: "DOC_REQUEST_SUBMITTED",
+        subsystem: "DOCUMENT",
+        description: `ยื่นคำร้องขอ${typeLabel} ${updated.docNo || id} (เรื่อง: "${updated.title}") เหตุผล: ${payload?.reason || "-"} โดยผู้ใช้งาน ${fullUser.name || user.name || "Unknown"} (ID: ${user.id})`,
+        userId: user.id,
+      },
+    });
+
+    safeRevalidatePath("/document");
+    return { success: true, data: updated };
+  } catch (err: any) {
+    return handleActionError(err, "requestDocAction");
+  }
+}
+
+export async function approveDocRequest(id: string): Promise<ActionResponse> {
+  try {
+    await ensureDocRequestColumnsExist();
+    const user = await getSessionUser();
+    const fullUser = await prisma.user.findUnique({ where: { id: user.id } });
+    if (!fullUser) throw new Error("Unauthorized");
+
+    const doc = await prisma.documentRecord.findUnique({ where: { id } });
+    if (!doc) throw new Error("Document not found");
+
+    await verifyDocumentManagePermission(doc, fullUser);
+
+    if (!doc.pendingRequestType) {
+      throw new Error("เอกสารนี้ไม่มีคำร้องขอที่รออนุมัติ");
+    }
+
+    const reqType = doc.pendingRequestType;
+    const reqReason = doc.pendingRequestReason;
+    const reqData = doc.pendingRequestData ? JSON.parse(doc.pendingRequestData) : {};
+
+    let updateData: any = {
+      pendingRequestType: null,
+      pendingRequestReason: null,
+      pendingRequestData: null,
+      pendingRequestedBy: null,
+      pendingRequestedAt: null,
+    };
+
+    if (reqType === "CANCEL") {
+      updateData.status = "CANCELLED";
+      updateData.cancelReason = reqReason || "อนุมัติตามคำร้องขอยกเลิก";
+    } else if (reqType === "RESTORE") {
+      updateData.status = "ISSUED";
+      updateData.cancelReason = null;
+    } else if (reqType === "EDIT") {
+      if (reqData.title) updateData.title = reqData.title.trim();
+      if (reqData.to !== undefined) updateData.to = reqData.to.trim();
+      if (reqData.origin !== undefined) updateData.origin = reqData.origin.trim();
+      if (reqData.requester !== undefined) updateData.requester = reqData.requester.trim();
+    }
+
+    const updated = await prisma.documentRecord.update({
+      where: { id },
+      data: updateData,
+    });
+
+    const typeLabel = reqType === "CANCEL" ? "ยกเลิก" : reqType === "EDIT" ? "แก้ไข" : "คืนค่า";
+
+    await prisma.systemLog.create({
+      data: {
+        actionType: "DOC_REQUEST_APPROVED",
+        subsystem: "DOCUMENT",
+        description: `อนุมัติคำร้องขอ${typeLabel}เอกสาร ${updated.docNo || id} (เรื่อง: "${updated.title}") โดยธุรการ/แอดมิน ${fullUser.name || user.name || "Unknown"} (ID: ${user.id})`,
+        userId: user.id,
+      },
+    });
+
+    safeRevalidatePath("/document");
+    return { success: true, data: updated };
+  } catch (err: any) {
+    return handleActionError(err, "approveDocRequest");
+  }
+}
+
+export async function rejectDocRequest(id: string, reason?: string): Promise<ActionResponse> {
+  try {
+    await ensureDocRequestColumnsExist();
+    const user = await getSessionUser();
+    const fullUser = await prisma.user.findUnique({ where: { id: user.id } });
+    if (!fullUser) throw new Error("Unauthorized");
+
+    const doc = await prisma.documentRecord.findUnique({ where: { id } });
+    if (!doc) throw new Error("Document not found");
+
+    await verifyDocumentManagePermission(doc, fullUser);
+
+    const updated = await prisma.documentRecord.update({
+      where: { id },
+      data: {
+        pendingRequestType: null,
+        pendingRequestReason: null,
+        pendingRequestData: null,
+        pendingRequestedBy: null,
+        pendingRequestedAt: null,
+      },
+    });
+
+    await prisma.systemLog.create({
+      data: {
+        actionType: "DOC_REQUEST_REJECTED",
+        subsystem: "DOCUMENT",
+        description: `ปฏิเสธคำร้องขอจัดการเอกสาร ${updated.docNo || id} (เหตุผล: ${reason || "ไม่อนุมัติ"}) โดยธุรการ/แอดมิน ${fullUser.name || user.name || "Unknown"} (ID: ${user.id})`,
+        userId: user.id,
+      },
+    });
+
+    safeRevalidatePath("/document");
+    return { success: true, data: updated };
+  } catch (err: any) {
+    return handleActionError(err, "rejectDocRequest");
+  }
+}
+
+export async function getDocumentSettings(): Promise<ActionResponse> {
+  try {
+    await ensureDocRequestColumnsExist();
+    const settings = await prisma.systemSettings.findUnique({
+      where: { id: "default" },
+      select: { documentManageMode: true, documentAdminUserIds: true },
+    });
+    return {
+      success: true,
+      data: {
+        documentManageMode: settings?.documentManageMode || "DIRECT",
+        documentAdminUserIds: settings?.documentAdminUserIds
+          ? settings.documentAdminUserIds.split(",").map((s) => s.trim()).filter(Boolean)
+          : [],
+      },
+    };
+  } catch (err: any) {
+    return handleActionError(err, "getDocumentSettings");
+  }
+}
+
 export async function getDocumentAdminUserIds(): Promise<ActionResponse> {
   try {
     const settings = await prisma.systemSettings.findUnique({

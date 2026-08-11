@@ -37,6 +37,8 @@ export function useDocumentData() {
   const [lastSyncAt, setLastSyncAt] = useState<Date | null>(null);
   const [enableAmssSync, setEnableAmssSync] = useState(true);
   const [enableCertificate, setEnableCertificate] = useState(true);
+  const [documentManageMode, setDocumentManageMode] = useState<string>("DIRECT");
+  const [docAdminUserIds, setDocAdminUserIds] = useState<string[]>([]);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -83,6 +85,13 @@ export function useDocumentData() {
         if (typeof (sysSettings as any).enableCertificate === "boolean") {
           setEnableCertificate((sysSettings as any).enableCertificate);
         }
+        if (typeof (sysSettings as any).documentManageMode === "string") {
+          setDocumentManageMode((sysSettings as any).documentManageMode || "DIRECT");
+        }
+        if (typeof (sysSettings as any).documentAdminUserIds === "string") {
+          const ids = ((sysSettings as any).documentAdminUserIds || "").split(",").map((s: string) => s.trim()).filter(Boolean);
+          setDocAdminUserIds(ids);
+        }
       }
 
       if (amssCreds?.success && amssCreds.data) {
@@ -117,6 +126,8 @@ export function useDocumentData() {
     lastSyncAt,
     enableAmssSync,
     enableCertificate,
+    documentManageMode,
+    docAdminUserIds,
     loadData,
   };
 }

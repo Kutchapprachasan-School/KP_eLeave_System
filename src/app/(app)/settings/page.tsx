@@ -165,10 +165,11 @@ export default function SettingsPage() {
   const [apSearchQuery, setApSearchQuery] = useState("");
   const [showApDropdown, setShowApDropdown] = useState(false);
 
-  // Document admin user delegation states
+  // Document admin user delegation & management mode states
   const [docAdminUserIds, setDocAdminUserIds] = useState<string[]>([]);
   const [docAdminSearchQuery, setDocAdminSearchQuery] = useState("");
   const [showDocAdminDropdown, setShowDocAdminDropdown] = useState(false);
+  const [documentManageMode, setDocumentManageMode] = useState<string>("DIRECT");
 
   const [timetablePeriodsPerDay, setTimetablePeriodsPerDay] = useState(8);
   const [timetableStartTime, setTimetableStartTime] = useState("08:30");
@@ -449,6 +450,8 @@ export default function SettingsPage() {
           ? data.documentAdminUserIds.split(",").map((s: string) => s.trim()).filter(Boolean)
           : []
       );
+
+      setDocumentManageMode((data as any).documentManageMode || "DIRECT");
 
       setShowActingDirectorTitle(data.showActingDirectorTitle !== false);
 
@@ -7818,6 +7821,82 @@ export default function SettingsPage() {
                 )}
               </div>
             )}
+          </div>
+
+          {/* Document Management Policy Mode (Direct vs Workflow) */}
+          <div className="mt-4 pt-4 border-t border-orange-200/60 dark:border-orange-900/40">
+            <label className="block text-xs font-bold text-slate-800 dark:text-slate-200 mb-1.5">
+              {lang === "en"
+                ? "Document Edit & Cancel Policy Mode"
+                : "นโยบายการควบคุมสิทธิ์ แก้ไข / ยกเลิก / คืนค่า เอกสารส่ง"}
+            </label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <button
+                type="button"
+                onClick={async () => {
+                  setDocumentManageMode("DIRECT");
+                  try {
+                    await updateSystemSettings({ documentManageMode: "DIRECT" });
+                    showToast("success", lang === "en" ? "Mode updated to Direct Action" : "สลับเป็นโหมด 1: จัดการได้โดยตรง ทันที");
+                  } catch (e: any) {
+                    showToast("error", e?.message ?? "เกิดข้อผิดพลาด");
+                  }
+                }}
+                className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                  documentManageMode === "DIRECT"
+                    ? "bg-amber-50 dark:bg-amber-950/60 border-amber-400 dark:border-amber-700 shadow-2xs"
+                    : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-slate-300"
+                }`}
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <span className="font-bold text-xs text-slate-900 dark:text-white flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-amber-500" />
+                    โหมด 1: จัดการได้โดยตรง (Direct)
+                  </span>
+                  {documentManageMode === "DIRECT" && (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-200 dark:bg-amber-900 text-amber-900 dark:text-amber-200">
+                      กำลังใช้งาน
+                    </span>
+                  )}
+                </div>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-normal">
+                  เจ้าตัวผู้ขอออกเลข, เจ้าหน้าที่ธุรการที่ได้รับมอบหมาย, และแอดมิน แก้ไข หรือยกเลิกเลขทะเบียนได้ทันที
+                </p>
+              </button>
+
+              <button
+                type="button"
+                onClick={async () => {
+                  setDocumentManageMode("WORKFLOW");
+                  try {
+                    await updateSystemSettings({ documentManageMode: "WORKFLOW" });
+                    showToast("success", lang === "en" ? "Mode updated to Approval Workflow" : "สลับเป็นโหมด 2: ยื่นคำร้องขออนุมัติ ทันที");
+                  } catch (e: any) {
+                    showToast("error", e?.message ?? "เกิดข้อผิดพลาด");
+                  }
+                }}
+                className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                  documentManageMode === "WORKFLOW"
+                    ? "bg-purple-50 dark:bg-purple-950/60 border-purple-400 dark:border-purple-700 shadow-2xs"
+                    : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-slate-300"
+                }`}
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <span className="font-bold text-xs text-slate-900 dark:text-white flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-purple-500" />
+                    โหมด 2: ส่งคำร้องขอให้ธุรการอนุมัติ (Workflow)
+                  </span>
+                  {documentManageMode === "WORKFLOW" && (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-200 dark:bg-purple-900 text-purple-900 dark:text-purple-200">
+                      กำลังใช้งาน
+                    </span>
+                  )}
+                </div>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-normal">
+                  ครูที่เป็นผู้ขอออกเลขจะยื่น &quot;คำร้องขอแก้ไข/ยกเลิก&quot; เพื่อให้เจ้าหน้าที่ธุรการหรือแอดมินกดอนุมัติ
+                </p>
+              </button>
+            </div>
           </div>
         </div>
       </div>

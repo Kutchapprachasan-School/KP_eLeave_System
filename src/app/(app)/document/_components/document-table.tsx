@@ -19,6 +19,9 @@ type DocumentTableProps = {
   onCancelDocClick: (id: string) => void;
   onRestoreDocClick?: (id: string) => void;
   onUpdateDocClick?: (id: string, data: any) => Promise<boolean>;
+  onRequestDocAction?: (id: string, type: "CANCEL" | "EDIT" | "RESTORE", payload?: any) => Promise<boolean>;
+  onApproveDocRequest?: (id: string) => Promise<boolean>;
+  onRejectDocRequest?: (id: string, reason?: string) => Promise<boolean>;
   searchQuery: string;
   setSearchQuery: (val: string) => void;
   selectedDocType: string;
@@ -30,6 +33,15 @@ type DocumentTableProps = {
   selectedStatus: string;
   setSelectedStatus: (val: string) => void;
   currentUserId?: string;
+  currentUser?: {
+    id?: string;
+    name?: string;
+    username?: string;
+    role?: string;
+    position?: string;
+  };
+  documentManageMode?: string;
+  docAdminUserIds?: string[];
 };
 
 export default function DocumentTable({
@@ -41,6 +53,9 @@ export default function DocumentTable({
   onCancelDocClick,
   onRestoreDocClick,
   onUpdateDocClick,
+  onRequestDocAction,
+  onApproveDocRequest,
+  onRejectDocRequest,
   searchQuery,
   setSearchQuery,
   selectedDocType,
@@ -52,6 +67,9 @@ export default function DocumentTable({
   selectedStatus,
   setSelectedStatus,
   currentUserId,
+  currentUser,
+  documentManageMode = "DIRECT",
+  docAdminUserIds = [],
 }: DocumentTableProps) {
   const [localTab, setLocalTab] = useState<"outbound" | "inbound">(activeTab);
   const [selectedTimeRange, setSelectedTimeRange] = useState<string>("");
@@ -95,6 +113,42 @@ export default function DocumentTable({
     }
     return sections.find((s) => s.id === selectedDocType);
   }, [sections, selectedSectionId, selectedDocType]);
+
+  const checkDocPermission = (d: any) => {
+    if (!d) return { canManage: false, canDirectManage: false, canRequestManage: false, isOfficerOrAdmin: false, isOwner: false };
+
+    const uId = currentUser?.id || currentUserId || "";
+    const uName = currentUser?.name || "";
+    const uUsername = currentUser?.username || "";
+    const uRole = currentUser?.role || "";
+    const uPos = currentUser?.position || "";
+
+    const isAdmin = uRole === "ADMIN" || uPos === "แอดมิน";
+    const isOfficer =
+      uRole === "SARABUN" ||
+      ["เจ้าหน้าที่ธุรการ / งานสารบรรณ", "เจ้าหน้าที่สารบรรณ", "เจ้าหน้าที่ธุรการ", "ธุรการ"].includes(uPos) ||
+      (docAdminUserIds && Array.isArray(docAdminUserIds) && (docAdminUserIds.includes(uId) || (uUsername && docAdminUserIds.includes(uUsername))));
+
+    const isOwner =
+      Boolean(uId && d.createdById === uId) ||
+      Boolean(uName && d.requester === uName) ||
+      Boolean(uUsername && d.requester === uUsername);
+
+    const isOfficerOrAdmin = isAdmin || isOfficer;
+    const mode = documentManageMode || "DIRECT";
+
+    const canDirectManage = isOfficerOrAdmin || (isOwner && mode === "DIRECT");
+    const canRequestManage = isOwner && mode === "WORKFLOW" && !isOfficerOrAdmin;
+    const canManage = canDirectManage || canRequestManage;
+
+    return {
+      isOfficerOrAdmin,
+      isOwner,
+      canDirectManage,
+      canRequestManage,
+      canManage,
+    };
+  };
 
   const activeBadgeStyle = useMemo(() => {
     if (activeSection?.color) {
@@ -532,34 +586,83 @@ export default function DocumentTable({
                           >
                             <Eye className="w-3.5 h-3.5" />
                           </button>
-                          <button
-                            type="button"
-                            onClick={() => handleOpenPreview(d, true)}
-                            className="w-7 h-7 rounded-lg border border-amber-200 dark:border-amber-800/80 bg-amber-50/50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/50 transition flex items-center justify-center cursor-pointer"
-                            title="แก้ไขชื่อและรายละเอียดเอกสาร"
-                          >
-                            <Pencil className="w-3.5 h-3.5" />
-                          </button>
-                          {d.status !== "CANCELLED" ? (
-                            <button
-                              type="button"
-                              onClick={() => onCancelDocClick(d.id)}
-                              className="px-2 py-1 rounded-lg border border-rose-200 dark:border-rose-900/60 bg-rose-50/50 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400 hover:bg-rose-100 transition text-[11px] font-semibold cursor-pointer"
-                              title="ยกเลิกเลขทะเบียนนี้"
-                            >
-                              ยกเลิกเลข
-                            </button>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={() => onRestoreDocClick?.(d.id)}
-                              className="px-2.5 py-1 rounded-lg border border-emerald-200 dark:border-emerald-900/60 bg-emerald-50/50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 transition text-xs font-bold cursor-pointer flex items-center gap-1 shadow-2xs"
-                              title="คืนค่าเลขทะเบียนกลับเป็นปกติ"
-                            >
-                              <RotateCcw className="w-3.5 h-3.5" />
-                              คืนค่า
-                            </button>
-                          )}
+
+                          {/* PERMISSION CONTROL: Hide edit/cancel/restore buttons if user has no permission */}
+                          {(() => {
+                            const perm = checkDocPermission(d);
+                            if (!perm.canManage) return null; // HIDE BUTTONS COMPLETELY!
+
+                            const hasPendingReq = Boolean(d.pendingRequestType);
+
+                            // Case 1: Direct Manage (Admins, Officers, or Owners in Direct Mode)
+                            if (perm.canDirectManage) {
+                              return (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenPreview(d, true)}
+                                    className="w-7 h-7 rounded-lg border border-amber-200 dark:border-amber-800/80 bg-amber-50/50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/50 transition flex items-center justify-center cursor-pointer"
+                                    title="แก้ไขชื่อและรายละเอียดเอกสาร"
+                                  >
+                                    <Pencil className="w-3.5 h-3.5" />
+                                  </button>
+                                  {d.status !== "CANCELLED" ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => onCancelDocClick(d.id)}
+                                      className="px-2 py-1 rounded-lg border border-rose-200 dark:border-rose-900/60 bg-rose-50/50 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400 hover:bg-rose-100 transition text-[11px] font-semibold cursor-pointer"
+                                      title="ยกเลิกเลขทะเบียนนี้"
+                                    >
+                                      ยกเลิกเลข
+                                    </button>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => onRestoreDocClick?.(d.id)}
+                                      className="px-2.5 py-1 rounded-lg border border-emerald-200 dark:border-emerald-900/60 bg-emerald-50/50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 transition text-xs font-bold cursor-pointer flex items-center gap-1 shadow-2xs"
+                                      title="คืนค่าเลขทะเบียนกลับเป็นปกติ"
+                                    >
+                                      <RotateCcw className="w-3.5 h-3.5" />
+                                      คืนค่า
+                                    </button>
+                                  )}
+                                  {hasPendingReq && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenPreview(d, false)}
+                                      className="px-2 py-1 rounded-lg border border-purple-300 dark:border-purple-800 bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 text-[11px] font-bold animate-pulse cursor-pointer"
+                                      title="มีคำร้องขอรอการอนุมัติของคุณ"
+                                    >
+                                      คำร้องรออนุมัติ
+                                    </button>
+                                  )}
+                                </>
+                              );
+                            }
+
+                            // Case 2: Request Manage (Owners in Workflow Mode)
+                            if (perm.canRequestManage) {
+                              if (hasPendingReq) {
+                                return (
+                                  <span className="px-2 py-1 rounded-lg bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-200 text-[11px] font-bold">
+                                    ⏳ รอธุรการอนุมัติ
+                                  </span>
+                                );
+                              }
+                              return (
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenPreview(d, false)}
+                                  className="px-2 py-1 rounded-lg border border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 hover:bg-amber-100 transition text-[11px] font-semibold cursor-pointer"
+                                  title="ยื่นคำร้องขอแก้ไขหรือยกเลิกเอกสารนี้"
+                                >
+                                  ยื่นคำร้องขอ...
+                                </button>
+                              );
+                            }
+
+                            return null;
+                          })()}
                         </div>
                       </td>
                     </tr>
@@ -951,14 +1054,16 @@ export default function DocumentTable({
                     <div className="p-3 rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-950/40 space-y-1 sm:col-span-2">
                       <div className="flex justify-between items-center">
                         <span className="text-[10px] text-slate-400 block font-semibold">เรื่อง (ชื่อหนังสือ)</span>
-                        <button
-                          type="button"
-                          onClick={() => setIsEditing(true)}
-                          className="text-[11px] font-extrabold text-amber-600 hover:text-amber-700 dark:text-amber-400 flex items-center gap-1 cursor-pointer"
-                        >
-                          <Pencil className="w-3 h-3" />
-                          แก้ไข
-                        </button>
+                        {checkDocPermission(previewDoc).canDirectManage && (
+                          <button
+                            type="button"
+                            onClick={() => setIsEditing(true)}
+                            className="text-[11px] font-extrabold text-amber-600 hover:text-amber-700 dark:text-amber-400 flex items-center gap-1 cursor-pointer"
+                          >
+                            <Pencil className="w-3 h-3" />
+                            แก้ไข
+                          </button>
+                        )}
                       </div>
                       <p className={`font-bold text-sm ${isCancelled ? "line-through text-slate-400" : "text-slate-900 dark:text-white"}`}>
                         {previewDoc.title}
@@ -994,6 +1099,64 @@ export default function DocumentTable({
                     </div>
                   </div>
 
+                  {/* Pending Request Alert Card for Officers / Admins to Approve or Rejections */}
+                  {previewDoc.pendingRequestType && (() => {
+                    const perm = checkDocPermission(previewDoc);
+                    const typeLabel = previewDoc.pendingRequestType === "CANCEL" ? "ยกเลิกเอกสาร" : previewDoc.pendingRequestType === "EDIT" ? "แก้ไขรายละเอียดเอกสาร" : "คืนค่าสถานะเอกสาร";
+
+                    return (
+                      <div className="p-4 rounded-2xl bg-purple-50 dark:bg-purple-950/60 border border-purple-200 dark:border-purple-800 space-y-2.5 shadow-2xs">
+                        <div className="flex items-center justify-between">
+                          <span className="font-extrabold text-xs text-purple-900 dark:text-purple-200 flex items-center gap-1.5">
+                            <Sparkles className="w-4 h-4 text-purple-600 dark:text-purple-400 animate-pulse" />
+                            คำร้องขอ{typeLabel} (รออนุมัติ)
+                          </span>
+                          <span className="text-[10.5px] font-bold px-2.5 py-0.5 rounded-full bg-purple-200/80 dark:bg-purple-900 text-purple-900 dark:text-purple-200">
+                            ผู้ยื่น: {previewDoc.pendingRequestedBy || "ผู้ใช้"}
+                          </span>
+                        </div>
+
+                        {previewDoc.pendingRequestReason && (
+                          <p className="text-xs text-purple-800 dark:text-purple-300 italic bg-purple-100/60 dark:bg-purple-900/40 p-2.5 rounded-xl border border-purple-200/60 dark:border-purple-800/60">
+                            &quot;{previewDoc.pendingRequestReason}&quot;
+                          </p>
+                        )}
+
+                        {perm.canDirectManage && (
+                          <div className="flex gap-2 pt-1">
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                if (onApproveDocRequest) {
+                                  const ok = await onApproveDocRequest(previewDoc.id);
+                                  if (ok) setPreviewDoc(null);
+                                }
+                              }}
+                              className="flex-1 py-2 px-3 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-extrabold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+                            >
+                              <Check className="w-3.5 h-3.5" />
+                              อนุมัติคำร้องนี้
+                            </button>
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                const reason = prompt("ระบุเหตุผลในการปฏิเสธ (ถ้ามี):");
+                                if (onRejectDocRequest) {
+                                  const ok = await onRejectDocRequest(previewDoc.id, reason || undefined);
+                                  if (ok) setPreviewDoc(null);
+                                }
+                              }}
+                              className="py-2 px-3 rounded-xl bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs transition cursor-pointer"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                              ปฏิเสธ
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+
                   {/* Cancellation Reason alert if cancelled */}
                   {isCancelled && (
                     <div className="p-3.5 rounded-xl bg-rose-50/80 dark:bg-rose-950/40 border border-rose-200/80 dark:border-rose-900/60 text-rose-800 dark:text-rose-300 space-y-1">
@@ -1017,44 +1180,119 @@ export default function DocumentTable({
                   )}
 
                   {/* 🛠️ Action Toolbar Bar Inside Sheet */}
-                  <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex flex-col gap-2">
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setIsEditing(true)}
-                        className="py-2.5 px-3 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-extrabold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
-                      >
-                        <Pencil className="w-4 h-4" />
-                        <span>แก้ไขข้อมูลเอกสาร</span>
-                      </button>
+                  {(() => {
+                    const perm = checkDocPermission(previewDoc);
+                    if (!perm.canManage) return null; // HIDE BOTTOM TOOLBAR ENTIRELY FOR NON-PERMITTED USERS!
 
-                      {isCancelled ? (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            onRestoreDocClick?.(previewDoc.id);
-                            setPreviewDoc(null);
-                          }}
-                          className="flex-1 py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
-                        >
-                          <RotateCcw className="w-4 h-4" />
-                          <span>คืนค่าสถานะปกติ</span>
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            onCancelDocClick(previewDoc.id);
-                            setPreviewDoc(null);
-                          }}
-                          className="flex-1 py-2.5 px-3 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
-                        >
-                          <Ban className="w-4 h-4" />
-                          <span>ยกเลิกเลขทะเบียน</span>
-                        </button>
-                      )}
-                    </div>
-                  </div>
+                    const hasPendingReq = Boolean(previewDoc.pendingRequestType);
+
+                    // Case A: Direct Manage Mode / Officer / Admin
+                    if (perm.canDirectManage) {
+                      return (
+                        <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex flex-col gap-2">
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setIsEditing(true)}
+                              className="py-2.5 px-3 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-extrabold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+                            >
+                              <Pencil className="w-4 h-4" />
+                              <span>แก้ไขข้อมูลเอกสาร</span>
+                            </button>
+
+                            {isCancelled ? (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  onRestoreDocClick?.(previewDoc.id);
+                                  setPreviewDoc(null);
+                                }}
+                                className="flex-1 py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+                              >
+                                <RotateCcw className="w-4 h-4" />
+                                <span>คืนค่าสถานะปกติ</span>
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  onCancelDocClick(previewDoc.id);
+                                  setPreviewDoc(null);
+                                }}
+                                className="flex-1 py-2.5 px-3 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+                              >
+                                <Ban className="w-4 h-4" />
+                                <span>ยกเลิกเลขทะเบียน</span>
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    // Case B: Request Manage Mode (Teacher/Owner in Workflow Mode)
+                    if (perm.canRequestManage) {
+                      if (hasPendingReq) return null; // Alert card already rendered above!
+
+                      return (
+                        <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex flex-col gap-2">
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                const reason = prompt("ระบุรายละเอียดที่ต้องการขอแก้ไข:");
+                                if (!reason) return;
+                                if (onRequestDocAction) {
+                                  const ok = await onRequestDocAction(previewDoc.id, "EDIT", { reason, title: previewDoc.title });
+                                  if (ok) setPreviewDoc(null);
+                                }
+                              }}
+                              className="py-2.5 px-3 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-extrabold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+                            >
+                              <Pencil className="w-4 h-4" />
+                              <span>ยื่นคำร้องขอแก้ไข</span>
+                            </button>
+
+                            {isCancelled ? (
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  const reason = prompt("ระบุเหตุผลที่ขอคืนค่าสถานะเอกสาร:");
+                                  if (!reason) return;
+                                  if (onRequestDocAction) {
+                                    const ok = await onRequestDocAction(previewDoc.id, "RESTORE", { reason });
+                                    if (ok) setPreviewDoc(null);
+                                  }
+                                }}
+                                className="flex-1 py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+                              >
+                                <RotateCcw className="w-4 h-4" />
+                                <span>ยื่นคำร้องขอคืนค่า</span>
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  const reason = prompt("ระบุเหตุผลที่ขออนุมัติยกเลิกเลขทะเบียน:");
+                                  if (!reason) return;
+                                  if (onRequestDocAction) {
+                                    const ok = await onRequestDocAction(previewDoc.id, "CANCEL", { reason });
+                                    if (ok) setPreviewDoc(null);
+                                  }
+                                }}
+                                className="flex-1 py-2.5 px-3 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+                              >
+                                <Ban className="w-4 h-4" />
+                                <span>ยื่นคำร้องขอยกเลิก</span>
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    return null;
+                  })()}
                 </>
               )}
             </div>

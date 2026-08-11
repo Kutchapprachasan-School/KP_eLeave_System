@@ -109,6 +109,7 @@ export async function ensureSubsystemColumnsExist() {
       ALTER TABLE "SystemSettings" ADD COLUMN IF NOT EXISTS "enableAcademicPlanning" BOOLEAN DEFAULT false;
       ALTER TABLE "SystemSettings" ADD COLUMN IF NOT EXISTS "academicPlanningAllowedUserIds" TEXT DEFAULT '';
       ALTER TABLE "SystemSettings" ADD COLUMN IF NOT EXISTS "documentAdminUserIds" TEXT DEFAULT '';
+      ALTER TABLE "SystemSettings" ADD COLUMN IF NOT EXISTS "documentManageMode" TEXT DEFAULT 'DIRECT';
       ALTER TABLE "SystemLog" ADD COLUMN IF NOT EXISTS "subsystem" TEXT DEFAULT 'LEAVE';
 
       ALTER TABLE "SystemSettings" ADD COLUMN IF NOT EXISTS "timetablePeriodsPerDay" INTEGER DEFAULT 8;
@@ -456,6 +457,7 @@ export async function updateSystemSettings(data: {
   enableAcademicPlanning?: boolean;
   academicPlanningAllowedUserIds?: string;
   documentAdminUserIds?: string;
+  documentManageMode?: string;
   timetablePeriodsPerDay?: number;
   timetableStartTime?: string;
   timetablePeriodDuration?: number;
@@ -554,6 +556,7 @@ export async function updateSystemSettings(data: {
         enableAcademicPlanning: data.enableAcademicPlanning !== undefined ? data.enableAcademicPlanning : undefined,
         academicPlanningAllowedUserIds: data.academicPlanningAllowedUserIds !== undefined ? data.academicPlanningAllowedUserIds : undefined,
         documentAdminUserIds: data.documentAdminUserIds !== undefined ? data.documentAdminUserIds : undefined,
+        documentManageMode: data.documentManageMode !== undefined ? data.documentManageMode : undefined,
         timetablePeriodsPerDay: data.timetablePeriodsPerDay !== undefined ? data.timetablePeriodsPerDay : undefined,
         timetableStartTime: data.timetableStartTime !== undefined ? data.timetableStartTime : undefined,
         timetablePeriodDuration: data.timetablePeriodDuration !== undefined ? data.timetablePeriodDuration : undefined,

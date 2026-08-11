@@ -11,6 +11,9 @@ interface OutboundHistoryViewProps {
   onCancelDocClick: (id: string) => void;
   onRestoreDocClick?: (id: string) => void;
   onUpdateDocClick?: (id: string, data: any) => Promise<boolean>;
+  onRequestDocAction?: (id: string, type: "CANCEL" | "EDIT" | "RESTORE", payload?: any) => Promise<boolean>;
+  onApproveDocRequest?: (id: string) => Promise<boolean>;
+  onRejectDocRequest?: (id: string, reason?: string) => Promise<boolean>;
   searchQuery: string;
   setSearchQuery: (val: string) => void;
   selectedDocType: string;
@@ -21,6 +24,16 @@ interface OutboundHistoryViewProps {
   setSelectedYear: (val: string) => void;
   selectedStatus: string;
   setSelectedStatus: (val: string) => void;
+  currentUserId?: string;
+  currentUser?: {
+    id?: string;
+    name?: string;
+    username?: string;
+    role?: string;
+    position?: string;
+  };
+  documentManageMode?: string;
+  docAdminUserIds?: string[];
 }
 
 export function OutboundHistoryView({
@@ -31,6 +44,9 @@ export function OutboundHistoryView({
   onCancelDocClick,
   onRestoreDocClick,
   onUpdateDocClick,
+  onRequestDocAction,
+  onApproveDocRequest,
+  onRejectDocRequest,
   searchQuery,
   setSearchQuery,
   selectedDocType,
@@ -41,6 +57,10 @@ export function OutboundHistoryView({
   setSelectedYear,
   selectedStatus,
   setSelectedStatus,
+  currentUserId,
+  currentUser,
+  documentManageMode = "DIRECT",
+  docAdminUserIds = [],
 }: OutboundHistoryViewProps) {
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
@@ -53,6 +73,9 @@ export function OutboundHistoryView({
         onCancelDocClick={onCancelDocClick}
         onRestoreDocClick={onRestoreDocClick}
         onUpdateDocClick={onUpdateDocClick}
+        onRequestDocAction={onRequestDocAction}
+        onApproveDocRequest={onApproveDocRequest}
+        onRejectDocRequest={onRejectDocRequest}
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
         selectedDocType={selectedDocType}
@@ -63,6 +86,10 @@ export function OutboundHistoryView({
         setSelectedYear={setSelectedYear}
         selectedStatus={selectedStatus}
         setSelectedStatus={setSelectedStatus}
+        currentUserId={currentUserId}
+        currentUser={currentUser}
+        documentManageMode={documentManageMode}
+        docAdminUserIds={docAdminUserIds}
       />
     </div>
   );
