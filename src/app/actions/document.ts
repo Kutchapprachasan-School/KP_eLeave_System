@@ -333,6 +333,35 @@ export async function cancelDoc(id: string, reason: string): Promise<ActionRespo
   }
 }
 
+export async function restoreDoc(id: string): Promise<ActionResponse> {
+  try {
+    const user = await getSessionUser();
+    const doc = await prisma.documentRecord.findUnique({ where: { id } });
+    if (!doc) throw new Error("Document not found");
+
+    const updated = await prisma.documentRecord.update({
+      where: { id },
+      data: {
+        status: "ISSUED",
+        cancelReason: null
+      }
+    });
+
+    await prisma.systemLog.create({
+      data: {
+        actionType: "DOC_RESTORE",
+        description: `คืนค่าเลขเอกสาร ${updated.docNo || "ยังไม่ได้ออกเลข"} กลับเป็นสถานะปกติ โดยผู้ใช้งาน ${user.name || "Unknown"}`,
+        userId: user.id
+      }
+    });
+
+    safeRevalidatePath("/document");
+    return { success: true, data: updated };
+  } catch (err: any) {
+    return handleActionError(err, "restoreDoc");
+  }
+}
+
 export async function getDocPreviewNumber(docType: string, sectionId?: string): Promise<ActionResponse> {
   try {
     const config = await prisma.documentConfig.findFirst({

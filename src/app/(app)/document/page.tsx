@@ -4,7 +4,7 @@ import { useState, useCallback, Suspense } from "react";
 import Link from "next/link";
 import { ClipboardList, RefreshCw } from "lucide-react";
 
-import { quickIssueDoc, cancelDoc } from "@/app/actions/document";
+import { quickIssueDoc, cancelDoc, restoreDoc } from "@/app/actions/document";
 import { useSession } from "@/lib/auth-client";
 import { useToast } from "@/components/toast-provider";
 import AmssImportModal from "@/components/AmssImportModal";
@@ -75,6 +75,20 @@ function DocumentPageContent() {
     }
   };
 
+  const handleRestoreDoc = async (id: string) => {
+    try {
+      const res = await restoreDoc(id);
+      if (res.success) {
+        showToast("คืนค่าเลขทะเบียนกลับเป็นปกติเรียบร้อยแล้ว", "success");
+        await data.loadData();
+      } else {
+        showToast(res.error || "คืนค่าเลขทะเบียนล้มเหลว", "error");
+      }
+    } catch (err: any) {
+      showToast(err.message || "คืนค่าเลขทะเบียนล้มเหลว", "error");
+    }
+  };
+
   const getHeaderInfo = () => {
     switch (filters.view) {
       case "outbound_history":
@@ -136,6 +150,7 @@ function DocumentPageContent() {
           inboundDocs={data.inboundDocs}
           onRefresh={data.loadData}
           onCancelDocClick={(id) => setDocToCancel(id)}
+          onRestoreDocClick={handleRestoreDoc}
           searchQuery={filters.searchQuery}
           setSearchQuery={filters.setSearchQuery}
           selectedDocType={filters.selectedDocType}

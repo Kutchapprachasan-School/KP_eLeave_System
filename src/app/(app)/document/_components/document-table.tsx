@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
-import { Search, RefreshCw, X, FolderOpen, Eye, Ban, ShieldAlert, AlertTriangle, Link2, Copy, ChevronLeft, ChevronRight, Trash2 } from "lucide-react";
+import { Search, RefreshCw, X, FolderOpen, Eye, Ban, ShieldAlert, AlertTriangle, Link2, Copy, ChevronLeft, ChevronRight, Trash2, RotateCcw, Printer, Check, Share2 } from "lucide-react";
 import { getDocTypeThaiLabel } from "@/lib/document-utils";
 import { parseDocRefAndUrgency } from "@/lib/amss-list-parser";
 import { deleteIncomingDoc } from "@/app/actions/incoming";
@@ -17,6 +17,7 @@ type DocumentTableProps = {
   sections: MemoSection[];
   onRefresh: () => void;
   onCancelDocClick: (id: string) => void;
+  onRestoreDocClick?: (id: string) => void;
   searchQuery: string;
   setSearchQuery: (val: string) => void;
   selectedDocType: string;
@@ -37,6 +38,7 @@ export default function DocumentTable({
   sections,
   onRefresh,
   onCancelDocClick,
+  onRestoreDocClick,
   searchQuery,
   setSearchQuery,
   selectedDocType,
@@ -55,6 +57,8 @@ export default function DocumentTable({
   const [pageSize, setPageSize] = useState<number>(10);
   const [previewDoc, setPreviewDoc] = useState<any | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [copiedRef, setCopiedRef] = useState(false);
+  const [copiedNo, setCopiedNo] = useState(false);
 
   useEffect(() => {
     setLocalTab(activeTab);
@@ -505,11 +509,11 @@ export default function DocumentTable({
                             type="button"
                             onClick={() => setPreviewDoc(d)}
                             className="w-7 h-7 rounded-lg border border-indigo-200 dark:border-indigo-800/80 bg-indigo-50/50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition flex items-center justify-center cursor-pointer"
-                            title="ดูรายละเอียดฉบับนี้"
+                            title="ดูรายละเอียดและคัดลอกข้อความอ้างอิง"
                           >
                             <Eye className="w-3.5 h-3.5" />
                           </button>
-                          {d.status !== "CANCELLED" && (
+                          {d.status !== "CANCELLED" ? (
                             <button
                               type="button"
                               onClick={() => onCancelDocClick(d.id)}
@@ -517,6 +521,16 @@ export default function DocumentTable({
                               title="ยกเลิกเลขทะเบียนนี้"
                             >
                               ยกเลิกเลข
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => onRestoreDocClick?.(d.id)}
+                              className="px-2.5 py-1 rounded-lg border border-emerald-200 dark:border-emerald-900/60 bg-emerald-50/50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 transition text-xs font-bold cursor-pointer flex items-center gap-1 shadow-2xs"
+                              title="คืนค่าเลขทะเบียนกลับเป็นปกติ"
+                            >
+                              <RotateCcw className="w-3.5 h-3.5" />
+                              คืนค่า
                             </button>
                           )}
                         </div>
@@ -697,57 +711,201 @@ export default function DocumentTable({
         </div>
       </div>
 
-      {/* Slide-Over Sheet for Document Details Preview */}
+      {/* Super-Useful Slide-Over Sheet for Document Details */}
       <SlideOverSheet
         isOpen={Boolean(previewDoc)}
-        onClose={() => setPreviewDoc(null)}
+        onClose={() => {
+          setPreviewDoc(null);
+          setCopiedRef(false);
+          setCopiedNo(false);
+        }}
         title={previewDoc?.docNo || previewDoc?.receiveNo || "รายละเอียดเอกสาร"}
-        description={previewDoc?.title || "ข้อมูลรายละเอียดเอกสารที่บันทึกในระบบ"}
+        description="ชุดเครื่องมือคัดลอกข้อความอ้างอิงและจัดการข้อมูลเอกสาร"
       >
-        {previewDoc && (
-          <div className="space-y-4 text-xs">
-            <div className="p-4 rounded-2xl bg-indigo-50/50 dark:bg-indigo-950/30 border border-indigo-100 dark:border-indigo-900/40 space-y-2">
-              <div className="flex justify-between items-center">
-                <span className="text-[10px] font-bold text-indigo-500 uppercase">
-                  เลขที่เอกสาร
+        {previewDoc && (() => {
+          const isCancelled = previewDoc.status === "CANCELLED";
+          const thaiDateStr = previewDoc.date
+            ? new Date(previewDoc.date).toLocaleDateString("th-TH", {
+                day: "numeric",
+                month: "long",
+                year: "numeric",
+              })
+            : "";
+
+          const fullRefLine = `ที่ ${previewDoc.docNo || previewDoc.receiveNo || ""} ลงวันที่ ${thaiDateStr} เรื่อง ${previewDoc.title || ""}`;
+          const sec = sections.find((s) => s.id === previewDoc.memoSectionId || s.name === previewDoc.memoSection?.name);
+          const secColor = sec?.color || "#6366f1";
+          const typeLabel = getDocTypeThaiLabel(previewDoc.docType, previewDoc.memoSection?.name);
+
+          const handleCopyRef = () => {
+            navigator.clipboard.writeText(fullRefLine);
+            setCopiedRef(true);
+            setTimeout(() => setCopiedRef(false), 2000);
+          };
+
+          const handleCopyNo = () => {
+            navigator.clipboard.writeText(previewDoc.docNo || previewDoc.receiveNo || "");
+            setCopiedNo(true);
+            setTimeout(() => setCopiedNo(false), 2000);
+          };
+
+          return (
+            <div className="space-y-4 text-xs">
+              {/* 📋 Official Reference Generator Card */}
+              <div className="p-4 rounded-2xl bg-gradient-to-br from-indigo-50/90 to-purple-50/70 dark:from-indigo-950/40 dark:to-purple-950/30 border border-indigo-200/80 dark:border-indigo-800/60 shadow-xs space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-extrabold text-indigo-700 dark:text-indigo-300 uppercase tracking-wider flex items-center gap-1.5">
+                    <span>📑</span> ข้อความอ้างอิงสำหรับคัดลอกไปใช้งาน
+                  </span>
+                  {isCancelled && (
+                    <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-rose-100 dark:bg-rose-950 text-rose-600 dark:text-rose-400 border border-rose-200">
+                      ยกเลิกแล้ว
+                    </span>
+                  )}
+                </div>
+
+                <div className="p-3 rounded-xl bg-white/90 dark:bg-slate-900/90 border border-indigo-100 dark:border-indigo-900/50 font-mono text-xs text-slate-800 dark:text-slate-200 leading-relaxed break-words shadow-2xs">
+                  <p className={isCancelled ? "line-through text-rose-600 dark:text-rose-400 decoration-rose-500 decoration-2 font-bold" : "font-bold text-slate-900 dark:text-white"}>
+                    {fullRefLine}
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={handleCopyRef}
+                    className="w-full py-2 px-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+                  >
+                    {copiedRef ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                    <span>{copiedRef ? "คัดลอกเรียบร้อย!" : "คัดลอกข้อความอ้างอิง"}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleCopyNo}
+                    className="w-full py-2 px-3 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 font-bold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    {copiedNo ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                    <span>{copiedNo ? "คัดลอกแล้ว!" : "คัดลอกเฉพาะเลขที่"}</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Badges Bar */}
+              <div className="flex flex-wrap gap-2 items-center">
+                <span
+                  className="inline-flex items-center px-3 py-1 rounded-xl text-xs font-extrabold border"
+                  style={{
+                    backgroundColor: `${secColor}18`,
+                    borderColor: `${secColor}50`,
+                    color: secColor,
+                  }}
+                >
+                  {typeLabel}
                 </span>
-                <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400 text-sm">
-                  {previewDoc.docNo || previewDoc.receiveNo || "-"}
+
+                <span className={`inline-flex items-center px-3 py-1 rounded-xl text-xs font-bold border ${
+                  isCancelled
+                    ? "bg-rose-100 dark:bg-rose-950/80 text-rose-700 dark:text-rose-300 border-rose-200"
+                    : "bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 border-emerald-200"
+                }`}>
+                  {isCancelled ? "⛔ สถานะ: ยกเลิก" : "✅ สถานะ: ปกติ / ออกเลขแล้ว"}
                 </span>
               </div>
-              <div>
-                <span className="text-[10px] text-slate-400 block font-medium">เรื่อง</span>
-                <p className="font-bold text-slate-800 dark:text-slate-200 text-sm">
-                  {previewDoc.title}
-                </p>
+
+              {/* Metadata Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="p-3 rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-950/40 space-y-1 sm:col-span-2">
+                  <span className="text-[10px] text-slate-400 block font-semibold">เรื่อง (ชื่อหนังสือ)</span>
+                  <p className={`font-bold text-sm ${isCancelled ? "line-through text-slate-400" : "text-slate-900 dark:text-white"}`}>
+                    {previewDoc.title}
+                  </p>
+                </div>
+
+                <div className="p-3 rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-950/40 space-y-1">
+                  <span className="text-[10px] text-slate-400 block font-semibold">เรียน / ถึง</span>
+                  <p className="font-bold text-slate-800 dark:text-slate-200">
+                    {previewDoc.to || "-"}
+                  </p>
+                </div>
+
+                <div className="p-3 rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-950/40 space-y-1">
+                  <span className="text-[10px] text-slate-400 block font-semibold">จากหน่วยงาน / ผู้ขอออกเลข</span>
+                  <p className="font-bold text-slate-800 dark:text-slate-200">
+                    {previewDoc.requester || previewDoc.origin || previewDoc.senderOrg || "-"}
+                  </p>
+                </div>
+
+                <div className="p-3 rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-950/40 space-y-1">
+                  <span className="text-[10px] text-slate-400 block font-semibold">วันที่ออกเลข</span>
+                  <p className="font-bold text-slate-800 dark:text-slate-200">
+                    {thaiDateStr || "-"}
+                  </p>
+                </div>
+
+                <div className="p-3 rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-950/40 space-y-1">
+                  <span className="text-[10px] text-slate-400 block font-semibold">ผู้ลงนาม</span>
+                  <p className="font-bold text-slate-800 dark:text-slate-200">
+                    {previewDoc.signeeName ? `${previewDoc.signeeName} (${previewDoc.signeePosition || ""})` : "-"}
+                  </p>
+                </div>
+              </div>
+
+              {/* Cancellation Reason alert if cancelled */}
+              {isCancelled && (
+                <div className="p-3.5 rounded-xl bg-rose-50/80 dark:bg-rose-950/40 border border-rose-200/80 dark:border-rose-900/60 text-rose-800 dark:text-rose-300 space-y-1">
+                  <span className="text-[10px] font-bold uppercase tracking-wider block text-rose-600 dark:text-rose-400">
+                    ⚠️ เหตุผลที่ทำการยกเลิก:
+                  </span>
+                  <p className="font-medium text-xs leading-relaxed">
+                    {previewDoc.cancelReason || "ไม่ได้ระบุเหตุผล"}
+                  </p>
+                </div>
+              )}
+
+              {/* Content / Additional Details if present */}
+              {previewDoc.content && (
+                <div className="p-3.5 rounded-xl border border-slate-100 dark:border-slate-800 space-y-1 bg-slate-50/40 dark:bg-slate-950/20">
+                  <span className="text-[10px] text-slate-400 block font-semibold">รายละเอียดเพิ่มเติม / การแบ่งช่วงย่อย</span>
+                  <p className="text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-wrap font-mono">
+                    {previewDoc.content}
+                  </p>
+                </div>
+              )}
+
+              {/* 🛠️ Action Toolbar Bar Inside Sheet */}
+              <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex flex-col gap-2">
+                <div className="flex items-center gap-2">
+                  {isCancelled ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onRestoreDocClick?.(previewDoc.id);
+                        setPreviewDoc(null);
+                      }}
+                      className="flex-1 py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+                    >
+                      <RotateCcw className="w-4 h-4" />
+                      <span>คืนค่าเลขทะเบียนกลับเป็นปกติ</span>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onCancelDocClick(previewDoc.id);
+                        setPreviewDoc(null);
+                      }}
+                      className="flex-1 py-2.5 px-3 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+                    >
+                      <Ban className="w-4 h-4" />
+                      <span>ยกเลิกเลขทะเบียนนี้</span>
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="p-3 rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/40">
-                <span className="text-[10px] text-slate-400 block font-medium">เรียน / ถึง</span>
-                <p className="font-semibold text-slate-800 dark:text-slate-200">
-                  {previewDoc.to || "-"}
-                </p>
-              </div>
-              <div className="p-3 rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/40">
-                <span className="text-[10px] text-slate-400 block font-medium">จากหน่วยงาน / ผู้ขอ</span>
-                <p className="font-semibold text-slate-800 dark:text-slate-200">
-                  {previewDoc.requester || previewDoc.origin || previewDoc.senderOrg || "-"}
-                </p>
-              </div>
-            </div>
-
-            {previewDoc.content && (
-              <div className="p-3.5 rounded-xl border border-slate-100 dark:border-slate-800 space-y-1">
-                <span className="text-[10px] text-slate-400 block font-medium">รายละเอียดเพิ่มเติม</span>
-                <p className="text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-wrap">
-                  {previewDoc.content}
-                </p>
-              </div>
-            )}
-          </div>
-        )}
+          );
+        })()}
       </SlideOverSheet>
     </div>
   );

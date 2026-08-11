@@ -572,19 +572,53 @@ export default function OutboundForm({
             </div>
 
             <div className="space-y-3 text-xs">
-              <div className="bg-purple-50/60 dark:bg-purple-950/40 border border-purple-100 dark:border-purple-900/40 rounded-xl p-3.5 flex items-center justify-between">
+              {/* Copy Reference Line Box */}
+              {(() => {
+                const isCancelled = selectedPreviewDoc.status === "CANCELLED";
+                const thaiDateStr = selectedPreviewDoc.date
+                  ? new Date(selectedPreviewDoc.date).toLocaleDateString("th-TH", {
+                      day: "numeric",
+                      month: "long",
+                      year: "numeric",
+                    })
+                  : "";
+                const fullRefLine = `ที่ ${selectedPreviewDoc.docNo || ""} ลงวันที่ ${thaiDateStr} เรื่อง ${selectedPreviewDoc.title || ""}`;
+
+                return (
+                  <div className="p-3 rounded-xl bg-purple-50/80 dark:bg-purple-950/40 border border-purple-200/80 dark:border-purple-800/60 space-y-2">
+                    <span className="text-[10px] font-extrabold text-purple-700 dark:text-purple-300 block uppercase">
+                      📑 ข้อความอ้างอิงสำหรับคัดลอก
+                    </span>
+                    <p className={`font-mono text-xs ${isCancelled ? "line-through text-rose-600 dark:text-rose-400 font-bold" : "font-bold text-slate-900 dark:text-white"}`}>
+                      {fullRefLine}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(fullRefLine);
+                        alert("คัดลอกข้อความอ้างอิงเรียบร้อยแล้ว!");
+                      }}
+                      className="w-full py-1.5 px-3 rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+                    >
+                      <span>📋 คัดลอกข้อความอ้างอิง</span>
+                    </button>
+                  </div>
+                );
+              })()}
+
+              <div className="bg-purple-50/40 dark:bg-purple-950/20 border border-purple-100 dark:border-purple-900/40 rounded-xl p-3 flex items-center justify-between">
                 <div>
                   <span className="text-[10px] text-slate-500 dark:text-slate-400 block font-medium">เลขที่ออกเอกสาร</span>
-                  <span className="font-mono text-sm font-extrabold text-purple-600 dark:text-purple-400">{selectedPreviewDoc.docNo}</span>
+                  <span className={`font-mono text-sm font-extrabold ${selectedPreviewDoc.status === "CANCELLED" ? "line-through text-rose-600 dark:text-rose-400" : "text-purple-600 dark:text-purple-400"}`}>
+                    {selectedPreviewDoc.docNo}
+                  </span>
                 </div>
-                <span className="px-2.5 py-1 rounded-lg text-xs font-extrabold bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800/40">
-                  {selectedPreviewDoc.status === "ISSUED" || !selectedPreviewDoc.status
-                    ? "ออกเลขสำเร็จ"
-                    : selectedPreviewDoc.status === "PRINTED"
-                    ? "พิมพ์แล้ว"
-                    : selectedPreviewDoc.status === "CANCELLED"
-                    ? "ยกเลิก"
-                    : selectedPreviewDoc.status}
+                <span className={`px-2.5 py-1 rounded-lg text-xs font-extrabold border ${
+                  selectedPreviewDoc.status === "CANCELLED"
+                    ? "bg-rose-100 dark:bg-rose-950/80 text-rose-700 dark:text-rose-300 border-rose-200"
+                    : "bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 border-emerald-200/60"
+                }`}>
+                  {selectedPreviewDoc.status === "CANCELLED" ? "ยกเลิก" : "ออกเลขสำเร็จ"}
                 </span>
               </div>
 
@@ -601,7 +635,7 @@ export default function OutboundForm({
 
               <div className="bg-slate-50 dark:bg-slate-800/40 p-3 rounded-xl border border-slate-100 dark:border-slate-800 space-y-1">
                 <span className="text-[10px] text-slate-400 block font-medium">เรื่อง (ชื่อเอกสาร)</span>
-                <p className="font-semibold text-slate-900 dark:text-white leading-relaxed">{selectedPreviewDoc.title}</p>
+                <p className={`font-semibold text-slate-900 dark:text-white leading-relaxed ${selectedPreviewDoc.status === "CANCELLED" ? "line-through text-slate-400" : ""}`}>{selectedPreviewDoc.title}</p>
               </div>
 
               <div className="grid grid-cols-2 gap-2.5">

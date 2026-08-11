@@ -9,6 +9,7 @@ interface OutboundHistoryViewProps {
   inboundDocs: IncomingDoc[];
   onRefresh: () => void;
   onCancelDocClick: (id: string) => void;
+  onRestoreDocClick?: (id: string) => void;
   searchQuery: string;
   setSearchQuery: (val: string) => void;
   selectedDocType: string;
@@ -27,6 +28,7 @@ export function OutboundHistoryView({
   inboundDocs,
   onRefresh,
   onCancelDocClick,
+  onRestoreDocClick,
   searchQuery,
   setSearchQuery,
   selectedDocType,
@@ -47,6 +49,7 @@ export function OutboundHistoryView({
         sections={sections}
         onRefresh={onRefresh}
         onCancelDocClick={onCancelDocClick}
+        onRestoreDocClick={onRestoreDocClick}
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
         selectedDocType={selectedDocType}
