@@ -43,16 +43,20 @@ export function formatDocNumber(
     }
   }
 
-  if (isOutgoing) {
-    // For OUTGOING documents: format is Prefix + Seq (no /YEAR suffix, no extra space after trailing slash or 'ว')
-    activePattern = "[PREFIX][SEQ]";
-  } else if (isNoYear) {
-    // For NONE / NO_YEAR format: remove /[YEAR] or [YEAR] suffix
-    activePattern = activePattern.replace("/[YEAR]", "").replace("[YEAR]", "");
-  }
-
-  if (activePrefix && (activePrefix.endsWith("/") || activePrefix.endsWith(".") || activePrefix.endsWith("ว"))) {
-    activePattern = activePattern.replace("[PREFIX] [SEQ]", "[PREFIX][SEQ]");
+  if (isNoYear) {
+    // If yearFormat is NONE / NO_YEAR: remove /[YEAR] or [YEAR] suffix for any docType (including OUTGOING)
+    if (activePrefix && (activePrefix.endsWith("/") || activePrefix.endsWith(".") || activePrefix.endsWith("ว"))) {
+      activePattern = "[PREFIX][SEQ]";
+    } else {
+      activePattern = "[PREFIX] [SEQ]";
+    }
+  } else {
+    // If yearFormat is TH_BE / EN_AD: include /[YEAR] suffix
+    if (activePrefix && (activePrefix.endsWith("/") || activePrefix.endsWith(".") || activePrefix.endsWith("ว"))) {
+      activePattern = "[PREFIX][SEQ]/[YEAR]";
+    } else {
+      activePattern = "[PREFIX] [SEQ]/[YEAR]";
+    }
   }
 
   let formatted = activePattern
