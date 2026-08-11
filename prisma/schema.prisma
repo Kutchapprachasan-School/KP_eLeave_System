@@ -157,6 +157,22 @@ model SystemSettings {
   enableAcademicSettings       Boolean  @default(true)
   enableAmssSync               Boolean  @default(true)
   enableCertificate            Boolean  @default(true)
+  enableBudget                 Boolean  @default(false)
+  enableStudentAffairs         Boolean  @default(false)
+  enableStudentCouncil         Boolean  @default(false)
+  enableAcademicPlanning       Boolean  @default(false)
+  academicPlanningAllowedUserIds String @default("")
+  documentManageMode           String   @default("DIRECT")
+  timetablePeriodsPerDay       Int      @default(8)
+  timetableStartTime           String   @default("08:30")
+  timetablePeriodDuration      Int      @default(50)
+  substitutePolicy             String   @default("DEPARTMENT")
+  substituteWorkloadPenalty    Int      @default(10)
+  enableSubstituteLineNotify   Boolean  @default(true)
+  supervisionMinPerTerm        Int      @default(2)
+  supervisionDirectorRatio     Int      @default(40)
+  supervisionDeptRatio         Int      @default(40)
+  supervisionSelfRatio         Int      @default(20)
 }
 
 model LeaveConfig {
