@@ -7438,14 +7438,14 @@ export default function SettingsPage() {
               {/* Category Header */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
                 <div className="flex items-center gap-2">
-                  <span className={`px-3 py-1 rounded-xl text-xs font-bold border ${cat.badgeColor}`}>
+                  <h4 className="font-bold text-xs text-slate-900 dark:text-white">
                     {cat.title}
-                  </span>
-                  <span className="text-xs text-slate-400 dark:text-slate-500 font-medium">
-                    ({cat.items.length} {lang === "en" ? "modules" : "ระบบย่อย"})
+                  </h4>
+                  <span className="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-[11px] text-slate-500 dark:text-slate-400 font-semibold">
+                    {cat.items.length} {lang === "en" ? "modules" : "ระบบย่อย"}
                   </span>
                 </div>
-                <span className="text-[11.5px] text-slate-400 dark:text-slate-500">
+                <span className="text-[11px] text-slate-400 dark:text-slate-500">
                   {cat.desc}
                 </span>
               </div>
@@ -7455,18 +7455,18 @@ export default function SettingsPage() {
                 {cat.items.map((sys) => (
                   <React.Fragment key={sys.id}>
                     <div
-                      className={`flex items-center gap-4 p-4 rounded-2xl border transition-all ${
+                      className={`flex items-center gap-3.5 p-3.5 rounded-2xl border transition-all ${
                         sys.enabled
-                          ? sys.activeBorder
-                          : "bg-white dark:bg-gray-950 border-gray-200 dark:border-gray-800 opacity-85 hover:opacity-100"
+                          ? "bg-white dark:bg-gray-900 border-slate-200/90 dark:border-slate-700/80 shadow-2xs hover:border-slate-300 dark:hover:border-slate-600"
+                          : "bg-slate-50/50 dark:bg-gray-950/60 border-slate-200/50 dark:border-slate-800/80 opacity-75 hover:opacity-100"
                       }`}
                     >
                       {/* Icon */}
                       <div
-                        className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-colors ${
+                        className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-colors ${
                           sys.enabled
                             ? `${sys.activeBg} ${sys.activeColor}`
-                            : "bg-gray-50 dark:bg-gray-800 text-gray-400"
+                            : "bg-slate-100 dark:bg-slate-800 text-slate-400"
                         }`}
                       >
                         {sys.icon}
@@ -7474,8 +7474,8 @@ export default function SettingsPage() {
 
                       {/* Text */}
                       <div className="flex-1 min-w-0">
-                        <p className="font-semibold text-gray-900 dark:text-white text-sm">{sys.title}</p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{sys.desc}</p>
+                        <p className="font-bold text-slate-900 dark:text-white text-xs">{sys.title}</p>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 truncate">{sys.desc}</p>
                       </div>
 
                       {/* Right controls */}
@@ -7521,72 +7521,74 @@ export default function SettingsPage() {
                     </div>
 
                     {sys.id === "document" && (
-                      <div className="mt-2.5 mb-3 ml-4 sm:ml-6 pl-4 border-l-2 border-orange-300 dark:border-orange-800 space-y-2.5">
-                        <p className="text-xs font-bold text-orange-900 dark:text-orange-300 flex items-center gap-1.5 pt-1">
-                          <Sparkles className="w-3.5 h-3.5 text-orange-500" />
+                      <div className="p-3 sm:p-3.5 rounded-xl bg-slate-50/80 dark:bg-slate-800/50 border border-slate-200/70 dark:border-slate-700/60 space-y-2.5">
+                        <p className="text-[11px] font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                          <Sparkles className="w-3.5 h-3.5 text-amber-500" />
                           {lang === "en" ? "Document Sub-modules & Sub-systems:" : "ฟังก์ชันและระบบย่อยในระบบจัดการเอกสาร:"}
                         </p>
 
-                        {/* AMSS Sync Subsystem */}
-                        <div className="flex items-center justify-between p-3 sm:p-3.5 rounded-2xl bg-sky-50/70 dark:bg-sky-950/30 border border-sky-200/80 dark:border-sky-900/50 shadow-2xs">
-                          <div className="flex items-center gap-3 min-w-0">
-                            <div className="w-8 h-8 rounded-xl bg-sky-100 dark:bg-sky-900/60 text-sky-600 dark:text-sky-400 flex items-center justify-center shrink-0">
-                              <ArrowRightLeft className="w-4 h-4" />
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          {/* AMSS Sync Subsystem */}
+                          <div className="flex items-center justify-between p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-700/80">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <div className="w-7 h-7 rounded-lg bg-sky-50 dark:bg-sky-950 text-sky-600 dark:text-sky-400 flex items-center justify-center shrink-0">
+                                <ArrowRightLeft className="w-3.5 h-3.5" />
+                              </div>
+                              <div className="min-w-0">
+                                <p className="font-bold text-xs text-slate-800 dark:text-slate-200">
+                                  {lang === "en" ? "AMSS Sync System" : "ระบบเชื่อมโยง AMSS"}
+                                </p>
+                                <p className="text-[10.5px] text-slate-400 truncate">
+                                  {lang === "en" ? "Auto sync from AMSS" : "ดึงหนังสือรับ-ส่งจาก AMSS"}
+                                </p>
+                              </div>
                             </div>
-                            <div className="min-w-0">
-                              <p className="font-bold text-xs text-slate-900 dark:text-white">
-                                {lang === "en" ? "AMSS Sync System (Sub-module)" : "ระบบเชื่อมโยงข้อมูล AMSS (ย่อย)"}
-                              </p>
-                              <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
-                                {lang === "en" ? "Auto browser sync and document import from AMSS" : "ระบบดึงและเชื่อมโยงหนังสือรับ-ส่งอัตโนมัติจากระบบ AMSS"}
-                              </p>
-                            </div>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => saveSubsystem("enableAmssSync", !enableAmssSync)}
-                            className={`relative inline-flex h-6.5 w-11 items-center rounded-full transition-colors focus:outline-none shrink-0 ml-2 cursor-pointer ${
-                              enableAmssSync ? "bg-sky-500" : "bg-gray-200 dark:bg-gray-700"
-                            }`}
-                            title={enableAmssSync ? (lang === "en" ? "Disable" : "ปิดใช้งาน") : (lang === "en" ? "Enable" : "เปิดใช้งาน")}
-                          >
-                            <span
-                              className={`inline-block h-4.5 w-4.5 transform rounded-full bg-white shadow transition-transform ${
-                                enableAmssSync ? "translate-x-5.5" : "translate-x-1"
+                            <button
+                              type="button"
+                              onClick={() => saveSubsystem("enableAmssSync", !enableAmssSync)}
+                              className={`relative inline-flex h-5.5 w-10 items-center rounded-full transition-colors focus:outline-none shrink-0 ml-2 cursor-pointer ${
+                                enableAmssSync ? "bg-sky-500" : "bg-slate-200 dark:bg-slate-700"
                               }`}
-                            />
-                          </button>
-                        </div>
+                              title={enableAmssSync ? (lang === "en" ? "Disable" : "ปิดใช้งาน") : (lang === "en" ? "Enable" : "เปิดใช้งาน")}
+                            >
+                              <span
+                                className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-xs transition-transform ${
+                                  enableAmssSync ? "translate-x-4.5" : "translate-x-0.5"
+                                }`}
+                              />
+                            </button>
+                          </div>
 
-                        {/* Certificate Subsystem */}
-                        <div className="flex items-center justify-between p-3 sm:p-3.5 rounded-2xl bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200/80 dark:border-amber-900/50 shadow-2xs">
-                          <div className="flex items-center gap-3 min-w-0">
-                            <div className="w-8 h-8 rounded-xl bg-amber-100 dark:bg-amber-900/60 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
-                              <Award className="w-4 h-4" />
+                          {/* Certificate Subsystem */}
+                          <div className="flex items-center justify-between p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-700/80">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <div className="w-7 h-7 rounded-lg bg-amber-50 dark:bg-amber-950 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+                                <Award className="w-3.5 h-3.5" />
+                              </div>
+                              <div className="min-w-0">
+                                <p className="font-bold text-xs text-slate-800 dark:text-slate-200">
+                                  {lang === "en" ? "Certificates System" : "ระบบออกเกียรติบัตร"}
+                                </p>
+                                <p className="text-[10.5px] text-slate-400 truncate">
+                                  {lang === "en" ? "Cert numbering & print" : "ขอเลขเกียรติบัตร & พิมพ์ A4"}
+                                </p>
+                              </div>
                             </div>
-                            <div className="min-w-0">
-                              <p className="font-bold text-xs text-slate-900 dark:text-white">
-                                {lang === "en" ? "Certificates System (Sub-module)" : "ระบบออกเกียรติบัตร (ย่อย)"}
-                              </p>
-                              <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
-                                {lang === "en" ? "Activity certificate batch numbering & A4 printing" : "การขอเลขเกียรติบัตรรายกิจกรรม และพิมพ์เกียรติบัตร"}
-                              </p>
-                            </div>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => saveSubsystem("enableCertificate", !enableCertificate)}
-                            className={`relative inline-flex h-6.5 w-11 items-center rounded-full transition-colors focus:outline-none shrink-0 ml-2 cursor-pointer ${
-                              enableCertificate ? "bg-amber-500" : "bg-gray-200 dark:bg-gray-700"
-                            }`}
-                            title={enableCertificate ? (lang === "en" ? "Disable" : "ปิดใช้งาน") : (lang === "en" ? "Enable" : "เปิดใช้งาน")}
-                          >
-                            <span
-                              className={`inline-block h-4.5 w-4.5 transform rounded-full bg-white shadow transition-transform ${
-                                enableCertificate ? "translate-x-5.5" : "translate-x-1"
+                            <button
+                              type="button"
+                              onClick={() => saveSubsystem("enableCertificate", !enableCertificate)}
+                              className={`relative inline-flex h-5.5 w-10 items-center rounded-full transition-colors focus:outline-none shrink-0 ml-2 cursor-pointer ${
+                                enableCertificate ? "bg-amber-500" : "bg-slate-200 dark:bg-slate-700"
                               }`}
-                            />
-                          </button>
+                              title={enableCertificate ? (lang === "en" ? "Disable" : "ปิดใช้งาน") : (lang === "en" ? "Enable" : "เปิดใช้งาน")}
+                            >
+                              <span
+                                className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-xs transition-transform ${
+                                  enableCertificate ? "translate-x-4.5" : "translate-x-0.5"
+                                }`}
+                              />
+                            </button>
+                          </div>
                         </div>
                       </div>
                     )}
