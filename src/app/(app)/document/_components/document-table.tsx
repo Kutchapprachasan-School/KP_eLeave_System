@@ -302,20 +302,50 @@ export default function DocumentTable({
         </select>
 
         {/* Dropdown 2: หมวดหมู่งานย่อย (สำหรับบันทึกข้อความ) */}
-        {activeTab === "outbound" && (
-          <select
-            value={selectedSectionId}
-            onChange={(e) => setSelectedSectionId?.(e.target.value)}
-            className="h-10 px-3.5 rounded-xl border border-slate-200 dark:border-slate-750 bg-slate-50/50 dark:bg-slate-950/50 text-sm cursor-pointer focus:ring-2 focus:ring-indigo-500/20 outline-none font-medium"
-          >
-            <option value="">หมวดหมู่งานย่อยทั้งหมด</option>
-            {sections.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name} ({s.code})
+        {activeTab === "outbound" && (() => {
+          const selectedSection = sections.find((s) => s.id === selectedSectionId);
+          const color = (selectedSection?.color || "").trim();
+          const hasColor = Boolean(color && color.startsWith("#"));
+
+          const selectStyle = hasColor
+            ? {
+                backgroundColor: `${color}18`,
+                borderColor: `${color}60`,
+                color: color,
+              }
+            : undefined;
+
+          return (
+            <select
+              value={selectedSectionId}
+              onChange={(e) => setSelectedSectionId?.(e.target.value)}
+              style={selectStyle}
+              className={`h-10 px-3.5 rounded-xl border text-sm cursor-pointer outline-none font-bold transition-all ${
+                !hasColor
+                  ? "border-slate-200 dark:border-slate-750 bg-slate-50/50 dark:bg-slate-950/50 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-indigo-500/20"
+                  : "focus:ring-2 focus:ring-purple-500/30"
+              }`}
+            >
+              <option value="" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white font-normal">
+                หมวดหมู่งานย่อยทั้งหมด
               </option>
-            ))}
-          </select>
-        )}
+              {sections.map((s) => {
+                const c = (s.color || "").trim();
+                const textColor = c.startsWith("#") ? c : "#0f172a";
+                return (
+                  <option
+                    key={s.id}
+                    value={s.id}
+                    style={{ color: textColor, fontWeight: "bold" }}
+                    className="bg-white dark:bg-slate-900 font-bold"
+                  >
+                    {s.name} ({s.code})
+                  </option>
+                );
+              })}
+            </select>
+          );
+        })()}
 
         <select
           value={selectedTimeRange}
@@ -408,10 +438,27 @@ export default function DocumentTable({
             ) : (
               paginatedRows.map((d) => {
                 if (localTab === "outbound") {
+                  const isCancelled = d.status === "CANCELLED";
                   return (
-                    <tr key={d.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition">
-                      <td className="py-3 px-4 font-mono font-medium text-indigo-600 dark:text-indigo-400 whitespace-nowrap">
-                        {d.docNo || <span className="text-amber-500 text-xs">รอออกเลข</span>}
+                    <tr
+                      key={d.id}
+                      className={`transition ${
+                        isCancelled ? "bg-rose-50/40 dark:bg-rose-950/20" : "hover:bg-slate-50/80 dark:hover:bg-slate-800/40"
+                      }`}
+                    >
+                      <td className="py-3 px-4 font-mono font-medium whitespace-nowrap">
+                        {d.docNo ? (
+                          <span className={isCancelled ? "line-through text-rose-600 dark:text-rose-400 decoration-rose-500 decoration-2 font-bold" : "text-indigo-600 dark:text-indigo-400 font-bold"}>
+                            {d.docNo}
+                          </span>
+                        ) : (
+                          <span className="text-amber-500 text-xs">รอออกเลข</span>
+                        )}
+                        {isCancelled && (
+                          <span className="ml-2 text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-rose-100 dark:bg-rose-950 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900">
+                            ยกเลิก
+                          </span>
+                        )}
                       </td>
                       <td className="py-3 px-4 whitespace-nowrap">
                         {(() => {
@@ -422,7 +469,7 @@ export default function DocumentTable({
                           return (
                             <span 
                               className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold border ${
-                                !sec ? "bg-slate-100/80 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300" : ""
+                                !sec ? "bg-slate-100/80 dark:bg-slate-800/80 border-slate-200 dark:border-slate-750 text-slate-700 dark:text-slate-300" : ""
                               }`}
                               style={
                                 sec
@@ -446,7 +493,7 @@ export default function DocumentTable({
                           day: "numeric",
                         }) : "-"}
                       </td>
-                      <td className="py-3 px-4 font-normal text-slate-800 dark:text-slate-200 max-w-xs truncate" title={d.title}>
+                      <td className={`py-3 px-4 max-w-xs truncate ${isCancelled ? "line-through text-slate-400 dark:text-slate-500" : "font-normal text-slate-800 dark:text-slate-200"}`} title={d.title}>
                         {d.title}
                       </td>
                       <td className="py-3 px-4 text-slate-600 dark:text-slate-400 whitespace-nowrap">

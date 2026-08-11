@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import { Save, Sparkles, ChevronDown, Eye, Send, RefreshCw } from "lucide-react";
 import { SearchableCombobox } from "@/features/document/ui/components/forms/searchable-combobox";
+import { formatDocFullDate } from "@/lib/date-format";
+import { useI18n } from "@/lib/i18n";
 
 type MemoSection = { id: string; name: string; code: string; color?: string };
 
@@ -53,6 +55,8 @@ export default function OutboundForm({
   onRefresh,
   onGoToHistory,
 }: OutboundFormProps) {
+  const { lang } = useI18n();
+
   // Default "จากหน่วยงาน" to requester's name
   const [formData, setFormData] = useState({
     docType: "MEMO",
@@ -149,24 +153,24 @@ export default function OutboundForm({
         {/* Left Column (5 cols on lg): The Input Form (+ ออกเลขหนังสือใหม่) */}
         <form onSubmit={handleSubmit} className="lg:col-span-5 space-y-4">
           <div className="flex items-center gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
-            <div className="w-6 h-6 rounded-full bg-purple-100 dark:bg-purple-950/80 text-purple-600 dark:text-purple-400 flex items-center justify-center text-xs font-bold">
+            <div className="w-7 h-7 rounded-full bg-purple-100 dark:bg-purple-950/80 text-purple-600 dark:text-purple-400 flex items-center justify-center text-sm font-extrabold">
               +
             </div>
-            <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+            <h3 className="text-base font-extrabold text-slate-900 dark:text-white">
               ออกเลขหนังสือใหม่
             </h3>
           </div>
 
           {/* DocType Dropdown */}
           <div>
-            <label className="block text-xs font-semibold text-slate-800 dark:text-slate-200 mb-1.5">
+            <label className="block text-sm font-bold text-slate-800 dark:text-slate-200 mb-1.5">
               ประเภท
             </label>
             <div className="relative">
               <select
                 value={formData.docType}
                 onChange={(e) => setFormData({ ...formData, docType: e.target.value })}
-                className="w-full h-10 pl-3 pr-9 rounded-xl border border-slate-200 dark:border-slate-750 bg-white dark:bg-slate-950 text-xs font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all appearance-none cursor-pointer outline-none"
+                className="w-full h-11 pl-3.5 pr-9 rounded-xl border border-slate-200 dark:border-slate-750 bg-white dark:bg-slate-950 text-sm font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all appearance-none cursor-pointer outline-none"
               >
                 <option value="MEMO">บันทึกข้อความ</option>
                 <option value="OUTGOING">หนังสือส่ง</option>
@@ -215,7 +219,7 @@ export default function OutboundForm({
           {/* Memo Section Select */}
           {formData.docType === "MEMO" && (
             <div>
-              <label className="block text-xs font-semibold text-slate-800 dark:text-slate-200 mb-1.5">
+              <label className="block text-sm font-bold text-slate-800 dark:text-slate-200 mb-1.5">
                 หมวดหมู่เอกสาร *
               </label>
               <div className="relative">
@@ -255,7 +259,7 @@ export default function OutboundForm({
                       <select
                         value={formData.memoSectionId}
                         onChange={(e) => setFormData({ ...formData, memoSectionId: e.target.value })}
-                        className="w-full h-10 pl-3.5 pr-9 rounded-xl border text-xs font-bold transition-all appearance-none cursor-pointer outline-none shadow-xs"
+                        className="w-full h-11 pl-3.5 pr-9 rounded-xl border text-sm font-bold transition-all appearance-none cursor-pointer outline-none shadow-xs"
                         style={secStyle}
                       >
                         <option value="" disabled className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">-- เลือกหมวดหมู่บันทึกข้อความ --</option>
@@ -287,21 +291,28 @@ export default function OutboundForm({
 
           {/* Date Picker */}
           <div>
-            <label className="block text-xs font-semibold text-slate-800 dark:text-slate-200 mb-1.5">
-              วันที่ออกเลข *
-            </label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-sm font-bold text-slate-800 dark:text-slate-200">
+                วันที่ออกเลข *
+              </label>
+              {formData.date && (
+                <span className="text-xs font-extrabold px-2.5 py-0.5 rounded-lg bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-200/60 dark:border-purple-800/40">
+                  📅 {formatDocFullDate(formData.date, lang)}
+                </span>
+              )}
+            </div>
             <input
               type="date"
               required
               value={formData.date}
               onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-              className="w-full h-10 px-3 rounded-xl border border-slate-200 dark:border-slate-750 bg-white dark:bg-slate-950 text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all outline-none"
+              className="w-full h-11 px-3.5 rounded-xl border border-slate-200 dark:border-slate-750 bg-white dark:bg-slate-950 text-sm font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all outline-none"
             />
           </div>
 
           {/* Title */}
           <div>
-            <label className="block text-xs font-semibold text-slate-800 dark:text-slate-200 mb-1.5">
+            <label className="block text-sm font-bold text-slate-800 dark:text-slate-200 mb-1.5">
               เรื่อง
             </label>
             <textarea
@@ -310,14 +321,14 @@ export default function OutboundForm({
               placeholder="ระบุชื่อเรื่อง..."
               value={formData.title}
               onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-              className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-750 bg-white dark:bg-slate-950 text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all outline-none resize-none"
+              className="w-full p-3.5 rounded-xl border border-slate-200 dark:border-slate-750 bg-white dark:bg-slate-950 text-sm font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all outline-none resize-none"
             />
           </div>
 
           {/* To / Recipient */}
           <div>
             <div className="flex justify-between items-center mb-1.5">
-              <label className="block text-xs font-semibold text-slate-800 dark:text-slate-200">
+              <label className="block text-sm font-bold text-slate-800 dark:text-slate-200">
                 เรียน / ถึง
               </label>
               <SearchableCombobox
@@ -334,7 +345,7 @@ export default function OutboundForm({
               placeholder="เช่น ผู้อำนวยการ..."
               value={formData.to}
               onChange={(e) => setFormData({ ...formData, to: e.target.value })}
-              className="w-full h-10 px-3 rounded-xl border border-slate-200 dark:border-slate-750 bg-white dark:bg-slate-950 text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all outline-none"
+              className="w-full h-11 px-3.5 rounded-xl border border-slate-200 dark:border-slate-750 bg-white dark:bg-slate-950 text-sm font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all outline-none"
             />
           </div>
 
@@ -479,29 +490,39 @@ export default function OutboundForm({
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
                     {outboundDocs.slice(0, 10).map((doc, idx) => {
                       const badge = getDocBadge(doc.docType);
+                      const isCancelled = doc.status === "CANCELLED";
                       const formattedDate = doc.date ? new Date(doc.date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' }) : '';
                       
                       return (
                         <tr
                           key={doc.id || idx}
                           onClick={() => setSelectedPreviewDoc(doc)}
-                          className="hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition cursor-pointer group"
+                          className={`transition cursor-pointer group ${
+                            isCancelled ? "bg-rose-50/40 dark:bg-rose-950/20" : "hover:bg-slate-50/80 dark:hover:bg-slate-800/50"
+                          }`}
                         >
-                          <td className="py-3 px-2.5 font-mono font-bold text-slate-900 dark:text-white group-hover:text-purple-600 dark:group-hover:text-purple-400 whitespace-nowrap">
-                            {doc.docNo}
+                          <td className="py-3 px-2.5 font-mono font-bold whitespace-nowrap">
+                            <span className={isCancelled ? "line-through text-rose-600 dark:text-rose-400 decoration-rose-500 decoration-2 font-bold" : "text-slate-900 dark:text-white group-hover:text-purple-600 dark:group-hover:text-purple-400"}>
+                              {doc.docNo}
+                            </span>
+                            {isCancelled && (
+                              <span className="ml-1.5 text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-rose-100 dark:bg-rose-950 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900">
+                                ยกเลิก
+                              </span>
+                            )}
                           </td>
                           <td className="py-3 px-2 whitespace-nowrap">
-                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${badge.bg}`}>
+                            <span className={`px-2.5 py-0.5 rounded-lg text-xs font-extrabold border ${badge.bg}`}>
                               {badge.text}
                             </span>
                           </td>
-                          <td className="py-3 px-2 text-slate-600 dark:text-slate-400 whitespace-nowrap text-[11px]">
+                          <td className="py-3 px-2 text-slate-600 dark:text-slate-400 whitespace-nowrap text-xs font-medium">
                             {formattedDate}
                           </td>
-                          <td className="py-3 px-2.5 max-w-[200px] truncate text-slate-700 dark:text-slate-300 font-medium">
+                          <td className={`py-3 px-2.5 max-w-[200px] truncate text-xs ${isCancelled ? "line-through text-slate-400 dark:text-slate-500" : "text-slate-700 dark:text-slate-300 font-medium"}`}>
                             {doc.title}
                           </td>
-                          <td className="py-3 px-2 text-slate-600 dark:text-slate-400 whitespace-nowrap">
+                          <td className="py-3 px-2 text-slate-600 dark:text-slate-400 whitespace-nowrap text-xs">
                             {doc.requester || doc.origin || '-'}
                           </td>
                         </tr>
