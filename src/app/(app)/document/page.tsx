@@ -4,7 +4,7 @@ import { useState, useCallback, Suspense } from "react";
 import Link from "next/link";
 import { ClipboardList, RefreshCw } from "lucide-react";
 
-import { quickIssueDoc, cancelDoc, restoreDoc } from "@/app/actions/document";
+import { quickIssueDoc, cancelDoc, restoreDoc, updateOutboundDoc } from "@/app/actions/document";
 import { useSession } from "@/lib/auth-client";
 import { useToast } from "@/components/toast-provider";
 import AmssImportModal from "@/components/AmssImportModal";
@@ -89,6 +89,23 @@ function DocumentPageContent() {
     }
   };
 
+  const handleUpdateDoc = async (id: string, updateData: { title: string; to?: string; origin?: string; requester?: string; signeeName?: string; signeePosition?: string }) => {
+    try {
+      const res = await updateOutboundDoc(id, updateData);
+      if (res.success) {
+        showToast("บันทึกการแก้ไขข้อมูลเอกสารเรียบร้อยแล้ว", "success");
+        await data.loadData();
+        return true;
+      } else {
+        showToast(res.error || "บันทึกการแก้ไขล้มเหลว", "error");
+        return false;
+      }
+    } catch (err: any) {
+      showToast(err.message || "บันทึกการแก้ไขล้มเหลว", "error");
+      return false;
+    }
+  };
+
   const getHeaderInfo = () => {
     switch (filters.view) {
       case "outbound_history":
@@ -151,6 +168,7 @@ function DocumentPageContent() {
           onRefresh={data.loadData}
           onCancelDocClick={(id) => setDocToCancel(id)}
           onRestoreDocClick={handleRestoreDoc}
+          onUpdateDocClick={handleUpdateDoc}
           searchQuery={filters.searchQuery}
           setSearchQuery={filters.setSearchQuery}
           selectedDocType={filters.selectedDocType}

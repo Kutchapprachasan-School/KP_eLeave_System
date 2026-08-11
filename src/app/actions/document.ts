@@ -362,6 +362,54 @@ export async function restoreDoc(id: string): Promise<ActionResponse> {
   }
 }
 
+export async function updateOutboundDoc(
+  id: string,
+  data: {
+    title: string;
+    to?: string;
+    origin?: string;
+    requester?: string;
+    signeeName?: string;
+    signeePosition?: string;
+  }
+): Promise<ActionResponse> {
+  try {
+    const user = await getSessionUser();
+    const doc = await prisma.documentRecord.findUnique({ where: { id } });
+    if (!doc) throw new Error("Document not found");
+
+    if (!data.title || !data.title.trim()) {
+      throw new Error("กรุณาระบุชื่อเรื่องของเอกสาร");
+    }
+
+    const updated = await prisma.documentRecord.update({
+      where: { id },
+      data: {
+        title: data.title.trim(),
+        to: data.to !== undefined ? data.to.trim() : doc.to,
+        origin: data.origin !== undefined ? data.origin.trim() : doc.origin,
+        requester: data.requester !== undefined ? data.requester.trim() : doc.requester,
+        signeeName: data.signeeName !== undefined ? data.signeeName.trim() : doc.signeeName,
+        signeePosition: data.signeePosition !== undefined ? data.signeePosition.trim() : doc.signeePosition,
+      },
+    });
+
+    await prisma.systemLog.create({
+      data: {
+        actionType: "DOC_UPDATE",
+        description: `แก้ไขข้อมูลเอกสาร ${updated.docNo || id}: เปลี่ยนชื่อเรื่องเป็น "${updated.title}" โดยผู้ใช้งาน ${user.name || "Unknown"}`,
+        userId: user.id,
+      },
+    });
+
+    safeRevalidatePath("/document");
+    safeRevalidatePath(`/document/${id}`);
+    return { success: true, data: updated };
+  } catch (err: any) {
+    return handleActionError(err, "updateOutboundDoc");
+  }
+}
+
 export async function getDocPreviewNumber(docType: string, sectionId?: string): Promise<ActionResponse> {
   try {
     const config = await prisma.documentConfig.findFirst({
