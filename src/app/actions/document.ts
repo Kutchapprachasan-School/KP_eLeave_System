@@ -291,7 +291,8 @@ export async function issueDocNumber(docId: string, customDateStr?: string): Pro
       await tx.systemLog.create({
         data: {
           actionType: "DOC_ISSUE",
-          description: `ออกเลขเอกสารประเภท ${record.docType}: ${formattedNo} โดยผู้ใช้งาน ${user.name || "Unknown"}`,
+          subsystem: "DOCUMENT",
+          description: `ออกเลขเอกสารประเภท ${record.docType}: ${formattedNo} โดยผู้ใช้งาน ${user.name || "Unknown"} (ID: ${user.id})`,
           userId: user.id
         }
       });
@@ -367,7 +368,8 @@ export async function cancelDoc(id: string, reason: string): Promise<ActionRespo
     await prisma.systemLog.create({
       data: {
         actionType: "DOC_CANCEL",
-        description: `ยกเลิกเลขเอกสาร ${updated.docNo || "ยังไม่ได้ออกเลข"} เนื่องจาก: ${reason} โดยผู้ใช้งาน ${fullUser.name || "Unknown"}`,
+        subsystem: "DOCUMENT",
+        description: `ยกเลิกเลขเอกสาร ${updated.docNo || "ยังไม่ได้ออกเลข"} (เรื่อง: "${updated.title}") เนื่องจาก: ${reason} โดยผู้ใช้งาน ${fullUser.name || user.name || "Unknown"} (ID: ${user.id})`,
         userId: user.id
       }
     });
@@ -401,7 +403,8 @@ export async function restoreDoc(id: string): Promise<ActionResponse> {
     await prisma.systemLog.create({
       data: {
         actionType: "DOC_RESTORE",
-        description: `คืนค่าเลขเอกสาร ${updated.docNo || "ยังไม่ได้ออกเลข"} กลับเป็นสถานะปกติ โดยผู้ใช้งาน ${fullUser.name || "Unknown"}`,
+        subsystem: "DOCUMENT",
+        description: `คืนค่าเลขเอกสาร ${updated.docNo || "ยังไม่ได้ออกเลข"} (เรื่อง: "${updated.title}") กลับเป็นสถานะปกติ โดยผู้ใช้งาน ${fullUser.name || user.name || "Unknown"} (ID: ${user.id})`,
         userId: user.id
       }
     });
@@ -453,7 +456,8 @@ export async function updateOutboundDoc(
     await prisma.systemLog.create({
       data: {
         actionType: "DOC_UPDATE",
-        description: `แก้ไขข้อมูลเอกสาร ${updated.docNo || id}: เปลี่ยนชื่อเรื่องเป็น "${updated.title}" โดยผู้ใช้งาน ${fullUser.name || "Unknown"}`,
+        subsystem: "DOCUMENT",
+        description: `แก้ไขข้อมูลเอกสาร ${updated.docNo || id}: เปลี่ยนชื่อเรื่องเป็น "${updated.title}" โดยผู้ใช้งาน ${fullUser.name || user.name || "Unknown"} (ID: ${user.id})`,
         userId: user.id,
       },
     });
