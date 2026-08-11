@@ -101,6 +101,8 @@ export async function ensureSubsystemColumnsExist() {
       ALTER TABLE "SystemSettings" ADD COLUMN IF NOT EXISTS "enableCompetency" BOOLEAN DEFAULT true;
       ALTER TABLE "SystemSettings" ADD COLUMN IF NOT EXISTS "enableFacility" BOOLEAN DEFAULT true;
       ALTER TABLE "SystemSettings" ADD COLUMN IF NOT EXISTS "enableAcademicSettings" BOOLEAN DEFAULT true;
+      ALTER TABLE "SystemSettings" ADD COLUMN IF NOT EXISTS "enableAmssSync" BOOLEAN DEFAULT true;
+      ALTER TABLE "SystemSettings" ADD COLUMN IF NOT EXISTS "enableCertificate" BOOLEAN DEFAULT true;
       ALTER TABLE "SystemSettings" ADD COLUMN IF NOT EXISTS "enableBudget" BOOLEAN DEFAULT false;
       ALTER TABLE "SystemSettings" ADD COLUMN IF NOT EXISTS "enableStudentAffairs" BOOLEAN DEFAULT false;
       ALTER TABLE "SystemSettings" ADD COLUMN IF NOT EXISTS "enableStudentCouncil" BOOLEAN DEFAULT false;
@@ -180,6 +182,8 @@ export async function getSystemSettings() {
       enableCompetency: (safeSettings as any).enableCompetency ?? true,
       enableFacility: (safeSettings as any).enableFacility ?? true,
       enableAcademicSettings: (safeSettings as any).enableAcademicSettings ?? true,
+      enableAmssSync: (safeSettings as any).enableAmssSync ?? true,
+      enableCertificate: (safeSettings as any).enableCertificate ?? true,
       enableBudget: (safeSettings as any).enableBudget ?? false,
       enableStudentAffairs: (safeSettings as any).enableStudentAffairs ?? false,
       enableStudentCouncil: (safeSettings as any).enableStudentCouncil ?? false,
@@ -443,6 +447,8 @@ export async function updateSystemSettings(data: {
   enableCompetency?: boolean;
   enableFacility?: boolean;
   enableAcademicSettings?: boolean;
+  enableAmssSync?: boolean;
+  enableCertificate?: boolean;
   enableBudget?: boolean;
   enableStudentAffairs?: boolean;
   enableStudentCouncil?: boolean;
@@ -538,6 +544,8 @@ export async function updateSystemSettings(data: {
         enableCompetency: data.enableCompetency !== undefined ? data.enableCompetency : undefined,
         enableFacility: data.enableFacility !== undefined ? data.enableFacility : undefined,
         enableAcademicSettings: data.enableAcademicSettings !== undefined ? data.enableAcademicSettings : undefined,
+        enableAmssSync: data.enableAmssSync !== undefined ? data.enableAmssSync : undefined,
+        enableCertificate: data.enableCertificate !== undefined ? data.enableCertificate : undefined,
         enableBudget: data.enableBudget !== undefined ? data.enableBudget : undefined,
         enableStudentAffairs: data.enableStudentAffairs !== undefined ? data.enableStudentAffairs : undefined,
         enableStudentCouncil: data.enableStudentCouncil !== undefined ? data.enableStudentCouncil : undefined,
@@ -627,6 +635,8 @@ export async function updateSystemSettings(data: {
         enableCompetency: data.enableCompetency !== undefined ? data.enableCompetency : true,
         enableFacility: data.enableFacility !== undefined ? data.enableFacility : true,
         enableAcademicSettings: data.enableAcademicSettings !== undefined ? data.enableAcademicSettings : true,
+        enableAmssSync: data.enableAmssSync !== undefined ? data.enableAmssSync : true,
+        enableCertificate: data.enableCertificate !== undefined ? data.enableCertificate : true,
         repairLineChannelAccessToken: data.repairLineChannelAccessToken || null,
         repairLineTargetGroupId: data.repairLineTargetGroupId || null,
       }
