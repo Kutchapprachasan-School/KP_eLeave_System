@@ -148,7 +148,7 @@ export function ConfigsTab({
                     ตัวอย่างเลขที่จะออกฉบับถัดไป
                   </span>
                   <span className="font-mono text-base sm:text-lg font-black text-purple-900 dark:text-purple-200">
-                    ที่ {previewDocNo}
+                    {previewDocNo}
                   </span>
                 </div>
               </div>
