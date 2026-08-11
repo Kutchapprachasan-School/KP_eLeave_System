@@ -39,6 +39,41 @@ export default function CertGenerator({ onBack }: { onBack: () => void }) {
   const [issuedBatches, setIssuedBatches] = useState<any[]>([]);
   const [selectedDetailBatch, setSelectedDetailBatch] = useState<any | null>(null);
 
+  const getCertCount = (batch: any): number => {
+    if (typeof batch?.quantity === "number" && batch.quantity > 0) {
+      return batch.quantity;
+    }
+    if (!batch?.docNo) return 1;
+
+    const match = String(batch.docNo).match(/^(\d+)-(\d+)/);
+    if (match) {
+      const start = parseInt(match[1], 10);
+      const end = parseInt(match[2], 10);
+      if (!isNaN(start) && !isNaN(end) && end >= start) {
+        return end - start + 1;
+      }
+    }
+
+    if (batch.content) {
+      try {
+        const items = JSON.parse(batch.content);
+        if (Array.isArray(items)) {
+          const sum = items.reduce((acc: number, it: any) => acc + (Number(it.quantity) || 0), 0);
+          if (sum > 0) return sum;
+        }
+      } catch (e) {
+        const leafMatches = String(batch.content).matchAll(/\((\d+)\s*ใบ\)/g);
+        let sum = 0;
+        for (const m of leafMatches) {
+          sum += parseInt(m[1], 10) || 0;
+        }
+        if (sum > 0) return sum;
+      }
+    }
+
+    return 1;
+  };
+
   // --- Individual Print State ---
   const [printForm, setPrintForm] = useState({
     name: "นายสมชาย ใจดี",
@@ -549,7 +584,7 @@ export default function CertGenerator({ onBack }: { onBack: () => void }) {
                           </td>
                           <td className="py-3.5 px-4 whitespace-nowrap">
                             <span className="font-bold px-2 py-0.5 rounded-md bg-amber-100/70 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300">
-                              {batch.quantity || 1} เลข
+                              {getCertCount(batch)} เลข
                             </span>
                           </td>
                           <td className="py-3.5 px-4 text-slate-500 font-medium whitespace-nowrap">
@@ -600,7 +635,7 @@ export default function CertGenerator({ onBack }: { onBack: () => void }) {
                       {selectedDetailBatch.docNo}
                     </span>
                     <span className="text-xs font-bold px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
-                      รวม {selectedDetailBatch.quantity || 1} หมายเลข
+                      รวม {getCertCount(selectedDetailBatch)} หมายเลข
                     </span>
                   </div>
                   <h3 className="text-base font-extrabold text-slate-900 dark:text-white mt-2">
