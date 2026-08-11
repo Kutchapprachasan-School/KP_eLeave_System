@@ -8970,7 +8970,9 @@ function renderPatternPreview(
     dummySeq,
     dummyYear,
     padding,
-    useThai
+    useThai,
+    undefined,
+    yearFormat
   );
 }
 
@@ -9607,8 +9609,9 @@ function DocPatternBuilderTab({
                           onChange={(e) => setLocalYearFormat(e.target.value)}
                           className="w-full h-11 px-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-sm focus:ring-2 focus:ring-purple-500/30 cursor-pointer text-gray-900 dark:text-white"
                         >
-                          <option value="TH_BE">พ.ศ. (2569)</option>
-                          <option value="AD">ค.ศ. (2026)</option>
+                          <option value="TH_BE">แสดง พ.ศ. (เช่น /2569)</option>
+                          <option value="NONE">ไม่ใส่ พ.ศ./ปี (แสดงเฉพาะเลขลำดับ)</option>
+                          <option value="AD">แสดง ค.ศ. (เช่น /2026)</option>
                         </select>
                       </div>
                     </div>

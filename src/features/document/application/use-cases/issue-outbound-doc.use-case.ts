@@ -134,7 +134,8 @@ export async function issueOutboundDocAtomic(data: OutboundFormData, userId: str
       finalYear,
       config.paddingDigits,
       config.useThaiNumerals,
-      data.docType
+      data.docType,
+      config.yearFormat
     );
 
     // 5. Create DocumentRecord directly as ISSUED within transaction

@@ -19,7 +19,8 @@ export function formatDocNumber(
   year: number,
   padding: number,
   useThai: boolean,
-  docType?: string
+  docType?: string,
+  yearFormat: string = "TH_BE"
 ): string {
   let seqStr = String(seq).padStart(padding, "0");
   let yearStr = String(year);
@@ -30,12 +31,17 @@ export function formatDocNumber(
   
   let activePattern = pattern;
   const isOutgoing = docType && (docType.startsWith("OUTGOING") || docType === "OUTGOING_NORMAL" || docType === "OUTGOING_CIRCULAR");
+  const isNoYear = yearFormat === "NONE" || yearFormat === "NO_YEAR";
 
   if (isOutgoing) {
     // For OUTGOING documents: format is Prefix + Seq (no /YEAR suffix, no extra space after trailing slash)
     activePattern = "[PREFIX][SEQ]";
-  } else if (prefix && (prefix.endsWith("/") || prefix.endsWith("."))) {
-    // If prefix ends with slash or dot, remove space between [PREFIX] and [SEQ]
+  } else if (isNoYear) {
+    // For NONE / NO_YEAR format: remove /[YEAR] or [YEAR] suffix
+    activePattern = activePattern.replace("/[YEAR]", "").replace("[YEAR]", "");
+  }
+
+  if (prefix && (prefix.endsWith("/") || prefix.endsWith("."))) {
     activePattern = activePattern.replace("[PREFIX] [SEQ]", "[PREFIX][SEQ]");
   }
 
