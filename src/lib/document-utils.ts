@@ -30,23 +30,33 @@ export function formatDocNumber(
   }
   
   let activePattern = pattern;
+  let activePrefix = (prefix || "").trim();
   const isOutgoing = docType && (docType.startsWith("OUTGOING") || docType === "OUTGOING_NORMAL" || docType === "OUTGOING_CIRCULAR");
+  const isCircular = docType === "OUTGOING_CIRCULAR";
   const isNoYear = yearFormat === "NONE" || yearFormat === "NO_YEAR";
 
+  if (isCircular) {
+    if (activePrefix.endsWith("/")) {
+      activePrefix = activePrefix + "ว";
+    } else if (!activePrefix.endsWith("ว") && !activePrefix.endsWith("ว/")) {
+      activePrefix = activePrefix + "ว";
+    }
+  }
+
   if (isOutgoing) {
-    // For OUTGOING documents: format is Prefix + Seq (no /YEAR suffix, no extra space after trailing slash)
+    // For OUTGOING documents: format is Prefix + Seq (no /YEAR suffix, no extra space after trailing slash or 'ว')
     activePattern = "[PREFIX][SEQ]";
   } else if (isNoYear) {
     // For NONE / NO_YEAR format: remove /[YEAR] or [YEAR] suffix
     activePattern = activePattern.replace("/[YEAR]", "").replace("[YEAR]", "");
   }
 
-  if (prefix && (prefix.endsWith("/") || prefix.endsWith("."))) {
+  if (activePrefix && (activePrefix.endsWith("/") || activePrefix.endsWith(".") || activePrefix.endsWith("ว"))) {
     activePattern = activePattern.replace("[PREFIX] [SEQ]", "[PREFIX][SEQ]");
   }
 
   let formatted = activePattern
-    .replace("[PREFIX]", prefix || "")
+    .replace("[PREFIX]", activePrefix)
     .replace("[SEQ]", seqStr)
     .replace("[YEAR]", yearStr);
     
