@@ -11,6 +11,7 @@ interface InboundViewProps {
   inboundDocs: IncomingDoc[];
   amssCredsExist: boolean | null;
   autoBrowserTrigger: boolean;
+  enableAmssSync?: boolean;
   onRefresh: () => void;
   onCancelDocClick: (id: string) => void;
   onShowCredentialsModal: () => void;
@@ -33,6 +34,7 @@ export function InboundView({
   inboundDocs,
   amssCredsExist,
   autoBrowserTrigger,
+  enableAmssSync = true,
   onRefresh,
   onCancelDocClick,
   onShowCredentialsModal,
@@ -57,36 +59,38 @@ export function InboundView({
       {/* Header Banner & AMSS Settings Bar */}
       <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl p-5 md:p-6 shadow-xs space-y-4">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <GuardedAction requiredPermission="sarabun:amss:sync">
-              <AmssAutoBrowserSync
-                onSuccess={onRefresh}
-                showToast={showToast}
-                autoTrigger={autoBrowserTrigger}
-              />
-            </GuardedAction>
+          {enableAmssSync !== false && (
+            <div className="flex flex-wrap items-center gap-2">
+              <GuardedAction requiredPermission="sarabun:amss:sync">
+                <AmssAutoBrowserSync
+                  onSuccess={onRefresh}
+                  showToast={showToast}
+                  autoTrigger={autoBrowserTrigger}
+                />
+              </GuardedAction>
 
-            <GuardedAction requiredPermission="sarabun:amss:sync">
-              <button
-                type="button"
-                onClick={onShowCredentialsModal}
-                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold transition cursor-pointer"
-              >
-                ⚙️ ตั้งค่าเชื่อมต่อ
-              </button>
-            </GuardedAction>
+              <GuardedAction requiredPermission="sarabun:amss:sync">
+                <button
+                  type="button"
+                  onClick={onShowCredentialsModal}
+                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold transition cursor-pointer"
+                >
+                  ⚙️ ตั้งค่าเชื่อมต่อ
+                </button>
+              </GuardedAction>
 
-            <GuardedAction requiredPermission="sarabun:amss:sync">
-              <button
-                type="button"
-                onClick={onShowImportModal}
-                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 text-xs font-bold border border-indigo-200/60 dark:border-indigo-800/60 transition cursor-pointer"
-                title="นำเข้าหนังสือรับโดยคัดลอกซอร์สโค้ด HTML หรือวางข้อความ"
-              >
-                📋 วางข้อความ / HTML
-              </button>
-            </GuardedAction>
-          </div>
+              <GuardedAction requiredPermission="sarabun:amss:sync">
+                <button
+                  type="button"
+                  onClick={onShowImportModal}
+                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 text-xs font-bold border border-indigo-200/60 dark:border-indigo-800/60 transition cursor-pointer"
+                  title="นำเข้าหนังสือรับโดยคัดลอกซอร์สโค้ด HTML หรือวางข้อความ"
+                >
+                  📋 วางข้อความ / HTML
+                </button>
+              </GuardedAction>
+            </div>
+          )}
         </div>
 
         {/* Quick Stats Summary Strip */}

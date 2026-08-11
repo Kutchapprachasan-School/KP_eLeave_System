@@ -11,7 +11,7 @@ import {
   getIncomingDocsList,
   getAMSSCredentials,
 } from "@/app/actions/incoming";
-import { getSimpleUsersList } from "@/app/actions/settings";
+import { getSimpleUsersList, getSystemSettings } from "@/app/actions/settings";
 import {
   MemoSectionDTO,
   OutboundDocument,
@@ -35,6 +35,8 @@ export function useDocumentData() {
   const [trendData, setTrendData] = useState<DocumentTrendData[]>([]);
   const [amssCredsExist, setAmssCredsExist] = useState<boolean | null>(null);
   const [lastSyncAt, setLastSyncAt] = useState<Date | null>(null);
+  const [enableAmssSync, setEnableAmssSync] = useState(true);
+  const [enableCertificate, setEnableCertificate] = useState(true);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -47,6 +49,7 @@ export function useDocumentData() {
         staff,
         amssCreds,
         trendRes,
+        sysSettings,
       ] = await Promise.all([
         getMemoSections().catch(() => []),
         getDashboardStats().catch(() => ({
@@ -58,6 +61,7 @@ export function useDocumentData() {
         getSimpleUsersList().catch(() => []),
         getAMSSCredentials().catch(() => ({ success: false, data: null })),
         getDocumentTrendStats().catch(() => ({ success: false, data: [] })),
+        getSystemSettings().catch(() => null),
       ]);
 
       setSections((secs || []) as MemoSectionDTO[]);
@@ -71,6 +75,14 @@ export function useDocumentData() {
       setUsers(staff || []);
       if (trendRes?.success && trendRes.data) {
         setTrendData(trendRes.data as DocumentTrendData[]);
+      }
+      if (sysSettings) {
+        if (typeof (sysSettings as any).enableAmssSync === "boolean") {
+          setEnableAmssSync((sysSettings as any).enableAmssSync);
+        }
+        if (typeof (sysSettings as any).enableCertificate === "boolean") {
+          setEnableCertificate((sysSettings as any).enableCertificate);
+        }
       }
 
       if (amssCreds?.success && amssCreds.data) {
@@ -103,6 +115,8 @@ export function useDocumentData() {
     trendData,
     amssCredsExist,
     lastSyncAt,
+    enableAmssSync,
+    enableCertificate,
     loadData,
   };
 }

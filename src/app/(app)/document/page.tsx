@@ -165,6 +165,7 @@ function DocumentPageContent() {
           inboundDocs={data.inboundDocs}
           amssCredsExist={data.amssCredsExist}
           autoBrowserTrigger={autoBrowserTrigger}
+          enableAmssSync={data.enableAmssSync}
           onRefresh={data.loadData}
           onCancelDocClick={(id) => setDocToCancel(id)}
           onShowCredentialsModal={() => setShowAmssCredentialsModal(true)}

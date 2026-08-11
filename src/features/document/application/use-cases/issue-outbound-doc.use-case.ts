@@ -54,7 +54,7 @@ export async function issueOutboundDocAtomic(data: OutboundFormData, userId: str
     // 2. Find or initialize DocumentConfig
     let config = await tx.documentConfig.findFirst({
       where: {
-        docType: isOutgoing ? { in: ["OUTGOING", "OUTGOING_NORMAL", "OUTGOING_CIRCULAR"] } : data.docType,
+        docType: data.docType,
         memoSectionId: data.docType === "MEMO" ? data.memoSectionId || null : null,
       },
     });
@@ -63,16 +63,17 @@ export async function issueOutboundDocAtomic(data: OutboundFormData, userId: str
       let defaultPrefix = "ศทก";
       if (data.docType === "COMMAND") defaultPrefix = "คำสั่งที่";
       else if (data.docType === "ANNOUNCEMENT") defaultPrefix = "ประกาศที่";
-      else if (isOutgoing) defaultPrefix = "ที่ ศทก";
+      else if (data.docType === "OUTGOING_CIRCULAR") defaultPrefix = "ศธ.๐๔๓๔๙.๐๑/ว";
+      else if (isOutgoing) defaultPrefix = "ศธ.๐๔๓๔๙.๐๑/";
 
       config = await tx.documentConfig.create({
         data: {
-          docType: isOutgoing ? "OUTGOING" : data.docType,
+          docType: data.docType,
           memoSectionId: data.docType === "MEMO" ? data.memoSectionId || null : null,
           prefix: defaultPrefix,
           useThaiNumerals: true,
           paddingDigits: 1,
-          yearFormat: "TH_BE",
+          yearFormat: "NONE",
           currentSeq: 0,
         },
       });

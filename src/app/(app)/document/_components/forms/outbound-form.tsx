@@ -216,20 +216,68 @@ export default function OutboundForm({
                 หมวดหมู่เอกสาร *
               </label>
               <div className="relative">
-                <select
-                  value={formData.memoSectionId}
-                  onChange={(e) => setFormData({ ...formData, memoSectionId: e.target.value })}
-                  className="w-full h-10 pl-3 pr-9 rounded-xl border border-slate-200 dark:border-slate-750 bg-white dark:bg-slate-950 text-xs font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all appearance-none cursor-pointer outline-none"
-                  style={selectedSection?.color ? { borderLeftWidth: '4px', borderLeftColor: selectedSection.color } : {}}
-                >
-                  <option value="" disabled>-- เลือกหมวดหมู่บันทึกข้อความ --</option>
-                  {sections.map(s => (
-                    <option key={s.id} value={s.id}>{s.name} ({s.code})</option>
-                  ))}
-                </select>
-                <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-slate-400">
-                  <ChevronDown className="w-4 h-4" />
-                </div>
+                {(() => {
+                  const currentSec = sections.find(s => s.id === formData.memoSectionId);
+                  const secStyle = currentSec?.color ? (() => {
+                    const c = currentSec.color.trim();
+                    if (c.startsWith("#")) {
+                      return {
+                        backgroundColor: `${c}20`,
+                        borderColor: `${c}60`,
+                        color: c,
+                        fontWeight: '700',
+                      };
+                    }
+                    const map: Record<string, { bg: string; border: string; text: string }> = {
+                      pink: { bg: "#fdf2f8", border: "#fbcfe8", text: "#db2777" },
+                      amber: { bg: "#fffbeb", border: "#fde68a", text: "#d97706" },
+                      sky: { bg: "#f0f9ff", border: "#bae6fd", text: "#0284c7" },
+                      blue: { bg: "#eff6ff", border: "#bfdbfe", text: "#2563eb" },
+                      emerald: { bg: "#ecfdf5", border: "#a7f3d0", text: "#059669" },
+                      purple: { bg: "#faf5ff", border: "#e9d5ff", text: "#9333ea" },
+                      indigo: { bg: "#eef2ff", border: "#c7d2fe", text: "#4f46e5" },
+                      rose: { bg: "#fff1f2", border: "#fecdd3", text: "#e11d48" },
+                      teal: { bg: "#f0fdf4", border: "#99f6e4", text: "#0d9488" },
+                      orange: { bg: "#fff7ed", border: "#fed7aa", text: "#ea580c" },
+                    };
+                    const m = map[c.toLowerCase()];
+                    if (m) {
+                      return { backgroundColor: m.bg, borderColor: m.border, color: m.text, fontWeight: '700' };
+                    }
+                    return { backgroundColor: `${c}20`, borderColor: `${c}60`, color: c, fontWeight: '700' };
+                  })() : {};
+
+                  return (
+                    <>
+                      <select
+                        value={formData.memoSectionId}
+                        onChange={(e) => setFormData({ ...formData, memoSectionId: e.target.value })}
+                        className="w-full h-10 pl-3.5 pr-9 rounded-xl border text-xs font-bold transition-all appearance-none cursor-pointer outline-none shadow-xs"
+                        style={secStyle}
+                      >
+                        <option value="" disabled className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">-- เลือกหมวดหมู่บันทึกข้อความ --</option>
+                        {sections.map(s => {
+                          const c = (s.color || "").trim();
+                          let textColor = "#0f172a";
+                          if (c.startsWith("#")) textColor = c;
+                          return (
+                            <option
+                              key={s.id}
+                              value={s.id}
+                              style={{ color: textColor, fontWeight: 'bold' }}
+                              className="bg-white dark:bg-slate-900 font-bold"
+                            >
+                              {s.name} ({s.code})
+                            </option>
+                          );
+                        })}
+                      </select>
+                      <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-current opacity-70">
+                        <ChevronDown className="w-4 h-4" />
+                      </div>
+                    </>
+                  );
+                })()}
               </div>
             </div>
           )}
