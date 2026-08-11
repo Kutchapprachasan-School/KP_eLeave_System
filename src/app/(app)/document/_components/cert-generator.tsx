@@ -664,9 +664,33 @@ export default function CertGenerator({ onBack }: { onBack: () => void }) {
 
                 {(() => {
                   let breakdown: any[] = [];
-                  try {
-                    if (selectedDetailBatch.content) breakdown = JSON.parse(selectedDetailBatch.content);
-                  } catch (e) {}
+                  const contentStr = selectedDetailBatch.content;
+
+                  if (contentStr) {
+                    try {
+                      const parsed = JSON.parse(contentStr);
+                      if (Array.isArray(parsed)) breakdown = parsed;
+                    } catch (e) {
+                      const lines = String(contentStr).split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+                      breakdown = lines.map((line) => {
+                        const colonIdx = line.indexOf(":");
+                        if (colonIdx !== -1) {
+                          const roleTitle = line.substring(0, colonIdx).trim();
+                          const rest = line.substring(colonIdx + 1).trim();
+                          const parenMatch = rest.match(/^(.*?)\s*\((\d+)\s*ใบ\)$/);
+                          if (parenMatch) {
+                            return {
+                              roleTitle,
+                              rangeText: parenMatch[1].trim(),
+                              quantity: parseInt(parenMatch[2], 10),
+                            };
+                          }
+                          return { roleTitle, rangeText: rest, quantity: null };
+                        }
+                        return { roleTitle: line, rangeText: "", quantity: null };
+                      });
+                    }
+                  }
 
                   if (!Array.isArray(breakdown) || breakdown.length === 0) {
                     return (
@@ -682,13 +706,17 @@ export default function CertGenerator({ onBack }: { onBack: () => void }) {
                         <div key={bIdx} className="bg-amber-50/60 dark:bg-amber-950/30 p-3.5 rounded-2xl border border-amber-200/60 dark:border-amber-900/40 space-y-1">
                           <div className="flex items-center justify-between">
                             <span className="font-extrabold text-xs text-amber-900 dark:text-amber-200">{b.roleTitle}</span>
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-amber-200/50">
-                              {b.quantity} เลข
-                            </span>
+                            {b.quantity ? (
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-amber-200/50">
+                                {b.quantity} ใบ
+                              </span>
+                            ) : null}
                           </div>
-                          <div className="font-mono text-xs font-bold text-amber-700 dark:text-amber-300 pt-1">
-                            {b.rangeText || (b.startNo === b.endNo ? b.startNo : `${b.startNo} - ${b.endNo}`)}
-                          </div>
+                          {b.rangeText ? (
+                            <div className="font-mono text-xs font-bold text-amber-700 dark:text-amber-300 pt-1">
+                              {b.rangeText}
+                            </div>
+                          ) : null}
                         </div>
                       ))}
                     </div>

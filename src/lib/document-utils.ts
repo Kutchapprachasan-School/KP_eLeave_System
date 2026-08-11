@@ -69,11 +69,12 @@ export function formatDocNumber(
 
 export const DOC_TYPE_THAI_MAP: Record<string, string> = {
   MEMO: "บันทึกข้อความ",
-  COMMAND: "คำสั่งโรงเรียน",
+  COMMAND: "คำสั่ง",
+  ANNOUNCEMENT: "ประกาศ",
+  CERTIFICATE: "เกียรติบัตร",
   OUTGOING: "หนังสือส่ง",
   OUTGOING_NORMAL: "หนังสือส่ง (ปกติ)",
   OUTGOING_CIRCULAR: "หนังสือส่ง (จดหมายเวียน)",
-  ANNOUNCEMENT: "ประกาศโรงเรียน",
 };
 
 export function getDocTypeThaiLabel(docType: string, memoSectionName?: string | null): string {

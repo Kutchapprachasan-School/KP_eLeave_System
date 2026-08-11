@@ -32,6 +32,7 @@ const DOC_TYPE_NAMES: Record<string, string> = {
   OUTGOING_NORMAL: "หนังสือส่ง (ปกติ/ภายนอก)",
   OUTGOING_CIRCULAR: "หนังสือส่ง (จดหมายเวียน)",
   ANNOUNCEMENT: "ประกาศ",
+  CERTIFICATE: "เกียรติบัตร",
 };
 
 const COMMON_RECIPIENTS = [
@@ -137,6 +138,8 @@ export default function OutboundForm({
   const getDocBadge = (type: string) => {
     if (type === "MEMO") return { text: "ภายใน", bg: "bg-blue-100 dark:bg-blue-950/70 text-blue-700 dark:text-blue-300" };
     if (type === "COMMAND") return { text: "คำสั่ง", bg: "bg-rose-100 dark:bg-rose-950/70 text-rose-700 dark:text-rose-300" };
+    if (type === "ANNOUNCEMENT") return { text: "ประกาศ", bg: "bg-amber-100 dark:bg-amber-950/70 text-amber-700 dark:text-amber-300" };
+    if (type === "CERTIFICATE") return { text: "เกียรติบัตร", bg: "bg-purple-100 dark:bg-purple-950/70 text-purple-700 dark:text-purple-300" };
     return { text: "ภายนอก", bg: "bg-emerald-100 dark:bg-emerald-950/70 text-emerald-700 dark:text-emerald-300" };
   };
 
