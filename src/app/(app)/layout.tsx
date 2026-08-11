@@ -1061,8 +1061,8 @@ function AppContent({ children }: { children: React.ReactNode }) {
           {/* Section 3: วิชาการ */}
           {(academicPlanningSubItems.length > 0 || timetableSubItems.length > 0 || substituteSubItems.length > 0 || supervisionSubItems.length > 0 || examSubItems.length > 0 || (enableAcademicSettings && isAdmin)) && (
             <div className="space-y-1.5">
-              <div className="px-3 pb-0.5 text-[11.5px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
-                <span>🎓</span> วิชาการ
+              <div className="px-3 pb-0.5 text-[11.5px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                วิชาการ
               </div>
 
               {/* ศูนย์วางแผนวิชาการ */}
