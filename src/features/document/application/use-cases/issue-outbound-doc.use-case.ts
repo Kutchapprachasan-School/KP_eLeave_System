@@ -1,35 +1,7 @@
 import { prisma } from "@/lib/db";
 import { generateAdvisoryLockKey } from "@/core/infrastructure/db/advisory-lock";
 import { OutboundFormData } from "@/features/document/domain/types/document.types";
-
-/**
- * Formats a document sequence number into a standard document string.
- */
-function formatDocNumber(
-  pattern: string,
-  prefix: string,
-  seq: number,
-  year: number,
-  paddingDigits: number = 1,
-  useThaiNumerals: boolean = true
-): string {
-  let paddedSeq = seq.toString().padStart(paddingDigits, "0");
-  if (useThaiNumerals) {
-    const thaiDigits = ["๐", "๑", "๒", "๓", "๔", "๕", "๖", "๗", "๘", "๙"];
-    paddedSeq = paddedSeq.replace(/\d/g, (d) => thaiDigits[parseInt(d, 10)]);
-  }
-
-  let strYear = year.toString();
-  if (useThaiNumerals) {
-    const thaiDigits = ["๐", "๑", "๒", "๓", "๔", "๕", "๖", "๗", "๘", "๙"];
-    strYear = strYear.replace(/\d/g, (d) => thaiDigits[parseInt(d, 10)]);
-  }
-
-  return pattern
-    .replace("[PREFIX]", prefix)
-    .replace("[SEQ]", paddedSeq)
-    .replace("[YEAR]", strYear);
-}
+import { formatDocNumber } from "@/lib/document-utils";
 
 /**
  * Atomic Outbound Document Issuance Use Case.
