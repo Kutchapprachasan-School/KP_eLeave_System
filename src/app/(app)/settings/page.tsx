@@ -29,7 +29,7 @@ import { getHolidays, createHoliday, updateHoliday, deleteHoliday, searchInterne
 
 import { useSession } from "@/lib/auth-client";
 
-import { Save, Image as ImageIcon, ShieldAlert, DownloadCloud, Lock, Code, Settings2, Archive, UploadCloud, Database, FileJson, AlertTriangle, CheckCircle2, ChevronRight, ArrowLeft, Bell, Type, Users, BookOpen, HardDrive, UserCog, FileSpreadsheet, X, CalendarDays, CalendarDays as Calendar, ArrowRightLeft, CheckSquare, FileX, Plus, Clock, ClipboardList, MapPin, FolderOpen, Hash, UserCheck, Pencil, Trash2, ToggleLeft, ToggleRight, Sparkles, AlertCircle, Check, Eye, LayoutGrid, Wrench, Loader2, XCircle, MessageSquare, Building2, Award, FileText, Settings, Wallet, Vote, Layers } from "lucide-react";
+import { Save, Image as ImageIcon, ShieldAlert, DownloadCloud, Lock, Code, Settings2, Archive, UploadCloud, Database, FileJson, AlertTriangle, CheckCircle2, ChevronRight, ArrowLeft, Bell, Type, Users, BookOpen, HardDrive, UserCog, FileSpreadsheet, X, CalendarDays, CalendarDays as Calendar, ArrowRightLeft, CheckSquare, FileX, Plus, Clock, ClipboardList, MapPin, FolderOpen, Hash, UserCheck, Pencil, Trash2, ToggleLeft, ToggleRight, Sparkles, AlertCircle, Check, Eye, LayoutGrid, Wrench, Loader2, XCircle, MessageSquare, Building2, Award, FileText, Settings, Wallet, Vote, Layers, Search, Folder } from "lucide-react";
 
 import { useToast } from "@/components/toast-provider";
 
@@ -9109,6 +9109,8 @@ function DocMemoSectionsTab({
   lang: string;
 }) {
   const [editId, setEditId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [sortBy, setSortBy] = useState<"order" | "code" | "name">("order");
   const [form, setForm] = useState({ 
     name: "", 
     code: "", 
@@ -9183,30 +9185,80 @@ function DocMemoSectionsTab({
     }
   };
 
+  const filteredSections = sections
+    .filter((s) => {
+      const q = searchQuery.toLowerCase().trim();
+      if (!q) return true;
+      return (
+        s.name.toLowerCase().includes(q) ||
+        s.code.toLowerCase().includes(q)
+      );
+    })
+    .sort((a, b) => {
+      if (sortBy === "code") return a.code.localeCompare(b.code);
+      if (sortBy === "name") return a.name.localeCompare(b.name);
+      return (a.sortOrder || 0) - (b.sortOrder || 0);
+    });
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -12 }}
       transition={{ duration: 0.2 }}
-      className="space-y-4 pt-2"
+      className="space-y-4 pt-2 font-sans"
     >
-      {/* Add Button */}
-      <div className="flex justify-end">
+      {/* Search & Action Control Bar (Option 2: Data-Dense Enterprise Toolbar) */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white dark:bg-slate-800/90 p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-2xs">
+        {/* Search & Filter Inputs */}
+        <div className="flex flex-1 items-center gap-2">
+          <div className="relative flex-1 max-w-md">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              placeholder={lang === "en" ? "Filter sub-memo sections by name or code..." : "🔍 ค้นหารหัส หรือชื่องานย่อยบันทึกข้อความ..."}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full h-10 pl-9 pr-8 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs focus:ring-2 focus:ring-purple-500/30 focus:border-purple-400 transition-all text-slate-900 dark:text-white placeholder:text-slate-400"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery("")}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5 rounded-full"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          {/* Sort Selector */}
+          <select
+            value={sortBy}
+            onChange={(e: any) => setSortBy(e.target.value)}
+            className="h-10 px-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-300 cursor-pointer outline-none focus:ring-2 focus:ring-purple-500/30"
+          >
+            <option value="order">เรียงตามลำดับ (Sort Order)</option>
+            <option value="code">เรียงตามรหัส (Code A-Z)</option>
+            <option value="name">เรียงตามชื่อ (Name)</option>
+          </select>
+        </div>
+
+        {/* Add Button */}
         <button
           type="button"
           onClick={() => {
             resetForm();
             setShowForm(true);
           }}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 active:scale-95 text-white text-xs font-bold transition-all shadow-md shadow-purple-600/20 cursor-pointer border border-purple-500/20"
+          className="flex items-center justify-center gap-2 px-4 h-10 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 active:scale-95 text-white text-xs font-bold transition-all shadow-md shadow-purple-600/20 cursor-pointer border border-purple-500/20 shrink-0"
         >
           <Plus className="w-4 h-4" />
-          เพิ่มงานย่อย
+          <span>เพิ่มงานย่อย</span>
         </button>
       </div>
 
-      {/* Form */}
+      {/* Form Area */}
       <AnimatePresence>
         {showForm && (
           <motion.div
@@ -9215,26 +9267,41 @@ function DocMemoSectionsTab({
             exit={{ opacity: 0, height: 0 }}
             className="overflow-hidden"
           >
-            <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6 space-y-4 shadow-sm">
-              <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                {editId ? "แก้ไขงานย่อย" : "เพิ่มงานย่อยใหม่"}
-              </h3>
+            <div className="bg-white dark:bg-slate-800 rounded-2xl border border-purple-200 dark:border-purple-900/50 p-6 space-y-5 shadow-lg shadow-purple-500/5 relative">
+              <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-700 pb-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-xl bg-purple-100 dark:bg-purple-900/40 text-purple-600 dark:text-purple-400 flex items-center justify-center font-bold">
+                    <Folder className="w-4 h-4" />
+                  </div>
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                    {editId ? "แก้ไขข้อมูลงานย่อยบันทึกข้อความ" : "เพิ่มหมวดงานย่อยบันทึกข้อความใหม่"}
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={resetForm}
+                  className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                 <div>
-                  <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1 block">
-                    ชื่องานย่อย
+                  <label className="text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1 block">
+                    ชื่องานย่อย <span className="text-rose-500">*</span>
                   </label>
                   <input
                     type="text"
                     value={form.name}
                     onChange={(e) => setForm({ ...form, name: e.target.value })}
-                    placeholder="เช่น ฝ่ายวิชาการ"
-                    className="w-full h-11 px-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-sm focus:ring-2 focus:ring-purple-500/30 focus:border-purple-400 transition-all text-gray-900 dark:text-white"
+                    placeholder="เช่น ฝ่ายวิชาการ, งานงบประมาณ"
+                    className="w-full h-10 px-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-xs focus:ring-2 focus:ring-purple-500/30 focus:border-purple-400 transition-all text-slate-900 dark:text-white"
                   />
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1 block">
-                    รหัส (Code)
+                  <label className="text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1 block">
+                    รหัส (Code) <span className="text-rose-500">*</span>
                   </label>
                   <input
                     type="text"
@@ -9242,13 +9309,13 @@ function DocMemoSectionsTab({
                     onChange={(e) =>
                       setForm({ ...form, code: e.target.value.toUpperCase() })
                     }
-                    placeholder="เช่น ACAD"
-                    className="w-full h-11 px-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-sm font-mono uppercase focus:ring-2 focus:ring-purple-500/30 focus:border-purple-400 transition-all text-gray-900 dark:text-white"
+                    placeholder="เช่น ACAD, BUGT, GEN"
+                    className="w-full h-10 px-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-xs font-mono tracking-wider uppercase focus:ring-2 focus:ring-purple-500/30 focus:border-purple-400 transition-all text-slate-900 dark:text-white font-bold"
                   />
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1 block">
-                    ลำดับความสำคัญ (Sort Order)
+                  <label className="text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1 block">
+                    ลำดับการแสดงผล (Sort Order)
                   </label>
                   <input
                     type="number"
@@ -9256,16 +9323,16 @@ function DocMemoSectionsTab({
                     onChange={(e) =>
                       setForm({ ...form, sortOrder: parseInt(e.target.value) || 0 })
                     }
-                    className="w-full h-11 px-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-sm focus:ring-2 focus:ring-purple-500/30 focus:border-purple-400 transition-all text-gray-900 dark:text-white"
+                    className="w-full h-10 px-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-xs focus:ring-2 focus:ring-purple-500/30 focus:border-purple-400 transition-all text-slate-900 dark:text-white"
                   />
                 </div>
               </div>
 
               {/* Color & Icon Selectors */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-1">
                 <div>
-                  <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-2 block">
-                    สีประจำหมวดเอกสาร
+                  <label className="text-xs font-semibold text-slate-600 dark:text-slate-300 mb-2 block">
+                    สีป้ายประจำหมวดเอกสาร
                   </label>
                   <div className="flex flex-wrap gap-2">
                     {[
@@ -9283,8 +9350,8 @@ function DocMemoSectionsTab({
                         type="button"
                         onClick={() => setForm({ ...form, color: c })}
                         style={{ backgroundColor: c }}
-                        className={`w-8 h-8 rounded-full border-2 transition-all ${
-                          form.color === c ? "border-slate-900 dark:border-white scale-110 shadow-md" : "border-transparent hover:scale-105"
+                        className={`w-7 h-7 rounded-full border-2 transition-all cursor-pointer ${
+                          form.color === c ? "border-slate-900 dark:border-white scale-110 shadow-md ring-2 ring-purple-400/40" : "border-transparent hover:scale-105"
                         }`}
                       />
                     ))}
@@ -9292,8 +9359,8 @@ function DocMemoSectionsTab({
                 </div>
 
                 <div>
-                  <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-2 block">
-                    ไอคอน
+                  <label className="text-xs font-semibold text-slate-600 dark:text-slate-300 mb-2 block">
+                    ไอคอนประจำหมวด
                   </label>
                   <div className="flex flex-wrap gap-2">
                     {[
@@ -9303,10 +9370,10 @@ function DocMemoSectionsTab({
                         key={iconName}
                         type="button"
                         onClick={() => setForm({ ...form, icon: iconName })}
-                        className={`px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all ${
+                        className={`px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all cursor-pointer ${
                           form.icon === iconName 
-                            ? "bg-purple-600 border-purple-650 text-white shadow-sm" 
-                            : "bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-650 dark:text-slate-350 hover:bg-slate-100 dark:hover:bg-slate-800"
+                            ? "bg-purple-600 border-purple-650 text-white shadow-xs" 
+                            : "bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-650 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
                         }`}
                       >
                         {iconName === "Folder" && "📁 แฟ้ม"}
@@ -9323,43 +9390,44 @@ function DocMemoSectionsTab({
                 </div>
               </div>
 
-              <div className="flex items-center gap-3">
+              {/* Status toggle */}
+              <div className="flex items-center gap-3 pt-1">
                 <button
                   type="button"
                   onClick={() => setForm({ ...form, isActive: !form.isActive })}
-                  className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-305"
+                  className="flex items-center gap-2 text-xs font-semibold cursor-pointer"
                 >
                   {form.isActive ? (
-                    <ToggleRight className="w-6 h-6 text-emerald-500" />
+                    <ToggleRight className="w-7 h-7 text-emerald-500" />
                   ) : (
-                    <ToggleLeft className="w-6 h-6 text-slate-400" />
+                    <ToggleLeft className="w-7 h-7 text-slate-400" />
                   )}
                   <span
                     className={
                       form.isActive
-                        ? "text-emerald-600 dark:text-emerald-400 font-medium"
-                        : "text-slate-400 font-medium"
+                        ? "text-emerald-600 dark:text-emerald-400"
+                        : "text-slate-400"
                     }
                   >
-                    {form.isActive ? "เปิดใช้งาน" : "ปิดใช้งาน"}
+                    {form.isActive ? "เปิดใช้งานในระบบ" : "ปิดใช้งานชั่วคราว"}
                   </span>
                 </button>
               </div>
 
-              <div className="flex gap-2 pt-2">
+              <div className="flex gap-2 pt-2 border-t border-slate-100 dark:border-slate-700">
                 <button
                   type="button"
                   onClick={handleSave}
                   disabled={saving}
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-sm font-semibold disabled:opacity-50 transition-colors cursor-pointer"
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold disabled:opacity-50 transition-all cursor-pointer shadow-md shadow-purple-600/20"
                 >
                   <Save className="w-4 h-4" />
-                  {saving ? "กำลังบันทึก..." : "บันทึก"}
+                  {saving ? "กำลังบันทึก..." : "บันทึกข้อมูล"}
                 </button>
                 <button
                   type="button"
                   onClick={resetForm}
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-650 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 text-sm font-medium transition-colors cursor-pointer"
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-650 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 text-xs font-bold transition-all cursor-pointer"
                 >
                   <X className="w-4 h-4" />
                   ยกเลิก
@@ -9370,54 +9438,59 @@ function DocMemoSectionsTab({
         )}
       </AnimatePresence>
 
-      {/* Table */}
-      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-705 overflow-hidden shadow-sm">
-        {sections.length === 0 ? (
+      {/* Enterprise Data-Dense Table (Option 2) */}
+      <div className="bg-white dark:bg-slate-800/90 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 overflow-hidden shadow-2xs">
+        {filteredSections.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-slate-400">
-            <FolderOpen className="w-12 h-12 mb-3 opacity-30" />
-            <p className="text-sm font-medium">ยังไม่มีงานย่อย</p>
-            <p className="text-xs mt-1">กดปุ่ม &quot;เพิ่มงานย่อย&quot; เพื่อเริ่มต้น</p>
+            <FolderOpen className="w-12 h-12 mb-3 opacity-30 text-purple-400" />
+            <p className="text-sm font-bold text-slate-600 dark:text-slate-300">
+              {searchQuery ? "ไม่พบหมวดงานย่อยที่ตรงกับคำค้นหา" : "ยังไม่มีหมวดงานย่อยในระบบ"}
+            </p>
+            <p className="text-xs text-slate-400 mt-1">
+              {searchQuery ? "ลองเปลี่ยนคำค้นหาใหม่" : "กดปุ่ม \"เพิ่มงานย่อย\" เพื่อเริ่มต้นสร้างหมวดใหม่"}
+            </p>
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="border-b border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50">
-                  <th className="px-6 py-3.5 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                    รหัส
-                  </th>
-                  <th className="px-6 py-3.5 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                    ชื่องานย่อย
-                  </th>
-                  <th className="px-6 py-3.5 text-center text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                    สถานะ
-                  </th>
-                  <th className="px-6 py-3.5 text-right text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                    จัดการ
-                  </th>
+                <tr className="border-b border-slate-200/70 dark:border-slate-700/70 bg-slate-50/80 dark:bg-slate-900/60 text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                  <th className="py-3.5 px-4 text-center w-16">ลำดับ</th>
+                  <th className="py-3.5 px-4 w-32">รหัส (Code)</th>
+                  <th className="py-3.5 px-4">ชื่องานย่อยบันทึกข้อความ</th>
+                  <th className="py-3.5 px-4 text-center w-36">สถานะการใช้งาน</th>
+                  <th className="py-3.5 px-4 text-right w-28">จัดการ</th>
                 </tr>
               </thead>
-              <tbody>
-                {sections.map((s) => (
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-700/60 text-xs">
+                {filteredSections.map((s, idx) => (
                   <tr
                     key={s.id}
-                    className={`border-b border-slate-50 dark:border-slate-800 last:border-0 hover:bg-slate-50 dark:hover:bg-slate-800/55 transition-colors ${
-                      !s.isActive ? "opacity-50" : ""
+                    className={`group hover:bg-purple-50/40 dark:hover:bg-purple-950/20 transition-all ${
+                      !s.isActive ? "opacity-60 bg-slate-50/40 dark:bg-slate-900/20" : ""
                     }`}
                   >
-                    <td className="px-6 py-3.5">
+                    {/* Sort Order Badge */}
+                    <td className="py-3.5 px-4 text-center font-mono font-bold text-slate-400 group-hover:text-purple-600 dark:group-hover:text-purple-400">
+                      #{s.sortOrder !== undefined ? s.sortOrder : idx + 1}
+                    </td>
+
+                    {/* Code Badge */}
+                    <td className="py-3.5 px-4">
                       <span 
-                        style={{ backgroundColor: `${s.color || "#6366f1"}15`, color: s.color || "#6366f1" }}
-                        className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold font-mono"
+                        style={{ backgroundColor: `${s.color || "#6366f1"}18`, color: s.color || "#6366f1", borderColor: `${s.color || "#6366f1"}35` }}
+                        className="inline-flex items-center px-3 py-1 rounded-xl text-xs font-bold font-mono border shadow-2xs"
                       >
                         {s.code}
                       </span>
                     </td>
-                    <td className="px-6 py-3.5 text-sm font-medium text-slate-900 dark:text-white">
-                      <div className="flex items-center gap-2">
-                        <span 
-                          style={{ color: s.color || "#6366f1" }} 
-                          className="text-xs"
+
+                    {/* Section Name & Icon */}
+                    <td className="py-3.5 px-4">
+                      <div className="flex items-center gap-3">
+                        <div 
+                          style={{ backgroundColor: `${s.color || "#6366f1"}15`, color: s.color || "#6366f1" }}
+                          className="w-8 h-8 rounded-xl flex items-center justify-center text-sm shrink-0 shadow-2xs border border-purple-500/10"
                         >
                           {s.icon === "GraduationCap" && "🎓"}
                           {s.icon === "Banknote" && "💰"}
@@ -9427,37 +9500,43 @@ function DocMemoSectionsTab({
                           {s.icon === "BookOpen" && "📖"}
                           {s.icon === "Settings" && "⚙️"}
                           {(s.icon === "Folder" || !s.icon) && "📁"}
-                        </span>
-                        <span>{s.name}</span>
-                        {s.sortOrder !== undefined && s.sortOrder > 0 && (
-                          <span className="text-[10px] text-slate-400 font-normal">
-                            (ลำดับ: {s.sortOrder})
-                          </span>
-                        )}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-bold text-slate-900 dark:text-white text-xs tracking-tight">
+                            {s.name}
+                          </p>
+                          <p className="text-[11px] text-slate-400 font-mono">
+                            รหัสเชื่อมโยง: {s.code}
+                          </p>
+                        </div>
                       </div>
                     </td>
-                    <td className="px-6 py-3.5 text-center">
+
+                    {/* Status Toggle Badge */}
+                    <td className="py-3.5 px-4 text-center">
                       <span
-                        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold ${
+                        className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold border ${
                           s.isActive
-                            ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                            : "bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400"
+                            ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800/60"
+                            : "bg-slate-100 dark:bg-slate-800 text-slate-400 border-slate-200 dark:border-slate-700"
                         }`}
                       >
                         <span
                           className={`w-1.5 h-1.5 rounded-full ${
-                            s.isActive ? "bg-emerald-500" : "bg-slate-400"
+                            s.isActive ? "bg-emerald-500 animate-pulse" : "bg-slate-400"
                           }`}
                         />
-                        {s.isActive ? "เปิดใช้งาน" : "ปิด"}
+                        {s.isActive ? "เปิดใช้งาน" : "ปิดใช้งาน"}
                       </span>
                     </td>
-                    <td className="px-6 py-3.5 text-right">
-                      <div className="flex items-center justify-end gap-1">
+
+                    {/* Actions */}
+                    <td className="py-3.5 px-4 text-right">
+                      <div className="flex items-center justify-end gap-1 opacity-90 group-hover:opacity-100 transition-opacity">
                         <button
                           type="button"
                           onClick={() => handleEdit(s)}
-                          className="p-2 rounded-lg hover:bg-purple-50 dark:hover:bg-purple-500/10 text-slate-400 hover:text-purple-600 dark:hover:text-purple-400 transition-colors"
+                          className="p-1.5 rounded-xl hover:bg-purple-100 dark:hover:bg-purple-900/50 text-slate-500 hover:text-purple-700 dark:text-slate-400 dark:hover:text-purple-300 transition-colors cursor-pointer"
                           title="แก้ไข"
                         >
                           <Pencil className="w-4 h-4" />
@@ -9465,7 +9544,7 @@ function DocMemoSectionsTab({
                         <button
                           type="button"
                           onClick={() => handleDelete(s.id)}
-                          className="p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-500/10 text-slate-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
+                          className="p-1.5 rounded-xl hover:bg-rose-100 dark:hover:bg-rose-900/50 text-slate-500 hover:text-rose-700 dark:text-slate-400 dark:hover:text-rose-300 transition-colors cursor-pointer"
                           title="ลบ"
                         >
                           <Trash2 className="w-4 h-4" />
