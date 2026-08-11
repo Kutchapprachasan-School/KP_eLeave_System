@@ -307,9 +307,55 @@ export async function issueDocNumber(docId: string, customDateStr?: string): Pro
   }
 }
 
+async function verifyDocumentManagePermission(
+  doc: { createdById?: string | null; requester?: string | null },
+  user: { id: string; role?: string | null; position?: string | null; name?: string | null; username?: string | null }
+) {
+  // 1. Admin
+  if (user.role === "ADMIN" || user.position === "แอดมิน") return true;
+
+  // 2. Position is Officer / Sarabun / Clerical
+  if (
+    user.role === "SARABUN" ||
+    user.position === "เจ้าหน้าที่ธุรการ / งานสารบรรณ" ||
+    user.position === "เจ้าหน้าที่สารบรรณ" ||
+    user.position === "เจ้าหน้าที่ธุรการ" ||
+    user.position === "ธุรการ"
+  ) {
+    return true;
+  }
+
+  // 3. Check systemSettings.documentAdminUserIds (ผู้ที่ได้รับมอบหมายในตั้งค่าระบบ)
+  const settings = await prisma.systemSettings.findUnique({
+    where: { id: "default" },
+    select: { documentAdminUserIds: true },
+  });
+
+  if (settings?.documentAdminUserIds) {
+    const adminUserIds = settings.documentAdminUserIds.split(",").map((s) => s.trim()).filter(Boolean);
+    if (adminUserIds.includes(user.id) || (user.username && adminUserIds.includes(user.username))) {
+      return true;
+    }
+  }
+
+  // 4. Owner / Requester
+  if (doc.createdById && doc.createdById === user.id) return true;
+  if (doc.requester && (doc.requester === user.name || doc.requester === user.username)) return true;
+
+  throw new Error("คุณไม่มีสิทธิ์จัดการเอกสารนี้ (สิทธิ์นี้สำหรับ เจ้าตัวผู้ขอเอกสาร, เจ้าหน้าที่ธุรการ/สารบรรณที่ได้รับมอบหมาย, และ แอดมิน เท่านั้น)");
+}
+
 export async function cancelDoc(id: string, reason: string): Promise<ActionResponse> {
   try {
     const user = await getSessionUser();
+    const fullUser = await prisma.user.findUnique({ where: { id: user.id } });
+    if (!fullUser) throw new Error("Unauthorized");
+
+    const doc = await prisma.documentRecord.findUnique({ where: { id } });
+    if (!doc) throw new Error("Document not found");
+
+    await verifyDocumentManagePermission(doc, fullUser);
+
     const updated = await prisma.documentRecord.update({
       where: { id },
       data: {
@@ -321,7 +367,7 @@ export async function cancelDoc(id: string, reason: string): Promise<ActionRespo
     await prisma.systemLog.create({
       data: {
         actionType: "DOC_CANCEL",
-        description: `ยกเลิกเลขเอกสาร ${updated.docNo || "ยังไม่ได้ออกเลข"} เนื่องจาก: ${reason}`,
+        description: `ยกเลิกเลขเอกสาร ${updated.docNo || "ยังไม่ได้ออกเลข"} เนื่องจาก: ${reason} โดยผู้ใช้งาน ${fullUser.name || "Unknown"}`,
         userId: user.id
       }
     });
@@ -336,8 +382,13 @@ export async function cancelDoc(id: string, reason: string): Promise<ActionRespo
 export async function restoreDoc(id: string): Promise<ActionResponse> {
   try {
     const user = await getSessionUser();
+    const fullUser = await prisma.user.findUnique({ where: { id: user.id } });
+    if (!fullUser) throw new Error("Unauthorized");
+
     const doc = await prisma.documentRecord.findUnique({ where: { id } });
     if (!doc) throw new Error("Document not found");
+
+    await verifyDocumentManagePermission(doc, fullUser);
 
     const updated = await prisma.documentRecord.update({
       where: { id },
@@ -350,7 +401,7 @@ export async function restoreDoc(id: string): Promise<ActionResponse> {
     await prisma.systemLog.create({
       data: {
         actionType: "DOC_RESTORE",
-        description: `คืนค่าเลขเอกสาร ${updated.docNo || "ยังไม่ได้ออกเลข"} กลับเป็นสถานะปกติ โดยผู้ใช้งาน ${user.name || "Unknown"}`,
+        description: `คืนค่าเลขเอกสาร ${updated.docNo || "ยังไม่ได้ออกเลข"} กลับเป็นสถานะปกติ โดยผู้ใช้งาน ${fullUser.name || "Unknown"}`,
         userId: user.id
       }
     });
@@ -375,8 +426,13 @@ export async function updateOutboundDoc(
 ): Promise<ActionResponse> {
   try {
     const user = await getSessionUser();
+    const fullUser = await prisma.user.findUnique({ where: { id: user.id } });
+    if (!fullUser) throw new Error("Unauthorized");
+
     const doc = await prisma.documentRecord.findUnique({ where: { id } });
     if (!doc) throw new Error("Document not found");
+
+    await verifyDocumentManagePermission(doc, fullUser);
 
     if (!data.title || !data.title.trim()) {
       throw new Error("กรุณาระบุชื่อเรื่องของเอกสาร");
@@ -397,7 +453,7 @@ export async function updateOutboundDoc(
     await prisma.systemLog.create({
       data: {
         actionType: "DOC_UPDATE",
-        description: `แก้ไขข้อมูลเอกสาร ${updated.docNo || id}: เปลี่ยนชื่อเรื่องเป็น "${updated.title}" โดยผู้ใช้งาน ${user.name || "Unknown"}`,
+        description: `แก้ไขข้อมูลเอกสาร ${updated.docNo || id}: เปลี่ยนชื่อเรื่องเป็น "${updated.title}" โดยผู้ใช้งาน ${fullUser.name || "Unknown"}`,
         userId: user.id,
       },
     });
@@ -407,6 +463,44 @@ export async function updateOutboundDoc(
     return { success: true, data: updated };
   } catch (err: any) {
     return handleActionError(err, "updateOutboundDoc");
+  }
+}
+
+export async function getDocumentAdminUserIds(): Promise<ActionResponse> {
+  try {
+    const settings = await prisma.systemSettings.findUnique({
+      where: { id: "default" },
+      select: { documentAdminUserIds: true },
+    });
+    const ids = settings?.documentAdminUserIds
+      ? settings.documentAdminUserIds.split(",").map((s) => s.trim()).filter(Boolean)
+      : [];
+    return { success: true, data: ids };
+  } catch (err: any) {
+    return handleActionError(err, "getDocumentAdminUserIds");
+  }
+}
+
+export async function updateDocumentAdminUserIds(userIds: string[]): Promise<ActionResponse> {
+  try {
+    const user = await getSessionUser();
+    const fullUser = await prisma.user.findUnique({ where: { id: user.id } });
+    if (!fullUser || (fullUser.role !== "ADMIN" && fullUser.position !== "แอดมิน")) {
+      throw new Error("Unauthorized");
+    }
+
+    const idsString = userIds.join(",");
+    const updated = await prisma.systemSettings.upsert({
+      where: { id: "default" },
+      update: { documentAdminUserIds: idsString },
+      create: { id: "default", documentAdminUserIds: idsString },
+    });
+
+    safeRevalidatePath("/document");
+    safeRevalidatePath("/settings");
+    return { success: true, data: updated.documentAdminUserIds };
+  } catch (err: any) {
+    return handleActionError(err, "updateDocumentAdminUserIds");
   }
 }
 

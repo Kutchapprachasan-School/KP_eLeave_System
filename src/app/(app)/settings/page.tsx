@@ -165,6 +165,11 @@ export default function SettingsPage() {
   const [apSearchQuery, setApSearchQuery] = useState("");
   const [showApDropdown, setShowApDropdown] = useState(false);
 
+  // Document admin user delegation states
+  const [docAdminUserIds, setDocAdminUserIds] = useState<string[]>([]);
+  const [docAdminSearchQuery, setDocAdminSearchQuery] = useState("");
+  const [showDocAdminDropdown, setShowDocAdminDropdown] = useState(false);
+
   const [timetablePeriodsPerDay, setTimetablePeriodsPerDay] = useState(8);
   const [timetableStartTime, setTimetableStartTime] = useState("08:30");
   const [timetablePeriodDuration, setTimetablePeriodDuration] = useState(50);
@@ -434,13 +439,15 @@ export default function SettingsPage() {
       }
 
       setFinalApproverUserIds(
-
         data.finalApproverUserIds
-
           ? data.finalApproverUserIds.split(",").map((s: string) => s.trim()).filter(Boolean)
-
           : []
+      );
 
+      setDocAdminUserIds(
+        data.documentAdminUserIds
+          ? data.documentAdminUserIds.split(",").map((s: string) => s.trim()).filter(Boolean)
+          : []
       );
 
       setShowActingDirectorTitle(data.showActingDirectorTitle !== false);
@@ -7693,6 +7700,117 @@ export default function SettingsPage() {
                     (`${u.prefix || ""}${u.firstName} ${u.lastName}`
                       .toLowerCase()
                       .includes(apSearchQuery.toLowerCase()))
+                ).length === 0 && (
+                  <p className="px-4 py-2 text-xs text-gray-400">{lang === "en" ? "No results" : "ไม่พบผลลัพธ์"}</p>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* ─── Document System: Document Officers / Clerks Delegation ─── */}
+        <div className="mt-6 bg-orange-50/50 dark:bg-orange-950/20 rounded-2xl border border-orange-200 dark:border-orange-800 p-5">
+          <div className="flex items-center gap-2 mb-3">
+            <ClipboardList className="w-4 h-4 text-orange-600 dark:text-orange-400" />
+            <h4 className="font-bold text-sm text-orange-900 dark:text-orange-200">
+              {lang === "en" ? "AMSS++ Document System — Authorized Officers & Clerks" : "ระบบสารบรรณ & ออกเลข — กำหนดครูผู้ได้รับมอบหมายเป็นธุรการ/สารบรรณ"}
+            </h4>
+          </div>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
+            {lang === "en"
+              ? "Teachers and personnel listed below are granted full rights to Edit, Cancel, and Restore all outgoing document numbers."
+              : "ครูและบุคลากรที่ระบุด้านล่างจะได้รับสิทธิ์ในการ แก้ไข, ยกเลิกเลขทะเบียน, และ คืนค่าสถานะเอกสารส่งทั้งหมดในระบบ"}
+          </p>
+
+          {/* Selected users tags */}
+          <div className="flex flex-wrap gap-2 mb-3">
+            {docAdminUserIds.map((userId) => {
+              const u = userList.find((x: any) => x.id === userId || x.username === userId);
+              return (
+                <span
+                  key={userId}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-orange-100 dark:bg-orange-900/50 text-orange-800 dark:text-orange-200 text-xs font-medium border border-orange-200 dark:border-orange-700 shadow-2xs"
+                >
+                  {u ? `${u.prefix || ""}${u.firstName || u.name || ""} ${u.lastName || ""}` : userId}
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const updated = docAdminUserIds.filter((id) => id !== userId);
+                      setDocAdminUserIds(updated);
+                      try {
+                        await updateSystemSettings({ documentAdminUserIds: updated.join(",") });
+                        showToast("success", lang === "en" ? "Removed" : "ลบรายชื่อสำเร็จ");
+                      } catch (e: any) {
+                        showToast("error", e?.message ?? "เกิดข้อผิดพลาด");
+                      }
+                    }}
+                    className="hover:text-red-600 dark:hover:text-red-400 transition-colors cursor-pointer"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </span>
+              );
+            })}
+            {docAdminUserIds.length === 0 && (
+              <span className="text-xs text-gray-400 dark:text-gray-500 italic">
+                {lang === "en" ? "No personnel assigned yet — only Admins and Creators can manage docs" : "ยังไม่ได้กำหนดผู้ได้รับมอบหมาย — เฉพาะแอดมินและผู้ขอออกเลขที่จัดการได้"}
+              </span>
+            )}
+          </div>
+
+          {/* Search & Add */}
+          <div className="relative">
+            <input
+              type="text"
+              placeholder={lang === "en" ? "Search teacher or staff to add..." : "ค้นหาชื่อครูหรือบุคลากรเพื่อเพิ่มสิทธิ์ธุรการ..."}
+              value={docAdminSearchQuery}
+              onChange={(e) => {
+                setDocAdminSearchQuery(e.target.value);
+                setShowDocAdminDropdown(true);
+              }}
+              onFocus={() => setShowDocAdminDropdown(true)}
+              className="w-full px-4 py-2.5 rounded-xl bg-white dark:bg-gray-900 border border-orange-200 dark:border-orange-700 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-400 dark:focus:ring-orange-600"
+            />
+            {showDocAdminDropdown && docAdminSearchQuery.length > 0 && (
+              <div className="absolute z-50 w-full mt-1 max-h-48 overflow-y-auto bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl">
+                {userList
+                  .filter(
+                    (u: any) =>
+                      !docAdminUserIds.includes(u.id) &&
+                      (`${u.prefix || ""}${u.firstName || u.name || ""} ${u.lastName || ""}`
+                        .toLowerCase()
+                        .includes(docAdminSearchQuery.toLowerCase()))
+                  )
+                  .slice(0, 10)
+                  .map((u: any) => (
+                    <button
+                      key={u.id}
+                      type="button"
+                      onClick={async () => {
+                        const updated = [...docAdminUserIds, u.id];
+                        setDocAdminUserIds(updated);
+                        setDocAdminSearchQuery("");
+                        setShowDocAdminDropdown(false);
+                        try {
+                          await updateSystemSettings({ documentAdminUserIds: updated.join(",") });
+                          showToast("success", lang === "en" ? "Added" : "มอบหมายสิทธิ์สำเร็จ");
+                        } catch (e: any) {
+                          showToast("error", e?.message ?? "เกิดข้อผิดพลาด");
+                        }
+                      }}
+                      className="w-full text-left px-4 py-2 text-sm hover:bg-orange-50 dark:hover:bg-orange-950/30 transition-colors flex items-center gap-2 cursor-pointer"
+                    >
+                      <UserCheck className="w-4 h-4 text-orange-500" />
+                      <span>{u.prefix || ""}${u.firstName || u.name || ""} {u.lastName || ""}</span>
+                      <span className="ml-auto text-xs text-gray-400">{u.position || ""}</span>
+                    </button>
+                  ))}
+                {userList.filter(
+                  (u: any) =>
+                    !docAdminUserIds.includes(u.id) &&
+                    (`${u.prefix || ""}${u.firstName || u.name || ""} ${u.lastName || ""}`
+                      .toLowerCase()
+                      .includes(docAdminSearchQuery.toLowerCase()))
                 ).length === 0 && (
                   <p className="px-4 py-2 text-xs text-gray-400">{lang === "en" ? "No results" : "ไม่พบผลลัพธ์"}</p>
                 )}
