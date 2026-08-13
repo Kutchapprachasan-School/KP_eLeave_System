@@ -15,6 +15,7 @@ const nextConfig: NextConfig = {
     },
   },
   images: {
+    minimumCacheTTL: 2592000, // แคชรูปภาพ 30 วัน
     remotePatterns: [
       {
         protocol: "https",
@@ -45,6 +46,16 @@ const nextConfig: NextConfig = {
           {
             key: "Cache-Control",
             value: "public, max-age=2592000, stale-while-revalidate=86400",
+          },
+        ],
+      },
+      {
+        // รูปภาพและไฟล์ Static ทั่วไป — 1 ปี (Immutable)
+        source: "/:path*.(png|jpg|jpeg|gif|webp|svg|ico|woff2)",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=31536000, immutable",
           },
         ],
       },

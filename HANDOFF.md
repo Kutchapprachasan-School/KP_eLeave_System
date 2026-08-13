@@ -85,3 +85,102 @@
     *   แก้ไขไฟล์เค้าโครงระดับบนสุดของโปรเจกต์ใหม่เพื่อหุ้ม Component ด้วย `next-themes` และ `ToastProvider`
 5.  **คัดลอกการจัดหน้า Dashboard / Shell**:
     *   สามารถดึงเชลล์หลักจาก [layout.tsx](file:///g:/My%20Drive/01%20Web%20app/01%20ระบบการลา/eLeave/src/app/(app)/layout.tsx) ไปเป็นโครงกระดูกหน้าเว็บใหม่ได้เลย
+
+---
+
+## 🗄️ 4. ระบบฐานข้อมูล (Database Provider)
+
+*   **Database:** PostgreSQL บน **Supabase** (ไม่ใช่ Neon — เอกสารเก่าบางส่วนอาจระบุ Neon อยู่ เป็นข้อมูลที่ล้าสมัย)
+*   **ORM:** Prisma
+*   **Backup/Restore:** ใช้ Supabase Dashboard → Database → Backups (Point-in-Time Recovery)
+*   **Auth:** BetterAuth (ไม่ใช่ Supabase Auth)
+*   **Storage:** Google Drive ผ่าน Apps Script proxy (สำหรับ PDF/รูปใบลา)
+
+---
+
+## ⚡ 5. Session Handoff: วิเคราะห์ Vercel Egress & Performance (11 ส.ค. 2569)
+
+### 📊 A. สถานะ Egress ที่พบ
+*   **Vercel Free Plan:** 5 GB / 28 วัน
+*   **ใช้ไปแล้ว:** 3.86 GB (~77%) — เป็นแค่ช่วง dev/test ยังไม่เปิดใช้จริง
+*   **ประมาณการ 10 คนใช้งาน (ไม่แก้):** ~39–60 GB/เดือน (เกิน 8–12 เท่า)
+
+### 🔴 B. ต้นเหตุหลัก Egress สูงที่ตรวจพบ
+
+1.  **Static Assets ขนาดใหญ่ใน `public/manual/`:**
+    *   `e-Leave_User_Guide.pdf` = **7.45 MB**
+    *   `ระบบจัดการการลาออนไลน์ของโรงเรียน.png` = **4.62 MB** (PNG ไม่ได้บีบอัด)
+    *   มีไฟล์ซ้ำ `Gemini_Generated_Image - Copy.png`
+    *   **หมายเหตุ:** `/manual/` มี Cache-Control 30 วันอยู่แล้วใน `next.config.ts` แต่ static assets นอก path นี้ไม่มี cache
+
+2.  **Client Bundle ขนาดใหญ่ (~2.5 MB+ ต่อหน้า):**
+    *   `xlsx` (~800 KB) ถูก `import * as XLSX` แบบ Eager ใน **5 ไฟล์** (history, reports, settings, users, export-excel-button) — ทุกจุดใช้เฉพาะใน event handler จึง **เปลี่ยนเป็น dynamic import ได้ปลอดภัย 100%**
+    *   `jsPDF`/`html2canvas` ถูก import แบบ Eager ใน `approvals/page.tsx` — เปลี่ยนเป็น dynamic ได้
+    *   `recharts` import 18 components ใน `LeaveDashboardClient.tsx` แต่ใช้จริงแค่ 9 ตัว — ลบ 9 ตัวที่ไม่ใช้ออกได้
+
+3.  **Dashboard โหลดหนัก:**
+    *   [LeaveDashboardClient.tsx](file:///g:/My%20Drive/01%20Web%20app/01%20ระบบการลา/src/app/(app)/dashboard/_components/LeaveDashboardClient.tsx) = **108.8 KB (1,870 บรรทัด)** เป็น `"use client"` ก้อนเดียว
+    *   ยิง 6 Server Actions พร้อมกันเมื่อเปิด Dashboard
+    *   หน้าหลัก 4 หน้าตั้ง `export const dynamic = 'force-dynamic'` ไม่มี caching
+
+4.  **findMany 70+ จุดไม่มี pagination:**
+    *   ส่วนใหญ่ไม่มี `take`/`skip` — ดึงข้อมูลทั้งตาราง
+    *   พบ N+1 query ใน `archive.ts` L59 และ `leave.ts` L1790
+
+5.  **ไม่มี Server-side Caching:**
+    *   `unstable_cache` ไม่ได้ใช้เลย
+    *   `React.cache` ใช้แค่ 2 จุดใน `leave.ts`
+
+### ⚠️ C. ข้อค้นพบสำคัญเรื่อง `signatureUrl`
+
+**ความเข้าใจที่ถูกต้อง:**
+*   `signatureUrl` เก็บ Base64 ลายเซ็นดิจิทัล (50–500 KB/คน) ใน column `User.signatureUrl`
+*   **16 ไฟล์** อ้างอิง `signatureUrl` — แบ่งเป็น 3 ประเภท:
+    *   **(a) WRITE** (3 จุด): profile/page.tsx, user.ts, create-executive-directive.use-case.ts
+    *   **(b) READ สำหรับแสดงผล/พิมพ์** (10 จุด): print pages, incoming docs, repair tickets — **จำเป็นต้องใช้**
+    *   **(c) READ ใน bulk query** (3 จุด): admin.ts `getAllUsers`, repair/user.ts, leave.ts batch print
+*   **`getAllUsers()` ใน admin.ts ไม่ได้ส่ง Base64 ไป Client** — แปลงเป็น boolean `hasSignature` ก่อน return → ไม่กระทบ Vercel Egress โดยตรง (กระทบ Supabase Egress แทน)
+*   **ต้องตรวจสอบ:** BetterAuth session อาจรวม `signatureUrl` ใน session user object (กำหนดใน `auth.ts` L58 เป็น `additionalFields`) → อาจส่ง Base64 ทุก request
+
+### 🛡️ D. กฎเหล็กเรื่อง Middleware
+
+> **ห้ามแก้ไข logic ภายใน `middleware.ts` เด็ดขาด เมื่อต้องการเปลี่ยนเฉพาะ static file matching**
+
+Middleware ปัจจุบันทำหน้าที่สำคัญ:
+1.  ตรวจสอบ BetterAuth session cookie
+2.  Redirect ไป `/login` ถ้าไม่มี session
+3.  ตรวจสอบ Feature Flags (attendance, document enable/disable)
+4.  Redirect ออกจาก `/login` ถ้า login แล้ว
+
+**สิ่งที่ทำได้:** แก้เฉพาะ `matcher` regex เพื่อข้ามไฟล์ static:
+```typescript
+// ✅ ปลอดภัย — แก้เฉพาะ matcher
+export const config = {
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:png|jpg|jpeg|gif|webp|svg|ico|pdf|woff2?)$).*)"],
+};
+```
+
+### 📋 E. แผนแก้ไข Egress ที่ยังรอดำเนินการ
+
+**Phase 1 (Quick Wins ~1.5 ชม., ลด ~40-50%):**
+- [x] Dynamic import `xlsx` (5 ไฟล์)
+- [x] Dynamic import `jsPDF`/`html2canvas` ใน approvals
+- [x] เพิ่ม `minimumCacheTTL: 2592000` ใน `next.config.ts`
+- [x] เพิ่ม Cache-Control สำหรับ static assets ทั่วไป
+- [x] แก้ middleware matcher (เฉพาะ regex)
+- [x] ลบไฟล์ภาพส่วนเกินใน `public/manual/` รวม **>5.5 MB** (`Gemini_Generated_Image - Copy.png`, `Gemini_Generated_Image_i56paci56paci56p.png`, `ระบบจัดการการลาออนไลน์ของโรงเรียน.png`)
+- [x] ลบ recharts unused imports (9 ตัว)
+
+**Phase 2 (Optimization & Client-Side Caching):**
+- [x] สร้างโมดูล `src/lib/client-cache.ts` สำหรับ LocalStorage Caching พร้อมระบบ TTL & User Key Isolation
+- [x] ใช้กลยุทธ์ **Stale-While-Revalidate (SWR)** สำหรับวันหยุดและตั้งค่าระบบใน `LeaveDashboardClient.tsx` (เรนเดอร์ 0ms จากเครื่อง + อัปเดตเบื้องหลัง)
+- [x] ใช้กลยุทธ์ **Action-Triggered Invalidation** เมื่อผู้ใช้อัปเดตการตั้งค่า และสั่ง `clearAllClientCaches()` เมื่อกด Logout
+- [x] ลบ `signatureUrl` จาก `getAllUsers` + ใช้ Set lookup (ประหยัด Supabase DB Egress ~14 MB/call)
+- [x] แยก `MonthlyTrendChart` เป็น dynamic component (`{ ssr: false }`) ลด bundle โหลดแรก Dashboard ลง ~350 KB
+- [x] ใส่ `prefetch={false}` บน `<Link>` เมนูหลักทั้งหมดใน `layout.tsx` (Sidebar, Header, Mobile Bottom Nav) เพื่อป้องกันการแอบยิง Prefetch ขยะบนมือถือ
+- [ ] ตรวจสอบ BetterAuth session payload
+
+**Phase 3 (Long-term):**
+- [ ] เพิ่ม `unstable_cache` สำหรับ holidays, settings
+- [ ] Pagination สำหรับ list pages (findMany 70+ จุด)
+- [ ] พิจารณา Vercel Pro ($20/เดือน, 1 TB Egress)

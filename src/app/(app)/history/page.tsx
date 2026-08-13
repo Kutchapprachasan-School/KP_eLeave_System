@@ -1,13 +1,12 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { getMyLeaveHistory, cancelLeaveRequest, getStaffList, adminDeleteLeaveRequest } from "@/app/actions/leave";
+import { getPaginatedLeaveHistory, cancelLeaveRequest, getStaffList, adminDeleteLeaveRequest } from "@/app/actions/leave";
 import { getLeaveConfigs } from "@/app/actions/settings";
 import { useSession } from "@/lib/auth-client";
 import { format } from "date-fns";
 import { formatLeaveDate } from "@/lib/date-format";
 import { CalendarDays, Clock, FileX, CheckCircle2, XCircle, Download, Printer, FileSpreadsheet, Paperclip, X, ChevronRight, Users, Search } from "lucide-react";
-import * as XLSX from "xlsx";
 import { CycleSelect } from "@/components/cycle-select";
 import { useSearchParams } from "next/navigation";
 import { getLeaveCycleFilter } from "@/lib/cycle";
@@ -73,37 +72,34 @@ export default function HistoryPage() {
     return count;
   };
 
-  const [history, setHistory] = useState<any[]>([]);
+  const [historyResponse, setHistoryResponse] = useState<any>({
+    data: [],
+    pagination: { page: 1, limit: 10, totalItems: 0, totalPages: 0, hasNextPage: false, hasPreviousPage: false },
+    stats: { total: 0, approved: 0, pending: 0, rejected: 0 }
+  });
   const [leaveConfigs, setLeaveConfigs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [staffList, setStaffList] = useState<any[]>([]);
   const [selectedUserId, setSelectedUserId] = useState<string>("me");
   const [selectedStatus, setSelectedStatus] = useState<string>("all");
   const [searchName, setSearchName] = useState<string>("");
+  const [debouncedSearchName, setDebouncedSearchName] = useState<string>("");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
   const printRef = useRef<HTMLDivElement>(null);
   const [selectedLeaveDetail, setSelectedLeaveDetail] = useState<any | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
 
-  const filteredHistory = history.filter((item) => {
-    // Exclude CANCELLED requests from leave history view as requested
-    if (item.status === "CANCELLED") return false;
+  // Debounce searchName
+  useEffect(() => {
+    const handler = setTimeout(() => setDebouncedSearchName(searchName), 500);
+    return () => clearTimeout(handler);
+  }, [searchName]);
 
-    // Filter by status
-    if (selectedStatus !== "all") {
-      if (selectedStatus === "pending" && item.status !== "PENDING_HEAD" && item.status !== "PENDING_EXEC") return false;
-      if (selectedStatus === "approved" && item.status !== "APPROVED") return false;
-      if (selectedStatus === "rejected" && item.status !== "REJECTED") return false;
-    }
-    // Filter by name search
-    if (searchName.trim()) {
-      const keyword = searchName.trim().toLowerCase();
-      const name = (item.userName || "").toLowerCase();
-      if (!name.includes(keyword)) return false;
-    }
-    return true;
-  });
+  // Reset page to 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [cycleParam, selectedUserId, selectedStatus, debouncedSearchName]);
 
   const getCycleLabel = () => {
     if (cycleParam === "all") {
@@ -125,17 +121,33 @@ export default function HistoryPage() {
     getStaffList().then(setStaffList).catch(console.error);
   }, []);
 
+  const fetchSequence = useRef(0);
+
   useEffect(() => {
     setLoading(true);
-    setCurrentPage(1);
+    const currentSeq = ++fetchSequence.current;
+
     Promise.all([
-      getMyLeaveHistory(cycleParam as any, selectedUserId),
+      getPaginatedLeaveHistory({
+        cycleFilter: cycleParam as any,
+        targetUserId: selectedUserId,
+        page: currentPage,
+        limit: itemsPerPage,
+        statusFilter: selectedStatus,
+        searchName: debouncedSearchName,
+      }),
       getLeaveConfigs()
     ]).then(([h, c]) => {
-      setHistory(h);
+      if (fetchSequence.current !== currentSeq) return;
+      setHistoryResponse(h);
       setLeaveConfigs(c);
-    }).catch(console.error).finally(() => setLoading(false));
-  }, [cycleParam, selectedUserId]);
+      setLoading(false);
+    }).catch(err => {
+      if (fetchSequence.current !== currentSeq) return;
+      console.error(err);
+      setLoading(false);
+    });
+  }, [cycleParam, selectedUserId, currentPage, selectedStatus, debouncedSearchName]);
 
   const getLeaveTypeName = (type: string) => {
     const config = leaveConfigs.find((c) => c.type === type);
@@ -257,7 +269,7 @@ export default function HistoryPage() {
       </tr>
     `;
 
-    const rows = filteredHistory.map((item, i) => {
+    const rows = historyResponse.data.map((item, i) => {
       const config = leaveConfigs.find((c) => c.type === item.type);
       const leaveTh = getLeaveTypeNameTh(item.type, config?.name);
       return `
@@ -314,7 +326,7 @@ export default function HistoryPage() {
             ${rows}
           </tbody>
         </table>
-        <div class="footer">ทั้งหมด ${filteredHistory.length} รายการ</div>
+        <div class="footer">ทั้งหมด ${historyResponse.data.length} รายการ</div>
       </body>
       </html>
     `);
@@ -324,11 +336,12 @@ export default function HistoryPage() {
   };
 
   // ========= Export XLSX =========
-  const handleExportXlsx = () => {
+  const handleExportXlsx = async () => {
+    const XLSX = await import("xlsx");
     const leaveTypeMap: Record<string, string> = {};
     leaveConfigs.forEach(c => { leaveTypeMap[c.type] = c.name; });
 
-    const formattedData = filteredHistory.map((item) => {
+    const formattedData = historyResponse.data.map((item) => {
       const row: any = {
         "เลขที่ใบลา": item.status === "APPROVED" 
           ? `อนุมัติที่ ${item.approvedSeq || "-"}/${item.fiscalYear || "-"}` 
@@ -421,10 +434,10 @@ export default function HistoryPage() {
 
   // Stats calculation
   const stats = {
-    total: filteredHistory.length,
-    approved: filteredHistory.filter(h => h.status === "APPROVED").length,
-    pending: filteredHistory.filter(h => h.status === "PENDING_HEAD" || h.status === "PENDING_EXEC").length,
-    rejected: filteredHistory.filter(h => h.status === "REJECTED").length
+    total: historyResponse.data.length,
+    approved: historyResponse.data.filter(h => h.status === "APPROVED").length,
+    pending: historyResponse.data.filter(h => h.status === "PENDING_HEAD" || h.status === "PENDING_EXEC").length,
+    rejected: historyResponse.data.filter(h => h.status === "REJECTED").length
   };
 
   return (
@@ -495,7 +508,7 @@ export default function HistoryPage() {
           </select>
         </div>
         
-        {filteredHistory.length > 0 && (
+        {historyResponse.data.length > 0 && (
           <div className="flex gap-2 w-full lg:w-auto shrink-0">
             <button
               onClick={handlePrint}
@@ -565,8 +578,8 @@ export default function HistoryPage() {
             ))}
           </div>
         ) : (() => {
-          const totalPages = Math.ceil(filteredHistory.length / itemsPerPage);
-          const paginatedHistory = filteredHistory.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+          const totalPages = historyResponse.pagination.totalPages;
+          const paginatedHistory = historyResponse.data;
           
           return (
             <div className="space-y-4">
@@ -589,7 +602,7 @@ export default function HistoryPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                    {filteredHistory.length === 0 ? (
+                    {historyResponse.data.length === 0 ? (
                       <tr>
                         <td colSpan={10} className="px-6 py-12 text-center text-slate-400">
                           <div className="flex flex-col items-center gap-2">
@@ -696,7 +709,7 @@ export default function HistoryPage() {
 
               {/* Mobile Card Grid View */}
               <div className="md:hidden space-y-4">
-                {filteredHistory.length === 0 ? (
+                {historyResponse.data.length === 0 ? (
                   <div className="py-8 text-center text-slate-400 text-xs flex flex-col items-center gap-2">
                     <CalendarDays className="w-8 h-8 text-slate-300 dark:text-slate-600" />
                     <span>{t("noLeaveHistory")}</span>
@@ -791,10 +804,10 @@ export default function HistoryPage() {
               </div>
 
               {/* Pagination Bar */}
-              {filteredHistory.length > itemsPerPage && (
+              {historyResponse.pagination.totalPages > 1 && (
                 <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-6 py-5 border-t border-slate-100 dark:border-slate-800/80 mt-4 print:hidden">
                   <div className="text-xs font-semibold text-slate-400 dark:text-slate-500">
-                    {t("showingText")} {((currentPage - 1) * itemsPerPage) + 1} - {Math.min(currentPage * itemsPerPage, filteredHistory.length)} {t("ofText")} {filteredHistory.length} {t("recordsText")}
+                    {t("showingText")} {((currentPage - 1) * itemsPerPage) + 1} - {Math.min(currentPage * itemsPerPage, historyResponse.pagination.totalItems)} {t("ofText")} {historyResponse.pagination.totalItems} {t("recordsText")}
                   </div>
                   
                   <div className="flex items-center gap-1.5">

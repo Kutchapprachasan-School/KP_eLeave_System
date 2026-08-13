@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useSession } from "@/lib/auth-client";
-import { updateProfile } from "@/app/actions/user";
+import { updateProfile, getMySignature, setUserSignature, removeUserSignature } from "@/app/actions/user";
 import { authClient } from "@/lib/auth-client";
 import { Save, Lock, User as UserIcon, ShieldCheck, Mail, BookOpen, KeyRound, CheckCircle, Fingerprint, Camera, Trash2, Pencil, RefreshCw, Paperclip, Phone, MapPin, Award, X } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
@@ -149,7 +149,13 @@ export default function ProfilePage() {
       setPhoneNumber(user.phoneNumber || "");
       setLevel(user.level || "");
       setAvatarPreview(user.image || "");
-      setSignaturePreview(user.signatureUrl || "");
+      // signatureUrl is no longer in the session payload
+      if (user.hasSignature) {
+        // Fetch signature on-demand
+        getMySignature().then((sig) => {
+          if (sig) setSignaturePreview(sig);
+        }).catch(console.error);
+      }
     }
   }, [user]);
 
@@ -334,7 +340,7 @@ export default function ProfilePage() {
     if (!signaturePreview) return;
     setSavingSignature(true);
     try {
-      await updateProfile({ name, subjectGroup, address, phoneNumber, level, signatureUrl: signaturePreview });
+      await setUserSignature(signaturePreview);
       await refetch();
       showToast("success", t("sigSaveSuccess"));
     } catch (err) {
@@ -348,7 +354,7 @@ export default function ProfilePage() {
     if (!confirm(t("confirmDeleteSig"))) return;
     setSavingSignature(true);
     try {
-      await updateProfile({ name, subjectGroup, address, phoneNumber, level, signatureUrl: "" });
+      await removeUserSignature();
       await refetch();
       setSignaturePreview("");
       showToast("success", t("sigDeleteSuccess"));

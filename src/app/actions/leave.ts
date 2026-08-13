@@ -8,6 +8,7 @@ import { revalidatePath } from "next/cache";
 import { sendLineNotify, formatLeaveMessage } from "@/lib/line-notify";
 import { getCurrentLeaveCycle, getLeaveCycleFilter } from "@/lib/cycle";
 import { cache } from "react";
+import { z } from "zod";
 
 const getAllHolidaysMemo = cache(async () => {
   return prisma.holiday.findMany();
@@ -341,45 +342,88 @@ export async function submitLeaveRequest(data: {
 }
 
 // ========= Get Leave History (own or by userId for admin/exec) =========
-export async function getMyLeaveHistory(cycleFilter: "current" | "cycle1" | "cycle2" | "year" | "all" = "all", targetUserId?: string) {
+const getPaginatedLeaveHistorySchema = z.object({
+  cycleFilter: z.enum(["current", "cycle1", "cycle2", "year", "all"]).default("all"),
+  targetUserId: z.string().optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(50).default(10),
+  statusFilter: z.enum(["all", "pending", "approved", "rejected"]).default("all"),
+  searchName: z.string().max(100).optional().transform(s => s?.trim() || undefined),
+});
+
+export async function getPaginatedLeaveHistory(rawParams: any) {
   await ensureSequencesPopulated();
   const session = await getSession();
   const user = session.user as any;
 
-  const isPrivileged = user.role === "ADMIN" || ["แอดมิน", "ผู้อำนวยการ", "รองผู้อำนวยการ", "หัวหน้างานบุคคล", "เจ้าหน้าที่บุคคล", "ผู้ตรวจสอบ"].includes(user.position);
+  // 1. Validate params (rejects invalid data, defaults missing)
+  const parsed = getPaginatedLeaveHistorySchema.safeParse(rawParams);
+  if (!parsed.success) {
+    throw new Error("Invalid pagination parameters: " + parsed.error.message);
+  }
+  const { cycleFilter, targetUserId, page, limit, statusFilter, searchName } = parsed.data;
 
-  const whereClause: any = {};
+  // 2. Strict Authorization
+  const isPrivileged = user.role === "ADMIN" || ["แอดมิน", "ผู้อำนวยการ", "รองผู้อำนวยการ", "หัวหน้างานบุคคล", "เจ้าหน้าที่บุคคล", "ผู้ตรวจสอบ"].includes(user.position);
   
+  let queryUserId: string | undefined = undefined;
   if (targetUserId === "all") {
-    if (!isPrivileged) {
-      throw new Error("Unauthorized");
-    }
-    // Omit userId filter to fetch all users' requests
+    if (!isPrivileged) throw new Error("Unauthorized: Cannot view all users");
+    queryUserId = undefined;
   } else {
-    let queryUserId = session.user.id;
-    if (targetUserId && targetUserId !== "me") {
-      if (!isPrivileged) {
-        throw new Error("Unauthorized");
-      }
+    queryUserId = session.user.id;
+    if (targetUserId && targetUserId !== "me" && targetUserId !== session.user.id) {
+      if (!isPrivileged) throw new Error("Unauthorized: Cannot view other user");
       queryUserId = targetUserId;
     }
-    whereClause.userId = queryUserId;
   }
 
-  const filter = getLeaveCycleFilter(new Date(), cycleFilter);
+  // 3. Separate logic: Base Where (Cycle + User + Search)
+  const baseWhere: any = { status: { not: "CANCELLED" } };
+  if (queryUserId) {
+    baseWhere.userId = queryUserId;
+  }
 
+  const filter = getLeaveCycleFilter(new Date(), cycleFilter as any);
   if (filter) {
-    whereClause.startDate = { gte: filter.start, lte: filter.end };
+    baseWhere.startDate = { gte: filter.start, lte: filter.end };
   }
 
-  const requests = await prisma.leaveRequest.findMany({
-    where: whereClause,
-    orderBy: { createdAt: "desc" },
-    include: { user: { select: { name: true } } },
-  });
+  if (searchName) {
+    baseWhere.user = { name: { contains: searchName, mode: "insensitive" } };
+  }
 
-  // Serialize dates for client and pre-calculate correct leave days
-  return Promise.all(
+  // 4. Data Where (Base + Status Filter)
+  const dataWhere = { ...baseWhere };
+  if (statusFilter === "pending") {
+    dataWhere.status = { in: ["PENDING_HEAD", "PENDING_EXEC"] };
+  } else if (statusFilter === "approved") {
+    dataWhere.status = "APPROVED";
+  } else if (statusFilter === "rejected") {
+    dataWhere.status = "REJECTED";
+  }
+
+  // 5. Query
+  const skip = (page - 1) * limit;
+
+  const [totalItems, requests, statsRaw] = await Promise.all([
+    prisma.leaveRequest.count({ where: dataWhere }),
+    prisma.leaveRequest.findMany({
+      where: dataWhere,
+      skip,
+      take: limit,
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      include: { user: { select: { name: true } } },
+    }),
+    prisma.leaveRequest.groupBy({
+      by: ['status'],
+      where: baseWhere,
+      _count: { _all: true }
+    })
+  ]);
+
+  // Serialize dates and calculate leave days
+  const data = await Promise.all(
     requests.map(async (r) => {
       const leaveDays = await calculateLeaveDays(r.startDate, r.endDate, r.type);
       return {
@@ -393,6 +437,31 @@ export async function getMyLeaveHistory(cycleFilter: "current" | "cycle1" | "cyc
       };
     })
   );
+
+  // Parse Stats (Model A Semantics)
+  let total = 0, approved = 0, pending = 0, rejected = 0;
+  for (const group of statsRaw) {
+    const count = group._count._all;
+    total += count;
+    if (group.status === "APPROVED") approved += count;
+    else if (group.status === "PENDING_HEAD" || group.status === "PENDING_EXEC") pending += count;
+    else if (group.status === "REJECTED") rejected += count;
+  }
+
+  const totalPages = Math.ceil(totalItems / limit);
+
+  return {
+    data,
+    pagination: {
+      page,
+      limit,
+      totalItems,
+      totalPages,
+      hasNextPage: page < totalPages,
+      hasPreviousPage: page > 1
+    },
+    stats: { total, approved, pending, rejected }
+  };
 }
 
 // ========= Get Staff List (for admin/exec dropdown) =========

@@ -12,7 +12,6 @@ export async function updateProfile(data: {
   subjectGroup: string;
   lineUserId?: string;
   image?: string;
-  signatureUrl?: string;
   address?: string;
   phoneNumber?: string;
   level?: string;
@@ -33,10 +32,68 @@ export async function updateProfile(data: {
       subjectGroup: data.subjectGroup,
       lineUserId: data.lineUserId,
       image: data.image !== undefined ? data.image : undefined,
-      signatureUrl: data.signatureUrl !== undefined ? data.signatureUrl : undefined,
       address: data.address !== undefined ? data.address : undefined,
       phoneNumber: data.phoneNumber !== undefined ? data.phoneNumber : undefined,
       level: data.level !== undefined ? data.level : undefined,
+    }
+  });
+
+  revalidatePath("/profile");
+  return { success: true };
+}
+
+export async function getMySignature() {
+  const session = await auth.api.getSession({
+    headers: await headers()
+  });
+
+  if (!session?.user?.id) {
+    throw new Error("Unauthorized");
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { signatureUrl: true },
+  });
+
+  return user?.signatureUrl || null;
+}
+
+export async function setUserSignature(base64Data: string) {
+  const session = await auth.api.getSession({
+    headers: await headers()
+  });
+
+  if (!session?.user?.id) {
+    throw new Error("Unauthorized");
+  }
+
+  await prisma.user.update({
+    where: { id: session.user.id },
+    data: {
+      signatureUrl: base64Data,
+      hasSignature: true,
+    }
+  });
+
+  revalidatePath("/profile");
+  return { success: true };
+}
+
+export async function removeUserSignature() {
+  const session = await auth.api.getSession({
+    headers: await headers()
+  });
+
+  if (!session?.user?.id) {
+    throw new Error("Unauthorized");
+  }
+
+  await prisma.user.update({
+    where: { id: session.user.id },
+    data: {
+      signatureUrl: null,
+      hasSignature: false,
     }
   });
 

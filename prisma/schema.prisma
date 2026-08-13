@@ -22,6 +22,7 @@ model User {
   subjectGroup        String?
   isApproved          Boolean            @default(false)
   signatureUrl        String?
+  hasSignature        Boolean   @default(false)
   username            String?            @unique
   address             String?
   phoneNumber         String?

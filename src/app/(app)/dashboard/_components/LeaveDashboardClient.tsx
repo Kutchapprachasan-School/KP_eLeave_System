@@ -5,11 +5,12 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useSession } from "@/lib/auth-client";
 import { motion } from "framer-motion";
-import { 
-  BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, 
-  AreaChart, Area, PieChart, Pie, Cell, RadialBarChart, RadialBar,
-  LineChart, Line, Legend, LabelList
-} from "recharts";
+import dynamic from "next/dynamic";
+
+const MonthlyTrendChart = dynamic(() => import("./MonthlyTrendChart"), {
+  ssr: false,
+  loading: () => <div className="h-[250px] w-full animate-pulse bg-slate-100 dark:bg-slate-800/50 rounded-2xl flex items-center justify-center text-xs text-slate-400">Loading Chart...</div>
+});
 import { getDashboardStats, getCalendarLeaves } from "@/app/actions/leave";
 import { getHolidays } from "@/app/actions/holiday";
 import { getSystemSettings } from "@/app/actions/settings";
@@ -21,6 +22,7 @@ import {
   UserCheck, XCircle, MapPin, Fingerprint, CalendarDays, Loader2
 } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
+import { getClientCache, setClientCache } from "@/lib/client-cache";
 
 // Animation Variants
 const containerVariants: any = {
@@ -100,10 +102,19 @@ export default function LeaveDashboardClient() {
   const [statsError, setStatsError] = useState<string | null>(null);
 
   useEffect(() => {
+    // 1. Check local cache first for instant 0ms UI render
+    const cachedSettings = getClientCache<any>("sysSettings");
+    if (cachedSettings?.data) {
+      setSysSettings(cachedSettings.data);
+      setAttendanceEnabled(!!cachedSettings.data.enableAttendance);
+    }
+
+    // 2. Fetch fresh data in background & update cache
     getSystemSettings().then((s) => {
       if (s) {
         setSysSettings(s);
         setAttendanceEnabled(!!s.enableAttendance);
+        setClientCache("sysSettings", s, 12 * 60 * 60 * 1000); // Cache for 12 hours
         if (s.rolePermissions && session?.user) {
           try {
             const perms = JSON.parse(s.rolePermissions);
@@ -136,8 +147,19 @@ export default function LeaveDashboardClient() {
         .catch(console.error);
     }
     if (mounted) {
+      const cacheKey = `holidays_${dashboardYear}`;
+      const cachedHolidays = getClientCache<any[]>(cacheKey);
+      if (cachedHolidays?.data) {
+        setHolidays(cachedHolidays.data);
+      }
+
       getHolidays(dashboardYear)
-        .then(setHolidays)
+        .then((h) => {
+          if (Array.isArray(h)) {
+            setHolidays(h);
+            setClientCache(cacheKey, h, 12 * 60 * 60 * 1000); // Cache for 12 hours
+          }
+        })
         .catch(console.error);
     }
   }, [dashboardYear, mounted]);
@@ -481,7 +503,7 @@ export default function LeaveDashboardClient() {
   if (user) {
     if (!user.address) missingFields.push(lang === "en" ? "Address" : "ที่อยู่");
     if (!user.phoneNumber) missingFields.push(lang === "en" ? "Phone Number" : "เบอร์โทรศัพท์");
-    if (!user.signatureUrl) missingFields.push(lang === "en" ? "Signature" : "ลายเซ็นดิจิทัล");
+    if (!user.hasSignature) missingFields.push(lang === "en" ? "Signature" : "ลายเซ็นดิจิทัล");
   }
   const isProfileIncomplete = missingFields.length > 0;
 
@@ -763,159 +785,7 @@ export default function LeaveDashboardClient() {
 
         {/* Monthly Trend Line Chart */}
         <motion.div variants={itemVariants} className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white/60 dark:border-slate-800 rounded-3xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] lg:col-span-2 flex flex-col">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-            <h3 className="text-lg font-bold text-slate-900 dark:text-white">{t("monthlyTrend")}</h3>
-            
-            {/* View Mode Toggle */}
-            <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl text-xs font-semibold self-start sm:self-auto shadow-inner">
-              <button
-                onClick={() => setTrendViewMode("types")}
-                className={`px-3 py-1.5 rounded-lg transition-all ${
-                  trendViewMode === "types"
-                    ? "bg-white dark:bg-slate-700 text-purple-600 dark:text-purple-300 shadow-sm"
-                    : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
-                }`}
-              >
-                {lang === "th" ? "แยกตามประเภท" : "By Leave Type"}
-              </button>
-              <button
-                onClick={() => setTrendViewMode("total")}
-                className={`px-3 py-1.5 rounded-lg transition-all ${
-                  trendViewMode === "total"
-                    ? "bg-white dark:bg-slate-700 text-purple-600 dark:text-purple-300 shadow-sm"
-                    : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
-                }`}
-              >
-                {lang === "th" ? "ยอดรวม" : "Total"}
-              </button>
-            </div>
-          </div>
-
-          <div className="min-h-[250px] h-[250px] w-full flex-1">
-            <ResponsiveContainer width="99%" height="100%">
-              <LineChart data={monthlyData} margin={{ top: 20, right: 15, left: -20, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(148, 163, 184, 0.1)" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: "#94A3B8" }} dy={10} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: "#94A3B8" }} />
-                <Tooltip 
-                  content={({ active, payload, label }: any) => {
-                    if (!active || !payload || payload.length === 0) return null;
-                    const dataPoint = payload[0]?.payload;
-                    if (!dataPoint) return null;
-
-                    // Build list of all leave types with their values
-                    const activeConfigs = leaveConfigs?.filter((c: any) => c.isActive) || [];
-                    const typeRows = activeConfigs
-                      .map((config: any, idx: number) => ({
-                        name: lang === "th" ? config.name : (tLeaveType(config.type, config.name) || config.name),
-                        value: dataPoint[config.type] || 0,
-                        color: COLOR_PALETTE[idx % COLOR_PALETTE.length],
-                        type: config.type
-                      }))
-                      .filter((row: any) => row.value > 0);
-
-                    const total = dataPoint.total || 0;
-
-                    return (
-                      <div className="bg-slate-900/95 backdrop-blur-lg border border-white/10 rounded-2xl px-4 py-3 shadow-2xl min-w-[180px]">
-                        <p className="text-slate-400 text-xs font-bold mb-2 border-b border-slate-700/50 pb-2">{label}</p>
-                        {typeRows.length > 0 ? (
-                          <div className="space-y-1.5">
-                            {typeRows.map((row: any) => (
-                              <div key={row.type} className="flex items-center justify-between gap-4">
-                                <div className="flex items-center gap-2">
-                                  <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: row.color }} />
-                                  <span className="text-slate-300 text-xs">{row.name}</span>
-                                </div>
-                                <span className="text-white text-xs font-bold">{row.value} {lang === "th" ? "วัน" : "days"}</span>
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <p className="text-slate-500 text-xs">{lang === "th" ? "ไม่มีการลา" : "No leave"}</p>
-                        )}
-                        <div className="mt-2 pt-2 border-t border-slate-700/50 flex items-center justify-between">
-                          <span className="text-slate-400 text-xs font-semibold">{lang === "th" ? "รวม" : "Total"}</span>
-                          <span className="text-white text-sm font-bold">{total} {lang === "th" ? "วัน" : "days"}</span>
-                        </div>
-                      </div>
-                    );
-                  }}
-                />
-                
-                {trendViewMode === "types" ? (
-                  <>
-                    <Legend 
-                      verticalAlign="top" 
-                      height={36} 
-                      iconType="circle"
-                      iconSize={8}
-                      wrapperStyle={{ fontSize: '11px', fontWeight: '500', paddingBottom: '10px' }}
-                    />
-                    {leaveConfigs
-                      ?.filter((c: any) => c.isActive)
-                      .map((config: any, index: number) => {
-                        // Check if this type has non-zero data in monthlyData or is a primary type
-                        const hasData = monthlyData?.some((m: any) => (m[config.type] || 0) > 0);
-                        const isPrimary = ["SICK", "PERSONAL", "VACATION"].includes(config.type);
-                        if (!isPrimary && !hasData) return null;
-
-                        return (
-                          <Line
-                            key={config.type}
-                            type="monotone"
-                            dataKey={config.type}
-                            name={lang === "th" ? config.name : (tLeaveType(config.type, config.name) || config.name)}
-                            stroke={COLOR_PALETTE[index % COLOR_PALETTE.length]}
-                            strokeWidth={3}
-                            dot={{ r: 3 }}
-                            activeDot={{ r: 6, strokeWidth: 2, stroke: '#fff' }}
-                            connectNulls
-                            isAnimationActive={true}
-                            animationDuration={1200}
-                            animationEasing="ease-in-out"
-                          >
-                            <LabelList 
-                              dataKey={config.type} 
-                              position="top" 
-                              offset={8} 
-                              fill={COLOR_PALETTE[index % COLOR_PALETTE.length]} 
-                              fontSize={10} 
-                              fontWeight="600" 
-                              formatter={(val: any) => val > 0 ? val : ""} 
-                            />
-                          </Line>
-                        );
-                      })}
-                  </>
-                ) : (
-                  <Line
-                    type="monotone"
-                    dataKey="total"
-                    name={lang === "th" ? "ยอดรวม" : "Total"}
-                    stroke={COLORS.blue}
-                    strokeWidth={4}
-                    dot={{ r: 4, fill: COLORS.blue, strokeWidth: 2, stroke: '#fff' }}
-                    activeDot={{ r: 7, fill: COLORS.blue, strokeWidth: 2, stroke: '#fff' }}
-                    isAnimationActive={true}
-                    animationDuration={1500}
-                    animationEasing="ease-in-out"
-                  >
-                    <LabelList 
-                      dataKey="total" 
-                      position="top" 
-                      offset={10} 
-                      fill="#64748b" 
-                      className="dark:fill-slate-400" 
-                      fontSize={11} 
-                      fontWeight="bold" 
-                      formatter={(val: any) => val > 0 ? val : ""} 
-                    />
-                  </Line>
-                )}
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
+          <MonthlyTrendChart monthlyData={monthlyData} leaveConfigs={leaveConfigs} />
         </motion.div>
 
       </div>

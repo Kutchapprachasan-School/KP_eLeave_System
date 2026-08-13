@@ -49,12 +49,12 @@ npx prisma migrate diff --from-schema-datasource prisma/schema.prisma --to-schem
 
 ### การสำรองข้อมูล (Backup)
 ก่อนกดเริ่มกระบวนการ Migrate บน Production ทุกครั้ง:
-1. **Manual Snapshot:** เข้าไปกดคำสั่ง Backup หรือสร้าง Snapshot บน Neon PostgreSQL Dashboard เพื่อมีจุดเซฟหลัก (Restore Point) ล่าสุด
+1. **Manual Snapshot:** เข้าไปกดคำสั่ง Backup หรือสร้าง Snapshot บน Supabase Dashboard (Database → Backups) เพื่อมีจุดเซฟหลัก (Restore Point) ล่าสุด
 2. **Data Export:** ดึงข้อมูลตารางสำคัญ (เช่น User, LeaveRequest) ออกมาในรูปแบบ JSON หรือ CSV สำรองไว้ผ่าน CLI หรือ Script
 
 ### แผนการกู้คืนระบบ (Rollback)
 หากการทำ Migration เกิดขัดข้องระหว่างทางจนแอปพลิเคชันพัง:
 1. **ฝั่ง Code:** ทำการ Rollback หรือ Git Revert โค้ด Next.js กลับไปที่ Commit ก่อนหน้าเพื่อตัดปัญหาระบบขัดข้องระดับ UI
 2. **ฝั่ง Database:** 
-   - หากความพังเป็นระดับข้อมูลสูญหาย (Data Corruption): ให้ทำการกู้คืนจาก **Neon Restore Point** ที่สร้างไว้ก่อนรัน Migration ทันที
-   - หากระบบล้มเหลวเพราะ State ค้าง: ให้เข้าสู่ Neon Dashboard และทำการชี้ระบบ (Switch branch/Restore) กลับมายังฐานข้อมูลที่ปลอดภัย
+   - หากความพังเป็นระดับข้อมูลสูญหาย (Data Corruption): ให้ทำการกู้คืนจาก **Supabase Restore Point** (Database → Backups → Restore) ที่สร้างไว้ก่อนรัน Migration ทันที
+   - หากระบบล้มเหลวเพราะ State ค้าง: ให้เข้าสู่ Supabase Dashboard และทำการ Point-in-Time Recovery (PITR) กลับมายังฐานข้อมูลที่ปลอดภัย

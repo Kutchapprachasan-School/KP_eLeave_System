@@ -5,7 +5,6 @@ import { getCycleReport } from "@/app/actions/admin";
 import { getLeaveConfigs } from "@/app/actions/settings";
 import { motion } from "framer-motion";
 import { Printer, Download, FileSpreadsheet, CalendarDays, CheckCircle2, XCircle, Clock } from "lucide-react";
-import * as XLSX from "xlsx";
 import { useI18n } from "@/lib/i18n";
 
 export default function ReportsPage() {
@@ -140,8 +139,9 @@ export default function ReportsPage() {
     return acc;
   }, {}));
 
-  const handleExportExcel = () => {
+  const handleExportExcel = async () => {
     try {
+      const XLSX = await import("xlsx");
       if (viewMode === "overview") {
         const formatted = data.map(item => ({
           "เลขที่ใบลา": item.status === "APPROVED" 

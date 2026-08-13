@@ -129,7 +129,6 @@ export async function getAllUsers() {
       createdAt: true,
       phoneNumber: true,
       address: true,
-      signatureUrl: true,
       sessions: {
         orderBy: { createdAt: "desc" },
         take: 1,
@@ -139,6 +138,20 @@ export async function getAllUsers() {
       }
     }
   });
+
+  // Query only IDs of users who have a non-empty signatureUrl to save DB Egress
+  const usersWithSignature = await prisma.user.findMany({
+    where: {
+      signatureUrl: {
+        not: ""
+      }
+    },
+    select: {
+      id: true
+    }
+  });
+
+  const sigSet = new Set(usersWithSignature.map(u => u.id));
 
   return users.map(u => ({
     id: u.id,
@@ -155,7 +168,7 @@ export async function getAllUsers() {
     lastLogin: u.sessions[0]?.createdAt.toISOString() || null,
     hasPhone: !!u.phoneNumber?.trim(),
     hasAddress: !!u.address?.trim(),
-    hasSignature: !!u.signatureUrl?.trim(),
+    hasSignature: sigSet.has(u.id),
   }));
 }
 
