@@ -254,20 +254,13 @@ export async function getSystemSettings() {
     }
 
     // Ultimate fallback - return minimal defaults so the page can still render
-
     return {
-
       id: "default",
-
-      schoolName: "ชื่อโรงเรียน",
-
+      schoolName: "โรงเรียนกุดจับประชาสรรค์",
       affiliation: "สำนักงานเขตพื้นที่การศึกษามัธยมศึกษาอุดรธานี",
-
-      subheader: "ระบบจัดการการลา",
-
+      subheader: "School Management System",
       logoUrl: null,
-
-      footerText: "© 2006 Panchapon Getrat KP-school",
+      footerText: "© 2026 Panchapon Getrat KP-school",
 
       lineChannelAccessToken: null,
 
