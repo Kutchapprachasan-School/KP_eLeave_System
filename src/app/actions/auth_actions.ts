@@ -9,25 +9,31 @@ import { prisma } from "@/lib/db";
 export async function resolveEmailForLogin(usernameOrEmail: string): Promise<string> {
   const identifier = usernameOrEmail.trim();
 
-  // 1. ถ้ามีเครื่องหมาย @ แสดงว่าเป็นรูปแบบอีเมล ให้ส่งกลับไปเลย
+  // 1. ถ้ามีเครื่องหมาย @ แสดงว่าเป็นรูปแบบอีเมล ให้ค้นหาหรือส่งกลับ
   if (identifier.includes("@")) {
     return identifier;
   }
 
-  // 2. ถ้าเป็น ID เข้าใช้งาน (ไม่มี @) ให้ค้นหาจากฟิลด์ username
+  // 2. ถ้าเป็น ID เข้าใช้งาน (ไม่มี @) ให้ค้นหาจาก username (case-insensitive) หรือ email
   try {
-    const user = await prisma.user.findUnique({
-      where: { username: identifier },
-      select: { email: true }
+    const user = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { username: { equals: identifier, mode: "insensitive" } },
+          { email: { equals: `${identifier.toLowerCase()}@eleave.local`, mode: "insensitive" } },
+          { email: { equals: identifier, mode: "insensitive" } },
+        ],
+      },
+      select: { email: true },
     });
 
-    if (user && user.email) {
+    if (user?.email) {
       return user.email;
     }
   } catch (error) {
     console.error("Error in resolveEmailForLogin:", error);
   }
 
-  // 3. ถ้าหาไม่เจอในฐานข้อมูล ให้ส่งค่าเดิมกลับไปเพื่อให้ Better Auth จัดการ error ตามปกติ
-  return identifier;
+  // 3. ถ้าหาไม่เจอในฐานข้อมูล ให้ fallback เป็นอีเมลจำลองเพื่อให้ Better Auth ได้รับรูปแบบอีเมลที่ถูกต้อง
+  return `${identifier.toLowerCase()}@eleave.local`;
 }
