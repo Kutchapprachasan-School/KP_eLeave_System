@@ -18,6 +18,17 @@ import {
 } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { getClientCache, setClientCache } from "@/lib/client-cache";
+import {
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  LabelList
+} from "recharts";
 
 // Animation Variants
 const containerVariants: any = {
