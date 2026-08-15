@@ -5,12 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useSession } from "@/lib/auth-client";
 import { motion } from "framer-motion";
-import dynamic from "next/dynamic";
 
-const MonthlyTrendChart = dynamic(() => import("./MonthlyTrendChart"), {
-  ssr: false,
-  loading: () => <div className="h-[250px] w-full animate-pulse bg-slate-100 dark:bg-slate-800/50 rounded-2xl flex items-center justify-center text-xs text-slate-400">Loading Chart...</div>
-});
 import { getDashboardStats, getCalendarLeaves } from "@/app/actions/leave";
 import { getHolidays } from "@/app/actions/holiday";
 import { getSystemSettings } from "@/app/actions/settings";
