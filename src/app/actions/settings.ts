@@ -101,11 +101,15 @@ export async function ensureSubsystemColumnsExist() {
       ALTER TABLE "SystemSettings" ADD COLUMN IF NOT EXISTS "enableCompetency" BOOLEAN DEFAULT true;
       ALTER TABLE "SystemSettings" ADD COLUMN IF NOT EXISTS "enableFacility" BOOLEAN DEFAULT true;
       ALTER TABLE "SystemSettings" ADD COLUMN IF NOT EXISTS "enableAcademicSettings" BOOLEAN DEFAULT true;
+      ALTER TABLE "SystemSettings" ADD COLUMN IF NOT EXISTS "enableAmssSync" BOOLEAN DEFAULT true;
+      ALTER TABLE "SystemSettings" ADD COLUMN IF NOT EXISTS "enableCertificate" BOOLEAN DEFAULT true;
       ALTER TABLE "SystemSettings" ADD COLUMN IF NOT EXISTS "enableBudget" BOOLEAN DEFAULT false;
       ALTER TABLE "SystemSettings" ADD COLUMN IF NOT EXISTS "enableStudentAffairs" BOOLEAN DEFAULT false;
       ALTER TABLE "SystemSettings" ADD COLUMN IF NOT EXISTS "enableStudentCouncil" BOOLEAN DEFAULT false;
       ALTER TABLE "SystemSettings" ADD COLUMN IF NOT EXISTS "enableAcademicPlanning" BOOLEAN DEFAULT false;
       ALTER TABLE "SystemSettings" ADD COLUMN IF NOT EXISTS "academicPlanningAllowedUserIds" TEXT DEFAULT '';
+      ALTER TABLE "SystemSettings" ADD COLUMN IF NOT EXISTS "documentAdminUserIds" TEXT DEFAULT '';
+      ALTER TABLE "SystemSettings" ADD COLUMN IF NOT EXISTS "documentManageMode" TEXT DEFAULT 'DIRECT';
       ALTER TABLE "SystemLog" ADD COLUMN IF NOT EXISTS "subsystem" TEXT DEFAULT 'LEAVE';
 
       ALTER TABLE "SystemSettings" ADD COLUMN IF NOT EXISTS "timetablePeriodsPerDay" INTEGER DEFAULT 8;
@@ -180,6 +184,8 @@ export async function getSystemSettings() {
       enableCompetency: (safeSettings as any).enableCompetency ?? true,
       enableFacility: (safeSettings as any).enableFacility ?? true,
       enableAcademicSettings: (safeSettings as any).enableAcademicSettings ?? true,
+      enableAmssSync: (safeSettings as any).enableAmssSync ?? true,
+      enableCertificate: (safeSettings as any).enableCertificate ?? true,
       enableBudget: (safeSettings as any).enableBudget ?? false,
       enableStudentAffairs: (safeSettings as any).enableStudentAffairs ?? false,
       enableStudentCouncil: (safeSettings as any).enableStudentCouncil ?? false,
@@ -443,11 +449,15 @@ export async function updateSystemSettings(data: {
   enableCompetency?: boolean;
   enableFacility?: boolean;
   enableAcademicSettings?: boolean;
+  enableAmssSync?: boolean;
+  enableCertificate?: boolean;
   enableBudget?: boolean;
   enableStudentAffairs?: boolean;
   enableStudentCouncil?: boolean;
   enableAcademicPlanning?: boolean;
   academicPlanningAllowedUserIds?: string;
+  documentAdminUserIds?: string;
+  documentManageMode?: string;
   timetablePeriodsPerDay?: number;
   timetableStartTime?: string;
   timetablePeriodDuration?: number;
@@ -538,11 +548,15 @@ export async function updateSystemSettings(data: {
         enableCompetency: data.enableCompetency !== undefined ? data.enableCompetency : undefined,
         enableFacility: data.enableFacility !== undefined ? data.enableFacility : undefined,
         enableAcademicSettings: data.enableAcademicSettings !== undefined ? data.enableAcademicSettings : undefined,
+        enableAmssSync: data.enableAmssSync !== undefined ? data.enableAmssSync : undefined,
+        enableCertificate: data.enableCertificate !== undefined ? data.enableCertificate : undefined,
         enableBudget: data.enableBudget !== undefined ? data.enableBudget : undefined,
         enableStudentAffairs: data.enableStudentAffairs !== undefined ? data.enableStudentAffairs : undefined,
         enableStudentCouncil: data.enableStudentCouncil !== undefined ? data.enableStudentCouncil : undefined,
         enableAcademicPlanning: data.enableAcademicPlanning !== undefined ? data.enableAcademicPlanning : undefined,
         academicPlanningAllowedUserIds: data.academicPlanningAllowedUserIds !== undefined ? data.academicPlanningAllowedUserIds : undefined,
+        documentAdminUserIds: data.documentAdminUserIds !== undefined ? data.documentAdminUserIds : undefined,
+        documentManageMode: data.documentManageMode !== undefined ? data.documentManageMode : undefined,
         timetablePeriodsPerDay: data.timetablePeriodsPerDay !== undefined ? data.timetablePeriodsPerDay : undefined,
         timetableStartTime: data.timetableStartTime !== undefined ? data.timetableStartTime : undefined,
         timetablePeriodDuration: data.timetablePeriodDuration !== undefined ? data.timetablePeriodDuration : undefined,
@@ -627,6 +641,8 @@ export async function updateSystemSettings(data: {
         enableCompetency: data.enableCompetency !== undefined ? data.enableCompetency : true,
         enableFacility: data.enableFacility !== undefined ? data.enableFacility : true,
         enableAcademicSettings: data.enableAcademicSettings !== undefined ? data.enableAcademicSettings : true,
+        enableAmssSync: data.enableAmssSync !== undefined ? data.enableAmssSync : true,
+        enableCertificate: data.enableCertificate !== undefined ? data.enableCertificate : true,
         repairLineChannelAccessToken: data.repairLineChannelAccessToken || null,
         repairLineTargetGroupId: data.repairLineTargetGroupId || null,
       }

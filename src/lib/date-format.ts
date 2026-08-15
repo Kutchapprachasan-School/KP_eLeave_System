@@ -25,3 +25,29 @@ export function formatLeaveDate(dateInput: string | Date | null | undefined, lan
     return `${day} ${month} ${yearCE}`;
   }
 }
+
+export function formatDocFullDate(dateInput: string | Date | null | undefined, lang: "th" | "en" = "th"): string {
+  if (!dateInput) return "";
+  const d = new Date(dateInput);
+  if (isNaN(d.getTime())) return "";
+
+  const day = d.getDate();
+  
+  if (lang === "th") {
+    const thaiMonthsShort = [
+      "ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.",
+      "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."
+    ];
+    const month = thaiMonthsShort[d.getMonth()];
+    const yearBE = d.getFullYear() + 543;
+    return `${day} ${month} ${yearBE}`;
+  } else {
+    const englishMonthsShort = [
+      "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+      "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+    ];
+    const month = englishMonthsShort[d.getMonth()];
+    const yearCE = d.getFullYear();
+    return `${day} ${month} ${yearCE}`;
+  }
+}

@@ -112,7 +112,9 @@ export function ConfigsTab({
             state.nextSeq,
             currentYear,
             state.paddingDigits,
-            state.useThaiNumerals
+            state.useThaiNumerals,
+            cfg.docType,
+            state.yearFormat
           );
 
           return (
@@ -146,7 +148,7 @@ export function ConfigsTab({
                     ตัวอย่างเลขที่จะออกฉบับถัดไป
                   </span>
                   <span className="font-mono text-base sm:text-lg font-black text-purple-900 dark:text-purple-200">
-                    ที่ {previewDocNo}
+                    {previewDocNo}
                   </span>
                 </div>
               </div>
@@ -225,8 +227,9 @@ export function ConfigsTab({
                     onChange={(e) => updateConfigState(cfg.id, "yearFormat", e.target.value)}
                     className="w-full h-9 px-3 rounded-xl border border-slate-200 dark:border-slate-750 bg-slate-50/60 dark:bg-slate-950 text-xs font-semibold text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none cursor-pointer"
                   >
-                    <option value="TH_BE">พุทธศักราช (พ.ศ. {new Date().getFullYear() + 543})</option>
-                    <option value="EN_AD">คริสต์ศักราช (ค.ศ. {new Date().getFullYear()})</option>
+                    <option value="TH_BE">แสดง พ.ศ. (เช่น /{new Date().getFullYear() + 543})</option>
+                    <option value="NONE">ไม่ใส่ พ.ศ./ปี (แสดงเฉพาะเลขลำดับ)</option>
+                    <option value="EN_AD">แสดง ค.ศ. (เช่น /{new Date().getFullYear()})</option>
                   </select>
                 </div>
               </div>

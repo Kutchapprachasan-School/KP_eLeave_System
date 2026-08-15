@@ -1,35 +1,7 @@
 import { prisma } from "@/lib/db";
 import { generateAdvisoryLockKey } from "@/core/infrastructure/db/advisory-lock";
 import { OutboundFormData } from "@/features/document/domain/types/document.types";
-
-/**
- * Formats a document sequence number into a standard document string.
- */
-function formatDocNumber(
-  pattern: string,
-  prefix: string,
-  seq: number,
-  year: number,
-  paddingDigits: number = 1,
-  useThaiNumerals: boolean = true
-): string {
-  let paddedSeq = seq.toString().padStart(paddingDigits, "0");
-  if (useThaiNumerals) {
-    const thaiDigits = ["๐", "๑", "๒", "๓", "๔", "๕", "๖", "๗", "๘", "๙"];
-    paddedSeq = paddedSeq.replace(/\d/g, (d) => thaiDigits[parseInt(d, 10)]);
-  }
-
-  let strYear = year.toString();
-  if (useThaiNumerals) {
-    const thaiDigits = ["๐", "๑", "๒", "๓", "๔", "๕", "๖", "๗", "๘", "๙"];
-    strYear = strYear.replace(/\d/g, (d) => thaiDigits[parseInt(d, 10)]);
-  }
-
-  return pattern
-    .replace("[PREFIX]", prefix)
-    .replace("[SEQ]", paddedSeq)
-    .replace("[YEAR]", strYear);
-}
+import { formatDocNumber } from "@/lib/document-utils";
 
 /**
  * Atomic Outbound Document Issuance Use Case.
@@ -54,7 +26,7 @@ export async function issueOutboundDocAtomic(data: OutboundFormData, userId: str
     // 2. Find or initialize DocumentConfig
     let config = await tx.documentConfig.findFirst({
       where: {
-        docType: isOutgoing ? { in: ["OUTGOING", "OUTGOING_NORMAL", "OUTGOING_CIRCULAR"] } : data.docType,
+        docType: data.docType,
         memoSectionId: data.docType === "MEMO" ? data.memoSectionId || null : null,
       },
     });
@@ -63,16 +35,17 @@ export async function issueOutboundDocAtomic(data: OutboundFormData, userId: str
       let defaultPrefix = "ศทก";
       if (data.docType === "COMMAND") defaultPrefix = "คำสั่งที่";
       else if (data.docType === "ANNOUNCEMENT") defaultPrefix = "ประกาศที่";
-      else if (isOutgoing) defaultPrefix = "ที่ ศทก";
+      else if (data.docType === "OUTGOING_CIRCULAR") defaultPrefix = "ศธ.๐๔๓๔๙.๐๑/ว";
+      else if (isOutgoing) defaultPrefix = "ศธ.๐๔๓๔๙.๐๑/";
 
       config = await tx.documentConfig.create({
         data: {
-          docType: isOutgoing ? "OUTGOING" : data.docType,
+          docType: data.docType,
           memoSectionId: data.docType === "MEMO" ? data.memoSectionId || null : null,
           prefix: defaultPrefix,
           useThaiNumerals: true,
           paddingDigits: 1,
-          yearFormat: "TH_BE",
+          yearFormat: "NONE",
           currentSeq: 0,
         },
       });
@@ -133,7 +106,9 @@ export async function issueOutboundDocAtomic(data: OutboundFormData, userId: str
       nextSeq,
       finalYear,
       config.paddingDigits,
-      config.useThaiNumerals
+      config.useThaiNumerals,
+      data.docType,
+      config.yearFormat
     );
 
     // 5. Create DocumentRecord directly as ISSUED within transaction

@@ -29,7 +29,7 @@ import { getHolidays, createHoliday, updateHoliday, deleteHoliday, searchInterne
 
 import { useSession } from "@/lib/auth-client";
 
-import { Save, Image as ImageIcon, ShieldAlert, DownloadCloud, Lock, Code, Settings2, Archive, UploadCloud, Database, FileJson, AlertTriangle, CheckCircle2, ChevronRight, ArrowLeft, Bell, Type, Users, BookOpen, HardDrive, UserCog, FileSpreadsheet, X, CalendarDays, CalendarDays as Calendar, ArrowRightLeft, CheckSquare, FileX, Plus, Clock, ClipboardList, MapPin, FolderOpen, Hash, UserCheck, Pencil, Trash2, ToggleLeft, ToggleRight, Sparkles, AlertCircle, Check, Eye, LayoutGrid, Wrench, Loader2, XCircle, MessageSquare, Building2, Award, FileText, Settings, Wallet, Vote, Layers } from "lucide-react";
+import { Save, Image as ImageIcon, ShieldAlert, DownloadCloud, Lock, Code, Settings2, Archive, UploadCloud, Database, FileJson, AlertTriangle, CheckCircle2, ChevronRight, ArrowLeft, Bell, Type, Users, BookOpen, HardDrive, UserCog, FileSpreadsheet, X, CalendarDays, CalendarDays as Calendar, ArrowRightLeft, CheckSquare, FileX, Plus, Clock, ClipboardList, MapPin, FolderOpen, Hash, UserCheck, Pencil, Trash2, ToggleLeft, ToggleRight, Sparkles, AlertCircle, Check, Eye, LayoutGrid, Wrench, Loader2, XCircle, MessageSquare, Building2, Award, FileText, Settings, Wallet, Vote, Layers, Search, Folder } from "lucide-react";
 
 import { useToast } from "@/components/toast-provider";
 
@@ -158,9 +158,17 @@ export default function SettingsPage() {
   const [enableStudentAffairs, setEnableStudentAffairs] = useState(false);
   const [enableStudentCouncil, setEnableStudentCouncil] = useState(false);
   const [enableAcademicPlanning, setEnableAcademicPlanning] = useState(false);
+  const [enableAmssSync, setEnableAmssSync] = useState(true);
+  const [enableCertificate, setEnableCertificate] = useState(true);
   const [academicPlanningAllowedUserIds, setAcademicPlanningAllowedUserIds] = useState<string[]>([]);
   const [apSearchQuery, setApSearchQuery] = useState("");
   const [showApDropdown, setShowApDropdown] = useState(false);
+
+  // Document admin user delegation & management mode states
+  const [docAdminUserIds, setDocAdminUserIds] = useState<string[]>([]);
+  const [docAdminSearchQuery, setDocAdminSearchQuery] = useState("");
+  const [showDocAdminDropdown, setShowDocAdminDropdown] = useState(false);
+  const [documentManageMode, setDocumentManageMode] = useState<string>("DIRECT");
 
   const [timetablePeriodsPerDay, setTimetablePeriodsPerDay] = useState(8);
   const [timetableStartTime, setTimetableStartTime] = useState("08:30");
@@ -431,14 +439,18 @@ export default function SettingsPage() {
       }
 
       setFinalApproverUserIds(
-
         data.finalApproverUserIds
-
           ? data.finalApproverUserIds.split(",").map((s: string) => s.trim()).filter(Boolean)
-
           : []
-
       );
+
+      setDocAdminUserIds(
+        data.documentAdminUserIds
+          ? data.documentAdminUserIds.split(",").map((s: string) => s.trim()).filter(Boolean)
+          : []
+      );
+
+      setDocumentManageMode((data as any).documentManageMode || "DIRECT");
 
       setShowActingDirectorTitle(data.showActingDirectorTitle !== false);
 
@@ -467,6 +479,8 @@ export default function SettingsPage() {
       setEnableStudentAffairs((data as any).enableStudentAffairs === true);
       setEnableStudentCouncil((data as any).enableStudentCouncil === true);
       setEnableAcademicPlanning((data as any).enableAcademicPlanning === true);
+      setEnableAmssSync((data as any).enableAmssSync !== false);
+      setEnableCertificate((data as any).enableCertificate !== false);
       if ((data as any).academicPlanningAllowedUserIds) {
         setAcademicPlanningAllowedUserIds(
           (data as any).academicPlanningAllowedUserIds.split(",").map((s: string) => s.trim()).filter(Boolean)
@@ -725,7 +739,7 @@ export default function SettingsPage() {
 
   // Inline-save a single subsystem toggle
   const saveSubsystem = async (
-    key: "enableLeave" | "enableAttendance" | "enableDocument" | "enableRepair" | "enableTimetable" | "enableSubstitute" | "enableSupervision" | "enableExam" | "enableCompetency" | "enableFacility" | "enableAcademicSettings" | "enableBudget" | "enableStudentAffairs" | "enableStudentCouncil" | "enableAcademicPlanning",
+    key: "enableLeave" | "enableAttendance" | "enableDocument" | "enableRepair" | "enableTimetable" | "enableSubstitute" | "enableSupervision" | "enableExam" | "enableCompetency" | "enableFacility" | "enableAcademicSettings" | "enableBudget" | "enableStudentAffairs" | "enableStudentCouncil" | "enableAcademicPlanning" | "enableAmssSync" | "enableCertificate",
     val: boolean
   ) => {
     if (key === "enableLeave") setEnableLeave(val);
@@ -743,6 +757,8 @@ export default function SettingsPage() {
     if (key === "enableStudentAffairs") setEnableStudentAffairs(val);
     if (key === "enableStudentCouncil") setEnableStudentCouncil(val);
     if (key === "enableAcademicPlanning") setEnableAcademicPlanning(val);
+    if (key === "enableAmssSync") setEnableAmssSync(val);
+    if (key === "enableCertificate") setEnableCertificate(val);
     try {
       const res = await updateSystemSettings({
         [key]: val,
@@ -7154,6 +7170,37 @@ export default function SettingsPage() {
   };
 
   const renderSubsystemsSection = () => {
+    const saveSubsystem = async (key: string, val: boolean) => {
+      if (key === "enableLeave") setEnableLeave(val);
+      if (key === "enableAttendance") setEnableAttendance(val);
+      if (key === "enableDocument") setEnableDocument(val);
+      if (key === "enableRepair") setEnableRepair(val);
+      if (key === "enableTimetable") setEnableTimetable(val);
+      if (key === "enableSubstitute") setEnableSubstitute(val);
+      if (key === "enableSupervision") setEnableSupervision(val);
+      if (key === "enableExam") setEnableExam(val);
+      if (key === "enableCompetency") setEnableCompetency(val);
+      if (key === "enableFacility") setEnableFacility(val);
+      if (key === "enableAcademicSettings") setEnableAcademicSettings(val);
+      if (key === "enableBudget") setEnableBudget(val);
+      if (key === "enableStudentAffairs") setEnableStudentAffairs(val);
+      if (key === "enableStudentCouncil") setEnableStudentCouncil(val);
+      if (key === "enableAcademicPlanning") setEnableAcademicPlanning(val);
+      if (key === "enableAmssSync") setEnableAmssSync(val);
+      if (key === "enableCertificate") setEnableCertificate(val);
+
+      if (typeof window !== "undefined") {
+        localStorage.setItem(`eleave_${key}`, String(val));
+      }
+
+      try {
+        await updateSystemSettings({ [key]: val } as any);
+        showToast("success", lang === "en" ? "Setting updated" : "บันทึกการตั้งค่าแล้ว");
+      } catch (e: any) {
+        showToast("error", e?.message ?? "เกิดข้อผิดพลาดในการบันทึก");
+      }
+    };
+
     // Each subsystem: auto-save toggle + optional "ตั้งค่า" navigation
     type SubDef = {
       id: string;
@@ -7179,11 +7226,12 @@ export default function SettingsPage() {
         activeBg: "bg-emerald-100 dark:bg-emerald-950/30",
         activeBorder: "bg-emerald-50/40 dark:bg-emerald-950/10 border-emerald-200 dark:border-emerald-800",
         toggleColor: "bg-emerald-600",
-        title: lang === "en" ? "Leave System" : "ระบบการลา (แกนหลัก)",
+        title: lang === "en" ? "Online Leave System (Core)" : "ระบบการลาออนไลน์ (ระบบหลัก Core)",
         desc: lang === "en" ? "Core leave management module" : "ระบบบริหารจัดการการลาหลัก สิทธิ์วันลา และการอนุมัติใบลา",
         enabled: enableLeave,
         saveKey: "enableLeave",
         settingsId: "leave-rules",
+        core: true,
       },
       {
         id: "attendance",
@@ -7192,11 +7240,24 @@ export default function SettingsPage() {
         activeBg: "bg-indigo-100 dark:bg-indigo-950/40",
         activeBorder: "bg-indigo-50/40 dark:bg-indigo-950/10 border-indigo-200 dark:border-indigo-800",
         toggleColor: "bg-indigo-600",
-        title: lang === "en" ? "Attendance System" : "ระบบลงชื่อเข้างาน",
+        title: lang === "en" ? "Attendance Clocking System" : "ระบบลงเวลาปฏิบัติราชการ",
         desc: lang === "en" ? "Shift times, geofence, face scan" : "บันทึกเวลาปฏิบัติงานด้วย GPS, Geofence, Face Scan",
         enabled: enableAttendance,
         saveKey: "enableAttendance",
         settingsId: "attendance-settings",
+      },
+      {
+        id: "competency",
+        icon: <Award className="w-5 h-5" />,
+        activeColor: "text-rose-600 dark:text-rose-400",
+        activeBg: "bg-rose-100 dark:bg-rose-950/40",
+        activeBorder: "bg-rose-50/40 dark:bg-rose-950/10 border-rose-200 dark:border-rose-800",
+        toggleColor: "bg-rose-600",
+        title: lang === "en" ? "PA Competency Portfolio" : "แฟ้มสะสมงาน & สมรรถนะครู",
+        desc: lang === "en" ? "Teacher PA agreement tracker, PD hours & 5-dimension evaluation" : "บันทึกข้อตกลง PA รายชั่วโมงพัฒนาตนเอง ประเมินสมรรถนะ 5 ด้าน",
+        enabled: enableCompetency,
+        saveKey: "enableCompetency",
+        customPath: "/personnel/settings",
       },
       {
         id: "document",
@@ -7205,11 +7266,24 @@ export default function SettingsPage() {
         activeBg: "bg-orange-100 dark:bg-orange-950/40",
         activeBorder: "bg-orange-50/40 dark:bg-orange-950/10 border-orange-200 dark:border-orange-800",
         toggleColor: "bg-orange-500",
-        title: lang === "en" ? "Document System" : "ระบบจัดการเอกสาร",
-        desc: lang === "en" ? "Incoming/outgoing documents tracking" : "บันทึกและส่งต่อหนังสือราชการรับ-ส่ง",
+        title: lang === "en" ? "AMSS++ Document System" : "ระบบสารบรรณหนังสือรับ-ส่ง AMSS++",
+        desc: lang === "en" ? "Incoming/outgoing documents tracking & sub-toggles" : "บันทึกและส่งต่อหนังสือราชการรับ-ส่ง พร้อมระบบเชื่อมย่อย AMSS & เกียรติบัตร",
         enabled: enableDocument,
         saveKey: "enableDocument",
         settingsId: "document-settings",
+      },
+      {
+        id: "facility",
+        icon: <Building2 className="w-5 h-5" />,
+        activeColor: "text-teal-600 dark:text-teal-400",
+        activeBg: "bg-teal-100 dark:bg-teal-950/40",
+        activeBorder: "bg-teal-50/40 dark:bg-teal-950/10 border-teal-200 dark:border-teal-800",
+        toggleColor: "bg-teal-600",
+        title: lang === "en" ? "Central Facility Booking" : "ระบบจองทรัพยากรกลาง & ห้องปฏิบัติการ",
+        desc: lang === "en" ? "Central facility booking catalog, conflict engine & A4 slips" : "จองห้องประชุม รถโรงเรียน อุปกรณ์ส่วนกลาง ป้องกันเวลาชนกัน",
+        enabled: enableFacility,
+        saveKey: "enableFacility",
+        customPath: "/facility/settings",
       },
       {
         id: "repair",
@@ -7218,11 +7292,24 @@ export default function SettingsPage() {
         activeBg: "bg-amber-100 dark:bg-amber-950/40",
         activeBorder: "bg-amber-50/40 dark:bg-amber-950/10 border-amber-200 dark:border-amber-800",
         toggleColor: "bg-amber-500",
-        title: lang === "en" ? "Repair System" : "ระบบแจ้งซ่อม",
+        title: lang === "en" ? "Building & Equipment Repair" : "ระบบแจ้งซ่อมแซมอาคารสถานที่",
         desc: lang === "en" ? "Equipment/building repair requests" : "แจ้งปัญหาวัสดุครุภัณฑ์และติดตามสถานะงานซ่อม",
         enabled: enableRepair,
         saveKey: "enableRepair",
         settingsId: "repair-settings",
+      },
+      {
+        id: "academic_planning",
+        icon: <Layers className="w-5 h-5" />,
+        activeColor: "text-purple-600 dark:text-purple-400",
+        activeBg: "bg-purple-100 dark:bg-purple-950/40",
+        activeBorder: "bg-purple-50/40 dark:bg-purple-950/10 border-purple-200 dark:border-purple-800",
+        toggleColor: "bg-purple-600",
+        title: lang === "en" ? "Academic Planning Center" : "ศูนย์วางแผนวิชาการ",
+        desc: lang === "en" ? "Academic planning control plane, curriculum sandbox & readiness gate" : "ศูนย์ควบคุมการวางแผนวิชาการ โครงสร้างหลักสูตร ฉากทัศน์จำลอง และเกณฑ์ความพร้อม",
+        enabled: enableAcademicPlanning,
+        saveKey: "enableAcademicPlanning",
+        customPath: "/academic/planning",
       },
       {
         id: "timetable",
@@ -7231,7 +7318,7 @@ export default function SettingsPage() {
         activeBg: "bg-purple-100 dark:bg-purple-950/40",
         activeBorder: "bg-purple-50/40 dark:bg-purple-950/10 border-purple-200 dark:border-purple-800",
         toggleColor: "bg-purple-600",
-        title: lang === "en" ? "Timetable System" : "ระบบจัดตารางสอน",
+        title: lang === "en" ? "Online Timetable System" : "ระบบจัดตารางสอนออนไลน์",
         desc: lang === "en" ? "School master timetable builder & collision checks" : "จัดตารางสอนแม่บท ป้องกันคาบชน 4 มิติ สลับคาบด้วย AI",
         enabled: enableTimetable,
         saveKey: "enableTimetable",
@@ -7244,7 +7331,7 @@ export default function SettingsPage() {
         activeBg: "bg-emerald-100 dark:bg-emerald-950/40",
         activeBorder: "bg-emerald-50/40 dark:bg-emerald-950/10 border-emerald-200 dark:border-emerald-800",
         toggleColor: "bg-emerald-600",
-        title: lang === "en" ? "Substitute Teaching System" : "ระบบจัดครูสอนแทน",
+        title: lang === "en" ? "Online Substitute System" : "ระบบจัดครูสอนแทนออนไลน์",
         desc: lang === "en" ? "Smart substitute teacher assignment & LINE alerts" : "จัดครูสอนแทนอัตโนมัติ ซิงค์ข้อมูลการลา แนะนำครูว่างด้วย AI",
         enabled: enableSubstitute,
         saveKey: "enableSubstitute",
@@ -7257,7 +7344,7 @@ export default function SettingsPage() {
         activeBg: "bg-cyan-100 dark:bg-cyan-950/40",
         activeBorder: "bg-cyan-50/40 dark:bg-cyan-950/10 border-cyan-200 dark:border-cyan-800",
         toggleColor: "bg-cyan-600",
-        title: lang === "en" ? "Instructional Supervision System" : "ระบบนิเทศการสอนออนไลน์",
+        title: lang === "en" ? "Instructional Supervision" : "ระบบนิเทศการสอนออนไลน์",
         desc: lang === "en" ? "Classroom observation, video submission & scoring" : "นิเทศแผนการสอน แปะคลิปวีดีโอ ประเมินผล 4 ขั้นตอน",
         enabled: enableSupervision,
         saveKey: "enableSupervision",
@@ -7270,37 +7357,11 @@ export default function SettingsPage() {
         activeBg: "bg-blue-100 dark:bg-blue-950/40",
         activeBorder: "bg-blue-50/40 dark:bg-blue-950/10 border-blue-200 dark:border-blue-800",
         toggleColor: "bg-blue-600",
-        title: lang === "en" ? "Exam Scheduling System" : "ระบบจัดตารางสอบ & ผังที่นั่ง",
+        title: lang === "en" ? "Exam Timetable & Seating" : "ระบบจัดตารางสอบ & ผังที่นั่ง",
         desc: lang === "en" ? "Exam timetable matrix, seating algorithm & supervisor rosters" : "จัดตารางสอบ สลับผังที่นั่งสอบป้องกันทุจริต ใบเซ็นชื่อกรรมการสอบ",
         enabled: enableExam,
         saveKey: "enableExam",
         customPath: "/academic/exam",
-      },
-      {
-        id: "competency",
-        icon: <Award className="w-5 h-5" />,
-        activeColor: "text-rose-600 dark:text-rose-400",
-        activeBg: "bg-rose-100 dark:bg-rose-950/40",
-        activeBorder: "bg-rose-50/40 dark:bg-rose-950/10 border-rose-200 dark:border-rose-800",
-        toggleColor: "bg-rose-600",
-        title: lang === "en" ? "PA Competency Portfolio System" : "ระบบแฟ้มสะสมงาน PA",
-        desc: lang === "en" ? "Teacher PA agreement tracker, PD hours & 5-dimension evaluation" : "บันทึกข้อตกลง PA รายชั่วโมงพัฒนาตนเอง ประเมินสมรรถนะ 5 ด้าน",
-        enabled: enableCompetency,
-        saveKey: "enableCompetency",
-        customPath: "/personnel/settings",
-      },
-      {
-        id: "facility",
-        icon: <Building2 className="w-5 h-5" />,
-        activeColor: "text-teal-600 dark:text-teal-400",
-        activeBg: "bg-teal-100 dark:bg-teal-950/40",
-        activeBorder: "bg-teal-50/40 dark:bg-teal-950/10 border-teal-200 dark:border-teal-800",
-        toggleColor: "bg-teal-600",
-        title: lang === "en" ? "Resource Reservation System" : "ระบบจองทรัพยากรกลาง",
-        desc: lang === "en" ? "Central facility booking catalog, conflict engine & A4 slips" : "จองห้องประชุม รถโรงเรียน อุปกรณ์ส่วนกลาง ป้องกันเวลาชนกัน",
-        enabled: enableFacility,
-        saveKey: "enableFacility",
-        customPath: "/facility/settings",
       },
       {
         id: "academic_settings",
@@ -7309,24 +7370,11 @@ export default function SettingsPage() {
         activeBg: "bg-violet-100 dark:bg-violet-950/40",
         activeBorder: "bg-violet-50/40 dark:bg-violet-950/10 border-violet-200 dark:border-violet-800",
         toggleColor: "bg-violet-600",
-        title: lang === "en" ? "Academic Settings System" : "ระบบตั้งค่าวิชาการ",
+        title: lang === "en" ? "Academic Structure Settings" : "ระบบตั้งค่าโครงสร้างวิชาการ",
         desc: lang === "en" ? "Configure academic years, terms, classrooms, and load limits" : "ตั้งค่าปีการศึกษา ภาคเรียน กลุ่มสาระการเรียนรู้ และห้องเรียน",
         enabled: enableAcademicSettings,
         saveKey: "enableAcademicSettings",
         customPath: "/academic/settings",
-      },
-      {
-        id: "academic_planning",
-        icon: <Layers className="w-5 h-5" />,
-        activeColor: "text-purple-600 dark:text-purple-400",
-        activeBg: "bg-purple-100 dark:bg-purple-950/40",
-        activeBorder: "bg-purple-50/40 dark:bg-purple-950/10 border-purple-200 dark:border-purple-800",
-        toggleColor: "bg-purple-600",
-        title: lang === "en" ? "Academic Planning Platform" : "ศูนย์วางแผนวิชาการ",
-        desc: lang === "en" ? "Academic planning control plane, curriculum sandbox & readiness gate" : "ศูนย์ควบคุมการวางแผนวิชาการ โครงสร้างหลักสูตร ฉากทัศน์จำลอง และเกณฑ์ความพร้อม",
-        enabled: enableAcademicPlanning,
-        saveKey: "enableAcademicPlanning",
-        customPath: "/academic/planning",
       },
       {
         id: "budget",
@@ -7335,7 +7383,7 @@ export default function SettingsPage() {
         activeBg: "bg-emerald-100 dark:bg-emerald-950/40",
         activeBorder: "bg-emerald-50/40 dark:bg-emerald-950/10 border-emerald-200 dark:border-emerald-800",
         toggleColor: "bg-emerald-600",
-        title: lang === "en" ? "Budget & Financial System" : "ระบบบริหารงานงบประมาณ",
+        title: lang === "en" ? "Budget & Financial System" : "ระบบบริหารงานงบประมาณ & เบิกจ่าย",
         desc: lang === "en" ? "Budget allocation, procurement, expense tracking & financial reports" : "ตั้งงบประมาณโครงการ ควบคุมการเบิกจ่าย พัสดุ และรายงานทางการเงิน",
         enabled: enableBudget,
         saveKey: "enableBudget",
@@ -7348,7 +7396,7 @@ export default function SettingsPage() {
         activeBg: "bg-rose-100 dark:bg-rose-950/40",
         activeBorder: "bg-rose-50/40 dark:bg-rose-950/10 border-rose-200 dark:border-rose-800",
         toggleColor: "bg-rose-600",
-        title: lang === "en" ? "Student Affairs System" : "ระบบบริหารงานกิจการนักเรียน",
+        title: lang === "en" ? "Student Affairs & Discipline" : "ระบบบริหารงานกิจการนักเรียน & วินัย",
         desc: lang === "en" ? "Student discipline, behavior scoring, care system & morning attendance" : "บันทึกวินัยนักเรียน ตัดคะแนนพฤติกรรม ระบบดูแลช่วยเหลือ และเช็คชื่อเสาธง",
         enabled: enableStudentAffairs,
         saveKey: "enableStudentAffairs",
@@ -7361,7 +7409,7 @@ export default function SettingsPage() {
         activeBg: "bg-blue-100 dark:bg-blue-950/40",
         activeBorder: "bg-blue-50/40 dark:bg-blue-950/10 border-blue-200 dark:border-blue-800",
         toggleColor: "bg-blue-600",
-        title: lang === "en" ? "Student Council System" : "ระบบบริหารงานสภานักเรียน",
+        title: lang === "en" ? "Student Council E-Voting" : "ระบบบริหารงานสภานักเรียน E-Voting",
         desc: lang === "en" ? "Student e-voting election, student council activities & student voice" : "เลือกตั้งสภานักเรียนออนไลน์ E-Voting ปฏิทินกิจกรรมนักเรียน และตู้รับข้อเสนอแนะ",
         enabled: enableStudentCouncil,
         saveKey: "enableStudentCouncil",
@@ -7372,42 +7420,42 @@ export default function SettingsPage() {
     const SUB_CATEGORIES = [
       {
         id: "personnel",
-        title: lang === "en" ? "Personnel Affairs Subsystems" : "หมวดงานฝ่ายบุคคล (Personnel Affairs)",
+        title: lang === "en" ? "Personnel Affairs Subsystems" : "👔 หมวดงานฝ่ายบุคคล (Personnel Affairs)",
         desc: lang === "en" ? "Leave management, daily attendance clocking, and PA competency portfolio" : "ระบบการลา ลงเวลาปฏิบัติราชการ และแฟ้มสะสมงานสมรรถนะครู (PA)",
         badgeColor: "bg-indigo-100 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800",
         items: SUBS.filter((s) => ["leave", "attendance", "competency"].includes(s.id)),
       },
       {
         id: "general",
-        title: lang === "en" ? "General Affairs & Facilities" : "หมวดงานฝ่ายทั่วไป & อาคารสถานที่ (General Affairs)",
+        title: lang === "en" ? "General Affairs & Facilities" : "🏢 หมวดงานฝ่ายทั่วไป & อาคารสถานที่ (General Affairs)",
         desc: lang === "en" ? "Document tracking AMSS++, facility reservations, and building repair tracking" : "ระบบสารบรรณหนังสือรับ-ส่ง จองทรัพยากรกลาง และแจ้งซ่อมแซมอาคารสถานที่",
         badgeColor: "bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 border-amber-200 dark:border-amber-800",
         items: SUBS.filter((s) => ["document", "facility", "repair"].includes(s.id)),
       },
       {
         id: "academic",
-        title: lang === "en" ? "Academic Affairs Subsystems" : "หมวดงานฝ่ายวิชาการ (Academic Affairs)",
+        title: lang === "en" ? "Academic Affairs Subsystems" : "🎓 หมวดงานฝ่ายวิชาการ (Academic Affairs)",
         desc: lang === "en" ? "Planning control plane, master timetable, substitute assignment, supervision, exams, & settings" : "ศูนย์วางแผนวิชาการ ตารางสอน สอนแทน นิเทศการสอน ตารางสอบ และโครงสร้างวิชาการ",
         badgeColor: "bg-purple-100 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300 border-purple-200 dark:border-purple-800",
         items: SUBS.filter((s) => ["academic_planning", "timetable", "substitute", "supervision", "exam", "academic_settings"].includes(s.id)),
       },
       {
         id: "budget",
-        title: lang === "en" ? "Budget & Financial Systems" : "หมวดงานฝ่ายงบประมาณ (Budget & Financial)",
+        title: lang === "en" ? "Budget & Financial Systems" : "💰 หมวดงานฝ่ายงบประมาณ (Budget & Financial)",
         desc: lang === "en" ? "Project budgeting, procurement, and financial disbursement tracking" : "ตั้งงบประมาณโครงการ ควบคุมการเบิกจ่าย พัสดุ และรายงานทางการเงิน",
         badgeColor: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800",
         items: SUBS.filter((s) => ["budget"].includes(s.id)),
       },
       {
         id: "student_affairs",
-        title: lang === "en" ? "Student Affairs Systems" : "หมวดงานฝ่ายกิจการนักเรียน (Student Affairs)",
+        title: lang === "en" ? "Student Affairs Systems" : "🧑‍🤝‍🧑 หมวดงานฝ่ายกิจการนักเรียน (Student Affairs)",
         desc: lang === "en" ? "Student discipline, behavior score system, student care, & morning attendance" : "บันทึกวินัยนักเรียน ตัดคะแนนพฤติกรรม ระบบดูแลช่วยเหลือ และเช็คชื่อเสาธง",
         badgeColor: "bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 border-rose-200 dark:border-rose-800",
         items: SUBS.filter((s) => ["student_affairs"].includes(s.id)),
       },
       {
         id: "student_council",
-        title: lang === "en" ? "Student Council Systems" : "หมวดงานสภานักเรียน (Student Council)",
+        title: lang === "en" ? "Student Council Systems" : "🗳️ หมวดงานสภานักเรียน (Student Council)",
         desc: lang === "en" ? "E-voting student council elections, student activities & suggestion box" : "เลือกตั้งสภานักเรียนออนไลน์ E-Voting ปฏิทินกิจกรรม และตู้รับข้อเสนอแนะ",
         badgeColor: "bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 border-blue-200 dark:border-blue-800",
         items: SUBS.filter((s) => ["student_council"].includes(s.id)),
@@ -7429,14 +7477,14 @@ export default function SettingsPage() {
               {/* Category Header */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
                 <div className="flex items-center gap-2">
-                  <span className={`px-3 py-1 rounded-xl text-xs font-bold border ${cat.badgeColor}`}>
+                  <h4 className="font-bold text-xs text-slate-900 dark:text-white">
                     {cat.title}
-                  </span>
-                  <span className="text-xs text-slate-400 dark:text-slate-500 font-medium">
-                    ({cat.items.length} {lang === "en" ? "modules" : "ระบบย่อย"})
+                  </h4>
+                  <span className="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-[11px] text-slate-500 dark:text-slate-400 font-semibold">
+                    {cat.items.length} {lang === "en" ? "modules" : "ระบบย่อย"}
                   </span>
                 </div>
-                <span className="text-[11.5px] text-slate-400 dark:text-slate-500">
+                <span className="text-[11px] text-slate-400 dark:text-slate-500">
                   {cat.desc}
                 </span>
               </div>
@@ -7446,18 +7494,18 @@ export default function SettingsPage() {
                 {cat.items.map((sys) => (
                   <React.Fragment key={sys.id}>
                     <div
-                      className={`flex items-center gap-4 p-4 rounded-2xl border transition-all ${
+                      className={`flex items-center gap-3.5 p-3.5 rounded-2xl border transition-all ${
                         sys.enabled
-                          ? sys.activeBorder
-                          : "bg-white dark:bg-gray-950 border-gray-200 dark:border-gray-800 opacity-85 hover:opacity-100"
+                          ? "bg-white dark:bg-gray-900 border-slate-200/90 dark:border-slate-700/80 shadow-2xs hover:border-slate-300 dark:hover:border-slate-600"
+                          : "bg-slate-50/50 dark:bg-gray-950/60 border-slate-200/50 dark:border-slate-800/80 opacity-75 hover:opacity-100"
                       }`}
                     >
                       {/* Icon */}
                       <div
-                        className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-colors ${
+                        className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-colors ${
                           sys.enabled
                             ? `${sys.activeBg} ${sys.activeColor}`
-                            : "bg-gray-50 dark:bg-gray-800 text-gray-400"
+                            : "bg-slate-100 dark:bg-slate-800 text-slate-400"
                         }`}
                       >
                         {sys.icon}
@@ -7465,8 +7513,8 @@ export default function SettingsPage() {
 
                       {/* Text */}
                       <div className="flex-1 min-w-0">
-                        <p className="font-semibold text-gray-900 dark:text-white text-sm">{sys.title}</p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{sys.desc}</p>
+                        <p className="font-bold text-slate-900 dark:text-white text-xs">{sys.title}</p>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 truncate">{sys.desc}</p>
                       </div>
 
                       {/* Right controls */}
@@ -7512,72 +7560,74 @@ export default function SettingsPage() {
                     </div>
 
                     {sys.id === "document" && (
-                      <div className="mt-2.5 mb-3 ml-4 sm:ml-6 pl-4 border-l-2 border-orange-300 dark:border-orange-800 space-y-2.5">
-                        <p className="text-xs font-bold text-orange-900 dark:text-orange-300 flex items-center gap-1.5 pt-1">
-                          <Sparkles className="w-3.5 h-3.5 text-orange-500" />
+                      <div className="p-3 sm:p-3.5 rounded-xl bg-slate-50/80 dark:bg-slate-800/50 border border-slate-200/70 dark:border-slate-700/60 space-y-2.5">
+                        <p className="text-[11px] font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                          <Sparkles className="w-3.5 h-3.5 text-amber-500" />
                           {lang === "en" ? "Document Sub-modules & Sub-systems:" : "ฟังก์ชันและระบบย่อยในระบบจัดการเอกสาร:"}
                         </p>
 
-                        {/* AMSS Sync Subsystem */}
-                        <div className="flex items-center justify-between p-3 sm:p-3.5 rounded-2xl bg-sky-50/70 dark:bg-sky-950/30 border border-sky-200/80 dark:border-sky-900/50 shadow-2xs">
-                          <div className="flex items-center gap-3 min-w-0">
-                            <div className="w-8 h-8 rounded-xl bg-sky-100 dark:bg-sky-900/60 text-sky-600 dark:text-sky-400 flex items-center justify-center shrink-0">
-                              <ArrowRightLeft className="w-4 h-4" />
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          {/* AMSS Sync Subsystem */}
+                          <div className="flex items-center justify-between p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-700/80">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <div className="w-7 h-7 rounded-lg bg-sky-50 dark:bg-sky-950 text-sky-600 dark:text-sky-400 flex items-center justify-center shrink-0">
+                                <ArrowRightLeft className="w-3.5 h-3.5" />
+                              </div>
+                              <div className="min-w-0">
+                                <p className="font-bold text-xs text-slate-800 dark:text-slate-200">
+                                  {lang === "en" ? "AMSS Sync System" : "ระบบเชื่อมโยง AMSS"}
+                                </p>
+                                <p className="text-[10.5px] text-slate-400 truncate">
+                                  {lang === "en" ? "Auto sync from AMSS" : "ดึงหนังสือรับ-ส่งจาก AMSS"}
+                                </p>
+                              </div>
                             </div>
-                            <div className="min-w-0">
-                              <p className="font-bold text-xs text-slate-900 dark:text-white">
-                                {lang === "en" ? "AMSS Sync System (Sub-module)" : "ระบบเชื่อมโยงข้อมูล AMSS (ย่อย)"}
-                              </p>
-                              <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
-                                {lang === "en" ? "Auto browser sync and document import from AMSS" : "ระบบดึงและเชื่อมโยงหนังสือรับ-ส่งอัตโนมัติจากระบบ AMSS"}
-                              </p>
-                            </div>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => saveSubsystem("enableAmssSync", !enableAmssSync)}
-                            className={`relative inline-flex h-6.5 w-11 items-center rounded-full transition-colors focus:outline-none shrink-0 ml-2 cursor-pointer ${
-                              enableAmssSync ? "bg-sky-500" : "bg-gray-200 dark:bg-gray-700"
-                            }`}
-                            title={enableAmssSync ? (lang === "en" ? "Disable" : "ปิดใช้งาน") : (lang === "en" ? "Enable" : "เปิดใช้งาน")}
-                          >
-                            <span
-                              className={`inline-block h-4.5 w-4.5 transform rounded-full bg-white shadow transition-transform ${
-                                enableAmssSync ? "translate-x-5.5" : "translate-x-1"
+                            <button
+                              type="button"
+                              onClick={() => saveSubsystem("enableAmssSync", !enableAmssSync)}
+                              className={`relative inline-flex h-5.5 w-10 items-center rounded-full transition-colors focus:outline-none shrink-0 ml-2 cursor-pointer ${
+                                enableAmssSync ? "bg-sky-500" : "bg-slate-200 dark:bg-slate-700"
                               }`}
-                            />
-                          </button>
-                        </div>
+                              title={enableAmssSync ? (lang === "en" ? "Disable" : "ปิดใช้งาน") : (lang === "en" ? "Enable" : "เปิดใช้งาน")}
+                            >
+                              <span
+                                className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-xs transition-transform ${
+                                  enableAmssSync ? "translate-x-4.5" : "translate-x-0.5"
+                                }`}
+                              />
+                            </button>
+                          </div>
 
-                        {/* Certificate Subsystem */}
-                        <div className="flex items-center justify-between p-3 sm:p-3.5 rounded-2xl bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200/80 dark:border-amber-900/50 shadow-2xs">
-                          <div className="flex items-center gap-3 min-w-0">
-                            <div className="w-8 h-8 rounded-xl bg-amber-100 dark:bg-amber-900/60 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
-                              <Award className="w-4 h-4" />
+                          {/* Certificate Subsystem */}
+                          <div className="flex items-center justify-between p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-700/80">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <div className="w-7 h-7 rounded-lg bg-amber-50 dark:bg-amber-950 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+                                <Award className="w-3.5 h-3.5" />
+                              </div>
+                              <div className="min-w-0">
+                                <p className="font-bold text-xs text-slate-800 dark:text-slate-200">
+                                  {lang === "en" ? "Certificates System" : "ระบบออกเกียรติบัตร"}
+                                </p>
+                                <p className="text-[10.5px] text-slate-400 truncate">
+                                  {lang === "en" ? "Cert numbering & print" : "ขอเลขเกียรติบัตร & พิมพ์ A4"}
+                                </p>
+                              </div>
                             </div>
-                            <div className="min-w-0">
-                              <p className="font-bold text-xs text-slate-900 dark:text-white">
-                                {lang === "en" ? "Certificates System (Sub-module)" : "ระบบออกเกียรติบัตร (ย่อย)"}
-                              </p>
-                              <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
-                                {lang === "en" ? "Activity certificate batch numbering & A4 printing" : "การขอเลขเกียรติบัตรรายกิจกรรม และพิมพ์เกียรติบัตร"}
-                              </p>
-                            </div>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => saveSubsystem("enableCertificate", !enableCertificate)}
-                            className={`relative inline-flex h-6.5 w-11 items-center rounded-full transition-colors focus:outline-none shrink-0 ml-2 cursor-pointer ${
-                              enableCertificate ? "bg-amber-500" : "bg-gray-200 dark:bg-gray-700"
-                            }`}
-                            title={enableCertificate ? (lang === "en" ? "Disable" : "ปิดใช้งาน") : (lang === "en" ? "Enable" : "เปิดใช้งาน")}
-                          >
-                            <span
-                              className={`inline-block h-4.5 w-4.5 transform rounded-full bg-white shadow transition-transform ${
-                                enableCertificate ? "translate-x-5.5" : "translate-x-1"
+                            <button
+                              type="button"
+                              onClick={() => saveSubsystem("enableCertificate", !enableCertificate)}
+                              className={`relative inline-flex h-5.5 w-10 items-center rounded-full transition-colors focus:outline-none shrink-0 ml-2 cursor-pointer ${
+                                enableCertificate ? "bg-amber-500" : "bg-slate-200 dark:bg-slate-700"
                               }`}
-                            />
-                          </button>
+                              title={enableCertificate ? (lang === "en" ? "Disable" : "ปิดใช้งาน") : (lang === "en" ? "Enable" : "เปิดใช้งาน")}
+                            >
+                              <span
+                                className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-xs transition-transform ${
+                                  enableCertificate ? "translate-x-4.5" : "translate-x-0.5"
+                                }`}
+                              />
+                            </button>
+                          </div>
                         </div>
                       </div>
                     )}
@@ -7696,6 +7746,193 @@ export default function SettingsPage() {
                 )}
               </div>
             )}
+          </div>
+        </div>
+
+        {/* ─── Document System: Document Officers / Clerks Delegation ─── */}
+        <div className="mt-6 bg-orange-50/50 dark:bg-orange-950/20 rounded-2xl border border-orange-200 dark:border-orange-800 p-5">
+          <div className="flex items-center gap-2 mb-3">
+            <ClipboardList className="w-4 h-4 text-orange-600 dark:text-orange-400" />
+            <h4 className="font-bold text-sm text-orange-900 dark:text-orange-200">
+              {lang === "en" ? "AMSS++ Document System — Authorized Officers & Clerks" : "ระบบสารบรรณ & ออกเลข — กำหนดครูผู้ได้รับมอบหมายเป็นธุรการ/สารบรรณ"}
+            </h4>
+          </div>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
+            {lang === "en"
+              ? "Teachers and personnel listed below are granted full rights to Edit, Cancel, and Restore all outgoing document numbers."
+              : "ครูและบุคลากรที่ระบุด้านล่างจะได้รับสิทธิ์ในการ แก้ไข, ยกเลิกเลขทะเบียน, และ คืนค่าสถานะเอกสารส่งทั้งหมดในระบบ"}
+          </p>
+
+          {/* Selected users tags */}
+          <div className="flex flex-wrap gap-2 mb-3">
+            {docAdminUserIds.map((userId) => {
+              const u = userList.find((x: any) => x.id === userId || x.username === userId);
+              return (
+                <span
+                  key={userId}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-orange-100 dark:bg-orange-900/50 text-orange-800 dark:text-orange-200 text-xs font-medium border border-orange-200 dark:border-orange-700 shadow-2xs"
+                >
+                  {u ? `${u.prefix || ""}${u.firstName || u.name || ""} ${u.lastName || ""}` : userId}
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const updated = docAdminUserIds.filter((id) => id !== userId);
+                      setDocAdminUserIds(updated);
+                      try {
+                        await updateSystemSettings({ documentAdminUserIds: updated.join(",") });
+                        showToast("success", lang === "en" ? "Removed" : "ลบรายชื่อสำเร็จ");
+                      } catch (e: any) {
+                        showToast("error", e?.message ?? "เกิดข้อผิดพลาด");
+                      }
+                    }}
+                    className="hover:text-red-600 dark:hover:text-red-400 transition-colors cursor-pointer"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </span>
+              );
+            })}
+            {docAdminUserIds.length === 0 && (
+              <span className="text-xs text-gray-400 dark:text-gray-500 italic">
+                {lang === "en" ? "No personnel assigned yet — only Admins and Creators can manage docs" : "ยังไม่ได้กำหนดผู้ได้รับมอบหมาย — เฉพาะแอดมินและผู้ขอออกเลขที่จัดการได้"}
+              </span>
+            )}
+          </div>
+
+          {/* Search & Add */}
+          <div className="relative">
+            <input
+              type="text"
+              placeholder={lang === "en" ? "Search teacher or staff to add..." : "ค้นหาชื่อครูหรือบุคลากรเพื่อเพิ่มสิทธิ์ธุรการ..."}
+              value={docAdminSearchQuery}
+              onChange={(e) => {
+                setDocAdminSearchQuery(e.target.value);
+                setShowDocAdminDropdown(true);
+              }}
+              onFocus={() => setShowDocAdminDropdown(true)}
+              className="w-full px-4 py-2.5 rounded-xl bg-white dark:bg-gray-900 border border-orange-200 dark:border-orange-700 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-400 dark:focus:ring-orange-600"
+            />
+            {showDocAdminDropdown && docAdminSearchQuery.length > 0 && (
+              <div className="absolute z-50 w-full mt-1 max-h-48 overflow-y-auto bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl">
+                {userList
+                  .filter(
+                    (u: any) =>
+                      !docAdminUserIds.includes(u.id) &&
+                      (`${u.prefix || ""}${u.firstName || u.name || ""} ${u.lastName || ""}`
+                        .toLowerCase()
+                        .includes(docAdminSearchQuery.toLowerCase()))
+                  )
+                  .slice(0, 10)
+                  .map((u: any) => (
+                    <button
+                      key={u.id}
+                      type="button"
+                      onClick={async () => {
+                        const updated = [...docAdminUserIds, u.id];
+                        setDocAdminUserIds(updated);
+                        setDocAdminSearchQuery("");
+                        setShowDocAdminDropdown(false);
+                        try {
+                          await updateSystemSettings({ documentAdminUserIds: updated.join(",") });
+                          showToast("success", lang === "en" ? "Added" : "มอบหมายสิทธิ์สำเร็จ");
+                        } catch (e: any) {
+                          showToast("error", e?.message ?? "เกิดข้อผิดพลาด");
+                        }
+                      }}
+                      className="w-full text-left px-4 py-2 text-sm hover:bg-orange-50 dark:hover:bg-orange-950/30 transition-colors flex items-center gap-2 cursor-pointer"
+                    >
+                      <UserCheck className="w-4 h-4 text-orange-500" />
+                      <span>{u.prefix || ""}${u.firstName || u.name || ""} {u.lastName || ""}</span>
+                      <span className="ml-auto text-xs text-gray-400">{u.position || ""}</span>
+                    </button>
+                  ))}
+                {userList.filter(
+                  (u: any) =>
+                    !docAdminUserIds.includes(u.id) &&
+                    (`${u.prefix || ""}${u.firstName || u.name || ""} ${u.lastName || ""}`
+                      .toLowerCase()
+                      .includes(docAdminSearchQuery.toLowerCase()))
+                ).length === 0 && (
+                  <p className="px-4 py-2 text-xs text-gray-400">{lang === "en" ? "No results" : "ไม่พบผลลัพธ์"}</p>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Document Management Policy Mode (Direct vs Workflow) */}
+          <div className="mt-4 pt-4 border-t border-orange-200/60 dark:border-orange-900/40">
+            <label className="block text-xs font-bold text-slate-800 dark:text-slate-200 mb-1.5">
+              {lang === "en"
+                ? "Document Edit & Cancel Policy Mode"
+                : "นโยบายการควบคุมสิทธิ์ แก้ไข / ยกเลิก / คืนค่า เอกสารส่ง"}
+            </label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <button
+                type="button"
+                onClick={async () => {
+                  setDocumentManageMode("DIRECT");
+                  try {
+                    await updateSystemSettings({ documentManageMode: "DIRECT" });
+                    showToast("success", lang === "en" ? "Mode updated to Direct Action" : "สลับเป็นโหมด 1: จัดการได้โดยตรง ทันที");
+                  } catch (e: any) {
+                    showToast("error", e?.message ?? "เกิดข้อผิดพลาด");
+                  }
+                }}
+                className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                  documentManageMode === "DIRECT"
+                    ? "bg-amber-50 dark:bg-amber-950/60 border-amber-400 dark:border-amber-700 shadow-2xs"
+                    : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-slate-300"
+                }`}
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <span className="font-bold text-xs text-slate-900 dark:text-white flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-amber-500" />
+                    โหมด 1: จัดการได้โดยตรง (Direct)
+                  </span>
+                  {documentManageMode === "DIRECT" && (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-200 dark:bg-amber-900 text-amber-900 dark:text-amber-200">
+                      กำลังใช้งาน
+                    </span>
+                  )}
+                </div>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-normal">
+                  เจ้าตัวผู้ขอออกเลข, เจ้าหน้าที่ธุรการที่ได้รับมอบหมาย, และแอดมิน แก้ไข หรือยกเลิกเลขทะเบียนได้ทันที
+                </p>
+              </button>
+
+              <button
+                type="button"
+                onClick={async () => {
+                  setDocumentManageMode("WORKFLOW");
+                  try {
+                    await updateSystemSettings({ documentManageMode: "WORKFLOW" });
+                    showToast("success", lang === "en" ? "Mode updated to Approval Workflow" : "สลับเป็นโหมด 2: ยื่นคำร้องขออนุมัติ ทันที");
+                  } catch (e: any) {
+                    showToast("error", e?.message ?? "เกิดข้อผิดพลาด");
+                  }
+                }}
+                className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                  documentManageMode === "WORKFLOW"
+                    ? "bg-purple-50 dark:bg-purple-950/60 border-purple-400 dark:border-purple-700 shadow-2xs"
+                    : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-slate-300"
+                }`}
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <span className="font-bold text-xs text-slate-900 dark:text-white flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-purple-500" />
+                    โหมด 2: ส่งคำร้องขอให้ธุรการอนุมัติ (Workflow)
+                  </span>
+                  {documentManageMode === "WORKFLOW" && (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-200 dark:bg-purple-900 text-purple-900 dark:text-purple-200">
+                      กำลังใช้งาน
+                    </span>
+                  )}
+                </div>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-normal">
+                  ครูที่เป็นผู้ขอออกเลขจะยื่น &quot;คำร้องขอแก้ไข/ยกเลิก&quot; เพื่อให้เจ้าหน้าที่ธุรการหรือแอดมินกดอนุมัติ
+                </p>
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -8968,7 +9205,9 @@ function renderPatternPreview(
     dummySeq,
     dummyYear,
     padding,
-    useThai
+    useThai,
+    undefined,
+    yearFormat
   );
 }
 
@@ -8987,6 +9226,8 @@ function DocMemoSectionsTab({
   lang: string;
 }) {
   const [editId, setEditId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [sortBy, setSortBy] = useState<"order" | "code" | "name">("order");
   const [form, setForm] = useState({ 
     name: "", 
     code: "", 
@@ -9061,30 +9302,80 @@ function DocMemoSectionsTab({
     }
   };
 
+  const filteredSections = sections
+    .filter((s) => {
+      const q = searchQuery.toLowerCase().trim();
+      if (!q) return true;
+      return (
+        s.name.toLowerCase().includes(q) ||
+        s.code.toLowerCase().includes(q)
+      );
+    })
+    .sort((a, b) => {
+      if (sortBy === "code") return a.code.localeCompare(b.code);
+      if (sortBy === "name") return a.name.localeCompare(b.name);
+      return (a.sortOrder || 0) - (b.sortOrder || 0);
+    });
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -12 }}
       transition={{ duration: 0.2 }}
-      className="space-y-4 pt-2"
+      className="space-y-4 pt-2 font-sans"
     >
-      {/* Add Button */}
-      <div className="flex justify-end">
+      {/* Search & Action Control Bar (Option 2: Data-Dense Enterprise Toolbar) */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white dark:bg-slate-800/90 p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-2xs">
+        {/* Search & Filter Inputs */}
+        <div className="flex flex-1 items-center gap-2">
+          <div className="relative flex-1 max-w-md">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              placeholder={lang === "en" ? "Filter sub-memo sections by name or code..." : "🔍 ค้นหารหัส หรือชื่องานย่อยบันทึกข้อความ..."}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full h-10 pl-9 pr-8 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs focus:ring-2 focus:ring-purple-500/30 focus:border-purple-400 transition-all text-slate-900 dark:text-white placeholder:text-slate-400"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery("")}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5 rounded-full"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          {/* Sort Selector */}
+          <select
+            value={sortBy}
+            onChange={(e: any) => setSortBy(e.target.value)}
+            className="h-10 px-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-300 cursor-pointer outline-none focus:ring-2 focus:ring-purple-500/30"
+          >
+            <option value="order">เรียงตามลำดับ (Sort Order)</option>
+            <option value="code">เรียงตามรหัส (Code A-Z)</option>
+            <option value="name">เรียงตามชื่อ (Name)</option>
+          </select>
+        </div>
+
+        {/* Add Button */}
         <button
           type="button"
           onClick={() => {
             resetForm();
             setShowForm(true);
           }}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 active:scale-95 text-white text-xs font-bold transition-all shadow-md shadow-purple-600/20 cursor-pointer border border-purple-500/20"
+          className="flex items-center justify-center gap-2 px-4 h-10 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 active:scale-95 text-white text-xs font-bold transition-all shadow-md shadow-purple-600/20 cursor-pointer border border-purple-500/20 shrink-0"
         >
           <Plus className="w-4 h-4" />
-          เพิ่มงานย่อย
+          <span>เพิ่มงานย่อย</span>
         </button>
       </div>
 
-      {/* Form */}
+      {/* Form Area */}
       <AnimatePresence>
         {showForm && (
           <motion.div
@@ -9093,26 +9384,41 @@ function DocMemoSectionsTab({
             exit={{ opacity: 0, height: 0 }}
             className="overflow-hidden"
           >
-            <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6 space-y-4 shadow-sm">
-              <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                {editId ? "แก้ไขงานย่อย" : "เพิ่มงานย่อยใหม่"}
-              </h3>
+            <div className="bg-white dark:bg-slate-800 rounded-2xl border border-purple-200 dark:border-purple-900/50 p-6 space-y-5 shadow-lg shadow-purple-500/5 relative">
+              <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-700 pb-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-xl bg-purple-100 dark:bg-purple-900/40 text-purple-600 dark:text-purple-400 flex items-center justify-center font-bold">
+                    <Folder className="w-4 h-4" />
+                  </div>
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                    {editId ? "แก้ไขข้อมูลงานย่อยบันทึกข้อความ" : "เพิ่มหมวดงานย่อยบันทึกข้อความใหม่"}
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={resetForm}
+                  className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                 <div>
-                  <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1 block">
-                    ชื่องานย่อย
+                  <label className="text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1 block">
+                    ชื่องานย่อย <span className="text-rose-500">*</span>
                   </label>
                   <input
                     type="text"
                     value={form.name}
                     onChange={(e) => setForm({ ...form, name: e.target.value })}
-                    placeholder="เช่น ฝ่ายวิชาการ"
-                    className="w-full h-11 px-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-sm focus:ring-2 focus:ring-purple-500/30 focus:border-purple-400 transition-all text-gray-900 dark:text-white"
+                    placeholder="เช่น ฝ่ายวิชาการ, งานงบประมาณ"
+                    className="w-full h-10 px-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-xs focus:ring-2 focus:ring-purple-500/30 focus:border-purple-400 transition-all text-slate-900 dark:text-white"
                   />
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1 block">
-                    รหัส (Code)
+                  <label className="text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1 block">
+                    รหัส (Code) <span className="text-rose-500">*</span>
                   </label>
                   <input
                     type="text"
@@ -9120,13 +9426,13 @@ function DocMemoSectionsTab({
                     onChange={(e) =>
                       setForm({ ...form, code: e.target.value.toUpperCase() })
                     }
-                    placeholder="เช่น ACAD"
-                    className="w-full h-11 px-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-sm font-mono uppercase focus:ring-2 focus:ring-purple-500/30 focus:border-purple-400 transition-all text-gray-900 dark:text-white"
+                    placeholder="เช่น ACAD, BUGT, GEN"
+                    className="w-full h-10 px-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-xs font-mono tracking-wider uppercase focus:ring-2 focus:ring-purple-500/30 focus:border-purple-400 transition-all text-slate-900 dark:text-white font-bold"
                   />
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1 block">
-                    ลำดับความสำคัญ (Sort Order)
+                  <label className="text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1 block">
+                    ลำดับการแสดงผล (Sort Order)
                   </label>
                   <input
                     type="number"
@@ -9134,16 +9440,16 @@ function DocMemoSectionsTab({
                     onChange={(e) =>
                       setForm({ ...form, sortOrder: parseInt(e.target.value) || 0 })
                     }
-                    className="w-full h-11 px-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-sm focus:ring-2 focus:ring-purple-500/30 focus:border-purple-400 transition-all text-gray-900 dark:text-white"
+                    className="w-full h-10 px-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-xs focus:ring-2 focus:ring-purple-500/30 focus:border-purple-400 transition-all text-slate-900 dark:text-white"
                   />
                 </div>
               </div>
 
               {/* Color & Icon Selectors */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-1">
                 <div>
-                  <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-2 block">
-                    สีประจำหมวดเอกสาร
+                  <label className="text-xs font-semibold text-slate-600 dark:text-slate-300 mb-2 block">
+                    สีป้ายประจำหมวดเอกสาร
                   </label>
                   <div className="flex flex-wrap gap-2">
                     {[
@@ -9161,8 +9467,8 @@ function DocMemoSectionsTab({
                         type="button"
                         onClick={() => setForm({ ...form, color: c })}
                         style={{ backgroundColor: c }}
-                        className={`w-8 h-8 rounded-full border-2 transition-all ${
-                          form.color === c ? "border-slate-900 dark:border-white scale-110 shadow-md" : "border-transparent hover:scale-105"
+                        className={`w-7 h-7 rounded-full border-2 transition-all cursor-pointer ${
+                          form.color === c ? "border-slate-900 dark:border-white scale-110 shadow-md ring-2 ring-purple-400/40" : "border-transparent hover:scale-105"
                         }`}
                       />
                     ))}
@@ -9170,8 +9476,8 @@ function DocMemoSectionsTab({
                 </div>
 
                 <div>
-                  <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-2 block">
-                    ไอคอน
+                  <label className="text-xs font-semibold text-slate-600 dark:text-slate-300 mb-2 block">
+                    ไอคอนประจำหมวด
                   </label>
                   <div className="flex flex-wrap gap-2">
                     {[
@@ -9181,10 +9487,10 @@ function DocMemoSectionsTab({
                         key={iconName}
                         type="button"
                         onClick={() => setForm({ ...form, icon: iconName })}
-                        className={`px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all ${
+                        className={`px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all cursor-pointer ${
                           form.icon === iconName 
-                            ? "bg-purple-600 border-purple-650 text-white shadow-sm" 
-                            : "bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-650 dark:text-slate-350 hover:bg-slate-100 dark:hover:bg-slate-800"
+                            ? "bg-purple-600 border-purple-650 text-white shadow-xs" 
+                            : "bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-650 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
                         }`}
                       >
                         {iconName === "Folder" && "📁 แฟ้ม"}
@@ -9201,43 +9507,44 @@ function DocMemoSectionsTab({
                 </div>
               </div>
 
-              <div className="flex items-center gap-3">
+              {/* Status toggle */}
+              <div className="flex items-center gap-3 pt-1">
                 <button
                   type="button"
                   onClick={() => setForm({ ...form, isActive: !form.isActive })}
-                  className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-305"
+                  className="flex items-center gap-2 text-xs font-semibold cursor-pointer"
                 >
                   {form.isActive ? (
-                    <ToggleRight className="w-6 h-6 text-emerald-500" />
+                    <ToggleRight className="w-7 h-7 text-emerald-500" />
                   ) : (
-                    <ToggleLeft className="w-6 h-6 text-slate-400" />
+                    <ToggleLeft className="w-7 h-7 text-slate-400" />
                   )}
                   <span
                     className={
                       form.isActive
-                        ? "text-emerald-600 dark:text-emerald-400 font-medium"
-                        : "text-slate-400 font-medium"
+                        ? "text-emerald-600 dark:text-emerald-400"
+                        : "text-slate-400"
                     }
                   >
-                    {form.isActive ? "เปิดใช้งาน" : "ปิดใช้งาน"}
+                    {form.isActive ? "เปิดใช้งานในระบบ" : "ปิดใช้งานชั่วคราว"}
                   </span>
                 </button>
               </div>
 
-              <div className="flex gap-2 pt-2">
+              <div className="flex gap-2 pt-2 border-t border-slate-100 dark:border-slate-700">
                 <button
                   type="button"
                   onClick={handleSave}
                   disabled={saving}
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-sm font-semibold disabled:opacity-50 transition-colors cursor-pointer"
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold disabled:opacity-50 transition-all cursor-pointer shadow-md shadow-purple-600/20"
                 >
                   <Save className="w-4 h-4" />
-                  {saving ? "กำลังบันทึก..." : "บันทึก"}
+                  {saving ? "กำลังบันทึก..." : "บันทึกข้อมูล"}
                 </button>
                 <button
                   type="button"
                   onClick={resetForm}
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-650 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 text-sm font-medium transition-colors cursor-pointer"
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-650 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 text-xs font-bold transition-all cursor-pointer"
                 >
                   <X className="w-4 h-4" />
                   ยกเลิก
@@ -9248,54 +9555,59 @@ function DocMemoSectionsTab({
         )}
       </AnimatePresence>
 
-      {/* Table */}
-      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-705 overflow-hidden shadow-sm">
-        {sections.length === 0 ? (
+      {/* Enterprise Data-Dense Table (Option 2) */}
+      <div className="bg-white dark:bg-slate-800/90 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 overflow-hidden shadow-2xs">
+        {filteredSections.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-slate-400">
-            <FolderOpen className="w-12 h-12 mb-3 opacity-30" />
-            <p className="text-sm font-medium">ยังไม่มีงานย่อย</p>
-            <p className="text-xs mt-1">กดปุ่ม &quot;เพิ่มงานย่อย&quot; เพื่อเริ่มต้น</p>
+            <FolderOpen className="w-12 h-12 mb-3 opacity-30 text-purple-400" />
+            <p className="text-sm font-bold text-slate-600 dark:text-slate-300">
+              {searchQuery ? "ไม่พบหมวดงานย่อยที่ตรงกับคำค้นหา" : "ยังไม่มีหมวดงานย่อยในระบบ"}
+            </p>
+            <p className="text-xs text-slate-400 mt-1">
+              {searchQuery ? "ลองเปลี่ยนคำค้นหาใหม่" : "กดปุ่ม \"เพิ่มงานย่อย\" เพื่อเริ่มต้นสร้างหมวดใหม่"}
+            </p>
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="border-b border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50">
-                  <th className="px-6 py-3.5 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                    รหัส
-                  </th>
-                  <th className="px-6 py-3.5 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                    ชื่องานย่อย
-                  </th>
-                  <th className="px-6 py-3.5 text-center text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                    สถานะ
-                  </th>
-                  <th className="px-6 py-3.5 text-right text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                    จัดการ
-                  </th>
+                <tr className="border-b border-slate-200/70 dark:border-slate-700/70 bg-slate-50/80 dark:bg-slate-900/60 text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                  <th className="py-3.5 px-4 text-center w-16">ลำดับ</th>
+                  <th className="py-3.5 px-4 w-32">รหัส (Code)</th>
+                  <th className="py-3.5 px-4">ชื่องานย่อยบันทึกข้อความ</th>
+                  <th className="py-3.5 px-4 text-center w-36">สถานะการใช้งาน</th>
+                  <th className="py-3.5 px-4 text-right w-28">จัดการ</th>
                 </tr>
               </thead>
-              <tbody>
-                {sections.map((s) => (
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-700/60 text-xs">
+                {filteredSections.map((s, idx) => (
                   <tr
                     key={s.id}
-                    className={`border-b border-slate-50 dark:border-slate-800 last:border-0 hover:bg-slate-50 dark:hover:bg-slate-800/55 transition-colors ${
-                      !s.isActive ? "opacity-50" : ""
+                    className={`group hover:bg-purple-50/40 dark:hover:bg-purple-950/20 transition-all ${
+                      !s.isActive ? "opacity-60 bg-slate-50/40 dark:bg-slate-900/20" : ""
                     }`}
                   >
-                    <td className="px-6 py-3.5">
+                    {/* Sort Order Badge */}
+                    <td className="py-3.5 px-4 text-center font-mono font-bold text-slate-400 group-hover:text-purple-600 dark:group-hover:text-purple-400">
+                      #{s.sortOrder !== undefined ? s.sortOrder : idx + 1}
+                    </td>
+
+                    {/* Code Badge */}
+                    <td className="py-3.5 px-4">
                       <span 
-                        style={{ backgroundColor: `${s.color || "#6366f1"}15`, color: s.color || "#6366f1" }}
-                        className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold font-mono"
+                        style={{ backgroundColor: `${s.color || "#6366f1"}18`, color: s.color || "#6366f1", borderColor: `${s.color || "#6366f1"}35` }}
+                        className="inline-flex items-center px-3 py-1 rounded-xl text-xs font-bold font-mono border shadow-2xs"
                       >
                         {s.code}
                       </span>
                     </td>
-                    <td className="px-6 py-3.5 text-sm font-medium text-slate-900 dark:text-white">
-                      <div className="flex items-center gap-2">
-                        <span 
-                          style={{ color: s.color || "#6366f1" }} 
-                          className="text-xs"
+
+                    {/* Section Name & Icon */}
+                    <td className="py-3.5 px-4">
+                      <div className="flex items-center gap-3">
+                        <div 
+                          style={{ backgroundColor: `${s.color || "#6366f1"}15`, color: s.color || "#6366f1" }}
+                          className="w-8 h-8 rounded-xl flex items-center justify-center text-sm shrink-0 shadow-2xs border border-purple-500/10"
                         >
                           {s.icon === "GraduationCap" && "🎓"}
                           {s.icon === "Banknote" && "💰"}
@@ -9305,37 +9617,43 @@ function DocMemoSectionsTab({
                           {s.icon === "BookOpen" && "📖"}
                           {s.icon === "Settings" && "⚙️"}
                           {(s.icon === "Folder" || !s.icon) && "📁"}
-                        </span>
-                        <span>{s.name}</span>
-                        {s.sortOrder !== undefined && s.sortOrder > 0 && (
-                          <span className="text-[10px] text-slate-400 font-normal">
-                            (ลำดับ: {s.sortOrder})
-                          </span>
-                        )}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-bold text-slate-900 dark:text-white text-xs tracking-tight">
+                            {s.name}
+                          </p>
+                          <p className="text-[11px] text-slate-400 font-mono">
+                            รหัสเชื่อมโยง: {s.code}
+                          </p>
+                        </div>
                       </div>
                     </td>
-                    <td className="px-6 py-3.5 text-center">
+
+                    {/* Status Toggle Badge */}
+                    <td className="py-3.5 px-4 text-center">
                       <span
-                        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold ${
+                        className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold border ${
                           s.isActive
-                            ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                            : "bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400"
+                            ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800/60"
+                            : "bg-slate-100 dark:bg-slate-800 text-slate-400 border-slate-200 dark:border-slate-700"
                         }`}
                       >
                         <span
                           className={`w-1.5 h-1.5 rounded-full ${
-                            s.isActive ? "bg-emerald-500" : "bg-slate-400"
+                            s.isActive ? "bg-emerald-500 animate-pulse" : "bg-slate-400"
                           }`}
                         />
-                        {s.isActive ? "เปิดใช้งาน" : "ปิด"}
+                        {s.isActive ? "เปิดใช้งาน" : "ปิดใช้งาน"}
                       </span>
                     </td>
-                    <td className="px-6 py-3.5 text-right">
-                      <div className="flex items-center justify-end gap-1">
+
+                    {/* Actions */}
+                    <td className="py-3.5 px-4 text-right">
+                      <div className="flex items-center justify-end gap-1 opacity-90 group-hover:opacity-100 transition-opacity">
                         <button
                           type="button"
                           onClick={() => handleEdit(s)}
-                          className="p-2 rounded-lg hover:bg-purple-50 dark:hover:bg-purple-500/10 text-slate-400 hover:text-purple-600 dark:hover:text-purple-400 transition-colors"
+                          className="p-1.5 rounded-xl hover:bg-purple-100 dark:hover:bg-purple-900/50 text-slate-500 hover:text-purple-700 dark:text-slate-400 dark:hover:text-purple-300 transition-colors cursor-pointer"
                           title="แก้ไข"
                         >
                           <Pencil className="w-4 h-4" />
@@ -9343,7 +9661,7 @@ function DocMemoSectionsTab({
                         <button
                           type="button"
                           onClick={() => handleDelete(s.id)}
-                          className="p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-500/10 text-slate-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
+                          className="p-1.5 rounded-xl hover:bg-rose-100 dark:hover:bg-rose-900/50 text-slate-500 hover:text-rose-700 dark:text-slate-400 dark:hover:text-rose-300 transition-colors cursor-pointer"
                           title="ลบ"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -9605,8 +9923,9 @@ function DocPatternBuilderTab({
                           onChange={(e) => setLocalYearFormat(e.target.value)}
                           className="w-full h-11 px-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-sm focus:ring-2 focus:ring-purple-500/30 cursor-pointer text-gray-900 dark:text-white"
                         >
-                          <option value="TH_BE">พ.ศ. (2569)</option>
-                          <option value="AD">ค.ศ. (2026)</option>
+                          <option value="TH_BE">แสดง พ.ศ. (เช่น /2569)</option>
+                          <option value="NONE">ไม่ใส่ พ.ศ./ปี (แสดงเฉพาะเลขลำดับ)</option>
+                          <option value="AD">แสดง ค.ศ. (เช่น /2026)</option>
                         </select>
                       </div>
                     </div>

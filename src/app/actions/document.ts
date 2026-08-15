@@ -270,7 +270,9 @@ export async function issueDocNumber(docId: string, customDateStr?: string): Pro
         nextSeq,
         finalYear,
         config.paddingDigits,
-        config.useThaiNumerals
+        config.useThaiNumerals,
+        record.docType,
+        config.yearFormat
       );
 
       // Save and update document record
@@ -289,7 +291,8 @@ export async function issueDocNumber(docId: string, customDateStr?: string): Pro
       await tx.systemLog.create({
         data: {
           actionType: "DOC_ISSUE",
-          description: `ออกเลขเอกสารประเภท ${record.docType}: ${formattedNo} โดยผู้ใช้งาน ${user.name || "Unknown"}`,
+          subsystem: "DOCUMENT",
+          description: `ออกเลขเอกสารประเภท ${record.docType}: ${formattedNo} โดยผู้ใช้งาน ${user.name || "Unknown"} (ID: ${user.id})`,
           userId: user.id
         }
       });
@@ -305,9 +308,55 @@ export async function issueDocNumber(docId: string, customDateStr?: string): Pro
   }
 }
 
+async function verifyDocumentManagePermission(
+  doc: { createdById?: string | null; requester?: string | null },
+  user: { id: string; role?: string | null; position?: string | null; name?: string | null; username?: string | null }
+) {
+  // 1. Admin
+  if (user.role === "ADMIN" || user.position === "แอดมิน") return true;
+
+  // 2. Position is Officer / Sarabun / Clerical
+  if (
+    user.role === "SARABUN" ||
+    user.position === "เจ้าหน้าที่ธุรการ / งานสารบรรณ" ||
+    user.position === "เจ้าหน้าที่สารบรรณ" ||
+    user.position === "เจ้าหน้าที่ธุรการ" ||
+    user.position === "ธุรการ"
+  ) {
+    return true;
+  }
+
+  // 3. Check systemSettings.documentAdminUserIds (ผู้ที่ได้รับมอบหมายในตั้งค่าระบบ)
+  const settings = await prisma.systemSettings.findUnique({
+    where: { id: "default" },
+    select: { documentAdminUserIds: true },
+  });
+
+  if (settings?.documentAdminUserIds) {
+    const adminUserIds = settings.documentAdminUserIds.split(",").map((s) => s.trim()).filter(Boolean);
+    if (adminUserIds.includes(user.id) || (user.username && adminUserIds.includes(user.username))) {
+      return true;
+    }
+  }
+
+  // 4. Owner / Requester
+  if (doc.createdById && doc.createdById === user.id) return true;
+  if (doc.requester && (doc.requester === user.name || doc.requester === user.username)) return true;
+
+  throw new Error("คุณไม่มีสิทธิ์จัดการเอกสารนี้ (สิทธิ์นี้สำหรับ เจ้าตัวผู้ขอเอกสาร, เจ้าหน้าที่ธุรการ/สารบรรณที่ได้รับมอบหมาย, และ แอดมิน เท่านั้น)");
+}
+
 export async function cancelDoc(id: string, reason: string): Promise<ActionResponse> {
   try {
     const user = await getSessionUser();
+    const fullUser = await prisma.user.findUnique({ where: { id: user.id } });
+    if (!fullUser) throw new Error("Unauthorized");
+
+    const doc = await prisma.documentRecord.findUnique({ where: { id } });
+    if (!doc) throw new Error("Document not found");
+
+    await verifyDocumentManagePermission(doc, fullUser);
+
     const updated = await prisma.documentRecord.update({
       where: { id },
       data: {
@@ -319,7 +368,8 @@ export async function cancelDoc(id: string, reason: string): Promise<ActionRespo
     await prisma.systemLog.create({
       data: {
         actionType: "DOC_CANCEL",
-        description: `ยกเลิกเลขเอกสาร ${updated.docNo || "ยังไม่ได้ออกเลข"} เนื่องจาก: ${reason}`,
+        subsystem: "DOCUMENT",
+        description: `ยกเลิกเลขเอกสาร ${updated.docNo || "ยังไม่ได้ออกเลข"} (เรื่อง: "${updated.title}") เนื่องจาก: ${reason} โดยผู้ใช้งาน ${fullUser.name || user.name || "Unknown"} (ID: ${user.id})`,
         userId: user.id
       }
     });
@@ -328,6 +378,330 @@ export async function cancelDoc(id: string, reason: string): Promise<ActionRespo
     return { success: true, data: updated };
   } catch (err: any) {
     return handleActionError(err, "cancelDoc");
+  }
+}
+
+export async function restoreDoc(id: string): Promise<ActionResponse> {
+  try {
+    const user = await getSessionUser();
+    const fullUser = await prisma.user.findUnique({ where: { id: user.id } });
+    if (!fullUser) throw new Error("Unauthorized");
+
+    const doc = await prisma.documentRecord.findUnique({ where: { id } });
+    if (!doc) throw new Error("Document not found");
+
+    await verifyDocumentManagePermission(doc, fullUser);
+
+    const updated = await prisma.documentRecord.update({
+      where: { id },
+      data: {
+        status: "ISSUED",
+        cancelReason: null
+      }
+    });
+
+    await prisma.systemLog.create({
+      data: {
+        actionType: "DOC_RESTORE",
+        subsystem: "DOCUMENT",
+        description: `คืนค่าเลขเอกสาร ${updated.docNo || "ยังไม่ได้ออกเลข"} (เรื่อง: "${updated.title}") กลับเป็นสถานะปกติ โดยผู้ใช้งาน ${fullUser.name || user.name || "Unknown"} (ID: ${user.id})`,
+        userId: user.id
+      }
+    });
+
+    safeRevalidatePath("/document");
+    return { success: true, data: updated };
+  } catch (err: any) {
+    return handleActionError(err, "restoreDoc");
+  }
+}
+
+export async function updateOutboundDoc(
+  id: string,
+  data: {
+    title: string;
+    to?: string;
+    origin?: string;
+    requester?: string;
+    signeeName?: string;
+    signeePosition?: string;
+  }
+): Promise<ActionResponse> {
+  try {
+    const user = await getSessionUser();
+    const fullUser = await prisma.user.findUnique({ where: { id: user.id } });
+    if (!fullUser) throw new Error("Unauthorized");
+
+    const doc = await prisma.documentRecord.findUnique({ where: { id } });
+    if (!doc) throw new Error("Document not found");
+
+    await verifyDocumentManagePermission(doc, fullUser);
+
+    if (!data.title || !data.title.trim()) {
+      throw new Error("กรุณาระบุชื่อเรื่องของเอกสาร");
+    }
+
+    const updated = await prisma.documentRecord.update({
+      where: { id },
+      data: {
+        title: data.title.trim(),
+        to: data.to !== undefined ? data.to.trim() : doc.to,
+        origin: data.origin !== undefined ? data.origin.trim() : doc.origin,
+        requester: data.requester !== undefined ? data.requester.trim() : doc.requester,
+        signeeName: data.signeeName !== undefined ? data.signeeName.trim() : doc.signeeName,
+        signeePosition: data.signeePosition !== undefined ? data.signeePosition.trim() : doc.signeePosition,
+      },
+    });
+
+    await prisma.systemLog.create({
+      data: {
+        actionType: "DOC_UPDATE",
+        subsystem: "DOCUMENT",
+        description: `แก้ไขข้อมูลเอกสาร ${updated.docNo || id}: เปลี่ยนชื่อเรื่องเป็น "${updated.title}" โดยผู้ใช้งาน ${fullUser.name || user.name || "Unknown"} (ID: ${user.id})`,
+        userId: user.id,
+      },
+    });
+
+    safeRevalidatePath("/document");
+    safeRevalidatePath(`/document/${id}`);
+    return { success: true, data: updated };
+  } catch (err: any) {
+    return handleActionError(err, "updateOutboundDoc");
+  }
+}
+
+export async function ensureDocRequestColumnsExist() {
+  try {
+    await prisma.$executeRawUnsafe(`
+      ALTER TABLE "DocumentRecord" ADD COLUMN IF NOT EXISTS "pendingRequestType" TEXT;
+      ALTER TABLE "DocumentRecord" ADD COLUMN IF NOT EXISTS "pendingRequestReason" TEXT;
+      ALTER TABLE "DocumentRecord" ADD COLUMN IF NOT EXISTS "pendingRequestData" TEXT;
+      ALTER TABLE "DocumentRecord" ADD COLUMN IF NOT EXISTS "pendingRequestedBy" TEXT;
+      ALTER TABLE "DocumentRecord" ADD COLUMN IF NOT EXISTS "pendingRequestedAt" TIMESTAMP(3);
+      ALTER TABLE "SystemSettings" ADD COLUMN IF NOT EXISTS "documentManageMode" TEXT DEFAULT 'DIRECT';
+    `);
+  } catch (e) {
+    console.warn("ensureDocRequestColumnsExist fallback warning:", e);
+  }
+}
+
+export async function requestDocAction(
+  id: string,
+  type: "CANCEL" | "EDIT" | "RESTORE",
+  payload?: {
+    reason?: string;
+    title?: string;
+    to?: string;
+    origin?: string;
+    requester?: string;
+    signeeName?: string;
+    signeePosition?: string;
+  }
+): Promise<ActionResponse> {
+  try {
+    await ensureDocRequestColumnsExist();
+    const user = await getSessionUser();
+    const fullUser = await prisma.user.findUnique({ where: { id: user.id } });
+    if (!fullUser) throw new Error("Unauthorized");
+
+    const doc = await prisma.documentRecord.findUnique({ where: { id } });
+    if (!doc) throw new Error("Document not found");
+
+    const isOwner = doc.createdById === user.id || doc.requester === fullUser.name || doc.requester === fullUser.username;
+    const isAdminOrOfficer = fullUser.role === "ADMIN" || fullUser.position === "แอดมิน" || fullUser.role === "SARABUN";
+
+    if (!isOwner && !isAdminOrOfficer) {
+      throw new Error("คุณไม่มีสิทธิ์ยื่นคำร้องขอจัดการเอกสารนี้");
+    }
+
+    const updated = await prisma.documentRecord.update({
+      where: { id },
+      data: {
+        pendingRequestType: type,
+        pendingRequestReason: payload?.reason || null,
+        pendingRequestData: payload ? JSON.stringify(payload) : null,
+        pendingRequestedBy: fullUser.name || user.name || user.id,
+        pendingRequestedAt: new Date(),
+      },
+    });
+
+    const typeLabel = type === "CANCEL" ? "ยกเลิกเอกสาร" : type === "EDIT" ? "แก้ไขรายละเอียดเอกสาร" : "คืนค่าสถานะเอกสาร";
+
+    await prisma.systemLog.create({
+      data: {
+        actionType: "DOC_REQUEST_SUBMITTED",
+        subsystem: "DOCUMENT",
+        description: `ยื่นคำร้องขอ${typeLabel} ${updated.docNo || id} (เรื่อง: "${updated.title}") เหตุผล: ${payload?.reason || "-"} โดยผู้ใช้งาน ${fullUser.name || user.name || "Unknown"} (ID: ${user.id})`,
+        userId: user.id,
+      },
+    });
+
+    safeRevalidatePath("/document");
+    return { success: true, data: updated };
+  } catch (err: any) {
+    return handleActionError(err, "requestDocAction");
+  }
+}
+
+export async function approveDocRequest(id: string): Promise<ActionResponse> {
+  try {
+    await ensureDocRequestColumnsExist();
+    const user = await getSessionUser();
+    const fullUser = await prisma.user.findUnique({ where: { id: user.id } });
+    if (!fullUser) throw new Error("Unauthorized");
+
+    const doc = await prisma.documentRecord.findUnique({ where: { id } });
+    if (!doc) throw new Error("Document not found");
+
+    await verifyDocumentManagePermission(doc, fullUser);
+
+    if (!doc.pendingRequestType) {
+      throw new Error("เอกสารนี้ไม่มีคำร้องขอที่รออนุมัติ");
+    }
+
+    const reqType = doc.pendingRequestType;
+    const reqReason = doc.pendingRequestReason;
+    const reqData = doc.pendingRequestData ? JSON.parse(doc.pendingRequestData) : {};
+
+    let updateData: any = {
+      pendingRequestType: null,
+      pendingRequestReason: null,
+      pendingRequestData: null,
+      pendingRequestedBy: null,
+      pendingRequestedAt: null,
+    };
+
+    if (reqType === "CANCEL") {
+      updateData.status = "CANCELLED";
+      updateData.cancelReason = reqReason || "อนุมัติตามคำร้องขอยกเลิก";
+    } else if (reqType === "RESTORE") {
+      updateData.status = "ISSUED";
+      updateData.cancelReason = null;
+    } else if (reqType === "EDIT") {
+      if (reqData.title) updateData.title = reqData.title.trim();
+      if (reqData.to !== undefined) updateData.to = reqData.to.trim();
+      if (reqData.origin !== undefined) updateData.origin = reqData.origin.trim();
+      if (reqData.requester !== undefined) updateData.requester = reqData.requester.trim();
+    }
+
+    const updated = await prisma.documentRecord.update({
+      where: { id },
+      data: updateData,
+    });
+
+    const typeLabel = reqType === "CANCEL" ? "ยกเลิก" : reqType === "EDIT" ? "แก้ไข" : "คืนค่า";
+
+    await prisma.systemLog.create({
+      data: {
+        actionType: "DOC_REQUEST_APPROVED",
+        subsystem: "DOCUMENT",
+        description: `อนุมัติคำร้องขอ${typeLabel}เอกสาร ${updated.docNo || id} (เรื่อง: "${updated.title}") โดยธุรการ/แอดมิน ${fullUser.name || user.name || "Unknown"} (ID: ${user.id})`,
+        userId: user.id,
+      },
+    });
+
+    safeRevalidatePath("/document");
+    return { success: true, data: updated };
+  } catch (err: any) {
+    return handleActionError(err, "approveDocRequest");
+  }
+}
+
+export async function rejectDocRequest(id: string, reason?: string): Promise<ActionResponse> {
+  try {
+    await ensureDocRequestColumnsExist();
+    const user = await getSessionUser();
+    const fullUser = await prisma.user.findUnique({ where: { id: user.id } });
+    if (!fullUser) throw new Error("Unauthorized");
+
+    const doc = await prisma.documentRecord.findUnique({ where: { id } });
+    if (!doc) throw new Error("Document not found");
+
+    await verifyDocumentManagePermission(doc, fullUser);
+
+    const updated = await prisma.documentRecord.update({
+      where: { id },
+      data: {
+        pendingRequestType: null,
+        pendingRequestReason: null,
+        pendingRequestData: null,
+        pendingRequestedBy: null,
+        pendingRequestedAt: null,
+      },
+    });
+
+    await prisma.systemLog.create({
+      data: {
+        actionType: "DOC_REQUEST_REJECTED",
+        subsystem: "DOCUMENT",
+        description: `ปฏิเสธคำร้องขอจัดการเอกสาร ${updated.docNo || id} (เหตุผล: ${reason || "ไม่อนุมัติ"}) โดยธุรการ/แอดมิน ${fullUser.name || user.name || "Unknown"} (ID: ${user.id})`,
+        userId: user.id,
+      },
+    });
+
+    safeRevalidatePath("/document");
+    return { success: true, data: updated };
+  } catch (err: any) {
+    return handleActionError(err, "rejectDocRequest");
+  }
+}
+
+export async function getDocumentSettings(): Promise<ActionResponse> {
+  try {
+    await ensureDocRequestColumnsExist();
+    const settings = await prisma.systemSettings.findUnique({
+      where: { id: "default" },
+      select: { documentManageMode: true, documentAdminUserIds: true },
+    });
+    return {
+      success: true,
+      data: {
+        documentManageMode: settings?.documentManageMode || "DIRECT",
+        documentAdminUserIds: settings?.documentAdminUserIds
+          ? settings.documentAdminUserIds.split(",").map((s) => s.trim()).filter(Boolean)
+          : [],
+      },
+    };
+  } catch (err: any) {
+    return handleActionError(err, "getDocumentSettings");
+  }
+}
+
+export async function getDocumentAdminUserIds(): Promise<ActionResponse> {
+  try {
+    const settings = await prisma.systemSettings.findUnique({
+      where: { id: "default" },
+      select: { documentAdminUserIds: true },
+    });
+    const ids = settings?.documentAdminUserIds
+      ? settings.documentAdminUserIds.split(",").map((s) => s.trim()).filter(Boolean)
+      : [];
+    return { success: true, data: ids };
+  } catch (err: any) {
+    return handleActionError(err, "getDocumentAdminUserIds");
+  }
+}
+
+export async function updateDocumentAdminUserIds(userIds: string[]): Promise<ActionResponse> {
+  try {
+    const user = await getSessionUser();
+    const fullUser = await prisma.user.findUnique({ where: { id: user.id } });
+    if (!fullUser || (fullUser.role !== "ADMIN" && fullUser.position !== "แอดมิน")) {
+      throw new Error("Unauthorized");
+    }
+
+    const idsString = userIds.join(",");
+    const updated = await prisma.systemSettings.upsert({
+      where: { id: "default" },
+      update: { documentAdminUserIds: idsString },
+      create: { id: "default", documentAdminUserIds: idsString },
+    });
+
+    safeRevalidatePath("/document");
+    safeRevalidatePath("/settings");
+    return { success: true, data: updated.documentAdminUserIds };
+  } catch (err: any) {
+    return handleActionError(err, "updateDocumentAdminUserIds");
   }
 }
 
@@ -357,7 +731,9 @@ export async function getDocPreviewNumber(docType: string, sectionId?: string): 
       nextSeq,
       finalYear,
       paddingDigits,
-      useThaiNumerals
+      useThaiNumerals,
+      docType,
+      yearFormat
     );
 
     return { success: true, data: preview };

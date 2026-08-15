@@ -417,7 +417,9 @@ function AppContent({ children }: { children: React.ReactNode }) {
   const [enableBudget, setEnableBudget] = useState(false);
   const [enableStudentAffairs, setEnableStudentAffairs] = useState(false);
   const [enableStudentCouncil, setEnableStudentCouncil] = useState(false);
-  const [enableAcademicPlanning, setEnableAcademicPlanning] = useState(false);
+  const [enableAmssSync, setEnableAmssSync] = useState(true);
+  const [enableCertificate, setEnableCertificate] = useState(true);
+  const [enableAcademicPlanning, setEnableAcademicPlanning] = useState(true);
   const [academicPlanningAllowedUserIds, setAcademicPlanningAllowedUserIds] = useState<string[]>([]);
   const [brandSubheader, setBrandSubheader] = useState("ระบบจัดการการลา");
   const [isLoadingSettings, setIsLoadingSettings] = useState(true);
@@ -455,6 +457,8 @@ function AppContent({ children }: { children: React.ReactNode }) {
       const storedEnableStudentAffairs = localStorage.getItem("eleave_enableStudentAffairs");
       const storedEnableStudentCouncil = localStorage.getItem("eleave_enableStudentCouncil");
       const storedEnableAcademicPlanning = localStorage.getItem("eleave_enableAcademicPlanning");
+      const storedEnableAmssSync = localStorage.getItem("eleave_enableAmssSync");
+      const storedEnableCertificate = localStorage.getItem("eleave_enableCertificate");
 
       if (storedSchoolName) setBrandName(storedSchoolName);
       if (storedSubheader) setBrandSubheader(storedSubheader);
@@ -474,6 +478,8 @@ function AppContent({ children }: { children: React.ReactNode }) {
       if (storedEnableStudentAffairs) setEnableStudentAffairs(storedEnableStudentAffairs === "true");
       if (storedEnableStudentCouncil) setEnableStudentCouncil(storedEnableStudentCouncil === "true");
       if (storedEnableAcademicPlanning) setEnableAcademicPlanning(storedEnableAcademicPlanning === "true");
+      if (storedEnableAmssSync) setEnableAmssSync(storedEnableAmssSync === "true");
+      if (storedEnableCertificate) setEnableCertificate(storedEnableCertificate === "true");
       
       // If we loaded cached data, we can mark settings loading as finished to bypass default splash page
       if (storedSchoolName || storedLogoUrl) {
@@ -503,7 +509,9 @@ function AppContent({ children }: { children: React.ReactNode }) {
       const finalEnableBudget = (s as any).enableBudget === true;
       const finalEnableStudentAffairs = (s as any).enableStudentAffairs === true;
       const finalEnableStudentCouncil = (s as any).enableStudentCouncil === true;
-      const finalEnableAcademicPlanning = (s as any).enableAcademicPlanning === true;
+      const finalEnableAcademicPlanning = (s as any).enableAcademicPlanning !== false;
+      const finalEnableAmssSync = (s as any).enableAmssSync !== false;
+      const finalEnableCertificate = (s as any).enableCertificate !== false;
       const allowedAP = ((s as any).academicPlanningAllowedUserIds || "").split(",").map((id: string) => id.trim()).filter(Boolean);
 
       setBrandName(finalSchoolName);
@@ -522,6 +530,8 @@ function AppContent({ children }: { children: React.ReactNode }) {
       setEnableAcademicSettings(finalEnableAcademicSettings);
       setEnableBudget(finalEnableBudget);
       setEnableStudentAffairs(finalEnableStudentAffairs);
+      setEnableAmssSync(finalEnableAmssSync);
+      setEnableCertificate(finalEnableCertificate);
       setEnableStudentCouncil(finalEnableStudentCouncil);
       setEnableAcademicPlanning(finalEnableAcademicPlanning);
       setAcademicPlanningAllowedUserIds(allowedAP);
@@ -750,13 +760,16 @@ function AppContent({ children }: { children: React.ReactNode }) {
     leaveSubItems.push({ href: "/manual", label: t("userManual"), icon: BookOpen });
   }
 
+  const showAmss = enableAmssSync || isAdmin;
+  const showCert = enableCertificate || isAdmin;
+
   // Sub-items for Document System (ระบบสารบรรณ / เอกสาร)
   const documentSubItems = showDocument
     ? [
         { href: "/document?view=issue", label: "ขอเลขหนังสือ", icon: FileText },
         { href: "/document?view=outbound_history", label: "ประวัติและทะเบียนออกเลขหนังสือ", icon: ClipboardList },
-        { href: "/document?view=inbound", label: "AMSS++", icon: Archive },
-        { href: "/document?view=cert", label: "เกียรติบัตร", icon: ClipboardList },
+        ...(showAmss ? [{ href: "/document?view=inbound", label: "AMSS++", icon: Archive }] : []),
+        ...(showCert ? [{ href: "/document?view=cert", label: "เกียรติบัตร", icon: ClipboardList }] : []),
       ]
     : [];
 
@@ -1133,7 +1146,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
               )}
 
               {/* ตั้งค่าระบบวิชาการ */}
-              {enableAcademicSettings && isAdmin && renderNavItem({ href: "/academic/settings", label: "ตั้งค่าระบบวิชาการ", icon: Settings })}
+              {enableAcademicSettings && isAdmin && renderNavItem({ href: "/academic/settings", label: "ตั้งค่าระบบวิชาการ (เฉพาะแอดมิน)", icon: Settings })}
             </div>
           )}
 

@@ -18,7 +18,9 @@ export function formatDocNumber(
   seq: number,
   year: number,
   padding: number,
-  useThai: boolean
+  useThai: boolean,
+  docType?: string,
+  yearFormat: string = "TH_BE"
 ): string {
   let seqStr = String(seq).padStart(padding, "0");
   let yearStr = String(year);
@@ -27,21 +29,52 @@ export function formatDocNumber(
     yearStr = toThaiNumerals(yearStr);
   }
   
-  let formatted = pattern
-    .replace("[PREFIX]", prefix)
+  let activePattern = pattern;
+  let activePrefix = (prefix || "").trim();
+  const isOutgoing = docType && (docType.startsWith("OUTGOING") || docType === "OUTGOING_NORMAL" || docType === "OUTGOING_CIRCULAR");
+  const isCircular = docType === "OUTGOING_CIRCULAR";
+  const isNoYear = yearFormat === "NONE" || yearFormat === "NO_YEAR";
+
+  if (isCircular) {
+    if (activePrefix.endsWith("/")) {
+      activePrefix = activePrefix + "ว";
+    } else if (!activePrefix.endsWith("ว") && !activePrefix.endsWith("ว/")) {
+      activePrefix = activePrefix + "ว";
+    }
+  }
+
+  if (isNoYear) {
+    // If yearFormat is NONE / NO_YEAR: remove /[YEAR] or [YEAR] suffix for any docType (including OUTGOING)
+    if (activePrefix && (activePrefix.endsWith("/") || activePrefix.endsWith(".") || activePrefix.endsWith("ว"))) {
+      activePattern = "[PREFIX][SEQ]";
+    } else {
+      activePattern = "[PREFIX] [SEQ]";
+    }
+  } else {
+    // If yearFormat is TH_BE / EN_AD: include /[YEAR] suffix
+    if (activePrefix && (activePrefix.endsWith("/") || activePrefix.endsWith(".") || activePrefix.endsWith("ว"))) {
+      activePattern = "[PREFIX][SEQ]/[YEAR]";
+    } else {
+      activePattern = "[PREFIX] [SEQ]/[YEAR]";
+    }
+  }
+
+  let formatted = activePattern
+    .replace("[PREFIX]", activePrefix)
     .replace("[SEQ]", seqStr)
     .replace("[YEAR]", yearStr);
     
-  return formatted;
+  return formatted.trim();
 }
 
 export const DOC_TYPE_THAI_MAP: Record<string, string> = {
   MEMO: "บันทึกข้อความ",
-  COMMAND: "คำสั่งโรงเรียน",
+  COMMAND: "คำสั่ง",
+  ANNOUNCEMENT: "ประกาศ",
+  CERTIFICATE: "เกียรติบัตร",
   OUTGOING: "หนังสือส่ง",
   OUTGOING_NORMAL: "หนังสือส่ง (ปกติ)",
   OUTGOING_CIRCULAR: "หนังสือส่ง (จดหมายเวียน)",
-  ANNOUNCEMENT: "ประกาศโรงเรียน",
 };
 
 export function getDocTypeThaiLabel(docType: string, memoSectionName?: string | null): string {

@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import { Save, Sparkles, ChevronDown, Eye, Send, RefreshCw } from "lucide-react";
 import { SearchableCombobox } from "@/features/document/ui/components/forms/searchable-combobox";
+import { formatDocFullDate } from "@/lib/date-format";
+import { useI18n } from "@/lib/i18n";
 
 type MemoSection = { id: string; name: string; code: string; color?: string };
 
@@ -32,6 +34,7 @@ const DOC_TYPE_NAMES: Record<string, string> = {
   OUTGOING_NORMAL: "หนังสือส่ง (ปกติ/ภายนอก)",
   OUTGOING_CIRCULAR: "หนังสือส่ง (จดหมายเวียน)",
   ANNOUNCEMENT: "ประกาศ",
+  CERTIFICATE: "เกียรติบัตร",
 };
 
 const COMMON_RECIPIENTS = [
@@ -52,6 +55,8 @@ export default function OutboundForm({
   onRefresh,
   onGoToHistory,
 }: OutboundFormProps) {
+  const { lang } = useI18n();
+
   // Default "จากหน่วยงาน" to requester's name
   const [formData, setFormData] = useState({
     docType: "MEMO",
@@ -137,6 +142,8 @@ export default function OutboundForm({
   const getDocBadge = (type: string) => {
     if (type === "MEMO") return { text: "ภายใน", bg: "bg-blue-100 dark:bg-blue-950/70 text-blue-700 dark:text-blue-300" };
     if (type === "COMMAND") return { text: "คำสั่ง", bg: "bg-rose-100 dark:bg-rose-950/70 text-rose-700 dark:text-rose-300" };
+    if (type === "ANNOUNCEMENT") return { text: "ประกาศ", bg: "bg-amber-100 dark:bg-amber-950/70 text-amber-700 dark:text-amber-300" };
+    if (type === "CERTIFICATE") return { text: "เกียรติบัตร", bg: "bg-purple-100 dark:bg-purple-950/70 text-purple-700 dark:text-purple-300" };
     return { text: "ภายนอก", bg: "bg-emerald-100 dark:bg-emerald-950/70 text-emerald-700 dark:text-emerald-300" };
   };
 
@@ -146,24 +153,24 @@ export default function OutboundForm({
         {/* Left Column (5 cols on lg): The Input Form (+ ออกเลขหนังสือใหม่) */}
         <form onSubmit={handleSubmit} className="lg:col-span-5 space-y-4">
           <div className="flex items-center gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
-            <div className="w-6 h-6 rounded-full bg-purple-100 dark:bg-purple-950/80 text-purple-600 dark:text-purple-400 flex items-center justify-center text-xs font-bold">
+            <div className="w-7 h-7 rounded-full bg-purple-100 dark:bg-purple-950/80 text-purple-600 dark:text-purple-400 flex items-center justify-center text-sm font-extrabold">
               +
             </div>
-            <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+            <h3 className="text-base font-extrabold text-slate-900 dark:text-white">
               ออกเลขหนังสือใหม่
             </h3>
           </div>
 
           {/* DocType Dropdown */}
           <div>
-            <label className="block text-xs font-semibold text-slate-800 dark:text-slate-200 mb-1.5">
+            <label className="block text-sm font-bold text-slate-800 dark:text-slate-200 mb-1.5">
               ประเภท
             </label>
             <div className="relative">
               <select
                 value={formData.docType}
                 onChange={(e) => setFormData({ ...formData, docType: e.target.value })}
-                className="w-full h-10 pl-3 pr-9 rounded-xl border border-slate-200 dark:border-slate-750 bg-white dark:bg-slate-950 text-xs font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all appearance-none cursor-pointer outline-none"
+                className="w-full h-11 pl-3.5 pr-9 rounded-xl border border-slate-200 dark:border-slate-750 bg-white dark:bg-slate-950 text-sm font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all appearance-none cursor-pointer outline-none"
               >
                 <option value="MEMO">บันทึกข้อความ</option>
                 <option value="OUTGOING">หนังสือส่ง</option>
@@ -212,45 +219,100 @@ export default function OutboundForm({
           {/* Memo Section Select */}
           {formData.docType === "MEMO" && (
             <div>
-              <label className="block text-xs font-semibold text-slate-800 dark:text-slate-200 mb-1.5">
+              <label className="block text-sm font-bold text-slate-800 dark:text-slate-200 mb-1.5">
                 หมวดหมู่เอกสาร *
               </label>
               <div className="relative">
-                <select
-                  value={formData.memoSectionId}
-                  onChange={(e) => setFormData({ ...formData, memoSectionId: e.target.value })}
-                  className="w-full h-10 pl-3 pr-9 rounded-xl border border-slate-200 dark:border-slate-750 bg-white dark:bg-slate-950 text-xs font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all appearance-none cursor-pointer outline-none"
-                  style={selectedSection?.color ? { borderLeftWidth: '4px', borderLeftColor: selectedSection.color } : {}}
-                >
-                  <option value="" disabled>-- เลือกหมวดหมู่บันทึกข้อความ --</option>
-                  {sections.map(s => (
-                    <option key={s.id} value={s.id}>{s.name} ({s.code})</option>
-                  ))}
-                </select>
-                <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-slate-400">
-                  <ChevronDown className="w-4 h-4" />
-                </div>
+                {(() => {
+                  const currentSec = sections.find(s => s.id === formData.memoSectionId);
+                  const secStyle = currentSec?.color ? (() => {
+                    const c = currentSec.color.trim();
+                    if (c.startsWith("#")) {
+                      return {
+                        backgroundColor: `${c}20`,
+                        borderColor: `${c}60`,
+                        color: c,
+                        fontWeight: '700',
+                      };
+                    }
+                    const map: Record<string, { bg: string; border: string; text: string }> = {
+                      pink: { bg: "#fdf2f8", border: "#fbcfe8", text: "#db2777" },
+                      amber: { bg: "#fffbeb", border: "#fde68a", text: "#d97706" },
+                      sky: { bg: "#f0f9ff", border: "#bae6fd", text: "#0284c7" },
+                      blue: { bg: "#eff6ff", border: "#bfdbfe", text: "#2563eb" },
+                      emerald: { bg: "#ecfdf5", border: "#a7f3d0", text: "#059669" },
+                      purple: { bg: "#faf5ff", border: "#e9d5ff", text: "#9333ea" },
+                      indigo: { bg: "#eef2ff", border: "#c7d2fe", text: "#4f46e5" },
+                      rose: { bg: "#fff1f2", border: "#fecdd3", text: "#e11d48" },
+                      teal: { bg: "#f0fdf4", border: "#99f6e4", text: "#0d9488" },
+                      orange: { bg: "#fff7ed", border: "#fed7aa", text: "#ea580c" },
+                    };
+                    const m = map[c.toLowerCase()];
+                    if (m) {
+                      return { backgroundColor: m.bg, borderColor: m.border, color: m.text, fontWeight: '700' };
+                    }
+                    return { backgroundColor: `${c}20`, borderColor: `${c}60`, color: c, fontWeight: '700' };
+                  })() : {};
+
+                  return (
+                    <>
+                      <select
+                        value={formData.memoSectionId}
+                        onChange={(e) => setFormData({ ...formData, memoSectionId: e.target.value })}
+                        className="w-full h-11 pl-3.5 pr-9 rounded-xl border text-sm font-bold transition-all appearance-none cursor-pointer outline-none shadow-xs"
+                        style={secStyle}
+                      >
+                        <option value="" disabled className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">-- เลือกหมวดหมู่บันทึกข้อความ --</option>
+                        {sections.map(s => {
+                          const c = (s.color || "").trim();
+                          let textColor = "#0f172a";
+                          if (c.startsWith("#")) textColor = c;
+                          return (
+                            <option
+                              key={s.id}
+                              value={s.id}
+                              style={{ color: textColor, fontWeight: 'bold' }}
+                              className="bg-white dark:bg-slate-900 font-bold"
+                            >
+                              {s.name} ({s.code})
+                            </option>
+                          );
+                        })}
+                      </select>
+                      <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-current opacity-70">
+                        <ChevronDown className="w-4 h-4" />
+                      </div>
+                    </>
+                  );
+                })()}
               </div>
             </div>
           )}
 
           {/* Date Picker */}
           <div>
-            <label className="block text-xs font-semibold text-slate-800 dark:text-slate-200 mb-1.5">
-              วันที่ออกเลข *
-            </label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-sm font-bold text-slate-800 dark:text-slate-200">
+                วันที่ออกเลข *
+              </label>
+              {formData.date && (
+                <span className="text-xs font-extrabold px-2.5 py-0.5 rounded-lg bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-200/60 dark:border-purple-800/40">
+                  📅 {formatDocFullDate(formData.date, lang)}
+                </span>
+              )}
+            </div>
             <input
               type="date"
               required
               value={formData.date}
               onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-              className="w-full h-10 px-3 rounded-xl border border-slate-200 dark:border-slate-750 bg-white dark:bg-slate-950 text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all outline-none"
+              className="w-full h-11 px-3.5 rounded-xl border border-slate-200 dark:border-slate-750 bg-white dark:bg-slate-950 text-sm font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all outline-none"
             />
           </div>
 
           {/* Title */}
           <div>
-            <label className="block text-xs font-semibold text-slate-800 dark:text-slate-200 mb-1.5">
+            <label className="block text-sm font-bold text-slate-800 dark:text-slate-200 mb-1.5">
               เรื่อง
             </label>
             <textarea
@@ -259,14 +321,14 @@ export default function OutboundForm({
               placeholder="ระบุชื่อเรื่อง..."
               value={formData.title}
               onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-              className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-750 bg-white dark:bg-slate-950 text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all outline-none resize-none"
+              className="w-full p-3.5 rounded-xl border border-slate-200 dark:border-slate-750 bg-white dark:bg-slate-950 text-sm font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all outline-none resize-none"
             />
           </div>
 
           {/* To / Recipient */}
           <div>
             <div className="flex justify-between items-center mb-1.5">
-              <label className="block text-xs font-semibold text-slate-800 dark:text-slate-200">
+              <label className="block text-sm font-bold text-slate-800 dark:text-slate-200">
                 เรียน / ถึง
               </label>
               <SearchableCombobox
@@ -283,7 +345,7 @@ export default function OutboundForm({
               placeholder="เช่น ผู้อำนวยการ..."
               value={formData.to}
               onChange={(e) => setFormData({ ...formData, to: e.target.value })}
-              className="w-full h-10 px-3 rounded-xl border border-slate-200 dark:border-slate-750 bg-white dark:bg-slate-950 text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all outline-none"
+              className="w-full h-11 px-3.5 rounded-xl border border-slate-200 dark:border-slate-750 bg-white dark:bg-slate-950 text-sm font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all outline-none"
             />
           </div>
 
@@ -428,29 +490,39 @@ export default function OutboundForm({
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
                     {outboundDocs.slice(0, 10).map((doc, idx) => {
                       const badge = getDocBadge(doc.docType);
+                      const isCancelled = doc.status === "CANCELLED";
                       const formattedDate = doc.date ? new Date(doc.date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' }) : '';
                       
                       return (
                         <tr
                           key={doc.id || idx}
                           onClick={() => setSelectedPreviewDoc(doc)}
-                          className="hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition cursor-pointer group"
+                          className={`transition cursor-pointer group ${
+                            isCancelled ? "bg-rose-50/40 dark:bg-rose-950/20" : "hover:bg-slate-50/80 dark:hover:bg-slate-800/50"
+                          }`}
                         >
-                          <td className="py-3 px-2.5 font-mono font-bold text-slate-900 dark:text-white group-hover:text-purple-600 dark:group-hover:text-purple-400 whitespace-nowrap">
-                            {doc.docNo}
+                          <td className="py-3 px-2.5 font-mono font-bold whitespace-nowrap">
+                            <span className={isCancelled ? "line-through text-rose-600 dark:text-rose-400 decoration-rose-500 decoration-2 font-bold" : "text-slate-900 dark:text-white group-hover:text-purple-600 dark:group-hover:text-purple-400"}>
+                              {doc.docNo}
+                            </span>
+                            {isCancelled && (
+                              <span className="ml-1.5 text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-rose-100 dark:bg-rose-950 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900">
+                                ยกเลิก
+                              </span>
+                            )}
                           </td>
                           <td className="py-3 px-2 whitespace-nowrap">
-                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${badge.bg}`}>
+                            <span className={`px-2.5 py-0.5 rounded-lg text-xs font-extrabold border ${badge.bg}`}>
                               {badge.text}
                             </span>
                           </td>
-                          <td className="py-3 px-2 text-slate-600 dark:text-slate-400 whitespace-nowrap text-[11px]">
+                          <td className="py-3 px-2 text-slate-600 dark:text-slate-400 whitespace-nowrap text-xs font-medium">
                             {formattedDate}
                           </td>
-                          <td className="py-3 px-2.5 max-w-[200px] truncate text-slate-700 dark:text-slate-300 font-medium">
+                          <td className={`py-3 px-2.5 max-w-[200px] truncate text-xs ${isCancelled ? "line-through text-slate-400 dark:text-slate-500" : "text-slate-700 dark:text-slate-300 font-medium"}`}>
                             {doc.title}
                           </td>
-                          <td className="py-3 px-2 text-slate-600 dark:text-slate-400 whitespace-nowrap">
+                          <td className="py-3 px-2 text-slate-600 dark:text-slate-400 whitespace-nowrap text-xs">
                             {doc.requester || doc.origin || '-'}
                           </td>
                         </tr>
@@ -500,19 +572,53 @@ export default function OutboundForm({
             </div>
 
             <div className="space-y-3 text-xs">
-              <div className="bg-purple-50/60 dark:bg-purple-950/40 border border-purple-100 dark:border-purple-900/40 rounded-xl p-3.5 flex items-center justify-between">
+              {/* Copy Reference Line Box */}
+              {(() => {
+                const isCancelled = selectedPreviewDoc.status === "CANCELLED";
+                const thaiDateStr = selectedPreviewDoc.date
+                  ? new Date(selectedPreviewDoc.date).toLocaleDateString("th-TH", {
+                      day: "numeric",
+                      month: "long",
+                      year: "numeric",
+                    })
+                  : "";
+                const fullRefLine = `ที่ ${selectedPreviewDoc.docNo || ""} ลงวันที่ ${thaiDateStr} เรื่อง ${selectedPreviewDoc.title || ""}`;
+
+                return (
+                  <div className="p-3 rounded-xl bg-purple-50/80 dark:bg-purple-950/40 border border-purple-200/80 dark:border-purple-800/60 space-y-2">
+                    <span className="text-[10px] font-extrabold text-purple-700 dark:text-purple-300 block uppercase">
+                      📑 ข้อความอ้างอิงสำหรับคัดลอก
+                    </span>
+                    <p className={`font-mono text-xs ${isCancelled ? "line-through text-rose-600 dark:text-rose-400 font-bold" : "font-bold text-slate-900 dark:text-white"}`}>
+                      {fullRefLine}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(fullRefLine);
+                        alert("คัดลอกข้อความอ้างอิงเรียบร้อยแล้ว!");
+                      }}
+                      className="w-full py-1.5 px-3 rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+                    >
+                      <span>📋 คัดลอกข้อความอ้างอิง</span>
+                    </button>
+                  </div>
+                );
+              })()}
+
+              <div className="bg-purple-50/40 dark:bg-purple-950/20 border border-purple-100 dark:border-purple-900/40 rounded-xl p-3 flex items-center justify-between">
                 <div>
                   <span className="text-[10px] text-slate-500 dark:text-slate-400 block font-medium">เลขที่ออกเอกสาร</span>
-                  <span className="font-mono text-sm font-extrabold text-purple-600 dark:text-purple-400">{selectedPreviewDoc.docNo}</span>
+                  <span className={`font-mono text-sm font-extrabold ${selectedPreviewDoc.status === "CANCELLED" ? "line-through text-rose-600 dark:text-rose-400" : "text-purple-600 dark:text-purple-400"}`}>
+                    {selectedPreviewDoc.docNo}
+                  </span>
                 </div>
-                <span className="px-2.5 py-1 rounded-lg text-xs font-extrabold bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800/40">
-                  {selectedPreviewDoc.status === "ISSUED" || !selectedPreviewDoc.status
-                    ? "ออกเลขสำเร็จ"
-                    : selectedPreviewDoc.status === "PRINTED"
-                    ? "พิมพ์แล้ว"
-                    : selectedPreviewDoc.status === "CANCELLED"
-                    ? "ยกเลิก"
-                    : selectedPreviewDoc.status}
+                <span className={`px-2.5 py-1 rounded-lg text-xs font-extrabold border ${
+                  selectedPreviewDoc.status === "CANCELLED"
+                    ? "bg-rose-100 dark:bg-rose-950/80 text-rose-700 dark:text-rose-300 border-rose-200"
+                    : "bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 border-emerald-200/60"
+                }`}>
+                  {selectedPreviewDoc.status === "CANCELLED" ? "ยกเลิก" : "ออกเลขสำเร็จ"}
                 </span>
               </div>
 
@@ -529,7 +635,7 @@ export default function OutboundForm({
 
               <div className="bg-slate-50 dark:bg-slate-800/40 p-3 rounded-xl border border-slate-100 dark:border-slate-800 space-y-1">
                 <span className="text-[10px] text-slate-400 block font-medium">เรื่อง (ชื่อเอกสาร)</span>
-                <p className="font-semibold text-slate-900 dark:text-white leading-relaxed">{selectedPreviewDoc.title}</p>
+                <p className={`font-semibold text-slate-900 dark:text-white leading-relaxed ${selectedPreviewDoc.status === "CANCELLED" ? "line-through text-slate-400" : ""}`}>{selectedPreviewDoc.title}</p>
               </div>
 
               <div className="grid grid-cols-2 gap-2.5">

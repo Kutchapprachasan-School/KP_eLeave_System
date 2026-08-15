@@ -4,7 +4,7 @@ import { useState, useCallback, Suspense } from "react";
 import Link from "next/link";
 import { ClipboardList, RefreshCw } from "lucide-react";
 
-import { quickIssueDoc, cancelDoc } from "@/app/actions/document";
+import { quickIssueDoc, cancelDoc, restoreDoc, updateOutboundDoc, requestDocAction, approveDocRequest, rejectDocRequest } from "@/app/actions/document";
 import { useSession } from "@/lib/auth-client";
 import { useToast } from "@/components/toast-provider";
 import AmssImportModal from "@/components/AmssImportModal";
@@ -75,6 +75,88 @@ function DocumentPageContent() {
     }
   };
 
+  const handleRestoreDoc = async (id: string) => {
+    try {
+      const res = await restoreDoc(id);
+      if (res.success) {
+        showToast("คืนค่าเลขทะเบียนกลับเป็นปกติเรียบร้อยแล้ว", "success");
+        await data.loadData();
+      } else {
+        showToast(res.error || "คืนค่าเลขทะเบียนล้มเหลว", "error");
+      }
+    } catch (err: any) {
+      showToast(err.message || "คืนค่าเลขทะเบียนล้มเหลว", "error");
+    }
+  };
+
+  const handleUpdateDoc = async (id: string, updateData: { title: string; to?: string; origin?: string; requester?: string; signeeName?: string; signeePosition?: string }) => {
+    try {
+      const res = await updateOutboundDoc(id, updateData);
+      if (res.success) {
+        showToast("บันทึกการแก้ไขข้อมูลเอกสารเรียบร้อยแล้ว", "success");
+        await data.loadData();
+        return true;
+      } else {
+        showToast(res.error || "บันทึกการแก้ไขล้มเหลว", "error");
+        return false;
+      }
+    } catch (err: any) {
+      showToast(err.message || "บันทึกการแก้ไขล้มเหลว", "error");
+      return false;
+    }
+  };
+
+  const handleRequestDocAction = async (id: string, type: "CANCEL" | "EDIT" | "RESTORE", payload?: any) => {
+    try {
+      const res = await requestDocAction(id, type, payload);
+      if (res.success) {
+        showToast("ยื่นคำร้องขอเรียบร้อยแล้ว รอเจ้าหน้าที่ธุรการหรือแอดมินอนุมัติ", "success");
+        await data.loadData();
+        return true;
+      } else {
+        showToast(res.error || "ยื่นคำร้องขอไม่สำเร็จ", "error");
+        return false;
+      }
+    } catch (err: any) {
+      showToast(err.message || "เกิดข้อผิดพลาดในการยื่นคำร้องขอ", "error");
+      return false;
+    }
+  };
+
+  const handleApproveDocRequest = async (id: string) => {
+    try {
+      const res = await approveDocRequest(id);
+      if (res.success) {
+        showToast("อนุมัติคำร้องขอจัดการเอกสารเรียบร้อยแล้ว", "success");
+        await data.loadData();
+        return true;
+      } else {
+        showToast(res.error || "อนุมัติคำร้องขอไม่สำเร็จ", "error");
+        return false;
+      }
+    } catch (err: any) {
+      showToast(err.message || "เกิดข้อผิดพลาดในการอนุมัติคำร้องขอ", "error");
+      return false;
+    }
+  };
+
+  const handleRejectDocRequest = async (id: string, reason?: string) => {
+    try {
+      const res = await rejectDocRequest(id, reason);
+      if (res.success) {
+        showToast("ปฏิเสธคำร้องขอเรียบร้อยแล้ว", "success");
+        await data.loadData();
+        return true;
+      } else {
+        showToast(res.error || "ปฏิเสธคำร้องขอไม่สำเร็จ", "error");
+        return false;
+      }
+    } catch (err: any) {
+      showToast(err.message || "เกิดข้อผิดพลาดในการปฏิเสธคำร้องขอ", "error");
+      return false;
+    }
+  };
+
   const getHeaderInfo = () => {
     switch (filters.view) {
       case "outbound_history":
@@ -117,6 +199,10 @@ function DocumentPageContent() {
     );
   }
 
+  const isUserAdmin = session?.user?.role === "ADMIN" || (session?.user as any)?.position === "แอดมิน";
+  const canAccessAmss = data.enableAmssSync || isUserAdmin;
+  const canAccessCert = data.enableCertificate || isUserAdmin;
+
   return (
     <div className="space-y-6 max-w-7xl mx-auto px-1">
       <PageHeader
@@ -128,7 +214,25 @@ function DocumentPageContent() {
 
       {/* Views */}
       {filters.view === "cert" ? (
-        <CertView onBack={() => filters.setView("inbound")} />
+        canAccessCert ? (
+          <CertView onBack={() => filters.setView("inbound")} />
+        ) : (
+          <div className="p-8 rounded-3xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-center space-y-3">
+            <h3 className="text-base font-bold text-amber-900 dark:text-amber-200">
+              🔒 ระบบออกเกียรติบัตรถูกปิดใช้งานชั่วคราว
+            </h3>
+            <p className="text-xs text-amber-700 dark:text-amber-300">
+              ผู้ดูแลระบบได้ทำการปิดใช้งานฟังก์ชันออกเกียรติบัตรไว้ หากต้องการใช้งานโปรดติดต่อแอดมินระบบ
+            </p>
+            <button
+              type="button"
+              onClick={() => filters.setView("issue")}
+              className="px-4 py-2 rounded-xl bg-amber-600 text-white text-xs font-bold hover:bg-amber-700 transition"
+            >
+              กลับสู่หน้าหลักขอเลขหนังสือ
+            </button>
+          </div>
+        )
       ) : filters.view === "outbound_history" ? (
         <OutboundHistoryView
           sections={data.sections}
@@ -136,6 +240,11 @@ function DocumentPageContent() {
           inboundDocs={data.inboundDocs}
           onRefresh={data.loadData}
           onCancelDocClick={(id) => setDocToCancel(id)}
+          onRestoreDocClick={handleRestoreDoc}
+          onUpdateDocClick={handleUpdateDoc}
+          onRequestDocAction={handleRequestDocAction}
+          onApproveDocRequest={handleApproveDocRequest}
+          onRejectDocRequest={handleRejectDocRequest}
           searchQuery={filters.searchQuery}
           setSearchQuery={filters.setSearchQuery}
           selectedDocType={filters.selectedDocType}
@@ -146,6 +255,16 @@ function DocumentPageContent() {
           setSelectedYear={filters.setSelectedYearTable}
           selectedStatus={filters.selectedStatus}
           setSelectedStatus={filters.setSelectedStatus}
+          currentUserId={session?.user?.id}
+          currentUser={{
+            id: session?.user?.id,
+            name: session?.user?.name || undefined,
+            username: (session?.user as any)?.username || undefined,
+            role: (session?.user as any)?.role || undefined,
+            position: (session?.user as any)?.position || undefined,
+          }}
+          documentManageMode={data.documentManageMode}
+          docAdminUserIds={data.docAdminUserIds}
         />
       ) : filters.view === "issue" ? (
         <OutboundView
@@ -159,27 +278,46 @@ function DocumentPageContent() {
           onGoToHistory={() => filters.setView("outbound_history")}
         />
       ) : filters.view === "inbound" ? (
-        <InboundView
-          sections={data.sections}
-          outboundDocs={data.outboundDocs}
-          inboundDocs={data.inboundDocs}
-          amssCredsExist={data.amssCredsExist}
-          autoBrowserTrigger={autoBrowserTrigger}
-          onRefresh={data.loadData}
-          onCancelDocClick={(id) => setDocToCancel(id)}
-          onShowCredentialsModal={() => setShowAmssCredentialsModal(true)}
-          onShowImportModal={() => setShowAmssImportModal(true)}
-          showToast={showToast}
-          searchQuery={filters.searchQuery}
-          setSearchQuery={filters.setSearchQuery}
-          selectedDocType={filters.selectedDocType}
-          setSelectedDocType={filters.setSelectedDocType}
-          selectedYear={filters.selectedYearTable}
-          setSelectedYear={filters.setSelectedYearTable}
-          selectedStatus={filters.selectedStatus}
-          setSelectedStatus={filters.setSelectedStatus}
-          currentUserId={session?.user?.id}
-        />
+        canAccessAmss ? (
+          <InboundView
+            sections={data.sections}
+            outboundDocs={data.outboundDocs}
+            inboundDocs={data.inboundDocs}
+            amssCredsExist={data.amssCredsExist}
+            autoBrowserTrigger={autoBrowserTrigger}
+            enableAmssSync={data.enableAmssSync}
+            onRefresh={data.loadData}
+            onCancelDocClick={(id) => setDocToCancel(id)}
+            onShowCredentialsModal={() => setShowAmssCredentialsModal(true)}
+            onShowImportModal={() => setShowAmssImportModal(true)}
+            showToast={showToast}
+            searchQuery={filters.searchQuery}
+            setSearchQuery={filters.setSearchQuery}
+            selectedDocType={filters.selectedDocType}
+            setSelectedDocType={filters.setSelectedDocType}
+            selectedYear={filters.selectedYearTable}
+            setSelectedYear={filters.setSelectedYearTable}
+            selectedStatus={filters.selectedStatus}
+            setSelectedStatus={filters.setSelectedStatus}
+            currentUserId={session?.user?.id}
+          />
+        ) : (
+          <div className="p-8 rounded-3xl bg-sky-50 dark:bg-sky-950/40 border border-sky-200 dark:border-sky-800 text-center space-y-3">
+            <h3 className="text-base font-bold text-sky-900 dark:text-sky-200">
+              🔒 ระบบเชื่อมโยง AMSS++ ถูกปิดใช้งานชั่วคราว
+            </h3>
+            <p className="text-xs text-sky-700 dark:text-sky-300">
+              ผู้ดูแลระบบได้ทำการปิดใช้งานฟังก์ชันดึงและเชื่อมโยงหนังสือรับจาก AMSS++ ไว้ หากต้องการใช้งานโปรดติดต่อแอดมินระบบ
+            </p>
+            <button
+              type="button"
+              onClick={() => filters.setView("issue")}
+              className="px-4 py-2 rounded-xl bg-sky-600 text-white text-xs font-bold hover:bg-sky-700 transition"
+            >
+              กลับสู่หน้าหลักขอเลขหนังสือ
+            </button>
+          </div>
+        )
       ) : null}
 
       <CancelDocModal
