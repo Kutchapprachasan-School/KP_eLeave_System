@@ -142,7 +142,6 @@ export async function ensureSubsystemColumnsExist() {
 
 export async function getSystemSettings() {
   try {
-    await ensureSubsystemColumnsExist();
     let settings = await prisma.systemSettings.findUnique({
       where: { id: "default" }
     });
@@ -474,7 +473,6 @@ export async function updateSystemSettings(data: {
 
 }) {
   try {
-    await ensureSubsystemColumnsExist();
     const { session, isAdmin, isHR } = await requireAdminOrHR();
     const user = session?.user as any;
     const isRepairManager = user?.role === "REPAIR_MANAGER" || user?.position === "ผู้ดูแลระบบซ่อม";
