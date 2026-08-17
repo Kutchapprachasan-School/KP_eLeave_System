@@ -93,7 +93,7 @@ const processSignatureFile = (file: File, removeBackground: boolean): Promise<st
           ctx.putImageData(imgData, 0, 0);
         }
 
-        resolve(canvas.toDataURL("image/png"));
+        resolve(canvas.toDataURL("image/webp", 0.85));
       };
       img.onerror = () => reject(new Error("Image load error"));
       img.src = e.target?.result as string;
@@ -149,13 +149,10 @@ export default function ProfilePage() {
       setPhoneNumber(user.phoneNumber || "");
       setLevel(user.level || "");
       setAvatarPreview(user.image || "");
-      // signatureUrl is no longer in the session payload
-      if (user.hasSignature) {
-        // Fetch signature on-demand
-        getMySignature().then((sig) => {
-          if (sig) setSignaturePreview(sig);
-        }).catch(console.error);
-      }
+      // Fetch signature on-demand from database
+      getMySignature().then((sig) => {
+        if (sig) setSignaturePreview(sig);
+      }).catch(console.error);
     }
   }, [user]);
 
@@ -330,7 +327,7 @@ export default function ProfilePage() {
       return;
     }
 
-    const base64 = canvas.toDataURL("image/png");
+    const base64 = canvas.toDataURL("image/webp", 0.85);
     setSignaturePreview(base64);
     clearCanvas();
     setIsDrawingModalOpen(false);

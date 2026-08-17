@@ -161,8 +161,36 @@ graph TD
 
 ---
 
-## 🚀 6. แผนงานและสิ่งที่สามารถพัฒนาต่อใน Session ถัดไป (Next Steps Roadmap)
+## 🏛️ 6. มาตรฐานสถาปัตยกรรม Data Access Boundary (Standard Pattern)
+
+> ได้รับการรับรองอย่างเป็นทางการ: **🟢 LEAVE HISTORY DATA ACCESS BOUNDARY — PRODUCTION APPROVED**
+
+```mermaid
+graph TD
+    Client[Client UI / React] -->|Bounded Params| ServerAction[Server Action Boundary]
+    ServerAction --> Auth[1. Authentication & Role Authorization]
+    Auth --> Zod[2. Zod Boundary Validation]
+    Zod --> BaseWhere[3. Base WHERE: Cycle + User + Search]
+    BaseWhere --> StatsBranch[Stats Query: groupBy by status]
+    BaseWhere --> DataWhere[4. Data WHERE: Base + Status Filter]
+    DataWhere --> BoundedFind[findMany: take, skip, orderBy createdAt DESC, id DESC]
+    StatsBranch & BoundedFind --> BoundedResponse[Bounded Response JSON]
+    BoundedResponse --> SequenceGuard[Client: Sequence ID Guard Discard Stale]
+```
+
+### 📋 หลักปฏิบัติ 6 ประการของ Data Access Boundary:
+1. **Server Action Boundary Security:** ตรวจสอบสิทธิ์ที่ Server Action เสมอ (ห้ามพึ่งพาการซ่อนปุ่มบน UI)
+2. **Zod Input Normalization:** กำหนด `page >= 1`, `limit <= 50`, `searchName` trim และแปลง `""` เป็น `undefined`
+3. **Model A Stats Semantics:** แยก `baseWhere` (สำหรับคำนวณ Stats รวมของ context) ออกจาก `dataWhere` (สำหรับตารางที่กรองตาม status)
+4. **Deterministic Ordering:** ทุก Paginated Query ต้องมี Secondary Unique Sorter เสมอ (`orderBy: [{ createdAt: "desc" }, { id: "desc" }]`)
+5. **Sequence ID Race Guard:** Client ใช้ `fetchSequence.current` เพื่อ discard คำขอเก่าที่ตอบกลับช้ากว่า ป้องกัน Race Condition
+6. **Observability-First Indexing:** ยึดหลัก **"Observability ➔ Measure ➔ Optimize"** — ห้ามสร้าง Index แบบคาดเดา (Speculative Indexing) ต้องดูผล `EXPLAIN ANALYZE` และ Metrics การใช้งานจริงบนฐานข้อมูลก่อนเสมอ
+
+---
+
+## 🚀 7. แผนงานและสิ่งที่สามารถพัฒนาต่อใน Session ถัดไป (Next Steps Roadmap)
 
 1.  **ขยายระบบรายงานขั้นสูง (Advanced Analytics):** เพิ่มการส่งออกรายงานสรุปการลาประจำปีสำหรับงานบุคคลในรูปแบบ Excel อัตโนมัติ
 2.  **ระบบแจ้งเตือนผ่าน LINE OA Webhook:** เพิ่ม Rich Menu และการแจ้งเตือนสองทาง (Two-way Interactive Approval)
 3.  **การปรับปรุงระบบแคชระดับ Edge:** พิจารณาใช้ SWR หรือ React Server Component Caching ในหน้าตารางสารบรรณเพื่อเพิ่มความลื่นไหลสูงสุด
+4.  **Database Performance Monitoring:** ติดตาม latency ของ `groupBy` และ Query Execution Time เมื่อขนาดข้อมูลเติบโต ก่อนพิจารณา Composite Index หรือ Materialized Aggregation
