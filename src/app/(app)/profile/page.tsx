@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useSession } from "@/lib/auth-client";
 import { updateProfile, setUserSignature, getMySignature } from "@/app/actions/user";
-import { exportStrokesToSvg, Point } from "@/lib/vector-signature";
+import { exportStrokesToSvg, exportStrokesToDataUrl, Point } from "@/lib/vector-signature";
 import { authClient } from "@/lib/auth-client";
 import { Save, Lock, User as UserIcon, ShieldCheck, Mail, BookOpen, KeyRound, CheckCircle, Fingerprint, Camera, Trash2, Pencil, RefreshCw, Paperclip, Phone, MapPin, Award, X } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
@@ -329,6 +329,14 @@ export default function ProfilePage() {
     currentStrokeRef.current = [];
   };
 
+  const getSignatureSrc = (src?: string | null) => {
+    if (!src) return "";
+    if (src.startsWith("<svg") || src.includes("<svg")) {
+      return "data:image/svg+xml;utf8," + encodeURIComponent(src);
+    }
+    return src;
+  };
+
   const saveDrawnSignature = () => {
     if (!canvasRef.current) return;
     const canvas = canvasRef.current;
@@ -338,8 +346,8 @@ export default function ProfilePage() {
       return;
     }
 
-    const svgString = exportStrokesToSvg(strokesRef.current, canvas.width, canvas.height, "#0f172a", 3);
-    setSignaturePreview(svgString);
+    const svgDataUrl = exportStrokesToDataUrl(strokesRef.current, canvas.width, canvas.height, "#0f172a", 3);
+    setSignaturePreview(svgDataUrl);
     clearCanvas();
     setIsDrawingModalOpen(false);
   };
@@ -684,7 +692,7 @@ export default function ProfilePage() {
                 <div className="h-44 rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/20 flex flex-col items-center justify-center overflow-hidden p-4 relative group">
                   {signaturePreview ? (
                     <>
-                      <img src={signaturePreview} alt="Signature Preview" className="max-h-full max-w-full object-contain dark:invert" />
+                      <img src={getSignatureSrc(signaturePreview)} alt="Signature Preview" className="max-h-full max-w-full object-contain dark:invert" />
                       <button
                         onClick={handleDeleteSignature}
                         className="absolute bottom-3 right-3 w-8 h-8 rounded-xl bg-rose-50 dark:bg-rose-955 hover:bg-rose-100 dark:hover:bg-rose-900 flex items-center justify-center text-rose-600 transition-colors shadow-sm cursor-pointer"

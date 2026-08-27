@@ -51,3 +51,18 @@ export function exportStrokesToSvg(
 
   return sanitizeSvg(rawSvg);
 }
+
+/**
+ * Converts recorded stroke points into a Data URL (image/svg+xml) ready for <img> src.
+ */
+export function exportStrokesToDataUrl(
+  strokes: Point[][],
+  width: number,
+  height: number,
+  strokeColor: string = "#0f172a",
+  strokeWidth: number = 3
+): string {
+  const svg = exportStrokesToSvg(strokes, width, height, strokeColor, strokeWidth);
+  return "data:image/svg+xml;utf8," + encodeURIComponent(svg);
+}
+

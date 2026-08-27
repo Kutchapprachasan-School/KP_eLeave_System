@@ -1,4 +1,4 @@
-﻿import { getStorageProvider } from "@/services/storage";
+import { getStorageProvider } from "@/services/storage";
 
 export function isBase64DataUrl(value: string | null | undefined): boolean {
   if (!value) return false;
@@ -41,3 +41,20 @@ export async function resolveFileUrl(
     return trimmed;
   }
 }
+
+/**
+ * Normalizes signature value so it is ALWAYS valid for <img src="...">
+ * Handles:
+ * 1. Raw SVG XML string `<svg...>` -> `data:image/svg+xml;utf8,...`
+ * 2. Data URL `data:...` -> as is
+ * 3. Remote URL `http(s)://...` -> as is
+ */
+export function resolveSignatureSrc(value: string | null | undefined): string {
+  if (!value) return "";
+  const trimmed = value.trim();
+  if (trimmed.startsWith("<svg") || trimmed.includes("<svg")) {
+    return "data:image/svg+xml;utf8," + encodeURIComponent(trimmed);
+  }
+  return trimmed;
+}
+

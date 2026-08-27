@@ -50,26 +50,35 @@ export async function setUserSignature(signatureData: string | null) {
   let finalUrl = trimmed;
 
   try {
+    let cleanSvgString = "";
     if (trimmed.startsWith("<svg") || trimmed.includes("<svg")) {
+      cleanSvgString = sanitizeSvg(trimmed);
+    } else if (trimmed.startsWith("data:image/svg+xml")) {
+      const rawContent = decodeURIComponent(trimmed.replace(/^data:image\/svg\+xml;[^,]*,/, ""));
+      cleanSvgString = sanitizeSvg(rawContent);
+    }
+
+    if (cleanSvgString) {
       // Vector SVG
-      const cleanSvg = sanitizeSvg(trimmed);
-      const buffer = Buffer.from(cleanSvg, "utf8");
+      const buffer = Buffer.from(cleanSvgString, "utf8");
       const result = await uploadSignatureWithFallback({
         buffer,
         userId: session.user.id,
         isSvg: true
       });
-      finalUrl = result.url;
+      // If cloud upload succeeded, use CDN URL; if fallback, make sure it's valid SVG Data URL
+      finalUrl = result.url.startsWith("http")
+        ? result.url
+        : "data:image/svg+xml;utf8," + encodeURIComponent(cleanSvgString);
     } else if (trimmed.startsWith("data:image/")) {
       // Base64 WebP / PNG
       const parts = trimmed.split(",");
       const base64Str = parts[1] || parts[0];
       const buffer = Buffer.from(base64Str, "base64");
-      const isSvg = trimmed.includes("image/svg+xml");
       const result = await uploadSignatureWithFallback({
         buffer,
         userId: session.user.id,
-        isSvg
+        isSvg: false
       });
       finalUrl = result.url;
     }
@@ -83,13 +92,16 @@ export async function setUserSignature(signatureData: string | null) {
     return { success: true, signatureUrl: finalUrl };
   } catch (err: any) {
     console.error("[setUserSignature] Error saving signature:", err);
-    // Fallback: save directly if cloud fails
+    const safeFallbackUrl = trimmed.startsWith("<svg")
+      ? "data:image/svg+xml;utf8," + encodeURIComponent(trimmed)
+      : trimmed;
+
     await prisma.user.update({
       where: { id: session.user.id },
-      data: { signatureUrl: trimmed }
+      data: { signatureUrl: safeFallbackUrl }
     });
     revalidatePath("/profile");
-    return { success: true, signatureUrl: trimmed };
+    return { success: true, signatureUrl: safeFallbackUrl };
   }
 }
 
