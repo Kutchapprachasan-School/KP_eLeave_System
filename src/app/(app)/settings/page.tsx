@@ -34,8 +34,7 @@ import { Save, Image as ImageIcon, ShieldAlert, DownloadCloud, Lock, Code, Setti
 import { useToast } from "@/components/toast-provider";
 
 import { useI18n } from "@/lib/i18n";
-
-import * as XLSX from "xlsx";
+import { removeClientCache } from "@/lib/client-cache";
 
 type DocTab = "sections" | "patterns" | "signees";
 
@@ -1178,6 +1177,8 @@ export default function SettingsPage() {
 
     try {
 
+      const XLSX = await import("xlsx");
+
       const backupString = await exportLeaveBackup(backupCycleFilter as any, backupTargetYear);
 
       const parsed = JSON.parse(backupString);
@@ -1291,6 +1292,8 @@ export default function SettingsPage() {
     setIsExportingLeave(true);
 
     try {
+
+      const XLSX = await import("xlsx");
 
       const backupString = await exportLeaveBackup(backupCycleFilter as any, backupTargetYear);
 
@@ -1641,6 +1644,8 @@ export default function SettingsPage() {
             }
 
           } else {
+
+            const XLSX = await import("xlsx");
 
             const data = event.target?.result;
 

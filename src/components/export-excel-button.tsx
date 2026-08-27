@@ -1,7 +1,6 @@
 "use client";
 
 import { Download } from "lucide-react";
-import * as XLSX from "xlsx";
 
 interface ExportExcelButtonProps {
   data: any[];
@@ -23,7 +22,8 @@ export function ExportExcelButton({ data, fileName = "รายงานกา�
     REHABILITATION: "ลาฟื้นฟูสมรรถภาพด้านอาชีพ",
   };
 
-  const handleExport = () => {
+  const handleExport = async () => {
+    const XLSX = await import("xlsx");
     // 1. Format data to be easily readable in Excel
     const formattedData = data.map(item => ({
       "รหัสการลา": item.id.substring(0, 8),

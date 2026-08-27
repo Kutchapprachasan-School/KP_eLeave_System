@@ -55,8 +55,8 @@ export const auth = betterAuth({
         type: "string",
         required: false,
       },
-      signatureUrl: {
-        type: "string",
+      hasSignature: {
+        type: "boolean",
         required: false,
       },
       address: {

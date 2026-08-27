@@ -4,8 +4,6 @@ import { useState, useEffect } from "react";
 import { useSession } from "@/lib/auth-client";
 import { getPendingApprovals, approveLeaveRequest, rejectLeaveRequest, uploadLeavePdf } from "@/app/actions/leave";
 import { getSystemSettings } from "@/app/actions/settings";
-import html2canvas from "html2canvas-pro";
-import { jsPDF } from "jspdf";
 import { format } from "date-fns";
 import { formatLeaveDate } from "@/lib/date-format";
 import { UserCircle, Calendar, FileText, Check, X, AlertCircle, Printer, Paperclip } from "lucide-react";
@@ -164,6 +162,8 @@ export default function ApprovalsPage() {
                 console.warn("Failed to sanitize stylesheets inside iframe:", sanitizeErr);
               }
 
+              const html2canvas = (await import("html2canvas-pro")).default;
+
               const canvas = await html2canvas(printContent, {
                 scale: 2,
                 useCORS: true,
@@ -182,6 +182,7 @@ export default function ApprovalsPage() {
                 resolve({ base64: jpgBase64, mimeType: "image/jpeg" });
               } else {
                 // Convert to PDF (default)
+                const { jsPDF } = await import("jspdf");
                 const pdf = new jsPDF({
                   orientation: "portrait",
                   unit: "mm",

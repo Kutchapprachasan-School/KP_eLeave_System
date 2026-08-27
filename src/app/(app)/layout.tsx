@@ -7,7 +7,8 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useSession, signOut } from "@/lib/auth-client";
 import { useTheme } from "next-themes";
 import { useI18n } from "@/lib/i18n";
-import { useState, useEffect, useRef, useCallback, Suspense } from "react";
+import { clearAllClientCaches } from "@/lib/client-cache";
+import React, { useState, useEffect, useRef, useCallback, Suspense } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   LayoutDashboard, 
@@ -204,6 +205,7 @@ function ToolbarButtons({ isAdmin, isApprover }: { isAdmin: boolean; isApprover:
                     {counts.leaves > 0 && (
                       <Link
                         href="/approvals"
+                        prefetch={false}
                         onClick={() => setNotiOpen(false)}
                         className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-gradient-to-r from-purple-500 to-indigo-600 text-white text-xs font-bold shadow-lg shadow-purple-500/20 hover:shadow-xl hover:shadow-purple-500/30 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200"
                       >
@@ -214,6 +216,7 @@ function ToolbarButtons({ isAdmin, isApprover }: { isAdmin: boolean; isApprover:
                     {counts.users > 0 && isAdmin && (
                       <Link
                         href="/users"
+                        prefetch={false}
                         onClick={() => setNotiOpen(false)}
                         className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 text-white text-xs font-bold shadow-lg shadow-emerald-500/20 hover:shadow-xl hover:shadow-emerald-500/30 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200"
                       >
@@ -266,6 +269,7 @@ function ToolbarButtons({ isAdmin, isApprover }: { isAdmin: boolean; isApprover:
                   <div className="px-4 py-3 border-t border-slate-100 dark:border-slate-800 shrink-0">
                     <Link
                       href={counts.leaves > 0 ? "/approvals" : "/users"}
+                      prefetch={false}
                       onClick={() => setNotiOpen(false)}
                       className="block w-full text-center text-xs font-bold text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 py-1.5 rounded-lg hover:bg-purple-50 dark:hover:bg-purple-500/10 transition-colors"
                     >
@@ -714,7 +718,10 @@ function AppContent({ children }: { children: React.ReactNode }) {
             </p>
           </div>
           <button 
-            onClick={() => signOut({ fetchOptions: { onSuccess: () => router.push("/login") }})}
+            onClick={() => {
+              clearAllClientCaches();
+              signOut({ fetchOptions: { onSuccess: () => router.push("/login") }});
+            }}
             className="w-full px-6 py-3 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-medium hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
           >
             {t("logout")}
@@ -866,7 +873,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
     const Icon = item.icon;
 
     return (
-      <Link key={item.href} href={item.href}>
+      <Link key={item.href} href={item.href} prefetch={false}>
         <div
           className={`relative flex items-center gap-2.5 px-3 ${isSubItem ? "py-2 text-[12.5px]" : "py-2.5 text-[13px]"} rounded-xl font-medium transition-all duration-200 group overflow-hidden ${
             isActive
@@ -1000,7 +1007,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
         {/* Navigation */}
         <nav className="flex-1 px-3 py-4 space-y-4 overflow-y-auto custom-scrollbar">
           {/* Top Dashboard Link */}
-          <Link href="/dashboard">
+          <Link href="/dashboard" prefetch={false}>
             <div className={`relative flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-[13px] font-medium transition-all duration-200 group overflow-hidden ${
               pathname === "/dashboard" 
                 ? "text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-500/10 font-bold" 
@@ -1241,6 +1248,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
             </div>
             <button
               onClick={async () => {
+                clearAllClientCaches();
                 await signOut();
                 router.push("/login");
               }}
@@ -1311,7 +1319,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
           const isActive = pathname === item.href;
           const Icon = item.icon;
           return (
-            <Link key={item.href} href={item.href} className="flex-1 flex flex-col items-center justify-center py-1 group transition-all">
+            <Link key={item.href} href={item.href} prefetch={false} className="flex-1 flex flex-col items-center justify-center py-1 group transition-all">
               <div className={`flex flex-col items-center gap-1 ${isActive ? "text-purple-600 dark:text-purple-400" : "text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:hover:text-white"}`}>
                 <Icon className={`w-5 h-5 transition-transform duration-200 ${isActive ? "scale-110 stroke-[2.5]" : "group-hover:scale-110"}`} />
                 <span className="text-[10px] font-semibold tracking-tight">{item.label}</span>
@@ -1320,7 +1328,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
           );
         })}
         {/* Profile Item (always 5th or 4th item) */}
-        <Link href="/profile" className="flex-1 flex flex-col items-center justify-center py-1 group transition-all">
+        <Link href="/profile" prefetch={false} className="flex-1 flex flex-col items-center justify-center py-1 group transition-all">
           <div className={`flex flex-col items-center gap-1 ${pathname === "/profile" ? "text-purple-600 dark:text-purple-400" : "text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:hover:text-white"}`}>
             <UserCircle className={`w-5 h-5 transition-transform duration-200 ${pathname === "/profile" ? "scale-110 stroke-[2.5]" : "group-hover:scale-110"}`} />
             <span className="text-[10px] font-semibold tracking-tight">{t("profile")}</span>

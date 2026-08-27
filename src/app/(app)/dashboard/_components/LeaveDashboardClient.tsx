@@ -5,11 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useSession } from "@/lib/auth-client";
 import { motion } from "framer-motion";
-import { 
-  BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, 
-  AreaChart, Area, PieChart, Pie, Cell, RadialBarChart, RadialBar,
-  LineChart, Line, Legend, LabelList
-} from "recharts";
+
 import { getDashboardStats, getCalendarLeaves } from "@/app/actions/leave";
 import { getHolidays } from "@/app/actions/holiday";
 import { getSystemSettings } from "@/app/actions/settings";
@@ -21,6 +17,18 @@ import {
   UserCheck, XCircle, MapPin, Fingerprint, CalendarDays, Loader2
 } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
+import { getClientCache, setClientCache } from "@/lib/client-cache";
+import {
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  LabelList
+} from "recharts";
 
 // Animation Variants
 const containerVariants: any = {
@@ -101,10 +109,19 @@ export default function LeaveDashboardClient() {
   const [statsError, setStatsError] = useState<string | null>(null);
 
   useEffect(() => {
+    // 1. Check local cache first for instant 0ms UI render
+    const cachedSettings = getClientCache<any>("sysSettings");
+    if (cachedSettings?.data) {
+      setSysSettings(cachedSettings.data);
+      setAttendanceEnabled(!!cachedSettings.data.enableAttendance);
+    }
+
+    // 2. Fetch fresh data in background & update cache
     getSystemSettings().then((s) => {
       if (s) {
         setSysSettings(s);
         setAttendanceEnabled(!!s.enableAttendance);
+        setClientCache("sysSettings", s, 12 * 60 * 60 * 1000); // Cache for 12 hours
         if (s.rolePermissions && session?.user) {
           try {
             const perms = JSON.parse(s.rolePermissions);
@@ -137,8 +154,19 @@ export default function LeaveDashboardClient() {
         .catch(console.error);
     }
     if (mounted) {
+      const cacheKey = `holidays_${dashboardYear}`;
+      const cachedHolidays = getClientCache<any[]>(cacheKey);
+      if (cachedHolidays?.data) {
+        setHolidays(cachedHolidays.data);
+      }
+
       getHolidays(dashboardYear)
-        .then(setHolidays)
+        .then((h) => {
+          if (Array.isArray(h)) {
+            setHolidays(h);
+            setClientCache(cacheKey, h, 12 * 60 * 60 * 1000); // Cache for 12 hours
+          }
+        })
         .catch(console.error);
     }
   }, [dashboardYear, mounted]);
@@ -482,7 +510,7 @@ export default function LeaveDashboardClient() {
   if (user) {
     if (!user.address) missingFields.push(lang === "en" ? "Address" : "ที่อยู่");
     if (!user.phoneNumber) missingFields.push(lang === "en" ? "Phone Number" : "เบอร์โทรศัพท์");
-    if (!user.signatureUrl) missingFields.push(lang === "en" ? "Signature" : "ลายเซ็นดิจิทัล");
+    if (!user.hasSignature) missingFields.push(lang === "en" ? "Signature" : "ลายเซ็นดิจิทัล");
   }
   const isProfileIncomplete = missingFields.length > 0;
 

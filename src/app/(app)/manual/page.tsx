@@ -38,7 +38,7 @@ export default function ManualPage() {
       titleEn: "1. Register & Login",
       descTh: "ลงทะเบียนสมาชิกใหม่ด้วยชื่อ-นามสกุลจริง กำหนดตำแหน่ง และกลุ่มสาระการเรียนรู้ จากนั้นเข้าสู่ระบบด้วยอีเมลและรหัสผ่านที่ตั้งไว้",
       descEn: "Register a new account with your real name, position, and subject group. Then log in with your registered email and password.",
-      images: ["/manual/สมัครสมาชิก.jpg", "/manual/Login.jpg"],
+      images: ["/manual/สมัครสมาชิก.webp", "/manual/Login.webp"],
       icon: LogIn
     },
     {
@@ -46,7 +46,7 @@ export default function ManualPage() {
       titleEn: "2. Dashboard Overview",
       descTh: "เข้าสู่ระบบมาแล้วจะพบกับสถิติภาพรวมข้อมูลโควตาวันลาสะสมของคุณ รวมถึงวันลาคงเหลือแยกตามประเภท (ลาป่วย/ลากิจ/ลาพักร้อน) และสถิติแนวโน้มการลาประจำปี",
       descEn: "Once logged in, view your leave quota summary, remaining days by category (sick/personal/vacation), and leave trend charts.",
-      images: ["/manual/dashboard.jpg"],
+      images: ["/manual/dashboard.webp"],
       icon: FileSpreadsheet
     },
     {
@@ -54,7 +54,7 @@ export default function ManualPage() {
       titleEn: "3. Submit Leave Request",
       descTh: "เข้าสู่เมนู 'ขอลา' เพื่อทำรายการ กรอกรายละเอียดประเภทการลา วันที่ต้องการลา เหตุผล และหากมีเอกสารรับรองแพทย์ (เช่น ลาป่วยเกิน 3 วัน) สามารถอัปโหลดไฟล์แนบเพิ่มเติมได้",
       descEn: "Go to 'Request Leave' menu. Select your leave type, dates, reason, and upload supporting files/medical certificates if necessary.",
-      images: ["/manual/ขอลา.jpg"],
+      images: ["/manual/ขอลา.webp"],
       icon: FileText
     },
     {
@@ -62,7 +62,7 @@ export default function ManualPage() {
       titleEn: "4. History & Profile Settings",
       descTh: "ตรวจสอบสถานะการอนุมัติคำขอลาที่ผ่านๆ มาในเมนู 'ประวัติ' และสามารถเข้าแก้ไขภาพโปรไฟล์หรือเซ็นชื่ออิเล็กทรอนิกส์ในหน้า 'โปรไฟล์ของฉัน' เพื่อนำไปใช้ลงนามบนใบลาพิมพ์ส่งโรงเรียน",
       descEn: "Monitor leave request statuses under 'History' and update your profile picture or draw your digital signature under 'My Profile' for reports printout.",
-      images: ["/manual/ประวัติ.jpg", "/manual/Profile.jpg"],
+      images: ["/manual/ประวัติ.webp", "/manual/Profile.webp"],
       icon: History
     }
   ];
@@ -73,7 +73,7 @@ export default function ManualPage() {
       titleEn: "1. Leave Request Approval",
       descTh: "ผู้มีอำนาจอนุมัติ (เช่น หัวหน้างานบุคคล หรือ ผู้อำนวยการ) สามารถกดปุ่ม 'อนุมัติ' เพื่อพิจารณาตรวจสอบรายละเอียดใบลา ความสมเหตุสมผล และกดยืนยันการอนุมัติหรือปฏิเสธพร้อมบันทึกหมายเหตุเพิ่มเติม",
       descEn: "Authorized personnel (e.g., HR heads or Directors) can view the 'Approvals' page to review, write remarks, and approve or reject leave requests.",
-      images: ["/manual/อนุมัติ.jpg"],
+      images: ["/manual/อนุมัติ.webp"],
       icon: CheckSquare
     },
     {
@@ -81,7 +81,7 @@ export default function ManualPage() {
       titleEn: "2. Manage Staff Users",
       descTh: "แอดมินสามารถอนุมัติบัญชีสมัครใหม่ของบุคลากรภายในโรงเรียนเพื่อเปิดสิทธิ์เข้าใช้งาน, เปลี่ยนแปลงตำแหน่งสิทธิ์การอนุมัติ, และระงับบัญชี หรือรีเซ็ตรหัสผ่านให้แก่บุคลากรได้ทันที",
       descEn: "Admins can approve pending registrations to grant access, change roles/positions, suspend accounts, and reset passwords for staff.",
-      images: ["/manual/User.jpg"],
+      images: ["/manual/User.webp"],
       icon: Users
     },
     {
@@ -89,7 +89,7 @@ export default function ManualPage() {
       titleEn: "3. Leave History Reports",
       descTh: "แอดมินหรือเจ้าหน้าที่บุคคลสามารถดูรายงานสรุปยอดวันลาสะสม สถิติการหยุดงานแยกเป็นบุคคลหรือกลุ่มสาระ พร้อมดาวน์โหลดในรูปแบบไฟล์ Excel หรือ CSV เพื่อใช้ประเมินขั้นเลื่อนเงินเดือน",
       descEn: "Admins or HR staff can view leave summaries, filter by subject group or person, and export reports in Excel or CSV format.",
-      images: ["/manual/รายงาน.jpg"],
+      images: ["/manual/รายงาน.webp"],
       icon: FileText
     },
     {
@@ -97,7 +97,7 @@ export default function ManualPage() {
       titleEn: "4. System Settings & Policy Rules",
       descTh: "กำหนดชื่อโรงเรียน, อัปโหลดโลโก้โรงเรียนสำหรับหัวกระดาษรายงาน, ตั้งค่ารอบการประเมินการลา (รอบที่ 1 และ 2 ของปีงบประมาณ) และระบุผู้อนุมัติคนสุดท้ายของสถานศึกษา",
       descEn: "Configure school name, upload institutional logo, set fiscal leave evaluation cycles (Cycle 1 & 2), and configure final system approvers.",
-      images: ["/manual/Setting.jpg"],
+      images: ["/manual/Setting.webp"],
       icon: Settings
     }
   ];

@@ -142,7 +142,6 @@ export async function ensureSubsystemColumnsExist() {
 
 export async function getSystemSettings() {
   try {
-    await ensureSubsystemColumnsExist();
     let settings = await prisma.systemSettings.findUnique({
       where: { id: "default" }
     });
@@ -255,20 +254,13 @@ export async function getSystemSettings() {
     }
 
     // Ultimate fallback - return minimal defaults so the page can still render
-
     return {
-
       id: "default",
-
-      schoolName: "ชื่อโรงเรียน",
-
+      schoolName: "โรงเรียนกุดจับประชาสรรค์",
       affiliation: "สำนักงานเขตพื้นที่การศึกษามัธยมศึกษาอุดรธานี",
-
-      subheader: "ระบบจัดการการลา",
-
+      subheader: "School Management System",
       logoUrl: null,
-
-      footerText: "© 2006 Panchapon Getrat KP-school",
+      footerText: "© 2026 Panchapon Getrat KP-school",
 
       lineChannelAccessToken: null,
 
@@ -474,7 +466,6 @@ export async function updateSystemSettings(data: {
 
 }) {
   try {
-    await ensureSubsystemColumnsExist();
     const { session, isAdmin, isHR } = await requireAdminOrHR();
     const user = session?.user as any;
     const isRepairManager = user?.role === "REPAIR_MANAGER" || user?.position === "ผู้ดูแลระบบซ่อม";

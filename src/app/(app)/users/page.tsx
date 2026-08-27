@@ -5,7 +5,6 @@ import { getAllUsers, updateUserProfile, deleteUser, approveUser, resetUserPassw
 import { motion, AnimatePresence } from "framer-motion";
 import { Users, Shield, Trash2, Search, UserCog, ChevronDown, Key, Ban, UserX, CheckCircle, Plus, Upload, Download, Phone, MapPin, Fingerprint } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
-import * as XLSX from "xlsx";
 
 export default function UsersPage() {
   const [users, setUsers] = useState<any[]>([]);
@@ -49,8 +48,9 @@ export default function UsersPage() {
       .finally(() => setLoading(false));
   };
 
-  const handleExportExcel = () => {
+  const handleExportExcel = async () => {
     try {
+      const XLSX = await import("xlsx");
       const dataToExport = users.map((u: any) => ({
         [lang === "en" ? "Login ID" : "ไอดีเข้าใช้งาน"]: u.username || "",
         [lang === "en" ? "Email" : "อีเมล"]: u.email || "",
@@ -68,8 +68,9 @@ export default function UsersPage() {
     }
   };
 
-  const handleExportCSV = () => {
+  const handleExportCSV = async () => {
     try {
+      const XLSX = await import("xlsx");
       const dataToExport = users.map((u: any) => ({
         [lang === "en" ? "Login ID" : "ไอดีเข้าใช้งาน"]: u.username || "",
         [lang === "en" ? "Email" : "อีเมล"]: u.email || "",
@@ -105,6 +106,7 @@ export default function UsersPage() {
     const reader = new FileReader();
     reader.onload = async (evt) => {
       try {
+        const XLSX = await import("xlsx");
         const data = evt.target?.result;
         const workbook = XLSX.read(data, { type: "array" });
         const sheetName = workbook.SheetNames[0];
