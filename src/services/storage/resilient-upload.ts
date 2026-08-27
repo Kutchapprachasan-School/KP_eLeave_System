@@ -136,15 +136,30 @@ export async function uploadAvatarWithFallback({
   mimeType: string;
   userId: string;
 }): Promise<ResilientUploadResult> {
-  const ext = mimeType.includes("png") ? ".png" : mimeType.includes("webp") ? ".webp" : ".jpg";
+  let optimizedBuffer = buffer;
+  let finalMimeType = mimeType;
+  let ext = ".webp";
+
+  try {
+    const sharp = require("sharp");
+    optimizedBuffer = await sharp(buffer)
+      .resize(120, 120, { fit: "cover" })
+      .webp({ quality: 80 })
+      .toBuffer();
+    finalMimeType = "image/webp";
+  } catch (e) {
+    ext = mimeType.includes("png") ? ".png" : mimeType.includes("webp") ? ".webp" : ".jpg";
+  }
+
   const storageKey = "avatars/" + userId + "/avatar_" + Date.now() + ext;
 
   return uploadWithResilientFallback({
-    buffer,
-    mimeType,
+    buffer: optimizedBuffer,
+    mimeType: finalMimeType,
     storageKey,
     bucket: "signatures",
     isPublic: true,
   });
 }
+
 
