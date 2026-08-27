@@ -6,6 +6,8 @@ import { prisma } from "@/lib/db";
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { ensureSequencesPopulated, calculateLeaveDays } from "./leave";
+import { withTelemetry } from "@/lib/telemetry";
+import { uploadAvatarWithFallback } from "@/services/storage/resilient-upload";
 
 async function requireSuperAdmin() {
   const session = await getSession();
@@ -111,52 +113,131 @@ export async function getNotifications() {
 
 // ========= Get All Users =========
 export async function getAllUsers() {
+  return withTelemetry("getAllUsers", async () => {
+    await requireSuperAdmin();
+
+    const users = await prisma.user.findMany({
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        username: true,
+        role: true,
+        position: true,
+        subjectGroup: true,
+        level: true,
+        image: true,
+        isApproved: true,
+        createdAt: true,
+        phoneNumber: true,
+        address: true,
+        signatureUrl: true,
+        sessions: {
+          orderBy: { createdAt: "desc" },
+          take: 1,
+          select: {
+            createdAt: true
+          }
+        }
+      }
+    });
+
+    // Auto-migrate legacy Base64 avatars to Supabase Storage CDN in the background
+    const base64Users = users.filter(u => u.image && u.image.startsWith("data:image/"));
+    if (base64Users.length > 0) {
+      Promise.allSettled(
+        base64Users.map(async (u) => {
+          try {
+            const parts = u.image!.split(",");
+            const base64Str = parts[1] || parts[0];
+            const mimeMatch = u.image!.match(/data:([^;]+);/);
+            const mimeType = mimeMatch ? mimeMatch[1] : "image/jpeg";
+            const buffer = Buffer.from(base64Str, "base64");
+            const res = await uploadAvatarWithFallback({
+              buffer,
+              mimeType,
+              userId: u.id,
+            });
+            if (!res.isFallback && res.url.startsWith("http")) {
+              await prisma.user.update({
+                where: { id: u.id },
+                data: { image: res.url }
+              });
+            }
+          } catch (err) {
+            console.warn(`[AutoMigrateAvatar] User ${u.id} failed:`, err);
+          }
+        })
+      ).catch(() => {});
+    }
+
+    return users.map(u => ({
+      id: u.id,
+      name: u.name,
+      email: u.email,
+      username: u.username,
+      role: u.role,
+      position: u.position,
+      subjectGroup: u.subjectGroup,
+      level: u.level,
+      image: u.image,
+      isApproved: u.isApproved,
+      createdAt: u.createdAt.toISOString(),
+      lastLogin: u.sessions[0]?.createdAt.toISOString() || null,
+      hasPhone: !!u.phoneNumber?.trim(),
+      hasAddress: !!u.address?.trim(),
+      hasSignature: !!u.signatureUrl?.trim(),
+    }));
+  }, { tag: "DB" });
+}
+
+// ========= Migrate Legacy Avatars to Cloud Storage =========
+export async function migrateLegacyAvatarsAction() {
   await requireSuperAdmin();
 
   const users = await prisma.user.findMany({
-    orderBy: { createdAt: "desc" },
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      username: true,
-      role: true,
-      position: true,
-      subjectGroup: true,
-      level: true,
-      image: true,
-      isApproved: true,
-      createdAt: true,
-      phoneNumber: true,
-      address: true,
-      signatureUrl: true,
-      sessions: {
-        orderBy: { createdAt: "desc" },
-        take: 1,
-        select: {
-          createdAt: true
-        }
+    where: {
+      image: {
+        startsWith: "data:image/"
       }
-    }
+    },
+    select: { id: true, name: true, image: true }
   });
 
-  return users.map(u => ({
-    id: u.id,
-    name: u.name,
-    email: u.email,
-    username: u.username,
-    role: u.role,
-    position: u.position,
-    subjectGroup: u.subjectGroup,
-    level: u.level,
-    image: u.image,
-    isApproved: u.isApproved,
-    createdAt: u.createdAt.toISOString(),
-    lastLogin: u.sessions[0]?.createdAt.toISOString() || null,
-    hasPhone: !!u.phoneNumber?.trim(),
-    hasAddress: !!u.address?.trim(),
-    hasSignature: !!u.signatureUrl?.trim(),
-  }));
+  let migrated = 0;
+  let failed = 0;
+
+  for (const u of users) {
+    if (!u.image) continue;
+    try {
+      const parts = u.image.split(",");
+      const base64Str = parts[1] || parts[0];
+      const mimeMatch = u.image.match(/data:([^;]+);/);
+      const mimeType = mimeMatch ? mimeMatch[1] : "image/jpeg";
+      const buffer = Buffer.from(base64Str, "base64");
+      const res = await uploadAvatarWithFallback({
+        buffer,
+        mimeType,
+        userId: u.id,
+      });
+
+      if (!res.isFallback && res.url.startsWith("http")) {
+        await prisma.user.update({
+          where: { id: u.id },
+          data: { image: res.url }
+        });
+        migrated++;
+      } else {
+        failed++;
+      }
+    } catch (e) {
+      failed++;
+    }
+  }
+
+  revalidatePath("/users");
+  return { total: users.length, migrated, failed };
 }
 
 // ========= Update User Profile =========

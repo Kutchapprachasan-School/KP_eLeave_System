@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useSession } from "@/lib/auth-client";
-import { updateProfile } from "@/app/actions/user";
+import { updateProfile, setUserSignature, getMySignature } from "@/app/actions/user";
+import { exportStrokesToSvg, Point } from "@/lib/vector-signature";
 import { authClient } from "@/lib/auth-client";
 import { Save, Lock, User as UserIcon, ShieldCheck, Mail, BookOpen, KeyRound, CheckCircle, Fingerprint, Camera, Trash2, Pencil, RefreshCw, Paperclip, Phone, MapPin, Award, X } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
@@ -131,6 +132,8 @@ export default function ProfilePage() {
 
   const [isDrawing, setIsDrawing] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const strokesRef = useRef<Point[][]>([]);
+  const currentStrokeRef = useRef<Point[]>([]);
   const avatarInputRef = useRef<HTMLInputElement | null>(null);
   const signatureInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -149,7 +152,13 @@ export default function ProfilePage() {
       setPhoneNumber(user.phoneNumber || "");
       setLevel(user.level || "");
       setAvatarPreview(user.image || "");
-      setSignaturePreview(user.signatureUrl || "");
+      getMySignature().then((res) => {
+        if (res?.signatureUrl) {
+          setSignaturePreview(res.signatureUrl);
+        }
+      }).catch(() => {
+        if (user.signatureUrl) setSignaturePreview(user.signatureUrl);
+      });
     }
   }, [user]);
 
@@ -278,13 +287,16 @@ export default function ProfilePage() {
     ctx.lineWidth = 3;
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
-    ctx.strokeStyle = "#4F46E5"; // Indigo-600
+    ctx.strokeStyle = "#0f172a"; // Dark slate for high contrast and dark:invert compatibility
 
     const { x, y } = getCanvasCoords(e);
     ctx.beginPath();
     ctx.moveTo(x, y);
     ctx.lineTo(x + 0.1, y);
     ctx.stroke();
+
+    currentStrokeRef.current = [{ x, y }];
+    strokesRef.current.push(currentStrokeRef.current);
     setIsDrawing(true);
   };
 
@@ -297,6 +309,10 @@ export default function ProfilePage() {
     const { x, y } = getCanvasCoords(e);
     ctx.lineTo(x, y);
     ctx.stroke();
+
+    if (currentStrokeRef.current) {
+      currentStrokeRef.current.push({ x, y });
+    }
   };
 
   const stopDrawing = () => {
@@ -309,23 +325,21 @@ export default function ProfilePage() {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    strokesRef.current = [];
+    currentStrokeRef.current = [];
   };
 
   const saveDrawnSignature = () => {
     if (!canvasRef.current) return;
     const canvas = canvasRef.current;
 
-    // Check if canvas is empty
-    const buffer = new Uint32Array(canvas.getContext("2d")!.getImageData(0, 0, canvas.width, canvas.height).data.buffer);
-    const isEmpty = !buffer.some(color => color !== 0);
-
-    if (isEmpty) {
+    if (!strokesRef.current || strokesRef.current.length === 0) {
       showToast("warning", t("drawSigWarning"));
       return;
     }
 
-    const base64 = canvas.toDataURL("image/png");
-    setSignaturePreview(base64);
+    const svgString = exportStrokesToSvg(strokesRef.current, canvas.width, canvas.height, "#0f172a", 3);
+    setSignaturePreview(svgString);
     clearCanvas();
     setIsDrawingModalOpen(false);
   };
@@ -334,7 +348,10 @@ export default function ProfilePage() {
     if (!signaturePreview) return;
     setSavingSignature(true);
     try {
-      await updateProfile({ name, subjectGroup, address, phoneNumber, level, signatureUrl: signaturePreview });
+      const res = await setUserSignature(signaturePreview);
+      if (res?.signatureUrl) {
+        setSignaturePreview(res.signatureUrl);
+      }
       await refetch();
       showToast("success", t("sigSaveSuccess"));
     } catch (err) {
@@ -348,7 +365,7 @@ export default function ProfilePage() {
     if (!confirm(t("confirmDeleteSig"))) return;
     setSavingSignature(true);
     try {
-      await updateProfile({ name, subjectGroup, address, phoneNumber, level, signatureUrl: "" });
+      await setUserSignature(null);
       await refetch();
       setSignaturePreview("");
       showToast("success", t("sigDeleteSuccess"));

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import FloatingEgressWidget from "@/components/dev/FloatingEgressWidget";
 import { ToastProvider, useToast } from "@/components/toast-provider";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useSession, signOut } from "@/lib/auth-client";
@@ -739,15 +740,15 @@ function AppContent({ children }: { children: React.ReactNode }) {
   // Sub-items for Leave System (ระบบการลา)
   const leaveSubItems = showLeave
     ? [
-        { href: "/hr/leave/request", label: "ขอลาออนไลน์", icon: FileText },
-        { href: "/hr/leave/history", label: "ประวัติการลา", icon: History },
+        { href: "/request", label: "ขอลาออนไลน์", icon: FileText },
+        { href: "/history", label: "ประวัติการลา", icon: History },
       ]
     : [];
   if (showLeave && activePermissions.approvals?.includes(userRole)) {
-    leaveSubItems.push({ href: "/hr/leave/approvals", label: "พิจารณาอนุมัติลา", icon: CheckSquare });
+    leaveSubItems.push({ href: "/approvals", label: "พิจารณาอนุมัติลา", icon: CheckSquare });
   }
   if (showLeave && activePermissions.reports?.includes(userRole)) {
-    leaveSubItems.push({ href: "/hr/leave/reports", label: "รายงานและสถิติ", icon: FileSpreadsheet });
+    leaveSubItems.push({ href: "/reports", label: "รายงานและสถิติ", icon: FileSpreadsheet });
   }
   if (showLeave) {
     leaveSubItems.push({ href: "/manual", label: t("userManual"), icon: BookOpen });
@@ -1326,6 +1327,9 @@ function AppContent({ children }: { children: React.ReactNode }) {
           </div>
         </Link>
       </div>
+
+      {/* Live Egress & Performance Telemetry Widget */}
+      <FloatingEgressWidget />
     </div>
   );
 }

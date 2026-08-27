@@ -32,6 +32,8 @@ export async function uploadLogo(formData: FormData) {
   return { success: true, url: dataUrl };
 }
 
+import { uploadLeaveAttachmentWithFallback } from "@/services/storage/resilient-upload";
+
 export async function uploadDocumentFile(formData: FormData) {
   const session = await auth.api.getSession({
     headers: await headers()
@@ -49,10 +51,36 @@ export async function uploadDocumentFile(formData: FormData) {
 
   const bytes = await file.arrayBuffer();
   const buffer = Buffer.from(bytes);
-
-  const base64Data = buffer.toString('base64');
   const mimeType = file.type || 'application/pdf';
-  const dataUrl = `data:${mimeType};base64,${base64Data}`;
 
-  return { success: true, url: dataUrl, name: file.name };
+  try {
+    const result = await uploadLeaveAttachmentWithFallback({
+      buffer,
+      mimeType,
+      fileName: file.name
+    });
+
+    return {
+      success: true,
+      url: result.url,
+      preview: result.url,
+      name: file.name,
+      sizeBytes: result.sizeBytes,
+      mimeType: result.mimeType,
+      isFallback: result.isFallback
+    };
+  } catch (err) {
+    const base64Data = buffer.toString('base64');
+    const dataUrl = `data:${mimeType};base64,${base64Data}`;
+    return {
+      success: true,
+      url: dataUrl,
+      preview: dataUrl,
+      name: file.name,
+      sizeBytes: buffer.byteLength,
+      mimeType,
+      isFallback: true
+    };
+  }
 }
+

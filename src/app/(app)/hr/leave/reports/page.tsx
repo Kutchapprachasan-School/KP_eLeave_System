@@ -1,7 +1,5 @@
-"use client";
+import { redirect } from "next/navigation";
 
-import ReportsPage from "@/app/(app)/reports/page";
-
-export default function HRLeaveReportsPage() {
-  return <ReportsPage />;
+export default function Page() {
+  redirect("/reports");
 }

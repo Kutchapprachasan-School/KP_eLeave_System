@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { submitLeaveRequest, getMyLeaveUsageForCurrentCycle, getCalculatedLeaveDays } from "@/app/actions/leave";
+import { uploadDocumentFile } from "@/app/actions/upload";
 import { getLeaveConfigs, getSystemSettings } from "@/app/actions/settings";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
@@ -147,25 +148,17 @@ export default function RequestLeavePage() {
     useEffect(() => {
     setReportedToDirector(false);
   }, [selectedType, startDate, endDate]);
-
   useEffect(() => {
     let active = true;
     if (startDate && endDate) {
-      const start = new Date(startDate);
-      const end = new Date(endDate);
-      if (!isNaN(start.getTime()) && !isNaN(end.getTime()) && start <= end) {
-        getCalculatedLeaveDays(startDate, endDate, selectedType).then((cnt) => {
-          if (active) {
-            setCalculatedCount(cnt);
-            setIsWeekendOnly(cnt === 0 && selectedType !== "MATERNITY");
-          }
-        }).catch(err => {
-          console.error("Error calculating leave days:", err);
-        });
-      } else {
-        setCalculatedCount(0);
-        setIsWeekendOnly(false);
-      }
+      getCalculatedLeaveDays(startDate, endDate, selectedType).then((days) => {
+        if (active) {
+          setCalculatedCount(days);
+          setIsWeekendOnly(days === 0);
+        }
+      }).catch((err) => {
+        console.error("Failed to calculate days:", err);
+      });
     } else {
       setCalculatedCount(0);
       setIsWeekendOnly(false);
@@ -186,30 +179,28 @@ export default function RequestLeavePage() {
     }
 
     const filesToProcess = files.slice(0, maxAllowed);
-    const processed: { name: string; preview: string }[] = [];
+    const processed: { name: string; url: string; preview: string; isImage?: boolean; isPdf?: boolean }[] = [];
 
     for (const file of filesToProcess) {
-      if (file.type === "application/pdf") {
-        if (file.size > 5 * 1024 * 1024) {
-          showToast("error", t("fileTooLarge"));
-          continue;
+      if (file.size > 10 * 1024 * 1024) {
+        showToast("error", t("fileTooLarge"));
+        continue;
+      }
+      try {
+        const formData = new FormData();
+        formData.append("file", file);
+        const res = await uploadDocumentFile(formData);
+        if (res.success && res.url) {
+          processed.push({
+            name: file.name,
+            url: res.url,
+            preview: res.preview || res.url,
+            isImage: file.type.startsWith("image/"),
+            isPdf: file.type === "application/pdf"
+          });
         }
-        try {
-          const preview = await readAsDataURL(file);
-          processed.push({ name: file.name, preview });
-        } catch (err) {
-          console.error(err);
-        }
-      } else if (file.type.startsWith("image/")) {
-        try {
-          const dataUrl = await readAsDataURL(file);
-          const compressed = await compressImage(dataUrl);
-          processed.push({ name: file.name, preview: compressed });
-        } catch (err) {
-          console.error(err);
-        }
-      } else {
-        showToast("warning", "รองรับเฉพาะไฟล์รูปภาพและ PDF เท่านั้น");
+      } catch (err) {
+        console.error("Attachment upload error:", err);
       }
     }
 
@@ -814,7 +805,7 @@ export default function RequestLeavePage() {
                         <X className="w-4 h-4 text-slate-500 group-hover:text-rose-500" />
                       </button>
                       <div className="flex items-center gap-4">
-                        {file.preview.startsWith("data:image") ? (
+                        {(file.preview.startsWith("data:image") || file.isImage || /\.(jpg|jpeg|png|webp|svg|gif)$/i.test(file.preview.split('?')[0])) ? (
                           <img src={file.preview} alt="เอกสารแนบ" className="w-20 h-20 object-cover rounded-xl border border-slate-100 dark:border-slate-700" />
                         ) : (
                           <div className="w-20 h-20 rounded-xl bg-rose-50 dark:bg-rose-500/10 flex items-center justify-center">

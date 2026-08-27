@@ -11,24 +11,42 @@
  * Switch provider via STORAGE_PROVIDER env var.
  */
 
+export interface UploadOptions {
+  bucket?: string;
+  isPublic?: boolean;
+  cacheControl?: string;
+  upsert?: boolean;
+  metadata?: Record<string, string>;
+}
+
+export interface StorageUploadResult {
+  storageKey: string;
+  publicUrl?: string;
+  providerId?: string;
+}
+
 export interface StorageProvider {
   /**
-   * Upload a file buffer and return a storageKey.
-   * storageKey is provider-agnostic (e.g. "repair/2026/REP-2026-000001-BEFORE-0.webp").
+   * Upload a file buffer and return a StorageUploadResult.
    */
-  upload(params: {
-    buffer: Buffer;
-    mimeType: string;
-    storageKey: string;
-  }): Promise<void>;
+  upload(
+    params: {
+      buffer: Buffer;
+      mimeType: string;
+      storageKey: string;
+    },
+    options?: UploadOptions
+  ): Promise<StorageUploadResult | void>;
 
   /**
    * Generate a URL for a given storageKey.
-   * For local: returns /uploads/repair/<key>
-   * For supabase: returns a signed URL valid for 1 hour
    */
-  getUrl(storageKey: string): Promise<string>;
+  getUrl(
+    storageKey: string,
+    options?: { bucket?: string; expiresIn?: number; isPublic?: boolean }
+  ): Promise<string>;
 
   /** Permanently delete a file by storageKey */
-  delete(storageKey: string): Promise<void>;
+  delete(storageKey: string, options?: { bucket?: string }): Promise<void>;
 }
+
