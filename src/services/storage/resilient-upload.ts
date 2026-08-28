@@ -87,13 +87,13 @@ export async function uploadSignatureWithFallback({
 }): Promise<ResilientUploadResult> {
   const mimeType = isSvg ? "image/svg+xml" : "image/webp";
   const ext = isSvg ? ".svg" : ".webp";
-  const storageKey = "signatures/" + userId + "/sig_" + Date.now() + ext;
+  // Use deterministic key so updates overwrite cleanly instead of creating duplicate files
+  const storageKey = "signatures/" + userId + "/signature" + ext;
 
   return uploadWithResilientFallback({
     buffer,
     mimeType,
     storageKey,
-    bucket: "signatures",
     isPublic: true,
   });
 }
@@ -119,7 +119,6 @@ export async function uploadLeaveAttachmentWithFallback({
     buffer,
     mimeType,
     storageKey,
-    bucket: "leave-attachments",
     isPublic: true,
   });
 }
@@ -151,13 +150,13 @@ export async function uploadAvatarWithFallback({
     ext = mimeType.includes("png") ? ".png" : mimeType.includes("webp") ? ".webp" : ".jpg";
   }
 
-  const storageKey = "avatars/" + userId + "/avatar_" + Date.now() + ext;
+  // Use deterministic key so new avatar overwrites previous avatar for this user
+  const storageKey = "avatars/" + userId + "/avatar" + ext;
 
   return uploadWithResilientFallback({
     buffer: optimizedBuffer,
     mimeType: finalMimeType,
     storageKey,
-    bucket: "signatures",
     isPublic: true,
   });
 }
