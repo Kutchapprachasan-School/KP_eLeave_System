@@ -71,16 +71,24 @@ export async function setUserSignature(signatureData: string | null) {
         ? result.url
         : "data:image/svg+xml;utf8," + encodeURIComponent(cleanSvgString);
     } else if (trimmed.startsWith("data:image/")) {
-      // Base64 WebP / PNG
-      const parts = trimmed.split(",");
-      const base64Str = parts[1] || parts[0];
-      const buffer = Buffer.from(base64Str, "base64");
-      const result = await uploadSignatureWithFallback({
-        buffer,
-        userId: session.user.id,
-        isSvg: false
-      });
-      finalUrl = result.url;
+      // Raster Image (PNG, JPG, WebP) -> Automatically trace into smooth Vector SVG!
+      try {
+        const { traceBase64ToVectorSvg } = require("@/lib/image-to-vector");
+        const vectorized = await traceBase64ToVectorSvg(trimmed);
+        const cleanSvg = sanitizeSvg(vectorized.svg);
+        const buffer = Buffer.from(cleanSvg, "utf8");
+        const result = await uploadSignatureWithFallback({
+          buffer,
+          userId: session.user.id,
+          isSvg: true
+        });
+        finalUrl = result.url.startsWith("http")
+          ? result.url
+          : "data:image/svg+xml;utf8," + encodeURIComponent(cleanSvg);
+      } catch (traceErr) {
+        console.warn("[setUserSignature] Vector trace fallback:", traceErr);
+        finalUrl = trimmed;
+      }
     }
 
     await prisma.user.update({
@@ -144,6 +152,26 @@ export async function updateProfile(data: {
     }
   }
 
+  let finalSignatureUrl = data.signatureUrl;
+  if (data.signatureUrl && data.signatureUrl.startsWith("data:image/") && !data.signatureUrl.startsWith("data:image/svg+xml")) {
+    try {
+      const { traceBase64ToVectorSvg } = require("@/lib/image-to-vector");
+      const vectorized = await traceBase64ToVectorSvg(data.signatureUrl);
+      const cleanSvg = sanitizeSvg(vectorized.svg);
+      const buffer = Buffer.from(cleanSvg, "utf8");
+      const result = await uploadSignatureWithFallback({
+        buffer,
+        userId: session.user.id,
+        isSvg: true
+      });
+      finalSignatureUrl = result.url.startsWith("http")
+        ? result.url
+        : "data:image/svg+xml;utf8," + encodeURIComponent(cleanSvg);
+    } catch (e) {
+      console.warn("[updateProfile] Signature vectorization fallback:", e);
+    }
+  }
+
   const updatedUser = await prisma.user.update({
     where: { id: session.user.id },
     data: {
@@ -152,7 +180,7 @@ export async function updateProfile(data: {
       subjectGroup: data.subjectGroup,
       lineUserId: data.lineUserId,
       image: finalImageUrl !== undefined ? finalImageUrl : undefined,
-      signatureUrl: data.signatureUrl !== undefined ? data.signatureUrl : undefined,
+      signatureUrl: finalSignatureUrl !== undefined ? finalSignatureUrl : undefined,
       address: data.address !== undefined ? data.address : undefined,
       phoneNumber: data.phoneNumber !== undefined ? data.phoneNumber : undefined,
       level: data.level !== undefined ? data.level : undefined,
