@@ -59,32 +59,15 @@ export async function setUserSignature(signatureData: string | null) {
     }
 
     if (cleanSvgString) {
-      // Vector SVG
-      const buffer = Buffer.from(cleanSvgString, "utf8");
-      const result = await uploadSignatureWithFallback({
-        buffer,
-        userId: session.user.id,
-        isSvg: true
-      });
-      // If cloud upload succeeded, use CDN URL; if fallback, make sure it's valid SVG Data URL
-      finalUrl = result.url.startsWith("http")
-        ? result.url
-        : "data:image/svg+xml;utf8," + encodeURIComponent(cleanSvgString);
+      // Vector SVG Data URL (Pure vector, ultra-fast 0ms rendering)
+      finalUrl = "data:image/svg+xml;utf8," + encodeURIComponent(cleanSvgString);
     } else if (trimmed.startsWith("data:image/")) {
       // Raster Image (PNG, JPG, WebP) -> Automatically trace into smooth Vector SVG!
       try {
         const { traceBase64ToVectorSvg } = require("@/lib/image-to-vector");
         const vectorized = await traceBase64ToVectorSvg(trimmed);
         const cleanSvg = sanitizeSvg(vectorized.svg);
-        const buffer = Buffer.from(cleanSvg, "utf8");
-        const result = await uploadSignatureWithFallback({
-          buffer,
-          userId: session.user.id,
-          isSvg: true
-        });
-        finalUrl = result.url.startsWith("http")
-          ? result.url
-          : "data:image/svg+xml;utf8," + encodeURIComponent(cleanSvg);
+        finalUrl = "data:image/svg+xml;utf8," + encodeURIComponent(cleanSvg);
       } catch (traceErr) {
         console.warn("[setUserSignature] Vector trace fallback:", traceErr);
         finalUrl = trimmed;
@@ -153,22 +136,22 @@ export async function updateProfile(data: {
   }
 
   let finalSignatureUrl = data.signatureUrl;
-  if (data.signatureUrl && data.signatureUrl.startsWith("data:image/") && !data.signatureUrl.startsWith("data:image/svg+xml")) {
-    try {
-      const { traceBase64ToVectorSvg } = require("@/lib/image-to-vector");
-      const vectorized = await traceBase64ToVectorSvg(data.signatureUrl);
-      const cleanSvg = sanitizeSvg(vectorized.svg);
-      const buffer = Buffer.from(cleanSvg, "utf8");
-      const result = await uploadSignatureWithFallback({
-        buffer,
-        userId: session.user.id,
-        isSvg: true
-      });
-      finalSignatureUrl = result.url.startsWith("http")
-        ? result.url
-        : "data:image/svg+xml;utf8," + encodeURIComponent(cleanSvg);
-    } catch (e) {
-      console.warn("[updateProfile] Signature vectorization fallback:", e);
+  if (data.signatureUrl) {
+    const sigTrimmed = data.signatureUrl.trim();
+    if (sigTrimmed.startsWith("<svg") || sigTrimmed.includes("<svg")) {
+      const cleanSvg = sanitizeSvg(sigTrimmed);
+      finalSignatureUrl = "data:image/svg+xml;utf8," + encodeURIComponent(cleanSvg);
+    } else if (sigTrimmed.startsWith("data:image/svg+xml")) {
+      finalSignatureUrl = sigTrimmed;
+    } else if (sigTrimmed.startsWith("data:image/")) {
+      try {
+        const { traceBase64ToVectorSvg } = require("@/lib/image-to-vector");
+        const vectorized = await traceBase64ToVectorSvg(sigTrimmed);
+        const cleanSvg = sanitizeSvg(vectorized.svg);
+        finalSignatureUrl = "data:image/svg+xml;utf8," + encodeURIComponent(cleanSvg);
+      } catch (e) {
+        console.warn("[updateProfile] Signature vectorization fallback:", e);
+      }
     }
   }
 
