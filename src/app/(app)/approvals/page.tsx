@@ -165,11 +165,12 @@ export default function ApprovalsPage() {
               const html2canvas = (await import("html2canvas-pro")).default;
 
               const canvas = await html2canvas(printContent, {
-                scale: 2,
+                scale: 3,
                 useCORS: true,
                 allowTaint: true,
                 backgroundColor: "#ffffff",
-                logging: false
+                logging: false,
+                imageTimeout: 15000,
               });
 
               const useJpg = settings?.googleDriveFormat === "JPG";
