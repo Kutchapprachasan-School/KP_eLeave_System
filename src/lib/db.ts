@@ -4,7 +4,7 @@ import { Pool } from "pg"
 
 const connectionString =
   process.env.DATABASE_URL ||
-  "postgresql://postgres.ngzflajpifmsvhldhviu:KP_eleave2026!@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres?pgbouncer=true"
+  "postgresql://postgres.ngzflajpifmsvhldhviu:YQSmSuCwZ9_iR_!@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres?pgbouncer=true"
 
 const pool = new Pool({
   connectionString,
