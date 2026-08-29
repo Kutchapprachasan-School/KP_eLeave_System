@@ -16,6 +16,7 @@ import {
   BarChart3, Zap, ShieldCheck, Database, HardDrive, RefreshCw
 } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
+import SupabaseEgressMonitor from "./_components/SupabaseEgressMonitor";
 
 const SUBSYSTEM_CONFIGS: Record<string, { label: string; badgeCls: string; icon: any }> = {
   LEAVE: { label: "ระบบการลา", badgeCls: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300", icon: Calendar },
@@ -241,6 +242,8 @@ export default function LogsPage() {
 
       {activeTab === "EGRESS_TELEMETRY" ? (
         <div className="space-y-6">
+          <SupabaseEgressMonitor />
+
           {/* Overview Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm">
