@@ -59,17 +59,24 @@ export async function setUserSignature(signatureData: string | null) {
     }
 
     if (cleanSvgString) {
-      // Vector SVG Data URL (Pure vector, ultra-fast 0ms rendering)
+      // Vector SVG Data URL (from canvas drawing - pure vector, ultra-fast 0ms rendering)
       finalUrl = "data:image/svg+xml;utf8," + encodeURIComponent(cleanSvgString);
     } else if (trimmed.startsWith("data:image/")) {
-      // Raster Image (PNG, JPG, WebP) -> Automatically trace into smooth Vector SVG!
+      // Uploaded Image (PNG, JPG, WebP) -> Optimize with Sharp preserving authentic handwriting & alpha
       try {
-        const { traceBase64ToVectorSvg } = require("@/lib/image-to-vector");
-        const vectorized = await traceBase64ToVectorSvg(trimmed);
-        const cleanSvg = sanitizeSvg(vectorized.svg);
-        finalUrl = "data:image/svg+xml;utf8," + encodeURIComponent(cleanSvg);
-      } catch (traceErr) {
-        console.warn("[setUserSignature] Vector trace fallback:", traceErr);
+        const sharp = require("sharp");
+        const parts = trimmed.split(",");
+        const base64Str = parts[1] || parts[0];
+        const buffer = Buffer.from(base64Str, "base64");
+
+        const optimized = await sharp(buffer)
+          .resize(500, 200, { fit: "inside", withoutEnlargement: true })
+          .png({ quality: 90, compressionLevel: 8 })
+          .toBuffer();
+
+        finalUrl = `data:image/png;base64,${optimized.toString("base64")}`;
+      } catch (imgErr) {
+        console.warn("[setUserSignature] Image optimization fallback:", imgErr);
         finalUrl = trimmed;
       }
     }
@@ -145,12 +152,20 @@ export async function updateProfile(data: {
       finalSignatureUrl = sigTrimmed;
     } else if (sigTrimmed.startsWith("data:image/")) {
       try {
-        const { traceBase64ToVectorSvg } = require("@/lib/image-to-vector");
-        const vectorized = await traceBase64ToVectorSvg(sigTrimmed);
-        const cleanSvg = sanitizeSvg(vectorized.svg);
-        finalSignatureUrl = "data:image/svg+xml;utf8," + encodeURIComponent(cleanSvg);
+        const sharp = require("sharp");
+        const parts = sigTrimmed.split(",");
+        const base64Str = parts[1] || parts[0];
+        const buffer = Buffer.from(base64Str, "base64");
+
+        const optimized = await sharp(buffer)
+          .resize(500, 200, { fit: "inside", withoutEnlargement: true })
+          .png({ quality: 90, compressionLevel: 8 })
+          .toBuffer();
+
+        finalSignatureUrl = `data:image/png;base64,${optimized.toString("base64")}`;
       } catch (e) {
-        console.warn("[updateProfile] Signature vectorization fallback:", e);
+        console.warn("[updateProfile] Signature optimization fallback:", e);
+        finalSignatureUrl = sigTrimmed;
       }
     }
   }
