@@ -692,7 +692,15 @@ export default function ProfilePage() {
                 <div className="h-44 rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/20 flex flex-col items-center justify-center overflow-hidden p-4 relative group">
                   {signaturePreview ? (
                     <>
-                      <img src={getSignatureSrc(signaturePreview)} alt="Signature Preview" className="max-h-full max-w-full object-contain dark:invert" />
+                      <img 
+                        src={getSignatureSrc(signaturePreview)} 
+                        alt="Signature Preview" 
+                        className="max-h-full max-w-full object-contain dark:invert"
+                        onError={(e) => {
+                          // If remote image fails to load, hide broken image icon cleanly
+                          (e.target as HTMLElement).style.display = "none";
+                        }}
+                      />
                       <button
                         onClick={handleDeleteSignature}
                         className="absolute bottom-3 right-3 w-8 h-8 rounded-xl bg-rose-50 dark:bg-rose-955 hover:bg-rose-100 dark:hover:bg-rose-900 flex items-center justify-center text-rose-600 transition-colors shadow-sm cursor-pointer"
