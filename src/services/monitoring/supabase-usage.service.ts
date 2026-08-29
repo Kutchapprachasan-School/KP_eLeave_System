@@ -149,7 +149,7 @@ export async function getSupabaseUsageReport(options?: {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
           },
-          next: { revalidate: 60 },
+          cache: "no-store",
         }
       );
 
