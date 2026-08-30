@@ -28,11 +28,10 @@ export default function LoginPage() {
   const [subheader, setSubheader] = useState("ระบบจัดการการลา");
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [footerText, setFooterText] = useState("© 2006 Panchapon Getrat KP-school");
-  const [isLoadingBrand, setIsLoadingBrand] = useState(true);
-  const [showSplash, setShowSplash] = useState(true);
+  const [isLoadingBrand, setIsLoadingBrand] = useState(false);
 
   useEffect(() => {
-    // 1. Immediately read from localStorage on client-side mount to prevent async DB fetch lag
+    // 1. Immediately read from localStorage on client-side mount
     if (typeof window !== "undefined") {
       const storedSchoolName = localStorage.getItem("eleave_schoolName");
       const storedSubheader = localStorage.getItem("eleave_subheader");
@@ -43,11 +42,6 @@ export default function LoginPage() {
       if (storedSubheader) setSubheader(storedSubheader);
       if (storedLogoUrl) setLogoUrl(storedLogoUrl);
       if (storedFooterText) setFooterText(storedFooterText);
-      
-      // If we loaded cached data, we can mark brand loading as finished
-      if (storedSchoolName || storedLogoUrl) {
-        setIsLoadingBrand(false);
-      }
     }
 
     getSystemSettings().then((s) => {
@@ -60,7 +54,6 @@ export default function LoginPage() {
       setSubheader(finalSubheader);
       setLogoUrl(finalLogoUrl);
       setFooterText(finalFooterText);
-      setIsLoadingBrand(false);
 
       if (typeof window !== "undefined") {
         localStorage.setItem("eleave_schoolName", finalSchoolName);
@@ -72,12 +65,8 @@ export default function LoginPage() {
         }
         localStorage.setItem("eleave_footerText", finalFooterText);
       }
-
-      // Show splash for at least 1.4s for a smooth feel
-      setTimeout(() => setShowSplash(false), 1400);
     }).catch(() => {
-      setIsLoadingBrand(false);
-      setTimeout(() => setShowSplash(false), 600);
+      // Ignore fallback
     });
   }, [lang]);
 
@@ -200,86 +189,6 @@ export default function LoginPage() {
   };
 
   return (
-    <>
-      {/* Brand Splash Screen – shown before login form */}
-      <AnimatePresence>
-        {showSplash && (
-          <motion.div
-            key="splash"
-            initial={{ opacity: 1 }}
-            exit={{ opacity: 0, scale: 0.98 }}
-            transition={{ duration: 0.5, ease: "easeInOut" }}
-            className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-gradient-to-br from-slate-50 via-white to-indigo-50/60 dark:from-slate-950 dark:via-slate-900 dark:to-indigo-950/20 overflow-hidden"
-          >
-            {/* Background glow */}
-            <div className="absolute top-1/4 left-1/4 w-80 h-80 bg-purple-400/15 dark:bg-purple-500/10 rounded-full blur-[120px] pointer-events-none animate-pulse" />
-            <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-indigo-400/15 dark:bg-indigo-500/10 rounded-full blur-[120px] pointer-events-none animate-pulse" style={{ animationDelay: '0.8s' }} />
-
-            <motion.div
-              initial={{ opacity: 0, y: 24 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, ease: "easeOut" }}
-              className="relative z-10 flex flex-col items-center text-center space-y-5 px-8"
-            >
-              {/* Logo with pulse ring */}
-              <div className="relative flex items-center justify-center mb-1">
-                <div className="absolute inset-0 rounded-full bg-purple-400/25 dark:bg-purple-500/15 animate-ping opacity-60" style={{ animationDuration: '1.8s' }} />
-                <div className="absolute -inset-5 rounded-full bg-gradient-to-tr from-purple-400/10 to-indigo-400/10 blur-xl animate-pulse" />
-
-                <div className="relative w-28 h-28 rounded-[28px] bg-white dark:bg-slate-800 p-2 shadow-[0_12px_40px_rgba(109,40,217,0.15)] dark:shadow-[0_12px_40px_rgba(0,0,0,0.5)] border border-slate-100/80 dark:border-slate-700/50 flex items-center justify-center overflow-hidden">
-                  <motion.img
-                    initial={{ scale: 0.75, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    transition={{ delay: 0.1, duration: 0.5, type: "spring" }}
-                    src={logoUrl || "/icon.jpg"}
-                    alt="School Logo"
-                    className="w-full h-full object-cover rounded-[20px]"
-                  />
-                </div>
-              </div>
-
-              {/* School name */}
-              <motion.h1
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.3, duration: 0.5 }}
-                className="text-xl font-bold text-slate-900 dark:text-white leading-snug max-w-[280px]"
-              >
-                {isLoadingBrand ? "กำลังโหลด..." : (schoolName || "โรงเรียน")}
-              </motion.h1>
-
-              {/* Subheader */}
-              <motion.p
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.4, duration: 0.5 }}
-                className="text-xs font-semibold tracking-[0.12em] text-purple-600 dark:text-purple-400 uppercase"
-              >
-                {isLoadingBrand ? "" : (subheader || "ระบบจัดการการลาออนไลน์")}
-              </motion.p>
-
-              {/* Progress bar */}
-              <div className="w-44 pt-3 mx-auto">
-                <div className="h-[3px] w-full bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden relative">
-                  <motion.div
-                    className="h-full bg-gradient-to-r from-purple-500 via-violet-500 to-indigo-600 rounded-full absolute top-0 bottom-0"
-                    animate={{
-                      left: ["-100%", "100%"],
-                      width: ["25%", "65%", "25%"]
-                    }}
-                    transition={{
-                      duration: 1.4,
-                      repeat: Infinity,
-                      ease: "easeInOut"
-                    }}
-                  />
-                </div>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
     <div className="flex min-h-screen items-center justify-center bg-[#F4F7FB] dark:bg-slate-900 relative overflow-hidden p-4">
       {/* Language Switcher */}
       <div className="absolute top-6 right-6 z-50">
@@ -538,6 +447,5 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
-    </>
   );
 }
