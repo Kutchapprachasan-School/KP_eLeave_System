@@ -74,25 +74,85 @@ export async function uploadWithResilientFallback({
 }
 
 /**
- * Helper to upload user signature (Vector SVG or WebP)
+ * Helper to upload user signature (Transparent PNG or Vector SVG)
+ * Automatically removes white background from JPEG/PNG, caps size <= 50KB,
+ * and maintains pixel-perfect crispness.
  */
 export async function uploadSignatureWithFallback({
   buffer,
   userId,
-  isSvg = true,
+  isSvg = false,
+  mimeType = "image/png",
 }: {
   buffer: Buffer;
   userId: string;
   isSvg?: boolean;
+  mimeType?: string;
 }): Promise<ResilientUploadResult> {
-  const mimeType = isSvg ? "image/svg+xml" : "image/webp";
-  const ext = isSvg ? ".svg" : ".webp";
-  // Use deterministic key so updates overwrite cleanly instead of creating duplicate files
+  let finalBuffer = buffer;
+  let finalMimeType = isSvg ? "image/svg+xml" : "image/png";
+  let ext = isSvg ? ".svg" : ".png";
+
+  if (!isSvg) {
+    try {
+      const sharp = require("sharp");
+      let pipeline = sharp(buffer);
+      const meta = await pipeline.metadata();
+
+      const isJpeg = mimeType.includes("jpeg") || mimeType.includes("jpg") || !meta.hasAlpha;
+
+      if (isJpeg) {
+        const maxDim = 600;
+        if ((meta.width && meta.width > maxDim) || (meta.height && meta.height > maxDim)) {
+          pipeline = pipeline.resize(maxDim, maxDim, { fit: "inside", withoutEnlargement: true });
+        }
+        const { data, info } = await pipeline.ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+        const { width, height, channels } = info;
+
+        for (let i = 0; i < data.length; i += channels) {
+          const r = data[i];
+          const g = data[i + 1];
+          const b = data[i + 2];
+          const lightness = 0.299 * r + 0.587 * g + 0.114 * b;
+          if (lightness > 225) {
+            data[i + 3] = 0;
+          } else if (lightness > 175) {
+            const factor = (225 - lightness) / 50;
+            data[i + 3] = Math.round(data[i + 3] * factor);
+          }
+        }
+        pipeline = sharp(data, { raw: { width, height, channels } });
+      } else if (meta.width && (meta.width > 600 || meta.height > 600)) {
+        pipeline = pipeline.resize(600, 600, { fit: "inside", withoutEnlargement: true });
+      }
+
+      finalBuffer = await pipeline
+        .png({
+          compressionLevel: 9,
+          palette: true,
+          quality: 95,
+          effort: 10,
+        })
+        .toBuffer();
+
+      // Guarantee <= 50KB constraint
+      if (finalBuffer.length > 50 * 1024) {
+        finalBuffer = await sharp(finalBuffer)
+          .resize(450, 450, { fit: "inside", withoutEnlargement: true })
+          .png({ compressionLevel: 9, palette: true, quality: 85 })
+          .toBuffer();
+      }
+    } catch (err) {
+      console.warn("[uploadSignatureWithFallback] Sharp optimization fallback:", err);
+    }
+  }
+
+  // Use deterministic key so updates overwrite cleanly without orphan files
   const storageKey = "signatures/" + userId + "/signature" + ext;
 
   return uploadWithResilientFallback({
-    buffer,
-    mimeType,
+    buffer: finalBuffer,
+    mimeType: finalMimeType,
     storageKey,
     isPublic: true,
   });

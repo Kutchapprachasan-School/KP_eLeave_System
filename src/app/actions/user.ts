@@ -40,7 +40,7 @@ export async function setUserSignature(signatureData: string | null) {
   if (!signatureData || !signatureData.trim()) {
     await prisma.user.update({
       where: { id: session.user.id },
-      data: { signatureUrl: null }
+      data: { signatureUrl: null, hasSignature: false }
     });
     revalidatePath("/profile");
     return { success: true, signatureUrl: null };
@@ -50,56 +50,55 @@ export async function setUserSignature(signatureData: string | null) {
   let finalUrl = trimmed;
 
   try {
-    let cleanSvgString = "";
+    let isSvg = false;
+    let buffer: Buffer;
+    let mimeType = "image/png";
+
     if (trimmed.startsWith("<svg") || trimmed.includes("<svg")) {
-      cleanSvgString = sanitizeSvg(trimmed);
+      const cleanSvg = sanitizeSvg(trimmed);
+      buffer = Buffer.from(cleanSvg, "utf8");
+      isSvg = true;
+      mimeType = "image/svg+xml";
     } else if (trimmed.startsWith("data:image/svg+xml")) {
       const rawContent = decodeURIComponent(trimmed.replace(/^data:image\/svg\+xml;[^,]*,/, ""));
-      cleanSvgString = sanitizeSvg(rawContent);
-    }
-
-    if (cleanSvgString) {
-      // Vector SVG Data URL (from canvas drawing - pure vector, ultra-fast 0ms rendering)
-      finalUrl = "data:image/svg+xml;utf8," + encodeURIComponent(cleanSvgString);
+      const cleanSvg = sanitizeSvg(rawContent);
+      buffer = Buffer.from(cleanSvg, "utf8");
+      isSvg = true;
+      mimeType = "image/svg+xml";
     } else if (trimmed.startsWith("data:image/")) {
-      // Uploaded Image (PNG, JPG, WebP) -> Optimize with Sharp preserving authentic handwriting & alpha
-      try {
-        const sharp = require("sharp");
-        const parts = trimmed.split(",");
-        const base64Str = parts[1] || parts[0];
-        const buffer = Buffer.from(base64Str, "base64");
-
-        const optimized = await sharp(buffer)
-          .resize(500, 200, { fit: "inside", withoutEnlargement: true })
-          .png({ quality: 90, compressionLevel: 8 })
-          .toBuffer();
-
-        finalUrl = `data:image/png;base64,${optimized.toString("base64")}`;
-      } catch (imgErr) {
-        console.warn("[setUserSignature] Image optimization fallback:", imgErr);
-        finalUrl = trimmed;
-      }
+      const parts = trimmed.split(",");
+      const base64Str = parts[1] || parts[0];
+      buffer = Buffer.from(base64Str, "base64");
+      const match = trimmed.match(/^data:([^;]+);/);
+      if (match) mimeType = match[1];
+    } else {
+      buffer = Buffer.from(trimmed, "utf8");
     }
+
+    const uploadRes = await uploadSignatureWithFallback({
+      buffer,
+      userId: session.user.id,
+      isSvg,
+      mimeType,
+    });
+
+    finalUrl = uploadRes.url;
 
     await prisma.user.update({
       where: { id: session.user.id },
-      data: { signatureUrl: finalUrl }
+      data: { signatureUrl: finalUrl, hasSignature: true }
     });
 
     revalidatePath("/profile");
     return { success: true, signatureUrl: finalUrl };
   } catch (err: any) {
     console.error("[setUserSignature] Error saving signature:", err);
-    const safeFallbackUrl = trimmed.startsWith("<svg")
-      ? "data:image/svg+xml;utf8," + encodeURIComponent(trimmed)
-      : trimmed;
-
     await prisma.user.update({
       where: { id: session.user.id },
-      data: { signatureUrl: safeFallbackUrl }
+      data: { signatureUrl: trimmed, hasSignature: true }
     });
     revalidatePath("/profile");
-    return { success: true, signatureUrl: safeFallbackUrl };
+    return { success: true, signatureUrl: trimmed };
   }
 }
 
@@ -145,28 +144,42 @@ export async function updateProfile(data: {
   let finalSignatureUrl = data.signatureUrl;
   if (data.signatureUrl) {
     const sigTrimmed = data.signatureUrl.trim();
-    if (sigTrimmed.startsWith("<svg") || sigTrimmed.includes("<svg")) {
-      const cleanSvg = sanitizeSvg(sigTrimmed);
-      finalSignatureUrl = "data:image/svg+xml;utf8," + encodeURIComponent(cleanSvg);
-    } else if (sigTrimmed.startsWith("data:image/svg+xml")) {
-      finalSignatureUrl = sigTrimmed;
-    } else if (sigTrimmed.startsWith("data:image/")) {
-      try {
-        const sharp = require("sharp");
+    try {
+      let isSvg = false;
+      let buffer: Buffer;
+      let mimeType = "image/png";
+
+      if (sigTrimmed.startsWith("<svg") || sigTrimmed.includes("<svg")) {
+        const cleanSvg = sanitizeSvg(sigTrimmed);
+        buffer = Buffer.from(cleanSvg, "utf8");
+        isSvg = true;
+        mimeType = "image/svg+xml";
+      } else if (sigTrimmed.startsWith("data:image/svg+xml")) {
+        const rawContent = decodeURIComponent(sigTrimmed.replace(/^data:image\/svg\+xml;[^,]*,/, ""));
+        const cleanSvg = sanitizeSvg(rawContent);
+        buffer = Buffer.from(cleanSvg, "utf8");
+        isSvg = true;
+        mimeType = "image/svg+xml";
+      } else if (sigTrimmed.startsWith("data:image/")) {
         const parts = sigTrimmed.split(",");
         const base64Str = parts[1] || parts[0];
-        const buffer = Buffer.from(base64Str, "base64");
-
-        const optimized = await sharp(buffer)
-          .resize(500, 200, { fit: "inside", withoutEnlargement: true })
-          .png({ quality: 90, compressionLevel: 8 })
-          .toBuffer();
-
-        finalSignatureUrl = `data:image/png;base64,${optimized.toString("base64")}`;
-      } catch (e) {
-        console.warn("[updateProfile] Signature optimization fallback:", e);
-        finalSignatureUrl = sigTrimmed;
+        buffer = Buffer.from(base64Str, "base64");
+        const match = sigTrimmed.match(/^data:([^;]+);/);
+        if (match) mimeType = match[1];
+      } else {
+        buffer = Buffer.from(sigTrimmed, "utf8");
       }
+
+      const sigRes = await uploadSignatureWithFallback({
+        buffer,
+        userId: session.user.id,
+        isSvg,
+        mimeType,
+      });
+      finalSignatureUrl = sigRes.url;
+    } catch (e) {
+      console.warn("[updateProfile] Signature upload fallback:", e);
+      finalSignatureUrl = sigTrimmed;
     }
   }
 
@@ -179,6 +192,7 @@ export async function updateProfile(data: {
       lineUserId: data.lineUserId,
       image: finalImageUrl !== undefined ? finalImageUrl : undefined,
       signatureUrl: finalSignatureUrl !== undefined ? finalSignatureUrl : undefined,
+      hasSignature: finalSignatureUrl !== undefined ? Boolean(finalSignatureUrl) : undefined,
       address: data.address !== undefined ? data.address : undefined,
       phoneNumber: data.phoneNumber !== undefined ? data.phoneNumber : undefined,
       level: data.level !== undefined ? data.level : undefined,
