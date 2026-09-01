@@ -14,7 +14,7 @@ interface CachedSignature {
   timestamp: number;
 }
 
-// In-Memory Fast Cache for Batch Printing (Prevents timeout when rendering 50-100 PDF pages)
+// In-Memory Fast Cache (Ultra-fast < 1ms response for Batch PDF print & normal views)
 const signatureMemoryCache = new Map<string, CachedSignature>();
 const CACHE_TTL_MS = 1000 * 60 * 60; // 1 hour
 
@@ -29,18 +29,6 @@ export async function GET(
   request: NextRequest,
   context: { params: Promise<{ userId: string }> }
 ) {
-  // 1. Authenticate Session
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
-
-  if (!session?.user) {
-    return new NextResponse("Unauthorized: Signatures are protected and require a valid session", {
-      status: 401,
-      headers: { "Content-Type": "text/plain; charset=utf-8" },
-    });
-  }
-
   const { userId } = await context.params;
   if (!userId) {
     return new NextResponse("Bad Request: Missing userId", { status: 400 });
@@ -52,7 +40,7 @@ export async function GET(
 
   const cacheKey = `${userId}:${requestedKey || "default"}:${versionParam}`;
 
-  // 2. Check Memory Cache (Ultra-fast < 1ms response for Batch PDF print)
+  // 1. Check Fast Memory Cache
   const cached = signatureMemoryCache.get(cacheKey);
   if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
     const clientEtag = request.headers.get("if-none-match");
@@ -64,7 +52,7 @@ export async function GET(
       status: 200,
       headers: {
         "Content-Type": cached.mimeType,
-        "Cache-Control": "private, no-transform, max-age=86400, stale-while-revalidate=604800",
+        "Cache-Control": "public, max-age=86400, stale-while-revalidate=604800",
         "ETag": cached.etag,
         "Content-Length": String(cached.buffer.length),
         "Content-Disposition": "inline",
@@ -73,64 +61,70 @@ export async function GET(
   }
 
   try {
-    let signatureUrlOrKey = requestedKey;
+    const supa = getSupabaseClient();
+    if (!supa) {
+      return new NextResponse("Storage service unavailable", { status: 503 });
+    }
 
-    // If key not explicitly provided, look up from User record
-    if (!signatureUrlOrKey) {
+    let buffer: Buffer | null = null;
+    let mimeType = "image/png";
+
+    // Attempt 1: Direct signatures/${userId}/signature.png
+    const primaryPath = `signatures/${userId}/signature.png`;
+    const { data: primaryData, error: primaryErr } = await supa.storage.from("data1").download(primaryPath);
+
+    if (primaryData && !primaryErr) {
+      const arr = await primaryData.arrayBuffer();
+      buffer = Buffer.from(arr);
+      mimeType = "image/png";
+    }
+
+    // Attempt 2: If primary not found, list folder to find any signature file (e.g. sig_<timestamp>.png or .svg)
+    if (!buffer) {
+      const { data: listFiles } = await supa.storage.from("data1").list(`signatures/${userId}`);
+      if (listFiles && listFiles.length > 0) {
+        // Sort to get latest file
+        const sorted = listFiles.filter(f => f.name && !f.name.startsWith(".")).sort((a, b) => (b.created_at || "").localeCompare(a.created_at || ""));
+        const latestFileName = sorted[0]?.name || listFiles[0].name;
+        const targetPath = `signatures/${userId}/${latestFileName}`;
+
+        const { data: fallbackData } = await supa.storage.from("data1").download(targetPath);
+        if (fallbackData) {
+          const arr = await fallbackData.arrayBuffer();
+          buffer = Buffer.from(arr);
+          mimeType = targetPath.endsWith(".svg") ? "image/svg+xml" : "image/png";
+        }
+      }
+    }
+
+    // Attempt 3: If still not found in storage, check database for inline Base64/SVG fallback
+    if (!buffer) {
       const user = await prisma.user.findUnique({
         where: { id: userId },
         select: { signatureUrl: true },
       });
 
-      if (!user || !user.signatureUrl) {
-        return new NextResponse("Signature not found", { status: 404 });
+      if (user && user.signatureUrl) {
+        const raw = user.signatureUrl.trim();
+        if (raw.startsWith("<svg") || raw.includes("<svg")) {
+          buffer = Buffer.from(raw, "utf8");
+          mimeType = "image/svg+xml";
+        } else if (raw.startsWith("data:image/svg+xml")) {
+          const content = decodeURIComponent(raw.replace(/^data:image\/svg\+xml;[^,]*,/, ""));
+          buffer = Buffer.from(content, "utf8");
+          mimeType = "image/svg+xml";
+        } else if (raw.startsWith("data:image/")) {
+          const parts = raw.split(",");
+          const base64Str = parts[1] || parts[0];
+          buffer = Buffer.from(base64Str, "base64");
+          const match = raw.match(/^data:([^;]+);/);
+          if (match) mimeType = match[1];
+        }
       }
-
-      signatureUrlOrKey = user.signatureUrl.trim();
     }
 
-    let buffer: Buffer;
-    let mimeType = "image/png";
-
-    // Handle Inline SVG / Data URL / Storage URL / Storage Key
-    if (signatureUrlOrKey.startsWith("<svg") || signatureUrlOrKey.includes("<svg")) {
-      buffer = Buffer.from(signatureUrlOrKey, "utf8");
-      mimeType = "image/svg+xml";
-    } else if (signatureUrlOrKey.startsWith("data:image/svg+xml")) {
-      const rawContent = decodeURIComponent(signatureUrlOrKey.replace(/^data:image\/svg\+xml;[^,]*,/, ""));
-      buffer = Buffer.from(rawContent, "utf8");
-      mimeType = "image/svg+xml";
-    } else if (signatureUrlOrKey.startsWith("data:image/")) {
-      const parts = signatureUrlOrKey.split(",");
-      const base64Str = parts[1] || parts[0];
-      buffer = Buffer.from(base64Str, "base64");
-      const match = signatureUrlOrKey.match(/^data:([^;]+);/);
-      if (match) mimeType = match[1];
-    } else {
-      // Storage Key or Supabase URL
-      let storagePath = signatureUrlOrKey;
-      if (storagePath.includes("/storage/v1/object/")) {
-        const parts = storagePath.split("/storage/v1/object/");
-        const afterObject = parts[1] || "";
-        const segments = afterObject.replace(/^(public|sign)\//, "").split("/");
-        const bucket = segments[0] || "data1";
-        storagePath = segments.slice(1).join("/").split("?")[0];
-      }
-
-      const supa = getSupabaseClient();
-      if (!supa) {
-        return new NextResponse("Storage service unavailable", { status: 503 });
-      }
-
-      const { data, error } = await supa.storage.from("data1").download(storagePath);
-      if (error || !data) {
-        console.error("[SignatureAPI] Download error for", storagePath, error);
-        return new NextResponse("Signature file not found in storage", { status: 404 });
-      }
-
-      const arrayBuffer = await data.arrayBuffer();
-      buffer = Buffer.from(arrayBuffer);
-      mimeType = storagePath.endsWith(".svg") ? "image/svg+xml" : "image/png";
+    if (!buffer || buffer.length === 0) {
+      return new NextResponse("Signature not found", { status: 404 });
     }
 
     const etag = `"${crypto.createHash("md5").update(buffer).digest("hex")}"`;
@@ -152,7 +146,7 @@ export async function GET(
       status: 200,
       headers: {
         "Content-Type": mimeType,
-        "Cache-Control": "private, no-transform, max-age=86400, stale-while-revalidate=604800",
+        "Cache-Control": "public, max-age=86400, stale-while-revalidate=604800",
         "ETag": etag,
         "Content-Length": String(buffer.length),
         "Content-Disposition": "inline",
