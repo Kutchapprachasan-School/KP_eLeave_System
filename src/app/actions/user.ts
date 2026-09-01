@@ -82,7 +82,8 @@ export async function setUserSignature(signatureData: string | null) {
       mimeType,
     });
 
-    finalUrl = uploadRes.url;
+    // Point User.signatureUrl to the private authenticated streaming route
+    finalUrl = `/api/signatures/${session.user.id}?v=${Date.now()}`;
 
     await prisma.user.update({
       where: { id: session.user.id },
@@ -176,7 +177,7 @@ export async function updateProfile(data: {
         isSvg,
         mimeType,
       });
-      finalSignatureUrl = sigRes.url;
+      finalSignatureUrl = `/api/signatures/${session.user.id}?v=${Date.now()}`;
     } catch (e) {
       console.warn("[updateProfile] Signature upload fallback:", e);
       finalSignatureUrl = sigTrimmed;

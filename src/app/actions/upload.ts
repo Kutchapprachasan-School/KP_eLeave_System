@@ -44,11 +44,13 @@ export async function uploadDocumentFile(formData: FormData) {
   }
 
   const file: File | null = formData.get("file") as unknown as File;
+  const customName = formData.get("customName") as string | null;
   
   if (!file) {
     throw new Error("No file uploaded");
   }
 
+  const displayName = customName || file.name;
   const bytes = await file.arrayBuffer();
   const buffer = Buffer.from(bytes);
   const mimeType = file.type || 'application/pdf';
@@ -64,7 +66,9 @@ export async function uploadDocumentFile(formData: FormData) {
       success: true,
       url: result.url,
       preview: result.url,
-      name: file.name,
+      name: displayName,
+      displayName: displayName,
+      storageKey: result.storageKey,
       sizeBytes: result.sizeBytes,
       mimeType: result.mimeType,
       isFallback: result.isFallback
@@ -76,7 +80,8 @@ export async function uploadDocumentFile(formData: FormData) {
       success: true,
       url: dataUrl,
       preview: dataUrl,
-      name: file.name,
+      name: displayName,
+      displayName: displayName,
       sizeBytes: buffer.byteLength,
       mimeType,
       isFallback: true

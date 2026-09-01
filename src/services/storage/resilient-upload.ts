@@ -147,8 +147,9 @@ export async function uploadSignatureWithFallback({
     }
   }
 
-  // Use deterministic key so updates overwrite cleanly without orphan files
-  const storageKey = "signatures/" + userId + "/signature" + ext;
+  // Immutable Versioned Key: Never overwrite past signatures so historical leave records retain legal compliance
+  const randomHash = Math.random().toString(36).substring(2, 8);
+  const storageKey = `signatures/${userId}/sig_${Date.now()}_${randomHash}${ext}`;
 
   return uploadWithResilientFallback({
     buffer: finalBuffer,
@@ -160,6 +161,7 @@ export async function uploadSignatureWithFallback({
 
 /**
  * Helper to upload leave attachment (PDF, JPG, PNG, WebP)
+ * Uses strict ASCII & UUID storage keys to prevent Percent-Encoding (%E0%B8...) bugs
  */
 export async function uploadLeaveAttachmentWithFallback({
   buffer,
@@ -172,8 +174,12 @@ export async function uploadLeaveAttachmentWithFallback({
   fileName: string;
   requestId?: string;
 }): Promise<ResilientUploadResult> {
-  const cleanName = fileName.replace(/[^a-zA-Z0-9._-]/g, "_");
-  const storageKey = "leaves/" + (requestId || "draft") + "/" + Date.now() + "-" + cleanName;
+  // Pure ASCII & UUID Hash on Storage to prevent Percent-Encoding bugs
+  const extMatch = fileName.split(".").pop();
+  const rawExt = extMatch ? extMatch.toLowerCase().replace(/[^a-z0-9]/g, "") : "bin";
+  const ext = rawExt ? `.${rawExt}` : ".bin";
+  const randomHash = Math.random().toString(36).substring(2, 10);
+  const storageKey = `leaves/${requestId || "draft"}/${Date.now()}_${randomHash}${ext}`;
 
   return uploadWithResilientFallback({
     buffer,

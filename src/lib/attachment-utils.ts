@@ -64,7 +64,7 @@ export function parseDocumentUrls(documentUrl: string | null | undefined): Norma
         url = item.trim();
       } else if (item && typeof item === "object") {
         url = item.url || item.preview || "";
-        name = item.name || name;
+        name = item.displayName || item.name || name;
         sizeBytes = item.sizeBytes || item.size;
         mimeType = item.mimeType || item.type;
       }
