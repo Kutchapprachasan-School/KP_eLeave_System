@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import FloatingEgressWidget from "@/components/dev/FloatingEgressWidget";
 import { ToastProvider, useToast } from "@/components/toast-provider";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useSession, signOut } from "@/lib/auth-client";
@@ -1335,9 +1334,6 @@ function AppContent({ children }: { children: React.ReactNode }) {
           </div>
         </Link>
       </div>
-
-      {/* Live Egress & Performance Telemetry Widget */}
-      <FloatingEgressWidget />
     </div>
   );
 }

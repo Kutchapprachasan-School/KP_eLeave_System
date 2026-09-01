@@ -8,15 +8,13 @@ import {
   restoreSystemLogArchiveAction 
 } from "@/app/actions/logs";
 import { pruneSystemLogs } from "@/app/actions/leave";
-import { getTelemetryStatsAction } from "@/app/actions/telemetry";
 import { motion } from "framer-motion";
 import { 
-  FileText, Search, Activity, UserCheck, XCircle, PlusCircle, Settings2, 
+  FileText, Search, UserCheck, XCircle, PlusCircle, Settings2, 
   DownloadCloud, Archive, RotateCcw, Clock, Building2, Calendar, Wrench, Award, CheckCircle2,
-  BarChart3, Zap, ShieldCheck, Database, HardDrive, RefreshCw
+  RefreshCw
 } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
-import SupabaseEgressMonitor from "./_components/SupabaseEgressMonitor";
 
 const SUBSYSTEM_CONFIGS: Record<string, { label: string; badgeCls: string; icon: any }> = {
   LEAVE: { label: "ระบบการลา", badgeCls: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300", icon: Calendar },
@@ -50,11 +48,6 @@ export default function LogsPage() {
   const itemsPerPage = 15;
   const { t, lang } = useI18n();
 
-  // Tab State
-  const [activeTab, setActiveTab] = useState<"SYSTEM_LOGS" | "EGRESS_TELEMETRY">("SYSTEM_LOGS");
-  const [telemetryStats, setTelemetryStats] = useState<any>(null);
-  const [loadingTelemetry, setLoadingTelemetry] = useState(false);
-
   // Archive States
   const [isArchiveModalOpen, setIsArchiveModalOpen] = useState(false);
   const [archives, setArchives] = useState<any[]>([]);
@@ -77,25 +70,9 @@ export default function LogsPage() {
     getSystemLogArchivesAction().then(setArchives).catch(() => {});
   };
 
-  const fetchTelemetry = async () => {
-    setLoadingTelemetry(true);
-    try {
-      const data = await getTelemetryStatsAction();
-      setTelemetryStats(data);
-    } catch {
-      //
-    } finally {
-      setLoadingTelemetry(false);
-    }
-  };
-
   useEffect(() => {
-    if (activeTab === "SYSTEM_LOGS") {
-      fetchLogs();
-    } else {
-      fetchTelemetry();
-    }
-  }, [activeTab, filterSubsystem, filterType]);
+    fetchLogs();
+  }, [filterSubsystem, filterType]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -118,83 +95,68 @@ export default function LogsPage() {
       }
       return;
     }
+
     try {
-      await pruneSystemLogs(days);
-      alert(t("pruneSuccess"));
-      fetchLogs();
+      const res = await pruneSystemLogs(days);
+      if (res.success) {
+        alert(t("pruneSuccess").replace("{count}", String(res.deletedCount)));
+        fetchLogs();
+      } else {
+        alert(t("pruneError") + ": " + res.error);
+      }
     } catch {
-      alert(t("pruneError"));
+      alert(t("pruneErrorGeneral"));
     }
   };
 
   const handleExportCSV = () => {
-    try {
-      const headers = ["ID", "Subsystem", "Action Type", "Description", "Date Time", "User ID"];
-      const rows = filteredLogs.map((log) => [
-        log.id,
-        log.subsystem || "LEAVE",
-        log.actionType,
-        `"${log.description.replace(/"/g, '""')}"`,
-        new Date(log.createdAt).toLocaleString(lang === "th" ? "th-TH" : "en-US"),
-        log.userId,
-      ]);
-
-      const csvContent = [headers.join(","), ...rows.map((e) => e.join(","))].join("\n");
-      const BOM = "\uFEFF";
-      const blob = new Blob([BOM + csvContent], { type: "text/csv;charset=utf-8;" });
-
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.setAttribute("href", url);
-      link.setAttribute("download", `system-logs-${new Date().toISOString().split("T")[0]}.csv`);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-    } catch {
-      alert(t("exportLogsError"));
-    }
+    if (filteredLogs.length === 0) return;
+    const headers = [
+      t("tableDate"),
+      t("tableUser"),
+      t("tableAction"),
+      t("tableCategory"),
+      t("tableDetails"),
+    ];
+    const rows = filteredLogs.map((log) => [
+      new Date(log.createdAt).toLocaleString("th-TH"),
+      log.user?.name || log.userId || t("systemUser"),
+      t(log.actionType) || log.actionType,
+      SUBSYSTEM_CONFIGS[log.subsystem]?.label || log.subsystem || "ทั่วไป",
+      `"${log.description.replace(/"/g, '""')}"`,
+    ]);
+    const csvContent =
+      "\uFEFF" +
+      [headers.join(","), ...rows.map((e) => e.join(","))].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute(
+      "download",
+      `system_logs_${new Date().toISOString().split("T")[0]}.csv`
+    );
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
-  const handleCreateArchive = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsArchiving(true);
-    try {
-      const res = await archiveSystemLogsAction(archiveYear, archiveMonth);
-      alert(`จัดเก็บสำรองสำเร็จ! ย้ายบันทึกระบบจำนวน ${res.count} รายการไปยังไฟล์สำรองเรียบร้อยแล้ว`);
-      fetchLogs();
-      fetchArchives();
-    } catch (err: any) {
-      alert(err.message || "เกิดข้อผิดพลาดในการจัดเก็บสำรอง");
-    } finally {
-      setIsArchiving(false);
-    }
-  };
-
-  const handleRestoreArchive = async (archiveId: string, batchName: string) => {
-    if (!confirm(`คุณต้องการคืนค่าบันทึกระบบประจำเดือน ${batchName} กลับเข้าสู่รายการหลักใช่หรือไม่?`)) {
-      return;
-    }
-    try {
-      const res = await restoreSystemLogArchiveAction(archiveId);
-      alert(`คืนค่าสำเร็จ! นำข้อมูลบันทึกระบบจำนวน ${res.restoredCount} รายการกลับเข้าสู่ระบบเรียบร้อยแล้ว`);
-      fetchLogs();
-      fetchArchives();
-    } catch (err: any) {
-      alert(err.message || "เกิดข้อผิดพลาดในการคืนค่าข้อมูล");
-    }
-  };
+  // Pagination Logic
+  const totalPages = Math.ceil(filteredLogs.length / itemsPerPage);
+  const paginatedLogs = filteredLogs.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="max-w-6xl mx-auto space-y-6 text-slate-900 dark:text-slate-100"
-    >
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2 border-b border-slate-200 dark:border-slate-800">
+    <div className="space-y-6 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 animate-in fade-in duration-300">
+      {/* Top Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
-            <Activity className="w-6 h-6 text-purple-600 dark:text-purple-400" />
+          <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-purple-500/10 text-purple-600 dark:text-purple-400 flex items-center justify-center font-bold">
+              <FileText className="w-5 h-5" />
+            </div>
             {t("logsTitle")}
           </h1>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{t("logsSubtitle")}</p>
@@ -212,196 +174,8 @@ export default function LogsPage() {
         </button>
       </div>
 
-      {/* Tab Switcher */}
-      <div className="flex items-center gap-2 p-1.5 rounded-2xl bg-slate-100 dark:bg-slate-800/80 w-fit">
-        <button
-          type="button"
-          onClick={() => setActiveTab("SYSTEM_LOGS")}
-          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
-            activeTab === "SYSTEM_LOGS"
-              ? "bg-white dark:bg-slate-900 text-purple-600 dark:text-purple-400 shadow-sm"
-              : "text-slate-500 hover:text-slate-900 dark:hover:text-white"
-          }`}
-        >
-          <FileText className="w-4 h-4" />
-          บันทึกกิจกรรมระบบ (Audit Logs)
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab("EGRESS_TELEMETRY")}
-          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
-            activeTab === "EGRESS_TELEMETRY"
-              ? "bg-white dark:bg-slate-900 text-emerald-600 dark:text-emerald-400 shadow-sm"
-              : "text-slate-500 hover:text-slate-900 dark:hover:text-white"
-          }`}
-        >
-          <Activity className="w-4 h-4 text-emerald-500 animate-pulse" />
-          ตรวจสอบการดึงข้อมูล & แบนด์วิดท์ (Egress Telemetry)
-        </button>
-      </div>
-
-      {activeTab === "EGRESS_TELEMETRY" ? (
-        <div className="space-y-6">
-          <SupabaseEgressMonitor />
-
-          {/* Overview Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm">
-              <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
-                <span className="text-xs font-bold uppercase tracking-wider">Session Data Transfer</span>
-                <HardDrive className="w-5 h-5 text-emerald-500" />
-              </div>
-              <div className="text-2xl font-black text-slate-900 dark:text-white font-mono">
-                {telemetryStats ? `${telemetryStats.totalMb} MB` : "0.00 MB"}
-              </div>
-              <div className="text-[11px] text-emerald-600 dark:text-emerald-400 mt-1 flex items-center gap-1 font-medium">
-                <ShieldCheck className="w-3.5 h-3.5" /> 99.8% Optimized (Supabase Decoupled)
-              </div>
-            </div>
-
-            <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm">
-              <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
-                <span className="text-xs font-bold uppercase tracking-wider">Neon Free Tier Quota</span>
-                <Database className="w-5 h-5 text-indigo-500" />
-              </div>
-              <div className="text-2xl font-black text-indigo-600 dark:text-indigo-400 font-mono">
-                {telemetryStats
-                  ? `${((parseFloat(telemetryStats.totalMb || 0) / (5 * 1024)) * 100).toFixed(2)}%`
-                  : "0.00%"}
-              </div>
-              <div className="text-[11px] text-slate-500 mt-1">
-                Safe threshold &lt; 5.0 GB / month
-              </div>
-            </div>
-
-            <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm">
-              <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
-                <span className="text-xs font-bold uppercase tracking-wider">Live Requests Captured</span>
-                <Zap className="w-5 h-5 text-amber-500" />
-              </div>
-              <div className="text-2xl font-black text-slate-900 dark:text-white font-mono">
-                {telemetryStats?.totalRequests || 0}
-              </div>
-              <div className="text-[11px] text-slate-500 mt-1 flex items-center justify-between">
-                <span>In-memory ring buffer (500)</span>
-                <button
-                  type="button"
-                  onClick={fetchTelemetry}
-                  disabled={loadingTelemetry}
-                  className="text-purple-600 dark:text-purple-400 font-bold hover:underline flex items-center gap-1 cursor-pointer"
-                >
-                  <RefreshCw className={`w-3 h-3 ${loadingTelemetry ? "animate-spin" : ""}`} /> Refresh
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Top Data Consumers */}
-          <div className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden p-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                  <BarChart3 className="w-5 h-5 text-purple-600 dark:text-purple-400" />
-                  Top Data Consumers (เรียงตามปริมาณข้อมูลที่ดึง)
-                </h3>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  กิจกรรมที่มีการส่งถ่ายข้อมูลมากที่สุด เพื่อตรวจสอบหาสาเหตุการใช้แบนด์วิดท์
-                </p>
-              </div>
-            </div>
-
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs border-collapse">
-                <thead>
-                  <tr className="border-b border-slate-100 dark:border-slate-800 text-slate-400 text-[11px] font-bold">
-                    <th className="py-2.5 px-3">อันดับ</th>
-                    <th className="py-2.5 px-3">ชื่อกิจกรรม / Server Action</th>
-                    <th className="py-2.5 px-3 text-center">ความถี่ (ครั้ง)</th>
-                    <th className="py-2.5 px-3 text-right">ความเร็วเฉลี่ย (ms)</th>
-                    <th className="py-2.5 px-3 text-right">ปริมาณข้อมูลรวม (KB)</th>
-                    <th className="py-2.5 px-3 text-center">สถานะ</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium">
-                  {telemetryStats?.topConsumers?.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="py-8 text-center text-slate-400">
-                        ยังไม่มีกิจกรรมที่ถูกตรวจจับในรอบนี้
-                      </td>
-                    </tr>
-                  ) : (
-                    telemetryStats?.topConsumers?.map((item: any, idx: number) => {
-                      const isHeavy = parseFloat(item.totalKb) > 150;
-                      return (
-                        <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
-                          <td className="py-3 px-3 font-mono text-slate-400">#{idx + 1}</td>
-                          <td className="py-3 px-3 font-bold text-slate-900 dark:text-white font-mono">
-                            {item.name}
-                          </td>
-                          <td className="py-3 px-3 text-center font-mono">{item.count}</td>
-                          <td className="py-3 px-3 text-right font-mono text-slate-500">
-                            {item.avgDurationMs} ms
-                          </td>
-                          <td className="py-3 px-3 text-right font-mono font-bold text-slate-900 dark:text-white">
-                            {item.totalKb} KB
-                          </td>
-                          <td className="py-3 px-3 text-center">
-                            <span
-                              className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                                isHeavy
-                                  ? "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300"
-                                  : "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
-                              }`}
-                            >
-                              {isHeavy ? "⚠️ ตรวจสอบ" : "✅ ปกติ"}
-                            </span>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {/* Live Recent Request Stream */}
-          <div className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden p-6 space-y-4">
-            <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-              <Activity className="w-5 h-5 text-emerald-500" />
-              Live Activity Stream (ประวัติการดึงข้อมูล 20 รายการล่าสุด)
-            </h3>
-
-            <div className="space-y-2">
-              {telemetryStats?.recentRecords?.map((rec: any) => (
-                <div
-                  key={rec.id}
-                  className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/50 dark:border-slate-700/50 text-xs"
-                >
-                  <div className="flex items-center gap-3">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                    <div>
-                      <div className="font-bold text-slate-900 dark:text-white font-mono">{rec.actionName}</div>
-                      <div className="text-[10px] text-slate-400">
-                        {new Date(rec.timestamp).toLocaleTimeString("th-TH")} • ID: {rec.id}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-4 font-mono">
-                    <span className="text-slate-500 text-[11px]">{rec.durationMs} ms</span>
-                    <span className="font-bold text-emerald-600 dark:text-emerald-400">
-                      {(rec.payloadBytes / 1024).toFixed(1)} KB
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      ) : (
-        <>
-          {/* Filters Bar */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
+      {/* Filters Bar */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
         {/* Search */}
         <div className="relative md:col-span-2">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
@@ -458,177 +232,198 @@ export default function LogsPage() {
         </button>
       </div>
 
-      {/* Log List */}
-      <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-slate-200 dark:border-slate-800 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden">
+      {/* Logs Table */}
+      <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
         {loading ? (
-          <div className="flex items-center justify-center py-16">
-            <div className="w-8 h-8 border-4 border-purple-200 border-t-purple-500 rounded-full animate-spin" />
+          <div className="flex flex-col items-center justify-center p-12 text-slate-400">
+            <RefreshCw className="w-8 h-8 animate-spin text-purple-600 mb-3" />
+            <span className="text-xs">{t("loadingData")}</span>
           </div>
         ) : filteredLogs.length === 0 ? (
-          <div className="flex flex-col items-center py-16 text-slate-400">
-            <FileText className="w-10 h-10 mb-3 text-slate-300 dark:text-slate-600" />
-            <p className="text-sm font-medium">{t("noLogs")}</p>
+          <div className="text-center p-12 text-slate-400">
+            <p className="text-xs">{t("noLogsFound")}</p>
           </div>
-        ) : (() => {
-          const totalPages = Math.ceil(filteredLogs.length / itemsPerPage);
-          const paginatedLogs = filteredLogs.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
-
-          return (
-            <>
-              <div className="divide-y divide-slate-100 dark:divide-slate-800">
-                {paginatedLogs.map((log, i) => {
-                  const actionStyle = ACTION_ICONS[log.actionType] || { icon: Activity, color: "text-slate-500", bg: "bg-slate-100 dark:bg-slate-800" };
-                  const subConfig = SUBSYSTEM_CONFIGS[log.subsystem || "LEAVE"] || SUBSYSTEM_CONFIGS.LEAVE;
-                  const Icon = actionStyle.icon;
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="border-b border-slate-100 dark:border-slate-800 text-slate-400 text-[11px] font-bold">
+                  <th className="py-3 px-4">{t("tableDate")}</th>
+                  <th className="py-3 px-4">{t("tableUser")}</th>
+                  <th className="py-3 px-4">{t("tableAction")}</th>
+                  <th className="py-3 px-4">{t("tableCategory")}</th>
+                  <th className="py-3 px-4">{t("tableDetails")}</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium">
+                {paginatedLogs.map((log) => {
+                  const subConfig = SUBSYSTEM_CONFIGS[log.subsystem] || {
+                    label: log.subsystem || "ทั่วไป",
+                    badgeCls: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
+                    icon: FileText
+                  };
+                  const actIcon = ACTION_ICONS[log.actionType] || {
+                    icon: PlusCircle,
+                    color: "text-slate-500",
+                    bg: "bg-slate-50 dark:bg-slate-800"
+                  };
+                  const Icon = actIcon.icon;
 
                   return (
-                    <div
-                      key={log.id}
-                      className="flex items-center gap-4 px-6 py-4 hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors"
-                    >
-                      <div className={`w-10 h-10 rounded-xl ${actionStyle.bg} flex items-center justify-center shrink-0`}>
-                        <Icon className={`w-5 h-5 ${actionStyle.color}`} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className={`px-2 py-0.5 rounded-lg text-[10px] font-bold ${subConfig.badgeCls}`}>
-                            {subConfig.label}
+                    <tr key={log.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
+                      <td className="py-3 px-4 text-slate-400 text-[11px] font-mono whitespace-nowrap">
+                        {new Date(log.createdAt).toLocaleString("th-TH", {
+                          dateStyle: "short",
+                          timeStyle: "short",
+                        })}
+                      </td>
+                      <td className="py-3 px-4">
+                        <span className="font-bold text-slate-800 dark:text-slate-200">
+                          {log.user?.name || log.userId || t("systemUser")}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4">
+                        <div className="flex items-center gap-2">
+                          <div className={`w-6 h-6 rounded-lg ${actIcon.bg} flex items-center justify-center shrink-0`}>
+                            <Icon className={`w-3.5 h-3.5 ${actIcon.color}`} />
+                          </div>
+                          <span className="font-semibold text-slate-700 dark:text-slate-300">
+                            {t(log.actionType) || log.actionType}
                           </span>
-                          <span className="text-[10px] font-mono text-slate-400">{log.actionType}</span>
                         </div>
-                        <p className="text-xs font-bold text-slate-900 dark:text-white truncate">{log.description}</p>
-                      </div>
-                      <div className="text-xs text-slate-400 shrink-0 font-medium">
-                        {new Date(log.createdAt).toLocaleString(lang === "th" ? "th-TH" : "en-US", { dateStyle: "short", timeStyle: "short" })}
-                      </div>
-                    </div>
+                      </td>
+                      <td className="py-3 px-4">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${subConfig.badgeCls}`}>
+                          {subConfig.label}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-slate-600 dark:text-slate-300 max-w-md break-words">
+                        {log.description}
+                      </td>
+                    </tr>
                   );
                 })}
-              </div>
+              </tbody>
+            </table>
+          </div>
+        )}
 
-              {/* Pagination */}
-              {filteredLogs.length > itemsPerPage && (
-                <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-6 py-4 border-t border-slate-100 dark:border-slate-800 text-xs font-bold">
-                  <span className="text-slate-500">
-                    หน้า {currentPage} จาก {totalPages} ({filteredLogs.length} รายการ)
-                  </span>
-                  <div className="flex gap-2">
-                    <button
-                      disabled={currentPage === 1}
-                      onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                      className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 disabled:opacity-40 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
-                    >
-                      ‹ ย้อนกลับ
-                    </button>
-                    <button
-                      disabled={currentPage === totalPages}
-                      onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                      className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 disabled:opacity-40 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
-                    >
-                      ถัดไป ›
-                    </button>
-                  </div>
-                </div>
-              )}
-            </>
-          );
-        })()}
+        {/* Pagination Bar */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between px-6 py-4 border-t border-slate-100 dark:border-slate-800 text-xs">
+            <span className="text-slate-500">
+              หน้า {currentPage} จาก {totalPages} (ทั้งหมด {filteredLogs.length} รายการ)
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage(p => p - 1)}
+                className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 disabled:opacity-40 hover:bg-slate-50 dark:hover:bg-slate-800 transition"
+              >
+                ก่อนหน้า
+              </button>
+              <button
+                disabled={currentPage === totalPages}
+                onClick={() => setCurrentPage(p => p + 1)}
+                className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 disabled:opacity-40 hover:bg-slate-50 dark:hover:bg-slate-800 transition"
+              >
+                ถัดไป
+              </button>
+            </div>
+          </div>
+        )}
       </div>
-      </>
-      )}
 
-      {/* Modal: Archiving & Restoring Logs */}
+      {/* Prune Log Data Footer (Admin tool) */}
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 rounded-2xl bg-rose-50/50 dark:bg-rose-950/20 border border-rose-200/60 dark:border-rose-900/40 text-xs">
+        <div className="text-rose-700 dark:text-rose-300">
+          <span className="font-bold">⚠️ การบำรุงรักษาฐานข้อมูล:</span> ล้างประวัติบันทึกกิจกรรมเก่าเพื่อประหยัดพื้นที่จัดเก็บ
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => handlePrune(90)}
+            className="px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold transition shadow-xs cursor-pointer"
+          >
+            ล้างข้อมูลเก่ากว่า 90 วัน
+          </button>
+          <button
+            onClick={() => handlePrune(30)}
+            className="px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold transition shadow-xs cursor-pointer"
+          >
+            ล้างข้อมูลเก่ากว่า 30 วัน
+          </button>
+        </div>
+      </div>
+
+      {/* Archive Modal */}
       {isArchiveModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 max-w-xl w-full border border-slate-200 dark:border-slate-800 shadow-2xl space-y-6">
-            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
-              <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                <Archive className="w-5 h-5 text-amber-500" />
-                ระบบจัดเก็บสำรอง & คืนค่า System Logs Archive
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-6 max-w-lg w-full shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <h3 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
+                <Archive className="w-4 h-4 text-amber-500" />
+                คลังจัดเก็บสำรองประวัติกิจกรรม (System Log Archives)
               </h3>
               <button
                 onClick={() => setIsArchiveModalOpen(false)}
-                className="p-1.5 rounded-xl text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+                className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 text-xs font-bold"
               >
                 ✕
               </button>
             </div>
 
-            {/* Archive Form */}
-            <form onSubmit={handleCreateArchive} className="p-4 rounded-2xl bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/50 space-y-3">
-              <h4 className="text-xs font-bold text-amber-700 dark:text-amber-300">
-                📦 ย้ายการบันทึกระบบประจำเดือนไปยังระบบจัดเก็บสำรอง (Archive)
-              </h4>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                เลือกเดือนและปีที่ต้องการย้ายข้อมูลบันทึกระบบเก่าไปยังไฟล์จัดเก็บสำรอง เพื่อลดขนาดฐานข้อมูลหลัก
-              </p>
-              <div className="flex flex-wrap items-center gap-3">
-                <select
-                  value={archiveMonth}
-                  onChange={(e) => setArchiveMonth(Number(e.target.value))}
-                  className="h-9 px-3 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold"
-                >
-                  {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
-                    <option key={m} value={m}>เดือนที่ {m}</option>
-                  ))}
-                </select>
-                <input
-                  type="number"
-                  value={archiveYear}
-                  onChange={(e) => setArchiveYear(Number(e.target.value))}
-                  className="w-28 h-9 px-3 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold"
-                />
-                <button
-                  type="submit"
-                  disabled={isArchiving}
-                  className="h-9 px-4 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-sm"
-                >
-                  <Archive className="w-4 h-4" />
-                  {isArchiving ? "กำลังย้าย..." : "เริ่มจัดเก็บสำรอง"}
-                </button>
-              </div>
-            </form>
+            <p className="text-xs text-slate-500">
+              บันทึกกิจกรรมที่ถูก Archive จะถูกแยกจัดเก็บเพื่อความรวดเร็วของฐานข้อมูลหลัก คุณสามารถเลือกกู้คืนกลับมาดูเมื่อใดก็ได้
+            </p>
 
-            {/* Archives List & Restore */}
-            <div className="space-y-3">
-              <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                <RotateCcw className="w-4 h-4 text-purple-600" />
-                รายการไฟล์จัดเก็บสำรองที่สามารถคืนค่าได้ (Restorable Archives)
-              </h4>
-
+            <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
               {archives.length === 0 ? (
-                <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/40 text-center text-xs text-slate-400">
-                  ยังไม่มีไฟล์จัดเก็บสำรองในระบบ
+                <div className="text-center py-6 text-slate-400 text-xs">
+                  ยังไม่มีประวัติการ Archive ในระบบ
                 </div>
               ) : (
-                <div className="space-y-2 max-h-48 overflow-y-auto custom-scrollbar pr-1">
-                  {archives.map(arch => (
-                    <div
-                      key={arch.id}
-                      className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-700 flex items-center justify-between text-xs"
-                    >
-                      <div>
-                        <div className="font-bold text-slate-900 dark:text-white">
-                          ประจำเดือน {arch.batchName} ({arch.logCount} รายการ)
-                        </div>
-                        <div className="text-[10px] text-slate-400">
-                          จัดเก็บเมื่อ: {new Date(arch.createdAt).toLocaleDateString("th-TH")}
-                        </div>
+                archives.map((arch) => (
+                  <div key={arch.id} className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-700/60 text-xs">
+                    <div>
+                      <div className="font-bold text-slate-800 dark:text-slate-200">{arch.name}</div>
+                      <div className="text-[10px] text-slate-400">
+                        {arch.logCount} รายการ • สร้างเมื่อ {new Date(arch.createdAt).toLocaleDateString("th-TH")}
                       </div>
-                      <button
-                        onClick={() => handleRestoreArchive(arch.id, arch.batchName)}
-                        className="px-3 py-1.5 rounded-xl bg-purple-50 text-purple-700 hover:bg-purple-100 dark:bg-purple-950/50 dark:text-purple-300 font-bold border border-purple-200 dark:border-purple-800 transition flex items-center gap-1"
-                      >
-                        <RotateCcw className="w-3.5 h-3.5" /> คืนค่า Archive
-                      </button>
                     </div>
-                  ))}
-                </div>
+                    <button
+                      onClick={async () => {
+                        if (confirm(`คุณต้องการกู้คืน ${arch.name} กลับสู่ตารางหลักหรือไม่?`)) {
+                          const res = await restoreSystemLogArchiveAction(arch.id);
+                          if (res.success) {
+                            alert("กู้คืนข้อมูลสำเร็จ");
+                            fetchArchives();
+                            fetchLogs();
+                          } else {
+                            alert("เกิดข้อผิดพลาด: " + res.error);
+                          }
+                        }
+                      }}
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold transition text-[11px]"
+                    >
+                      <RotateCcw className="w-3 h-3" />
+                      กู้คืน
+                    </button>
+                  </div>
+                ))
               )}
+            </div>
+
+            <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end">
+              <button
+                onClick={() => setIsArchiveModalOpen(false)}
+                className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-xs font-bold text-slate-700 dark:text-slate-200 transition"
+              >
+                ปิดหน้าต่าง
+              </button>
             </div>
           </div>
         </div>
       )}
-    </motion.div>
+    </div>
   );
 }
