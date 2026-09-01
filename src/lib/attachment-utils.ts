@@ -1,4 +1,4 @@
-﻿export interface NormalizedAttachment {
+export interface NormalizedAttachment {
   name: string;
   url: string;
   preview: string;
@@ -6,6 +6,21 @@
   isPdf: boolean;
   sizeBytes?: number;
   mimeType?: string;
+}
+
+/**
+ * Normalizes any Supabase storage URL:
+ * Converts temporary signed URLs (`/storage/v1/object/sign/...`) with expiring JWT tokens
+ * into permanent public URLs (`/storage/v1/object/public/...`) without query tokens.
+ */
+export function normalizeStorageUrl(url: string): string {
+  if (!url) return "";
+  const trimmed = url.trim();
+  if (trimmed.includes("/storage/v1/object/sign/")) {
+    const withoutToken = trimmed.split("?")[0];
+    return withoutToken.replace("/storage/v1/object/sign/", "/storage/v1/object/public/");
+  }
+  return trimmed;
 }
 
 /**
@@ -56,6 +71,8 @@ export function parseDocumentUrls(documentUrl: string | null | undefined): Norma
 
       if (!url) return null;
 
+      url = normalizeStorageUrl(url);
+
       const isDataImage = url.startsWith("data:image/");
       const isDataPdf = url.startsWith("data:application/pdf");
       const cleanUrl = url.split("?")[0].toLowerCase();
@@ -82,9 +99,11 @@ export function parseDocumentUrls(documentUrl: string | null | undefined): Norma
 export function handleViewAttachment(previewOrUrl: string, fileName?: string): void {
   if (!previewOrUrl) return;
 
-  if (previewOrUrl.startsWith("data:")) {
+  const normalized = normalizeStorageUrl(previewOrUrl);
+
+  if (normalized.startsWith("data:")) {
     try {
-      const parts = previewOrUrl.split(",");
+      const parts = normalized.split(",");
       const byteString = atob(parts[1]);
       const mimeString = parts[0].split(":")[1].split(";")[0];
       const ab = new ArrayBuffer(byteString.length);
@@ -100,13 +119,13 @@ export function handleViewAttachment(previewOrUrl: string, fileName?: string): v
       if (newTab) {
         newTab.document.write(
           '<iframe src="' +
-            previewOrUrl +
+            normalized +
             '" frameborder="0" style="border:0; width:100%; height:100%;" allowfullscreen></iframe>'
         );
       }
     }
   } else {
-    // Supabase HTTP/HTTPS public or signed URL
-    window.open(previewOrUrl, "_blank");
+    // Supabase HTTP/HTTPS public URL (never expires)
+    window.open(normalized, "_blank");
   }
 }

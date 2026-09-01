@@ -80,26 +80,39 @@ export class FailoverStorageProvider implements StorageProvider {
   }
 
   /** ลอง upload ตามลำดับ — fallback ไปยัง provider ถัดไปเมื่อเจอ error ใด ๆ */
-  async upload(params: {
-    buffer: Buffer;
-    mimeType: string;
-    storageKey: string;
-  }): Promise<void> {
+  async upload(
+    params: {
+      buffer: Buffer;
+      mimeType: string;
+      storageKey: string;
+    },
+    options?: import("./provider.interface").UploadOptions
+  ): Promise<import("./provider.interface").StorageUploadResult> {
     const originalKey = params.storageKey;
     const errors: string[] = [];
 
     for (let i = 0; i < this.providers.length; i++) {
       try {
-        await this.providers[i].upload({
+        const result = await this.providers[i].upload({
           buffer: params.buffer,
           mimeType: params.mimeType,
           storageKey: originalKey,
-        });
+        }, options);
         
-        // สำเร็จ — rewrite storageKey ใน params เพื่อให้ caller รู้ว่าใช้ provider ไหน
-        params.storageKey = encodeKey(i, originalKey);
-        console.log(`[Storage] Upload สำเร็จที่ provider ${i} (key: ${params.storageKey})`);
-        return;
+        const encoded = encodeKey(i, originalKey);
+        params.storageKey = encoded;
+        console.log(`[Storage] Upload สำเร็จที่ provider ${i} (key: ${encoded})`);
+
+        let publicUrl = result && typeof result === "object" ? result.publicUrl : undefined;
+        if (!publicUrl && options?.isPublic) {
+          publicUrl = await this.getUrl(encoded, options);
+        }
+
+        return {
+          storageKey: encoded,
+          publicUrl,
+          providerId: `failover-${i}`,
+        };
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
         console.warn(`[Storage] Provider ${i} ขัดข้อง (${msg}) — ลองสลับไป provider ถัดไป`);
@@ -113,23 +126,26 @@ export class FailoverStorageProvider implements StorageProvider {
   }
 
   /** route getUrl ไปยัง provider ที่ถูกต้องตาม prefix ใน storageKey */
-  async getUrl(storageKey: string): Promise<string> {
+  async getUrl(
+    storageKey: string,
+    options?: { bucket?: string; expiresIn?: number; isPublic?: boolean }
+  ): Promise<string> {
     const { index, key } = decodeKey(storageKey);
     const provider = this.providers[index];
     if (!provider) {
       throw new Error(`[Storage Failover] ไม่พบ provider index ${index}`);
     }
-    return provider.getUrl(key);
+    return provider.getUrl(key, options);
   }
 
   /** route delete ไปยัง provider ที่ถูกต้อง */
-  async delete(storageKey: string): Promise<void> {
+  async delete(storageKey: string, options?: { bucket?: string }): Promise<void> {
     const { index, key } = decodeKey(storageKey);
     const provider = this.providers[index];
     if (!provider) {
       throw new Error(`[Storage Failover] ไม่พบ provider index ${index}`);
     }
-    return provider.delete(key);
+    return provider.delete(key, options);
   }
 }
 

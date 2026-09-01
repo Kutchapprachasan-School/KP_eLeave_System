@@ -11,6 +11,16 @@ export function isRemoteHttpUrl(value: string | null | undefined): boolean {
   return v.startsWith("http://") || v.startsWith("https://") || v.startsWith("//");
 }
 
+export function normalizeStorageUrl(url: string | null | undefined): string {
+  if (!url) return "";
+  const trimmed = url.trim();
+  if (trimmed.includes("/storage/v1/object/sign/")) {
+    const withoutToken = trimmed.split("?")[0];
+    return withoutToken.replace("/storage/v1/object/sign/", "/storage/v1/object/public/");
+  }
+  return trimmed;
+}
+
 /**
  * Resolves a storage target (Base64, full CDN URL, or Supabase Storage Key)
  * to an accessible URL string.
@@ -20,7 +30,7 @@ export async function resolveFileUrl(
   options?: { bucket?: string; isPublic?: boolean; expiresIn?: number }
 ): Promise<string | null> {
   if (!input) return null;
-  const trimmed = input.trim();
+  const trimmed = normalizeStorageUrl(input);
 
   // 1. Existing Base64 Data URL (Historical data)
   if (isBase64DataUrl(trimmed)) {
@@ -47,11 +57,11 @@ export async function resolveFileUrl(
  * Handles:
  * 1. Raw SVG XML string `<svg...>` -> `data:image/svg+xml;utf8,...`
  * 2. Data URL `data:...` -> as is
- * 3. Remote URL `http(s)://...` -> as is
+ * 3. Remote URL `http(s)://...` -> as is (and normalizes signed URL to public)
  */
 export function resolveSignatureSrc(value: string | null | undefined): string {
   if (!value) return "";
-  const trimmed = value.trim();
+  const trimmed = normalizeStorageUrl(value);
   if (trimmed.startsWith("<svg") || trimmed.includes("<svg")) {
     return "data:image/svg+xml;utf8," + encodeURIComponent(trimmed);
   }

@@ -1,4 +1,4 @@
-﻿const { describe, it } = require('node:test');
+const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
 
 // Simulate the logic from src/lib/attachment-utils.ts for Node testing
@@ -60,6 +60,16 @@ function parseDocumentUrls(documentUrl) {
     .filter(Boolean);
 }
 
+function normalizeStorageUrl(url) {
+  if (!url) return "";
+  const trimmed = url.trim();
+  if (trimmed.includes("/storage/v1/object/sign/")) {
+    const withoutToken = trimmed.split("?")[0];
+    return withoutToken.replace("/storage/v1/object/sign/", "/storage/v1/object/public/");
+  }
+  return trimmed;
+}
+
 describe('Attachment Normalizer & Polymorphic Parser Tests', () => {
   it('should parse legacy Base64 JSON array', () => {
     const raw = JSON.stringify([
@@ -89,6 +99,14 @@ describe('Attachment Normalizer & Polymorphic Parser Tests', () => {
     assert.strictEqual(result[0].isPdf, true);
     assert.strictEqual(result[0].isImage, false);
     assert.strictEqual(result[0].url, 'https://proj.supabase.co/storage/v1/object/public/leave-attachments/cert.pdf');
+  });
+
+  it('should automatically normalize expired Supabase signed URLs to permanent public URLs', () => {
+    const expiredSignedUrl = 'https://ngzflajpifmsvhldhviu.supabase.co/storage/v1/object/sign/data1/leaves/draft/1788261194741-IMG_6884.jpeg?token=eyJraWQiOiJmYTY2...';
+    const normalized = normalizeStorageUrl(expiredSignedUrl);
+    assert.strictEqual(normalized, 'https://ngzflajpifmsvhldhviu.supabase.co/storage/v1/object/public/data1/leaves/draft/1788261194741-IMG_6884.jpeg');
+    assert.ok(!normalized.includes('?token='));
+    assert.ok(!normalized.includes('/object/sign/'));
   });
 
   it('should parse comma-delimited HTTP URLs', () => {
