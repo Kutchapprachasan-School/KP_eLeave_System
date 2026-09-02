@@ -1,7 +1,7 @@
 "use client";
 
-import ResourceFacilityPage from "@/app/(app)/academic/facility/page";
+import UnifiedFacilityPortalPage from "@/app/(app)/facility/page";
 
 export default function GeneralFacilityPage() {
-  return <ResourceFacilityPage />;
+  return <UnifiedFacilityPortalPage />;
 }
