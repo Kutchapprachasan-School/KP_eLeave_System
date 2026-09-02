@@ -59,17 +59,6 @@ export class FacilityReservationService {
         isAvailable: true, 
         status: "AVAILABLE",
         vehicleProfile: { licensePlate: "กข-1234 อุดรธานี", brand: "Hino", fuelType: "DIESEL", seatCapacity: 45 }
-      },
-      { 
-        id: "res-veh-van1", 
-        code: "VAN-01", 
-        name: "รถตู้โรงเรียน 1 (นข-5678)", 
-        type: "VEHICLE", 
-        location: "ลานจอดรถโรงเรียน", 
-        capacity: 12, 
-        isAvailable: true, 
-        status: "AVAILABLE",
-        vehicleProfile: { licensePlate: "นข-5678 อุดรธานี", brand: "Toyota", fuelType: "DIESEL", seatCapacity: 12 }
       }
     ];
 
@@ -185,8 +174,9 @@ export class FacilityReservationService {
     const now = new Date();
     const expiresAt = reservation.expiresAt || this.calculateSlaExpiry(now, new Date(startAt), reservation.consumerModule === "VEHICLE" ? "VEHICLE" : "MEETING_ROOM").toISOString();
 
-    const isDirectApproved = reservation.status === "APPROVED";
-    const initialStatus = isDirectApproved ? "APPROVED" : "PENDING";
+    const isLegacy = Boolean(reservation.startTime && !reservation.startAt);
+    const initialStatus = reservation.status || (isLegacy ? "APPROVED" : "PENDING");
+    const isDirectApproved = initialStatus === "APPROVED";
     const prefix = reservation.consumerModule === "VEHICLE" ? "FV" : "FR";
     const bookingNumber = `${prefix}-2026-${String(this.reservations.length + 1).padStart(4, "0")}`;
 

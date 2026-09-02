@@ -3,13 +3,13 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --port 3001",
+    "dev": "next dev -H 0.0.0.0 --port 3001",
     "build": "next build",
     "db-push": "prisma db push",
     "start": "next start",
     "lint": "eslint",
     "postinstall": "prisma generate",
-    "test": "node --test eLeave/tests/unit/deployment.test.js eLeave/tests/unit/supervisionService.test.js eLeave/tests/unit/weeklyTimetable.test.js eLeave/tests/unit/evaluationModal.test.js eLeave/tests/unit/timetableService.test.js eLeave/tests/unit/timetableService_challenger.test.js eLeave/tests/unit/availabilityService.test.js eLeave/tests/unit/recommendationService.test.js eLeave/tests/unit/substituteWorkflowService.test.js eLeave/tests/unit/enterpriseTimetableEngine.test.js eLeave/tests/unit/excelImportService.test.js eLeave/tests/unit/printTemplateService.test.js eLeave/tests/unit/progressiveCascadeSolver.test.js eLeave/tests/unit/sropCoreService.test.js eLeave/tests/unit/academicSettingsService.test.js eLeave/tests/unit/examService.test.js eLeave/tests/unit/competencyService.test.js eLeave/tests/unit/facilityReservationService.test.js eLeave/tests/e2e/supervision.test.js"
+    "test": "node --test eLeave/tests/unit/deployment.test.js eLeave/tests/unit/supervisionService.test.js eLeave/tests/unit/weeklyTimetable.test.js eLeave/tests/unit/evaluationModal.test.js eLeave/tests/unit/timetableService.test.js eLeave/tests/unit/timetableService_challenger.test.js eLeave/tests/unit/availabilityService.test.js eLeave/tests/unit/recommendationService.test.js eLeave/tests/unit/substituteWorkflowService.test.js eLeave/tests/unit/enterpriseTimetableEngine.test.js eLeave/tests/unit/excelImportService.test.js eLeave/tests/unit/printTemplateService.test.js eLeave/tests/unit/progressiveCascadeSolver.test.js eLeave/tests/unit/sropCoreService.test.js eLeave/tests/unit/academicSettingsService.test.js eLeave/tests/unit/examService.test.js eLeave/tests/unit/competencyService.test.js eLeave/tests/unit/facilityReservationService.test.js eLeave/tests/unit/facilityReservationWorkflow.test.js eLeave/tests/unit/facilityPermissions.test.js eLeave/tests/unit/signatureTokenAuth.test.js eLeave/tests/integration/facilityPostgreSqlConcurrency.test.js eLeave/tests/integration/facilityPendingExpiryApprovalRace.test.js eLeave/tests/e2e/supervision.test.js"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1090.0",
@@ -37,6 +37,7 @@
     "next": "16.3.1",
     "next-themes": "^0.4.6",
     "pg": "^8.20.0",
+    "potrace": "^2.1.8",
     "qrcode.react": "^4.2.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",
