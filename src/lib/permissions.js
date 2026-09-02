@@ -9,22 +9,7 @@
 // REPAIR SYSTEM PERMISSIONS
 // ==========================================
 
-export type RepairPermission =
-  | "repair:create"
-  | "repair:view.own"
-  | "repair:view.all"
-  | "repair:view.cost"
-  | "repair:dashboard"
-  | "repair:assign"
-  | "repair:update"
-  | "repair:export"
-  | "repair:delete"
-  | "repair:archive";
-
-type RepairRole = "TEACHER" | "TECHNICIAN" | "HEAD" | "ADMIN" | "REPAIR_MANAGER";
-
-/** Static repair permission matrix */
-const REPAIR_PERMISSION_MATRIX: Record<RepairRole, RepairPermission[]> = {
+const REPAIR_PERMISSION_MATRIX = {
   TEACHER: ["repair:create", "repair:view.own"],
   TECHNICIAN: ["repair:create", "repair:view.own", "repair:view.all", "repair:update", "repair:dashboard"],
   HEAD: ["repair:create", "repair:view.own", "repair:view.all", "repair:assign", "repair:view.cost", "repair:dashboard"],
@@ -54,11 +39,7 @@ const REPAIR_PERMISSION_MATRIX: Record<RepairRole, RepairPermission[]> = {
   ],
 };
 
-/** Derive repair role from a user's position and role fields */
-export function getRepairRole(user?: {
-  role?: string | null;
-  position?: string | null;
-} | null): RepairRole {
+export function getRepairRole(user) {
   if (!user) return "TEACHER";
   if (user.role === "ADMIN" || user.position === "แอดมิน") return "ADMIN";
   if (user.role === "REPAIR_MANAGER" || user.position === "ผู้จัดการเรื่องระบบซ่อม") return "REPAIR_MANAGER";
@@ -72,22 +53,14 @@ export function getRepairRole(user?: {
   return "TEACHER";
 }
 
-/** Check if a user has a specific repair permission */
-export function hasRepairPermission(
-  user?: { role?: string | null; position?: string | null } | null,
-  permission?: RepairPermission
-): boolean {
+export function hasRepairPermission(user, permission) {
   if (!user || !permission) return false;
   const repairRole = getRepairRole(user);
   const matrix = REPAIR_PERMISSION_MATRIX[repairRole];
   return matrix ? matrix.includes(permission) : false;
 }
 
-/** Assert a repair permission */
-export function assertRepairPermission(
-  user: { role: string; position?: string | null },
-  permission: RepairPermission
-): void {
+export function assertRepairPermission(user, permission) {
   if (!hasRepairPermission(user, permission)) {
     throw new Error(
       `ไม่มีสิทธิ์ดำเนินการนี้ (required: ${permission})`
@@ -99,28 +72,7 @@ export function assertRepairPermission(
 // FACILITY & VEHICLE SYSTEM PERMISSIONS
 // ==========================================
 
-export type FacilityPermission =
-  | "facility:create"
-  | "facility:view.own"
-  | "facility:view.all"
-  | "facility:room.manage"
-  | "facility:vehicle.manage"
-  | "facility:driver.assign"
-  | "facility:approve.director"
-  | "facility:resource.create"
-  | "facility:resource.manage"
-  | "facility:trip.complete"
-  | "facility:emergency.cancel";
-
-export type FacilityRole =
-  | "TEACHER"
-  | "DRIVER"
-  | "HEAD_FACILITY"
-  | "HEAD_VEHICLE"
-  | "DIRECTOR"
-  | "ADMIN";
-
-const FACILITY_PERMISSION_MATRIX: Record<FacilityRole, FacilityPermission[]> = {
+const FACILITY_PERMISSION_MATRIX = {
   TEACHER: [
     "facility:create",
     "facility:view.own",
@@ -170,12 +122,7 @@ const FACILITY_PERMISSION_MATRIX: Record<FacilityRole, FacilityPermission[]> = {
   ]
 };
 
-/** Derive facility role from user's role and position */
-export function getFacilityRole(user?: {
-  role?: string | null;
-  position?: string | null;
-  department?: string | null;
-} | null): FacilityRole {
+export function getFacilityRole(user) {
   if (!user) return "TEACHER";
   if (user.role === "ADMIN" || user.position === "แอดมิน") return "ADMIN";
   if (user.role === "DIRECTOR" || user.position?.includes("ผู้อำนวยการ") || user.position?.includes("รองผู้อำนวยการ")) return "DIRECTOR";
@@ -185,22 +132,14 @@ export function getFacilityRole(user?: {
   return "TEACHER";
 }
 
-/** Check if a user has a specific facility permission */
-export function hasFacilityPermission(
-  user?: { role?: string | null; position?: string | null; department?: string | null } | null,
-  permission?: FacilityPermission
-): boolean {
+export function hasFacilityPermission(user, permission) {
   if (!user || !permission) return false;
   const role = getFacilityRole(user);
   const matrix = FACILITY_PERMISSION_MATRIX[role];
   return matrix ? matrix.includes(permission) : false;
 }
 
-/** Assert a facility permission */
-export function assertFacilityPermission(
-  user: { role?: string | null; position?: string | null; department?: string | null } | null | undefined,
-  permission: FacilityPermission
-): void {
+export function assertFacilityPermission(user, permission) {
   if (!user || !hasFacilityPermission(user, permission)) {
     throw new Error(
       `ไม่มีสิทธิ์ดำเนินการนี้ (required: ${permission})`
