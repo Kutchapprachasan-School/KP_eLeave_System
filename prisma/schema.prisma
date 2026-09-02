@@ -49,6 +49,20 @@ model User {
   requestsCreated     RepairRequest[]    @relation("RequestCreatedBy")
   sessions            Session[]
   workShift           WorkShift?         @relation(fields: [workShiftId], references: [id])
+  receiptsConfirmed   BudgetReceipt[]    @relation("ReceiptConfirmedBy")
+  projectsLed         Project[]          @relation("ProjectLeader")
+  activitiesResponsible ProjectActivity[] @relation("ActivityResponsible")
+  expensesRequested   ActivityExpense[]  @relation("ExpenseRequestedBy")
+  expensesApproved    ActivityExpense[]  @relation("ExpenseApprovedBy")
+  reversalsCancelled  ExpenseReversal[]  @relation("ReversalCancelledBy")
+  reversalsApproved   ExpenseReversal[]  @relation("ReversalApprovedBy")
+  transfersRequested  BudgetTransfer[]   @relation("TransferRequestedBy")
+  transfersApproved   BudgetTransfer[]   @relation("TransferApprovedBy")
+  projectAttachmentsUploaded ProjectAttachment[] @relation("ProjectAttachmentUploadedBy")
+  expenseAttachmentsUploaded ExpenseAttachment[] @relation("ExpenseAttachmentUploadedBy")
+  driverProfile              DriverProfile?
+  facilityReservations       FacilityReservation[] @relation("FacilityReservationsCreated")
+  facilityApprovalSteps      FacilityApprovalStep[] @relation("FacilityApprovalApprover")
 }
 
 model Session {
@@ -159,6 +173,7 @@ model SystemSettings {
   enableAmssSync               Boolean  @default(true)
   enableCertificate            Boolean  @default(true)
   enableBudget                 Boolean  @default(false)
+  budgetAdminUserIds           String   @default("")
   enableStudentAffairs         Boolean  @default(false)
   enableStudentCouncil         Boolean  @default(false)
   enableAcademicPlanning       Boolean  @default(false)
@@ -833,7 +848,7 @@ model RecommendationRun {
 }
 
 // ==========================================
-// ACADEMIC SUBSYSTEMS: FACILITIES CATALOG
+// ACADEMIC & GENERAL SUBSYSTEMS: FACILITIES & VEHICLE CATALOG
 // ==========================================
 
 enum ResourceType {
@@ -856,40 +871,221 @@ enum ReservationStatus {
   APPROVED
   REJECTED
   CANCELLED
+  IN_USE
+  COMPLETED
+}
+
+enum AssignmentTargetType {
+  RESOURCE
+  DRIVER
+}
+
+enum ApprovalStepStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  SKIPPED
+}
+
+enum RoomLayoutType {
+  THEATER
+  CLASSROOM
+  U_SHAPE
+  BANQUET
+  BOARDROOM
+  HOLLOW_SQUARE
+  CUSTOM
+}
+
+enum VehicleMissionType {
+  OFFICIAL_MEETING
+  STUDENT_COMPETITION
+  FIELD_TRIP
+  COMMUNITY_SERVICE
+  OTHER
 }
 
 model FacilityResource {
-  id           String               @id @default(cuid())
-  code         String               @unique
-  name         String
-  type         ResourceType
-  capacity     Int?
-  location     String?
-  description  String?              @db.Text
-  status       ResourceStatus       @default(AVAILABLE)
-  reservations FacilityReservation[]
-  createdAt    DateTime             @default(now())
-  updatedAt    DateTime             @updatedAt
+  id             String                          @id @default(cuid())
+  code           String                          @unique
+  name           String
+  type           ResourceType
+  capacity       Int?
+  location       String?
+  description    String?                         @db.Text
+  status         ResourceStatus                  @default(AVAILABLE)
+  vehicleProfile VehicleProfile?
+  roomProfile    RoomProfile?
+  reservations   FacilityReservation[]
+  assignments    ReservationResourceAssignment[]
+  createdAt      DateTime                        @default(now())
+  updatedAt      DateTime                        @updatedAt
+
+  @@index([type, status])
+}
+
+model RoomProfile {
+  id                  String           @id @default(cuid())
+  resourceId          String           @unique
+  resource            FacilityResource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  floor               String?
+  hasProjector        Boolean          @default(true)
+  hasSoundSystem      Boolean          @default(true)
+  hasVideoConference  Boolean          @default(false)
+  airConditionerCount Int              @default(2)
+}
+
+model VehicleProfile {
+  id              String           @id @default(cuid())
+  resourceId      String           @unique
+  resource        FacilityResource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  licensePlate    String           @unique
+  brand           String?
+  model           String?
+  fuelType        String           @default("DIESEL")
+  seatCapacity    Int              @default(12)
+  currentOdometer Float            @default(0)
+}
+
+model DriverProfile {
+  id                 String                          @id @default(cuid())
+  userId             String                          @unique
+  user               User                            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  licenseNumber      String
+  licenseExpiry      DateTime?
+  phoneNumber        String
+  isActive           Boolean                         @default(true)
+  assignments        ReservationResourceAssignment[]
+  createdAt          DateTime                        @default(now())
+  updatedAt          DateTime                        @updatedAt
+
+  @@index([isActive])
+}
+
+model FacilityApprovalPolicy {
+  id                String       @id @default(cuid())
+  moduleType        ResourceType
+  stepNo            Int
+  roleRequired      String
+  title             String
+  slaHours          Int          @default(24)
+  bufferHoursBefore Int          @default(6)
+  isActive          Boolean      @default(true)
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  @@unique([moduleType, stepNo])
 }
 
 model FacilityReservation {
-  id               String            @id @default(cuid())
+  id               String                          @id @default(cuid())
+  bookingNumber    String?                         @unique
   resourceId       String
-  resource         FacilityResource  @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  resource         FacilityResource                @relation(fields: [resourceId], references: [id], onDelete: Cascade)
   reservedByUserId String
-  consumerModule   String            // e.g., "TIMETABLE", "EXAM", "SUPERVISION", "MANUAL"
+  reservedByUser   User                            @relation("FacilityReservationsCreated", fields: [reservedByUserId], references: [id])
+  consumerModule   String                          @default("MANUAL")
   title            String
-  purpose          String?           @db.Text
-  startTime        DateTime
-  endTime          DateTime
-  status           ReservationStatus @default(PENDING)
-  approvedByUserId String?
-  approvedAt       DateTime?
+  purpose          String?                         @db.Text
+  startAt          DateTime
+  endAt            DateTime
+  expiresAt        DateTime?
+  attendeeCount    Int?
+  department       String?
+  contactPhone     String?
+  status           ReservationStatus               @default(PENDING)
+  currentStep      Int                             @default(1)
+  totalSteps       Int                             @default(2)
   rejectionReason  String?
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
+  attachments      Json?
+  approvalSteps    FacilityApprovalStep[]
+  assignments      ReservationResourceAssignment[]
+  roomDetails      RoomReservationDetail?
+  vehicleDetails   VehicleReservationDetail?
+  createdAt        DateTime                        @default(now())
+  updatedAt        DateTime                        @updatedAt
 
-  @@index([resourceId, startTime, endTime])
+  @@index([resourceId, status, startAt, endAt])
+  @@index([reservedByUserId, status])
+}
+
+model ReservationResourceAssignment {
+  id              String               @id @default(cuid())
+  reservationId   String
+  reservation     FacilityReservation  @relation(fields: [reservationId], references: [id], onDelete: Cascade)
+  targetType      AssignmentTargetType
+  resourceId      String?
+  resource        FacilityResource?    @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  driverProfileId String?
+  driverProfile   DriverProfile?       @relation(fields: [driverProfileId], references: [id], onDelete: Cascade)
+  startAt         DateTime
+  endAt           DateTime
+  status          ReservationStatus    @default(PENDING)
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  @@index([resourceId, status, startAt, endAt])
+  @@index([driverProfileId, status, startAt, endAt])
+}
+
+model FacilityApprovalStep {
+  id             String              @id @default(cuid())
+  reservationId  String
+  reservation    FacilityReservation @relation(fields: [reservationId], references: [id], onDelete: Cascade)
+  stepNo         Int
+  roleRequired   String
+  title          String
+  status         ApprovalStepStatus  @default(PENDING)
+  approverUserId String?
+  approver       User?               @relation("FacilityApprovalApprover", fields: [approverUserId], references: [id])
+  comment        String?             @db.Text
+  actedAt        DateTime?
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  @@unique([reservationId, stepNo])
+  @@index([approverUserId, status])
+}
+
+model RoomReservationDetail {
+  id               String              @id @default(cuid())
+  reservationId    String              @unique
+  reservation      FacilityReservation @relation(fields: [reservationId], references: [id], onDelete: Cascade)
+  layoutType       RoomLayoutType      @default(THEATER)
+  layoutNotes      String?             @db.Text
+  audioVisualNotes String?             @db.Text
+  cateringNotes    String?             @db.Text
+  requireAirCon    Boolean             @default(true)
+}
+
+model VehicleReservationDetail {
+  id                 String              @id @default(cuid())
+  reservationId      String              @unique
+  reservation        FacilityReservation @relation(fields: [reservationId], references: [id], onDelete: Cascade)
+  missionType        VehicleMissionType  @default(OFFICIAL_MEETING)
+  origin             String              @default("โรงเรียนกุดจับประชาสรรค์")
+  destination        String
+  teacherCount       Int                 @default(1)
+  studentCount       Int                 @default(0)
+  passengerListNotes String?             @db.Text
+  driverAssignedAt   DateTime?
+  startMileage       Float?
+  endMileage         Float?
+  fuelCost           Float?
+  tripNotes          String?             @db.Text
+}
+
+model SignatureTokenLog {
+  jti        String    @id @unique
+  userId     String
+  docId      String
+  purpose    String
+  createdAt  DateTime  @default(now())
+  consumedAt DateTime?
+  expiresAt  DateTime
+
+  @@index([userId, docId])
+  @@index([expiresAt])
 }
 
 // ==========================================
@@ -1146,3 +1342,267 @@ model CourseWeightFactor {
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 }
+
+// ==========================================
+// 🏛️ PROJECT PLANNING & BUDGET LEDGER SYSTEM
+// ==========================================
+
+model FiscalYear {
+  id            String           @id @default(cuid())
+  year          Int              @unique(map: "uk_fiscal_year_year") // e.g. 2569
+  title         String           // e.g. "ปีงบประมาณ พ.ศ. 2569"
+  startDate     DateTime         // 1 ต.ค.
+  endDate       DateTime         // 30 ก.ย.
+  status        String           @default("ACTIVE") // DRAFT, ACTIVE, CLOSED
+  isArchived    Boolean          @default(false)
+  budgetSources BudgetSource[]
+  projects      Project[]
+  transfers     BudgetTransfer[]
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+}
+
+model BudgetSource {
+  id                 String          @id @default(cuid())
+  fiscalYearId       String
+  fiscalYear         FiscalYear      @relation(fields: [fiscalYearId], references: [id], onDelete: Restrict)
+  code               String          // e.g. "SUBSIDY_PER_HEAD", "OPERATING_FUND"
+  name               String          // e.g. "เงินอุดหนุนรายหัว", "เงินรายได้สถานศึกษา"
+  totalPlannedAmount Decimal         @default(0) @db.Decimal(19, 4)
+  tranches           BudgetTranche[]
+  projects           Project[]
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+
+  @@unique([fiscalYearId, code], map: "uk_budget_source_fy_code")
+  @@index([fiscalYearId], map: "idx_budget_source_fy")
+}
+
+model BudgetTranche {
+  id                  String                      @id @default(cuid())
+  budgetSourceId      String
+  budgetSource        BudgetSource                @relation(fields: [budgetSourceId], references: [id], onDelete: Restrict)
+  trancheNo           Int                         // 1, 2, 3, 4
+  name                String                      // e.g. "ภาคเรียนที่ 1 (รอบ 70%)"
+  academicYear        Int                         // ปีการศึกษา e.g. 2569
+  semester            Int                         // ภาคเรียน 1 หรือ 2
+  expectedStartDate   DateTime?
+  expectedEndDate     DateTime?
+  plannedAmount       Decimal                     @default(0) @db.Decimal(19, 4)
+  isClosed            Boolean                     @default(false)
+  receipts            BudgetReceipt[]
+  activityAllocations ActivityTrancheAllocation[]
+  createdAt           DateTime                    @default(now())
+  updatedAt           DateTime                    @updatedAt
+
+  @@unique([budgetSourceId, trancheNo], map: "uk_tranche_src_no")
+  @@index([budgetSourceId], map: "idx_tranche_src")
+}
+
+model BudgetReceipt {
+  id                String        @id @default(cuid())
+  idempotencyKey    String        @unique(map: "uk_receipt_idempotency")
+  budgetTrancheId   String
+  budgetTranche     BudgetTranche @relation(fields: [budgetTrancheId], references: [id], onDelete: Restrict)
+  amount            Decimal       @db.Decimal(19, 4)
+  receivedDate      DateTime
+  documentRef       String?       // เลขที่หนังสือแจ้งจัดสรร/ใบนำฝาก
+  bankStatement     String?       // เลขที่รายการเดินบัญชี
+  notes             String?
+  confirmedByUserId String
+  confirmedByUser   User          @relation("ReceiptConfirmedBy", fields: [confirmedByUserId], references: [id], onDelete: Restrict)
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  @@index([budgetTrancheId], map: "idx_receipt_tranche")
+  @@index([confirmedByUserId], map: "idx_receipt_confirmed_by")
+  @@index([receivedDate], map: "idx_receipt_received_date")
+}
+
+model Project {
+  id                 String              @id @default(cuid())
+  fiscalYearId       String
+  fiscalYear         FiscalYear          @relation(fields: [fiscalYearId], references: [id], onDelete: Restrict)
+  budgetSourceId     String
+  budgetSource       BudgetSource        @relation(fields: [budgetSourceId], references: [id], onDelete: Restrict)
+  departmentName     String?             // e.g. "ฝ่ายบริหารงานวิชาการ", "กลุ่มสาระการเรียนรู้วิทยาศาสตร์ฯ"
+  leaderUserId       String
+  leaderUser         User                @relation("ProjectLeader", fields: [leaderUserId], references: [id], onDelete: Restrict)
+  code               String              // e.g. "PRJ-2569-001"
+  name               String              // ชื่อโครงการ
+  targetAcademicYear Int                 // ปีการศึกษาเป้าหมาย e.g. 2569
+  allocatedAmount    Decimal             @default(0) @db.Decimal(19, 4)
+  status             String              @default("APPROVED") // DRAFT, APPROVED, IN_PROGRESS, COMPLETED, CANCELLED
+  activities         ProjectActivity[]
+  attachments        ProjectAttachment[]
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+
+  @@unique([fiscalYearId, code], map: "uk_project_fy_code")
+  @@index([fiscalYearId], map: "idx_project_fy")
+  @@index([budgetSourceId], map: "idx_project_budget_source")
+  @@index([leaderUserId], map: "idx_project_leader")
+  @@index([status], map: "idx_project_status")
+}
+
+model ProjectActivity {
+  id                 String                      @id @default(cuid())
+  projectId          String
+  project            Project                     @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  responsibleUserId  String
+  responsibleUser    User                        @relation("ActivityResponsible", fields: [responsibleUserId], references: [id], onDelete: Restrict)
+  activityNo         Int                         // 1, 2, 3...
+  name               String                      // ชื่อกิจกรรม
+  allocatedAmount    Decimal                     @default(0) @db.Decimal(19, 4)
+  plannedStartDate   DateTime?
+  plannedEndDate     DateTime?
+  status             String                      @default("NOT_STARTED") // NOT_STARTED, IN_PROGRESS, COMPLETED, CANCELLED
+  trancheAllocations ActivityTrancheAllocation[]
+  createdAt          DateTime                    @default(now())
+  updatedAt          DateTime                    @updatedAt
+
+  @@unique([projectId, activityNo], map: "uk_activity_project_no")
+  @@index([projectId, status], map: "idx_activity_project_status")
+  @@index([responsibleUserId], map: "idx_activity_responsible")
+}
+
+model ActivityTrancheAllocation {
+  id              String            @id @default(cuid())
+  activityId      String
+  activity        ProjectActivity   @relation(fields: [activityId], references: [id], onDelete: Restrict)
+  budgetTrancheId String
+  budgetTranche   BudgetTranche     @relation(fields: [budgetTrancheId], references: [id], onDelete: Restrict)
+  allocatedAmount Decimal           @db.Decimal(19, 4)
+  expenses        ActivityExpense[]
+  transfersFrom   BudgetTransfer[]  @relation("TransferFrom")
+  transfersTo     BudgetTransfer[]  @relation("TransferTo")
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  @@unique([activityId, budgetTrancheId], map: "uk_alloc_activity_tranche")
+  @@index([budgetTrancheId], map: "idx_alloc_tranche")
+  @@index([activityId], map: "idx_alloc_activity")
+}
+
+model ActivityExpense {
+  id                String                    @id @default(cuid())
+  idempotencyKey    String                    @unique(map: "uk_expense_idempotency")
+  allocationId      String
+  allocation        ActivityTrancheAllocation @relation(fields: [allocationId], references: [id], onDelete: Restrict)
+  requestedByUserId String
+  requestedByUser   User                      @relation("ExpenseRequestedBy", fields: [requestedByUserId], references: [id], onDelete: Restrict)
+  approvedByUserId  String?
+  approvedByUser    User?                     @relation("ExpenseApprovedBy", fields: [approvedByUserId], references: [id], onDelete: Restrict)
+  expenseDate       DateTime
+  title             String
+  amount            Decimal                   @db.Decimal(19, 4)
+  receiptNo         String?
+  status            String                    @default("SUBMITTED") // DRAFT, SUBMITTED, APPROVED, REJECTED, REVERSED
+  rejectedReason    String?
+  submittedAt       DateTime?                 @default(now())
+  approvedAt        DateTime?
+  rejectedAt        DateTime?
+  attachments       ExpenseAttachment[]
+  reversal          ExpenseReversal?
+  createdAt         DateTime                  @default(now())
+  updatedAt         DateTime                  @updatedAt
+
+  @@index([allocationId, status], map: "idx_expense_alloc_status")
+  @@index([expenseDate], map: "idx_expense_date")
+  @@index([requestedByUserId], map: "idx_expense_requested_by")
+  @@index([status], map: "idx_expense_status")
+}
+
+model ExpenseReversal {
+  id                String                    @id @default(cuid())
+  originalExpenseId String                    @unique(map: "uk_reversal_original_expense")
+  originalExpense   ActivityExpense           @relation(fields: [originalExpenseId], references: [id], onDelete: Restrict)
+  amount            Decimal                   @db.Decimal(19, 4)
+  reason            String
+  cancelledByUserId String
+  cancelledByUser   User                      @relation("ReversalCancelledBy", fields: [cancelledByUserId], references: [id], onDelete: Restrict)
+  approvedByUserId  String?
+  approvedByUser    User?                     @relation("ReversalApprovedBy", fields: [approvedByUserId], references: [id], onDelete: Restrict)
+  status            String                    @default("APPROVED") // PENDING_APPROVAL, APPROVED, REJECTED
+  approvedAt        DateTime?                 @default(now())
+  createdAt         DateTime                  @default(now())
+  updatedAt         DateTime                  @updatedAt
+
+  @@index([cancelledByUserId], map: "idx_reversal_cancelled_by")
+}
+
+model BudgetTransfer {
+  id                String                    @id @default(cuid())
+  fiscalYearId      String
+  fiscalYear        FiscalYear                @relation(fields: [fiscalYearId], references: [id], onDelete: Restrict)
+  fromAllocationId  String
+  fromAllocation    ActivityTrancheAllocation @relation("TransferFrom", fields: [fromAllocationId], references: [id], onDelete: Restrict)
+  toAllocationId    String
+  toAllocation      ActivityTrancheAllocation @relation("TransferTo", fields: [toAllocationId], references: [id], onDelete: Restrict)
+  amount            Decimal                   @db.Decimal(19, 4)
+  reason            String
+  requestedByUserId String
+  requestedByUser   User                      @relation("TransferRequestedBy", fields: [requestedByUserId], references: [id], onDelete: Restrict)
+  approvedByUserId  String?
+  approvedByUser    User?                     @relation("TransferApprovedBy", fields: [approvedByUserId], references: [id], onDelete: Restrict)
+  status            String                    @default("PENDING") // PENDING, APPROVED, REJECTED
+  approvedAt        DateTime?
+  createdAt         DateTime                  @default(now())
+  updatedAt         DateTime                  @updatedAt
+
+  @@index([fiscalYearId], map: "idx_transfer_fiscal_year")
+  @@index([fromAllocationId], map: "idx_transfer_from_alloc")
+  @@index([toAllocationId], map: "idx_transfer_to_alloc")
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  tableName String
+  recordId  String
+  action    String   // "CREATE", "UPDATE", "APPROVE", "REVERSE", "TRANSFER"
+  field     String?
+  oldValue  String?
+  newValue  String?
+  changedBy String   // userId
+  reason    String?
+  createdAt DateTime @default(now())
+
+  @@index([tableName, recordId], map: "idx_audit_table_record")
+  @@index([changedBy], map: "idx_audit_changed_by")
+  @@index([createdAt], map: "idx_audit_created_at")
+}
+
+model ProjectAttachment {
+  id               String   @id @default(cuid())
+  projectId        String
+  project          Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  storageProvider  String   // "LOCAL", "SUPABASE_STORAGE", "GOOGLE_DRIVE_LINK"
+  objectKey        String   // file path or external URL
+  originalFileName String
+  mimeType         String?
+  fileSize         Int?
+  uploadedByUserId String
+  uploadedByUser   User     @relation("ProjectAttachmentUploadedBy", fields: [uploadedByUserId], references: [id], onDelete: Restrict)
+  createdAt        DateTime @default(now())
+
+  @@index([projectId], map: "idx_proj_attach_proj")
+  @@index([uploadedByUserId], map: "idx_proj_attach_user")
+}
+
+model ExpenseAttachment {
+  id               String          @id @default(cuid())
+  expenseId        String
+  expense          ActivityExpense @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  storageProvider  String          // "LOCAL", "SUPABASE_STORAGE", "GOOGLE_DRIVE_LINK"
+  objectKey        String          // file path or external URL
+  originalFileName String
+  mimeType         String?
+  fileSize         Int?
+  uploadedByUserId String
+  uploadedByUser   User            @relation("ExpenseAttachmentUploadedBy", fields: [uploadedByUserId], references: [id], onDelete: Restrict)
+  createdAt        DateTime        @default(now())
+
+  @@index([expenseId], map: "idx_exp_attach_exp")
+  @@index([uploadedByUserId], map: "idx_exp_attach_user")
+}
+
