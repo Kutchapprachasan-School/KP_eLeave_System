@@ -243,8 +243,18 @@ export default function ApprovalsPage() {
 
         if (result) {
           setProcessingStatus("uploading");
-          await uploadLeavePdf(id, result.base64, false, result.mimeType);
+          const uploadRes = await uploadLeavePdf(id, result.base64, false, result.mimeType);
+          if (uploadRes?.success) {
+            showToast("success", "อนุมัติใบลาและอัปโหลดสำเนาลง Google Drive สำเร็จ");
+          } else if (uploadRes?.error) {
+            console.warn("Google Drive upload notice:", uploadRes.error);
+            showToast("warning", `อนุมัติสำเร็จ (หมายเหตุ Google Drive: ${uploadRes.error})`);
+          }
+        } else {
+          showToast("success", "อนุมัติคำขอลาเรียบร้อยแล้ว");
         }
+      } else {
+        showToast("success", "อนุมัติคำขอลาเรียบร้อยแล้ว");
       }
 
       window.dispatchEvent(new Event("noti-refresh"));
@@ -282,7 +292,14 @@ export default function ApprovalsPage() {
 
       if (result) {
         setProcessingStatus("uploading");
-        await uploadLeavePdf(id, result.base64, true, result.mimeType);
+        const uploadRes = await uploadLeavePdf(id, result.base64, true, result.mimeType);
+        if (uploadRes?.success) {
+          showToast("success", "ปฏิเสธใบลาและอัปโหลดสำเนาลง Google Drive สำเร็จ");
+        } else if (uploadRes?.error) {
+          showToast("warning", `ปฏิเสธใบลาสำเร็จ (หมายเหตุ Google Drive: ${uploadRes.error})`);
+        }
+      } else {
+        showToast("success", "ปฏิเสธคำขอลาเรียบร้อยแล้ว");
       }
 
       window.dispatchEvent(new Event("noti-refresh"));

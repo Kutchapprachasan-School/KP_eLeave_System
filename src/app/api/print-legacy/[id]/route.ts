@@ -105,10 +105,15 @@ export async function GET(
 ) {
   const { id } = await params;
   
+  // Get settings
+  const settings = await prisma.systemSettings.findUnique({
+    where: { id: "default" }
+  });
+
   // Verify token
   const { searchParams } = new URL(req.url);
   const token = searchParams.get("token");
-  const secret = process.env.GOOGLE_DRIVE_SECRET;
+  const secret = settings?.googleDriveSecret || process.env.GOOGLE_DRIVE_SECRET;
   
   if (!secret || token !== secret) {
     return new NextResponse("Unauthorized", { status: 401 });
@@ -137,11 +142,6 @@ export async function GET(
   if (!request) {
     return new NextResponse("Request not found", { status: 404 });
   }
-
-  // Get settings
-  const settings = await prisma.systemSettings.findUnique({
-    where: { id: "default" }
-  });
 
   // Helper for absolute URLs
   const getAbsoluteUrl = (url: string | null | undefined) => {

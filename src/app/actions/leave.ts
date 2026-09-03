@@ -904,8 +904,13 @@ export async function approveLeaveRequest(id: string, pdfBase64?: string, skipDr
 
   if (newStatus === "APPROVED" && !skipDriveUpload) {
     // Auto upload to Google Drive if configured
-    const uploadUrl = process.env.GOOGLE_DRIVE_UPLOAD_URL;
-    const secret = process.env.GOOGLE_DRIVE_SECRET;
+    const settings = await prisma.systemSettings.findUnique({
+      where: { id: "default" },
+      select: { googleDriveUploadUrl: true, googleDriveSecret: true, googleDriveFolderId: true }
+    });
+    const uploadUrl = settings?.googleDriveUploadUrl || process.env.GOOGLE_DRIVE_UPLOAD_URL;
+    const secret = settings?.googleDriveSecret || process.env.GOOGLE_DRIVE_SECRET;
+    const folderId = settings?.googleDriveFolderId || undefined;
     if (uploadUrl && secret) {
       const fy = updateData.fiscalYear;
       const seq = updateData.approvedSeq;
@@ -934,6 +939,7 @@ export async function approveLeaveRequest(id: string, pdfBase64?: string, skipDr
 
       const payload: any = {
         secret: secret,
+        folderId: folderId,
         filename: filename
       };
 
@@ -1953,12 +1959,13 @@ export async function uploadLeavePdf(id: string, pdfBase64: string, isRejected: 
   
   const settings = await prisma.systemSettings.findUnique({
     where: { id: "default" },
-    select: { googleDriveUploadUrl: true, googleDriveSecret: true }
+    select: { googleDriveUploadUrl: true, googleDriveSecret: true, googleDriveFolderId: true }
   });
   const uploadUrl = settings?.googleDriveUploadUrl || process.env.GOOGLE_DRIVE_UPLOAD_URL;
   const secret = settings?.googleDriveSecret || process.env.GOOGLE_DRIVE_SECRET;
+  const folderId = settings?.googleDriveFolderId || undefined;
   if (!uploadUrl || !secret) {
-    return { success: false, error: "Google Drive upload not configured" };
+    return { success: false, error: "ยังไม่ได้ตั้งค่า Google Drive Webhook URL หรือ Secret ในระบบ" };
   }
 
   const request = await prisma.leaveRequest.findUnique({
@@ -2001,6 +2008,7 @@ export async function uploadLeavePdf(id: string, pdfBase64: string, isRejected: 
       body: JSON.stringify({
         action: "upload_base64",
         secret: secret,
+        folderId: folderId,
         filename: filename + fileExtension,
         fileBase64: pdfBase64,
         mimeType: actualMimeType
@@ -2010,17 +2018,82 @@ export async function uploadLeavePdf(id: string, pdfBase64: string, isRejected: 
     const data = await res.json();
     if (data.success) {
       console.log(`Successfully uploaded leave request PDF ${id} to Google Drive: ${data.url}`);
-      await writeLog("SYSTEM", `อัปโหลดใบลา ${filename} ลง Google Drive สำเร็จ (${data.url})`, "system");
+      await writeLog("SYSTEM", `อัปโหลดใบลา ${filename} ลง Google Drive สำเร็จ (${data.url})`, session?.user?.id || "system");
       return { success: true, url: data.url };
     } else {
       console.error("Google Drive upload failed:", data.error);
-      await writeLog("SYSTEM", `อัปโหลดใบลาลง Google Drive ล้มเหลว: ${data.error}`, "system");
+      await writeLog("SYSTEM", `อัปโหลดใบลาลง Google Drive ล้มเหลว: ${data.error}`, session?.user?.id || "system");
       return { success: false, error: data.error };
     }
   } catch (err: any) {
     console.error("Google Drive upload fetch error:", err);
-    await writeLog("SYSTEM", `อัปโหลดใบลาลง Google Drive เกิดข้อผิดพลาด: ${err.message}`, "system");
+    await writeLog("SYSTEM", `อัปโหลดใบลาลง Google Drive เกิดข้อผิดพลาด: ${err.message}`, session?.user?.id || "system");
     return { success: false, error: err.message };
+  }
+}
+
+export async function testGoogleDriveConnectionAction(params?: {
+  uploadUrl?: string;
+  secret?: string;
+  folderId?: string;
+  format?: string;
+}) {
+  const session = await getSession();
+  const user = session.user as any;
+  if (user.role !== "ADMIN" && user.position !== "แอดมิน") {
+    throw new Error("Unauthorized: เฉพาะแอดมินเท่านั้นที่สามารถทดสอบการเชื่อมต่อได้");
+  }
+
+  const settings = await prisma.systemSettings.findUnique({
+    where: { id: "default" },
+    select: { googleDriveUploadUrl: true, googleDriveSecret: true, googleDriveFolderId: true, googleDriveFormat: true }
+  });
+
+  const uploadUrl = params?.uploadUrl?.trim() || settings?.googleDriveUploadUrl || process.env.GOOGLE_DRIVE_UPLOAD_URL;
+  const secret = params?.secret?.trim() || settings?.googleDriveSecret || process.env.GOOGLE_DRIVE_SECRET;
+  const folderId = params?.folderId?.trim() || settings?.googleDriveFolderId || undefined;
+  const format = params?.format || settings?.googleDriveFormat || "PDF";
+
+  if (!uploadUrl) {
+    return { success: false, error: "กรุณาระบุ Webhook URL ของ Google Apps Script" };
+  }
+  if (!secret) {
+    return { success: false, error: "กรุณาระบุ Secret Token สำหรับยืนยันตัวตน" };
+  }
+
+  const isJpg = format === "JPG";
+  const mimeType = isJpg ? "image/jpeg" : "application/pdf";
+  const fileExt = isJpg ? ".jpg" : ".pdf";
+  const filename = `TEST_CONNECTION_${Date.now()}${fileExt}`;
+  
+  // Minimal valid 1x1 base64
+  const sampleBase64 = isJpg
+    ? "/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA="
+    : "JVBERi0xLjQKMSAwIG9iajw8L1R5cGUvQ2F0YWxvZy9QYWdlcyAyIDAgUj4+ZW5kb2JqCjIgMCBvYmo8PC9UeXBlL1BhZ2VzL0tpZHNbMyAwIFJdL0NvdW50IDE+PmVuZG9iagozIDAgb2JqPDwvVHlwZS9QYWdlL1BhcmVudCAyIDAgUi9NZWRpYUJveFswIDAgMTAwIDEwMF0+PmVuZG9iagp4cmVmCjAgNAowMDAwMDAwMDAwIDY1NTM1IGYgCjAwMDAwMDAwMDkgMDAwMDAgbiAKMDAwMDAwMDA1OCAwMDAwMCBuIAowMDAwMDAwMTE1IDAwMDAwIG4gCnRyYWlsZXIKPDwvU2l6ZSA0L1Jvb3QgMSAwIFI+PgpzdGFydHhyZWYKMTc4CiUlRU9GCg==";
+
+  try {
+    const res = await fetch(uploadUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "upload_base64",
+        secret: secret,
+        folderId: folderId,
+        filename: filename,
+        fileBase64: sampleBase64,
+        mimeType: mimeType
+      })
+    });
+
+    const data = await res.json();
+    if (data.success) {
+      await writeLog("SYSTEM", `ทดสอบการเชื่อมต่อ Google Drive สำเร็จ (${data.url || "OK"})`, session.user.id);
+      return { success: true, url: data.url, message: "เชื่อมต่อ Google Drive สำเร็จและสร้างไฟล์ทดสอบเรียบร้อยแล้ว" };
+    } else {
+      return { success: false, error: data.error || "Google Apps Script ตอบกลับสถานะล้มเหลว" };
+    }
+  } catch (err: any) {
+    return { success: false, error: `ไม่สามารถเชื่อมต่อไปยัง Webhook ได้: ${err.message}` };
   }
 }
 
