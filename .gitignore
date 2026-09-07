@@ -38,3 +38,4 @@ node_modules_old/
 /backups/
 backup_*.json
 supabase_original_signatures.json
+scratch_*

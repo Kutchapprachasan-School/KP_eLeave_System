@@ -26,7 +26,6 @@ export function invalidateSignatureCache(userId: string) {
     }
   }
 }
-
 function getSupabaseClient() {
   const supaUrl = process.env.SUPABASE_URL || process.env.SUPABASE_FAILOVER_0_URL || "";
   const supaKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_FAILOVER_0_KEY || "";
@@ -69,7 +68,6 @@ export async function GET(
       return new NextResponse("Unauthorized: Active session or valid token required", { status: 401 });
     }
   }
-
   const cacheKey = `${userId}:${requestedKey || "default"}:${versionParam}`;
 
   // 1. Check Fast Memory Cache
@@ -151,11 +149,13 @@ export async function GET(
 
     // Attempt 2: If primary not found, list folder to find any signature file
     if (!buffer) {
-      const { data: listFiles } = await supa.storage.from("data1").list(`signatures/${userId}`);
-      if (listFiles && listFiles.length > 0) {
-        const sorted = listFiles
-          .filter(f => f.name && !f.name.startsWith("."))
-          .sort((a, b) => (b.created_at || "").localeCompare(a.created_at || ""));
+      const supa = getSupabaseClient();
+      if (supa) {
+        const { data: listFiles } = await supa.storage.from("data1").list(`signatures/${userId}`);
+        if (listFiles && listFiles.length > 0) {
+          const sorted = listFiles
+            .filter(f => f.name && !f.name.startsWith("."))
+            .sort((a, b) => (b.created_at || "").localeCompare(a.created_at || ""));
         const latestFileName = sorted[0]?.name || listFiles[0].name;
         const targetPath = `signatures/${userId}/${latestFileName}`;
 
@@ -224,6 +224,7 @@ export async function GET(
       },
     });
   } catch (err: any) {
+    console.error("[SignatureAPI] Error retrieving signature:", err);
     return new NextResponse(`Error retrieving signature: ${err.message}`, { status: 500 });
   }
 }

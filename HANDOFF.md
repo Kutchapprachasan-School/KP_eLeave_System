@@ -89,7 +89,7 @@ flowchart TD
 
 ## 4. Verification & Testing Standards
 
-1. **Full Regression Test Suite (95/95 Passing):**
+1. **Full Regression Test Suite:**
    ```bash
    npm test
    ```
@@ -116,4 +116,3 @@ flowchart TD
 3. **SLA Auto-Cancellation & Approval Concurrency Guard:**
    - คำขอ `PENDING` มีการคำนวณ `expiresAt` ตามเวลา Server Clock
    - การกดยกเลิกอัตโนมัติ (`cleanupExpiredPendingReservationsAction`) และการอนุมัติของ ผอ. (`approveFacilityReservationDirectorAction`) รันภายใต้ Row Lock เดียวกันเพื่อขจัด Race Condition โดยสิ้นเชิง
-
