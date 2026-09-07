@@ -30,7 +30,7 @@ import {
   GetObjectCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import type { StorageProvider } from "./provider.interface";
+import type { StorageProvider, UploadOptions, StorageUploadResult } from "./provider.interface";
 
 const SIGNED_URL_EXPIRY_SECONDS = 3600; // 1 ชั่วโมง
 
@@ -65,24 +65,37 @@ function getClient(): { client: S3Client; bucket: string; publicDomain: string |
 }
 
 export class R2StorageProvider implements StorageProvider {
-  async upload({
-    buffer,
-    mimeType,
-    storageKey,
-  }: {
-    buffer: Buffer;
-    mimeType: string;
-    storageKey: string;
-  }): Promise<void> {
-    const { client, bucket } = getClient();
+  async upload(
+    {
+      buffer,
+      mimeType,
+      storageKey,
+    }: {
+      buffer: Buffer;
+      mimeType: string;
+      storageKey: string;
+    },
+    options?: UploadOptions
+  ): Promise<StorageUploadResult> {
+    const { client, bucket, publicDomain } = getClient();
+    const targetBucket = options?.bucket || bucket;
+
     await client.send(
       new PutObjectCommand({
-        Bucket:      bucket,
-        Key:         storageKey,
-        Body:        buffer,
+        Bucket: targetBucket,
+        Key: storageKey,
+        Body: buffer,
         ContentType: mimeType,
       })
     );
+
+    const publicUrl = publicDomain ? `${publicDomain.replace(/\/$/, "")}/${storageKey}` : undefined;
+
+    return {
+      storageKey,
+      publicUrl,
+      providerId: "r2",
+    };
   }
 
   async getUrl(storageKey: string): Promise<string> {

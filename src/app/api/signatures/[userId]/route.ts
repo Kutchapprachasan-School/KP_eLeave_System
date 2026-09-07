@@ -19,6 +19,14 @@ interface CachedSignature {
 const signatureMemoryCache = new Map<string, CachedSignature>();
 const CACHE_TTL_MS = 1000 * 60 * 60; // 1 hour
 
+export function invalidateSignatureCache(userId: string) {
+  for (const key of signatureMemoryCache.keys()) {
+    if (key.startsWith(`${userId}:`)) {
+      signatureMemoryCache.delete(key);
+    }
+  }
+}
+
 function getSupabaseClient() {
   const supaUrl = process.env.SUPABASE_URL || process.env.SUPABASE_FAILOVER_0_URL || "";
   const supaKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_FAILOVER_0_KEY || "";
@@ -85,22 +93,60 @@ export async function GET(
   }
 
   try {
-    const supa = getSupabaseClient();
-    if (!supa) {
-      return new NextResponse("Storage service unavailable", { status: 503 });
-    }
-
     let buffer: Buffer | null = null;
     let mimeType = "image/png";
 
-    // Attempt 1: Direct signatures/${userId}/signature.png
-    const primaryPath = `signatures/${userId}/signature.png`;
-    const { data: primaryData, error: primaryErr } = await supa.storage.from("data1").download(primaryPath);
+    // Attempt 0: Cloudflare R2 (Primary Storage - Zero Egress)
+    const r2Domain = process.env.R2_PUBLIC_DOMAIN ? process.env.R2_PUBLIC_DOMAIN.replace(/\/$/, "") : "";
+    if (r2Domain) {
+      try {
+        if (requestedKey) {
+          const r2CustomUrl = `${r2Domain}/${requestedKey.replace(/^\//, "")}`;
+          const r2CustomRes = await fetch(r2CustomUrl);
+          if (r2CustomRes.ok) {
+            const arr = await r2CustomRes.arrayBuffer();
+            buffer = Buffer.from(arr);
+            mimeType = requestedKey.endsWith(".svg") ? "image/svg+xml" : "image/png";
+          }
+        }
 
-    if (primaryData && !primaryErr) {
-      const arr = await primaryData.arrayBuffer();
-      buffer = Buffer.from(arr);
-      mimeType = "image/png";
+        if (!buffer) {
+          // Check SVG first (vector signature drawn on canvas)
+          const r2SvgUrl = `${r2Domain}/signatures/${userId}/signature.svg`;
+          const r2SvgRes = await fetch(r2SvgUrl);
+          if (r2SvgRes.ok) {
+            const arr = await r2SvgRes.arrayBuffer();
+            buffer = Buffer.from(arr);
+            mimeType = "image/svg+xml";
+          } else {
+            // Check PNG (uploaded/scanned image)
+            const r2PngUrl = `${r2Domain}/signatures/${userId}/signature.png`;
+            const r2PngRes = await fetch(r2PngUrl);
+            if (r2PngRes.ok) {
+              const arr = await r2PngRes.arrayBuffer();
+              buffer = Buffer.from(arr);
+              mimeType = "image/png";
+            }
+          }
+        }
+      } catch (r2Err) {
+        console.warn("[SignatureRoute] R2 fetch fallback to Supabase:", r2Err);
+      }
+    }
+
+    // Attempt 1: Supabase data1 signatures/${userId}/signature.png (Fallback)
+    if (!buffer) {
+      const supa = getSupabaseClient();
+      if (supa) {
+        const primaryPath = `signatures/${userId}/signature.png`;
+        const { data: primaryData, error: primaryErr } = await supa.storage.from("data1").download(primaryPath);
+
+        if (primaryData && !primaryErr) {
+          const arr = await primaryData.arrayBuffer();
+          buffer = Buffer.from(arr);
+          mimeType = "image/png";
+        }
+      }
     }
 
     // Attempt 2: If primary not found, list folder to find any signature file

@@ -15,6 +15,7 @@ export default function UsersPage() {
   const [isAddingUser, setIsAddingUser] = useState(false);
   const [addingData, setAddingData] = useState<any>(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [brokenImages, setBrokenImages] = useState<Record<string, boolean>>({});
   const itemsPerPage = 10;
   const { t, lang, tPosition, tSubjectGroup, tLevel } = useI18n();
   const levelOptions = [
@@ -421,10 +422,11 @@ export default function UsersPage() {
                       <tr key={user.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-3">
-                            {user.image ? (
+                            {user.image && !brokenImages[user.id] ? (
                               <img 
                                 src={user.image} 
                                 alt={user.name} 
+                                onError={() => setBrokenImages(prev => ({ ...prev, [user.id]: true }))}
                                 onClick={() => setZoomedImage({ src: user.image, name: user.name })}
                                 className="w-9 h-9 rounded-full object-cover shadow-sm border border-slate-200 dark:border-slate-700 cursor-zoom-in hover:opacity-90 transition-opacity" 
                               />

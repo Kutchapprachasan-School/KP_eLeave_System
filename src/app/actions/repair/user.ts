@@ -36,7 +36,6 @@ export async function getAssignableTechniciansAction() {
         name: true,
         position: true,
         role: true,
-        signatureUrl: true,
       },
       orderBy: { name: "asc" },
     });

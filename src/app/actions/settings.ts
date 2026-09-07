@@ -373,8 +373,6 @@ export async function updateDefaultInspector(defaultInspectorId: string | null) 
 
   revalidatePath("/settings");
 
-  revalidatePath("/");
-
   return { success: true };
 
 }
@@ -652,8 +650,6 @@ export async function updateSystemSettings(data: {
 
     revalidatePath("/settings");
 
-    revalidatePath("/");
-
     return { success: true };
   } catch (err: any) {
     console.error("updateSystemSettings error:", err);
@@ -696,8 +692,6 @@ export async function updateLeaveRules(leaveRules: string) {
 
   revalidatePath("/settings");
 
-  revalidatePath("/");
-
   return { success: true };
 
 }
@@ -723,8 +717,6 @@ export async function updateFooter(data: { footerText: string; developerSecret: 
   });
 
   revalidatePath("/settings");
-
-  revalidatePath("/");
 
   return { success: true };
 
@@ -866,8 +858,6 @@ export async function setImpersonationCookie(position: string | null, role: stri
 
   }
 
-  revalidatePath("/");
-
   return { success: true };
 
 }
@@ -883,8 +873,6 @@ export async function clearImpersonation() {
   cookieStore.delete("imp_position");
 
   cookieStore.delete("imp_role");
-
-  revalidatePath("/");
 
   return { success: true };
 

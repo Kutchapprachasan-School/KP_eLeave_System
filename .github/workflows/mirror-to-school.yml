@@ -1,0 +1,27 @@
+name: Mirror to School Repository
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Push to School Remote
+        run: |
+          if [ -n "${{ secrets.SCHOOL_REPO_TOKEN }}" ]; then
+            git remote add school https://x-access-token:${{ secrets.SCHOOL_REPO_TOKEN }}@github.com/khamyangpittayaschool-code/e-leave.git || true
+            git push --force school main
+          elif [ -n "${{ secrets.SYNC_TOKEN }}" ]; then
+            git remote add school https://x-access-token:${{ secrets.SYNC_TOKEN }}@github.com/khamyangpittayaschool-code/e-leave.git || true
+            git push --force school main
+          else
+            echo "::warning ::SCHOOL_REPO_TOKEN or SYNC_TOKEN secret is not configured in origin repo. Skipping automatic push."
+          fi

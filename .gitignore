@@ -34,9 +34,7 @@ next-env.d.ts
 
 node_modules_old/
 .superpowers/
-supabase_backup.json
-*.xlsx
-/คู่มือ/
-/ไฟล์ใบลาออนไลน์/
-/eLeave_Uploads/
-
+/public/uploads/
+/backups/
+backup_*.json
+supabase_original_signatures.json

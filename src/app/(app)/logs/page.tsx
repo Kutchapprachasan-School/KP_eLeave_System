@@ -10,8 +10,9 @@ import {
 import { pruneSystemLogs } from "@/app/actions/leave";
 import { motion } from "framer-motion";
 import { 
-  FileText, Search, Activity, UserCheck, XCircle, PlusCircle, Settings2, 
-  DownloadCloud, Archive, RotateCcw, Clock, Building2, Calendar, Wrench, Award, CheckCircle2 
+  FileText, Search, UserCheck, XCircle, PlusCircle, Settings2, 
+  DownloadCloud, Archive, RotateCcw, Clock, Building2, Calendar, Wrench, Award, CheckCircle2,
+  RefreshCw
 } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 
@@ -94,83 +95,68 @@ export default function LogsPage() {
       }
       return;
     }
+
     try {
-      await pruneSystemLogs(days);
-      alert(t("pruneSuccess"));
-      fetchLogs();
+      const res = await pruneSystemLogs(days);
+      if (res.success) {
+        alert(t("pruneSuccess").replace("{count}", String(res.deletedCount)));
+        fetchLogs();
+      } else {
+        alert(t("pruneError") + ": " + res.error);
+      }
     } catch {
-      alert(t("pruneError"));
+      alert(t("pruneErrorGeneral"));
     }
   };
 
   const handleExportCSV = () => {
-    try {
-      const headers = ["ID", "Subsystem", "Action Type", "Description", "Date Time", "User ID"];
-      const rows = filteredLogs.map((log) => [
-        log.id,
-        log.subsystem || "LEAVE",
-        log.actionType,
-        `"${log.description.replace(/"/g, '""')}"`,
-        new Date(log.createdAt).toLocaleString(lang === "th" ? "th-TH" : "en-US"),
-        log.userId,
-      ]);
-
-      const csvContent = [headers.join(","), ...rows.map((e) => e.join(","))].join("\n");
-      const BOM = "\uFEFF";
-      const blob = new Blob([BOM + csvContent], { type: "text/csv;charset=utf-8;" });
-
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.setAttribute("href", url);
-      link.setAttribute("download", `system-logs-${new Date().toISOString().split("T")[0]}.csv`);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-    } catch {
-      alert(t("exportLogsError"));
-    }
+    if (filteredLogs.length === 0) return;
+    const headers = [
+      t("tableDate"),
+      t("tableUser"),
+      t("tableAction"),
+      t("tableCategory"),
+      t("tableDetails"),
+    ];
+    const rows = filteredLogs.map((log) => [
+      new Date(log.createdAt).toLocaleString("th-TH"),
+      log.user?.name || log.userId || t("systemUser"),
+      t(log.actionType) || log.actionType,
+      SUBSYSTEM_CONFIGS[log.subsystem]?.label || log.subsystem || "ทั่วไป",
+      `"${log.description.replace(/"/g, '""')}"`,
+    ]);
+    const csvContent =
+      "\uFEFF" +
+      [headers.join(","), ...rows.map((e) => e.join(","))].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute(
+      "download",
+      `system_logs_${new Date().toISOString().split("T")[0]}.csv`
+    );
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
-  const handleCreateArchive = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsArchiving(true);
-    try {
-      const res = await archiveSystemLogsAction(archiveYear, archiveMonth);
-      alert(`จัดเก็บสำรองสำเร็จ! ย้ายบันทึกระบบจำนวน ${res.count} รายการไปยังไฟล์สำรองเรียบร้อยแล้ว`);
-      fetchLogs();
-      fetchArchives();
-    } catch (err: any) {
-      alert(err.message || "เกิดข้อผิดพลาดในการจัดเก็บสำรอง");
-    } finally {
-      setIsArchiving(false);
-    }
-  };
-
-  const handleRestoreArchive = async (archiveId: string, batchName: string) => {
-    if (!confirm(`คุณต้องการคืนค่าบันทึกระบบประจำเดือน ${batchName} กลับเข้าสู่รายการหลักใช่หรือไม่?`)) {
-      return;
-    }
-    try {
-      const res = await restoreSystemLogArchiveAction(archiveId);
-      alert(`คืนค่าสำเร็จ! นำข้อมูลบันทึกระบบจำนวน ${res.restoredCount} รายการกลับเข้าสู่ระบบเรียบร้อยแล้ว`);
-      fetchLogs();
-      fetchArchives();
-    } catch (err: any) {
-      alert(err.message || "เกิดข้อผิดพลาดในการคืนค่าข้อมูล");
-    }
-  };
+  // Pagination Logic
+  const totalPages = Math.ceil(filteredLogs.length / itemsPerPage);
+  const paginatedLogs = filteredLogs.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="max-w-6xl mx-auto space-y-6 text-slate-900 dark:text-slate-100"
-    >
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2 border-b border-slate-200 dark:border-slate-800">
+    <div className="space-y-6 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 animate-in fade-in duration-300">
+      {/* Top Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
-            <Activity className="w-6 h-6 text-purple-600 dark:text-purple-400" />
+          <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-purple-500/10 text-purple-600 dark:text-purple-400 flex items-center justify-center font-bold">
+              <FileText className="w-5 h-5" />
+            </div>
             {t("logsTitle")}
           </h1>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{t("logsSubtitle")}</p>
@@ -246,175 +232,198 @@ export default function LogsPage() {
         </button>
       </div>
 
-      {/* Log List */}
-      <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-slate-200 dark:border-slate-800 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden">
+      {/* Logs Table */}
+      <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
         {loading ? (
-          <div className="flex items-center justify-center py-16">
-            <div className="w-8 h-8 border-4 border-purple-200 border-t-purple-500 rounded-full animate-spin" />
+          <div className="flex flex-col items-center justify-center p-12 text-slate-400">
+            <RefreshCw className="w-8 h-8 animate-spin text-purple-600 mb-3" />
+            <span className="text-xs">{t("loadingData")}</span>
           </div>
         ) : filteredLogs.length === 0 ? (
-          <div className="flex flex-col items-center py-16 text-slate-400">
-            <FileText className="w-10 h-10 mb-3 text-slate-300 dark:text-slate-600" />
-            <p className="text-sm font-medium">{t("noLogs")}</p>
+          <div className="text-center p-12 text-slate-400">
+            <p className="text-xs">{t("noLogsFound")}</p>
           </div>
-        ) : (() => {
-          const totalPages = Math.ceil(filteredLogs.length / itemsPerPage);
-          const paginatedLogs = filteredLogs.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
-
-          return (
-            <>
-              <div className="divide-y divide-slate-100 dark:divide-slate-800">
-                {paginatedLogs.map((log, i) => {
-                  const actionStyle = ACTION_ICONS[log.actionType] || { icon: Activity, color: "text-slate-500", bg: "bg-slate-100 dark:bg-slate-800" };
-                  const subConfig = SUBSYSTEM_CONFIGS[log.subsystem || "LEAVE"] || SUBSYSTEM_CONFIGS.LEAVE;
-                  const Icon = actionStyle.icon;
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="border-b border-slate-100 dark:border-slate-800 text-slate-400 text-[11px] font-bold">
+                  <th className="py-3 px-4">{t("tableDate")}</th>
+                  <th className="py-3 px-4">{t("tableUser")}</th>
+                  <th className="py-3 px-4">{t("tableAction")}</th>
+                  <th className="py-3 px-4">{t("tableCategory")}</th>
+                  <th className="py-3 px-4">{t("tableDetails")}</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium">
+                {paginatedLogs.map((log) => {
+                  const subConfig = SUBSYSTEM_CONFIGS[log.subsystem] || {
+                    label: log.subsystem || "ทั่วไป",
+                    badgeCls: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
+                    icon: FileText
+                  };
+                  const actIcon = ACTION_ICONS[log.actionType] || {
+                    icon: PlusCircle,
+                    color: "text-slate-500",
+                    bg: "bg-slate-50 dark:bg-slate-800"
+                  };
+                  const Icon = actIcon.icon;
 
                   return (
-                    <div
-                      key={log.id}
-                      className="flex items-center gap-4 px-6 py-4 hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors"
-                    >
-                      <div className={`w-10 h-10 rounded-xl ${actionStyle.bg} flex items-center justify-center shrink-0`}>
-                        <Icon className={`w-5 h-5 ${actionStyle.color}`} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className={`px-2 py-0.5 rounded-lg text-[10px] font-bold ${subConfig.badgeCls}`}>
-                            {subConfig.label}
+                    <tr key={log.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
+                      <td className="py-3 px-4 text-slate-400 text-[11px] font-mono whitespace-nowrap">
+                        {new Date(log.createdAt).toLocaleString("th-TH", {
+                          dateStyle: "short",
+                          timeStyle: "short",
+                        })}
+                      </td>
+                      <td className="py-3 px-4">
+                        <span className="font-bold text-slate-800 dark:text-slate-200">
+                          {log.user?.name || log.userId || t("systemUser")}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4">
+                        <div className="flex items-center gap-2">
+                          <div className={`w-6 h-6 rounded-lg ${actIcon.bg} flex items-center justify-center shrink-0`}>
+                            <Icon className={`w-3.5 h-3.5 ${actIcon.color}`} />
+                          </div>
+                          <span className="font-semibold text-slate-700 dark:text-slate-300">
+                            {t(log.actionType) || log.actionType}
                           </span>
-                          <span className="text-[10px] font-mono text-slate-400">{log.actionType}</span>
                         </div>
-                        <p className="text-xs font-bold text-slate-900 dark:text-white truncate">{log.description}</p>
-                      </div>
-                      <div className="text-xs text-slate-400 shrink-0 font-medium">
-                        {new Date(log.createdAt).toLocaleString(lang === "th" ? "th-TH" : "en-US", { dateStyle: "short", timeStyle: "short" })}
-                      </div>
-                    </div>
+                      </td>
+                      <td className="py-3 px-4">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${subConfig.badgeCls}`}>
+                          {subConfig.label}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-slate-600 dark:text-slate-300 max-w-md break-words">
+                        {log.description}
+                      </td>
+                    </tr>
                   );
                 })}
-              </div>
+              </tbody>
+            </table>
+          </div>
+        )}
 
-              {/* Pagination */}
-              {filteredLogs.length > itemsPerPage && (
-                <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-6 py-4 border-t border-slate-100 dark:border-slate-800 text-xs font-bold">
-                  <span className="text-slate-500">
-                    หน้า {currentPage} จาก {totalPages} ({filteredLogs.length} รายการ)
-                  </span>
-                  <div className="flex gap-2">
-                    <button
-                      disabled={currentPage === 1}
-                      onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                      className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 disabled:opacity-40 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
-                    >
-                      ‹ ย้อนกลับ
-                    </button>
-                    <button
-                      disabled={currentPage === totalPages}
-                      onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                      className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 disabled:opacity-40 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
-                    >
-                      ถัดไป ›
-                    </button>
-                  </div>
-                </div>
-              )}
-            </>
-          );
-        })()}
+        {/* Pagination Bar */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between px-6 py-4 border-t border-slate-100 dark:border-slate-800 text-xs">
+            <span className="text-slate-500">
+              หน้า {currentPage} จาก {totalPages} (ทั้งหมด {filteredLogs.length} รายการ)
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage(p => p - 1)}
+                className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 disabled:opacity-40 hover:bg-slate-50 dark:hover:bg-slate-800 transition"
+              >
+                ก่อนหน้า
+              </button>
+              <button
+                disabled={currentPage === totalPages}
+                onClick={() => setCurrentPage(p => p + 1)}
+                className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 disabled:opacity-40 hover:bg-slate-50 dark:hover:bg-slate-800 transition"
+              >
+                ถัดไป
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Modal: Archiving & Restoring Logs */}
+      {/* Prune Log Data Footer (Admin tool) */}
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 rounded-2xl bg-rose-50/50 dark:bg-rose-950/20 border border-rose-200/60 dark:border-rose-900/40 text-xs">
+        <div className="text-rose-700 dark:text-rose-300">
+          <span className="font-bold">⚠️ การบำรุงรักษาฐานข้อมูล:</span> ล้างประวัติบันทึกกิจกรรมเก่าเพื่อประหยัดพื้นที่จัดเก็บ
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => handlePrune(90)}
+            className="px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold transition shadow-xs cursor-pointer"
+          >
+            ล้างข้อมูลเก่ากว่า 90 วัน
+          </button>
+          <button
+            onClick={() => handlePrune(30)}
+            className="px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold transition shadow-xs cursor-pointer"
+          >
+            ล้างข้อมูลเก่ากว่า 30 วัน
+          </button>
+        </div>
+      </div>
+
+      {/* Archive Modal */}
       {isArchiveModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 max-w-xl w-full border border-slate-200 dark:border-slate-800 shadow-2xl space-y-6">
-            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
-              <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                <Archive className="w-5 h-5 text-amber-500" />
-                ระบบจัดเก็บสำรอง & คืนค่า System Logs Archive
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-6 max-w-lg w-full shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <h3 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
+                <Archive className="w-4 h-4 text-amber-500" />
+                คลังจัดเก็บสำรองประวัติกิจกรรม (System Log Archives)
               </h3>
               <button
                 onClick={() => setIsArchiveModalOpen(false)}
-                className="p-1.5 rounded-xl text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+                className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 text-xs font-bold"
               >
                 ✕
               </button>
             </div>
 
-            {/* Archive Form */}
-            <form onSubmit={handleCreateArchive} className="p-4 rounded-2xl bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/50 space-y-3">
-              <h4 className="text-xs font-bold text-amber-700 dark:text-amber-300">
-                📦 ย้ายการบันทึกระบบประจำเดือนไปยังระบบจัดเก็บสำรอง (Archive)
-              </h4>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                เลือกเดือนและปีที่ต้องการย้ายข้อมูลบันทึกระบบเก่าไปยังไฟล์จัดเก็บสำรอง เพื่อลดขนาดฐานข้อมูลหลัก
-              </p>
-              <div className="flex flex-wrap items-center gap-3">
-                <select
-                  value={archiveMonth}
-                  onChange={(e) => setArchiveMonth(Number(e.target.value))}
-                  className="h-9 px-3 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold"
-                >
-                  {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
-                    <option key={m} value={m}>เดือนที่ {m}</option>
-                  ))}
-                </select>
-                <input
-                  type="number"
-                  value={archiveYear}
-                  onChange={(e) => setArchiveYear(Number(e.target.value))}
-                  className="w-28 h-9 px-3 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold"
-                />
-                <button
-                  type="submit"
-                  disabled={isArchiving}
-                  className="h-9 px-4 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-sm"
-                >
-                  <Archive className="w-4 h-4" />
-                  {isArchiving ? "กำลังย้าย..." : "เริ่มจัดเก็บสำรอง"}
-                </button>
-              </div>
-            </form>
+            <p className="text-xs text-slate-500">
+              บันทึกกิจกรรมที่ถูก Archive จะถูกแยกจัดเก็บเพื่อความรวดเร็วของฐานข้อมูลหลัก คุณสามารถเลือกกู้คืนกลับมาดูเมื่อใดก็ได้
+            </p>
 
-            {/* Archives List & Restore */}
-            <div className="space-y-3">
-              <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                <RotateCcw className="w-4 h-4 text-purple-600" />
-                รายการไฟล์จัดเก็บสำรองที่สามารถคืนค่าได้ (Restorable Archives)
-              </h4>
-
+            <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
               {archives.length === 0 ? (
-                <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/40 text-center text-xs text-slate-400">
-                  ยังไม่มีไฟล์จัดเก็บสำรองในระบบ
+                <div className="text-center py-6 text-slate-400 text-xs">
+                  ยังไม่มีประวัติการ Archive ในระบบ
                 </div>
               ) : (
-                <div className="space-y-2 max-h-48 overflow-y-auto custom-scrollbar pr-1">
-                  {archives.map(arch => (
-                    <div
-                      key={arch.id}
-                      className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-700 flex items-center justify-between text-xs"
-                    >
-                      <div>
-                        <div className="font-bold text-slate-900 dark:text-white">
-                          ประจำเดือน {arch.batchName} ({arch.logCount} รายการ)
-                        </div>
-                        <div className="text-[10px] text-slate-400">
-                          จัดเก็บเมื่อ: {new Date(arch.createdAt).toLocaleDateString("th-TH")}
-                        </div>
+                archives.map((arch) => (
+                  <div key={arch.id} className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-700/60 text-xs">
+                    <div>
+                      <div className="font-bold text-slate-800 dark:text-slate-200">{arch.name}</div>
+                      <div className="text-[10px] text-slate-400">
+                        {arch.logCount} รายการ • สร้างเมื่อ {new Date(arch.createdAt).toLocaleDateString("th-TH")}
                       </div>
-                      <button
-                        onClick={() => handleRestoreArchive(arch.id, arch.batchName)}
-                        className="px-3 py-1.5 rounded-xl bg-purple-50 text-purple-700 hover:bg-purple-100 dark:bg-purple-950/50 dark:text-purple-300 font-bold border border-purple-200 dark:border-purple-800 transition flex items-center gap-1"
-                      >
-                        <RotateCcw className="w-3.5 h-3.5" /> คืนค่า Archive
-                      </button>
                     </div>
-                  ))}
-                </div>
+                    <button
+                      onClick={async () => {
+                        if (confirm(`คุณต้องการกู้คืน ${arch.name} กลับสู่ตารางหลักหรือไม่?`)) {
+                          const res = await restoreSystemLogArchiveAction(arch.id);
+                          if (res.success) {
+                            alert("กู้คืนข้อมูลสำเร็จ");
+                            fetchArchives();
+                            fetchLogs();
+                          } else {
+                            alert("เกิดข้อผิดพลาด: " + res.error);
+                          }
+                        }
+                      }}
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold transition text-[11px]"
+                    >
+                      <RotateCcw className="w-3 h-3" />
+                      กู้คืน
+                    </button>
+                  </div>
+                ))
               )}
+            </div>
+
+            <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end">
+              <button
+                onClick={() => setIsArchiveModalOpen(false)}
+                className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-xs font-bold text-slate-700 dark:text-slate-200 transition"
+              >
+                ปิดหน้าต่าง
+              </button>
             </div>
           </div>
         </div>
       )}
-    </motion.div>
+    </div>
   );
 }

@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useSession } from "@/lib/auth-client";
-import { updateProfile, getMySignature, setUserSignature, removeUserSignature } from "@/app/actions/user";
+import { updateProfile, setUserSignature, getMySignature } from "@/app/actions/user";
+import { exportStrokesToSvg, exportStrokesToDataUrl, Point } from "@/lib/vector-signature";
 import { authClient } from "@/lib/auth-client";
 import { Save, Lock, User as UserIcon, ShieldCheck, Mail, BookOpen, KeyRound, CheckCircle, Fingerprint, Camera, Trash2, Pencil, RefreshCw, Paperclip, Phone, MapPin, Award, X } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
@@ -93,7 +94,7 @@ const processSignatureFile = (file: File, removeBackground: boolean): Promise<st
           ctx.putImageData(imgData, 0, 0);
         }
 
-        resolve(canvas.toDataURL("image/webp", 0.85));
+        resolve(canvas.toDataURL("image/png"));
       };
       img.onerror = () => reject(new Error("Image load error"));
       img.src = e.target?.result as string;
@@ -131,6 +132,8 @@ export default function ProfilePage() {
 
   const [isDrawing, setIsDrawing] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const strokesRef = useRef<Point[][]>([]);
+  const currentStrokeRef = useRef<Point[]>([]);
   const avatarInputRef = useRef<HTMLInputElement | null>(null);
   const signatureInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -149,10 +152,13 @@ export default function ProfilePage() {
       setPhoneNumber(user.phoneNumber || "");
       setLevel(user.level || "");
       setAvatarPreview(user.image || "");
-      // Fetch signature on-demand from database
-      getMySignature().then((sig) => {
-        if (sig) setSignaturePreview(sig);
-      }).catch(console.error);
+      getMySignature().then((res) => {
+        if (res?.signatureUrl) {
+          setSignaturePreview(res.signatureUrl);
+        }
+      }).catch(() => {
+        if (user.signatureUrl) setSignaturePreview(user.signatureUrl);
+      });
     }
   }, [user]);
 
@@ -281,13 +287,16 @@ export default function ProfilePage() {
     ctx.lineWidth = 3;
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
-    ctx.strokeStyle = "#4F46E5"; // Indigo-600
+    ctx.strokeStyle = "#0f172a"; // Dark slate for high contrast and dark:invert compatibility
 
     const { x, y } = getCanvasCoords(e);
     ctx.beginPath();
     ctx.moveTo(x, y);
     ctx.lineTo(x + 0.1, y);
     ctx.stroke();
+
+    currentStrokeRef.current = [{ x, y }];
+    strokesRef.current.push(currentStrokeRef.current);
     setIsDrawing(true);
   };
 
@@ -300,6 +309,10 @@ export default function ProfilePage() {
     const { x, y } = getCanvasCoords(e);
     ctx.lineTo(x, y);
     ctx.stroke();
+
+    if (currentStrokeRef.current) {
+      currentStrokeRef.current.push({ x, y });
+    }
   };
 
   const stopDrawing = () => {
@@ -312,23 +325,29 @@ export default function ProfilePage() {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    strokesRef.current = [];
+    currentStrokeRef.current = [];
+  };
+
+  const getSignatureSrc = (src?: string | null) => {
+    if (!src) return "";
+    if (src.startsWith("<svg") || src.includes("<svg")) {
+      return "data:image/svg+xml;utf8," + encodeURIComponent(src);
+    }
+    return src;
   };
 
   const saveDrawnSignature = () => {
     if (!canvasRef.current) return;
     const canvas = canvasRef.current;
 
-    // Check if canvas is empty
-    const buffer = new Uint32Array(canvas.getContext("2d")!.getImageData(0, 0, canvas.width, canvas.height).data.buffer);
-    const isEmpty = !buffer.some(color => color !== 0);
-
-    if (isEmpty) {
+    if (!strokesRef.current || strokesRef.current.length === 0) {
       showToast("warning", t("drawSigWarning"));
       return;
     }
 
-    const base64 = canvas.toDataURL("image/webp", 0.85);
-    setSignaturePreview(base64);
+    const svgDataUrl = exportStrokesToDataUrl(strokesRef.current, canvas.width, canvas.height, "#0f172a", 3);
+    setSignaturePreview(svgDataUrl);
     clearCanvas();
     setIsDrawingModalOpen(false);
   };
@@ -337,7 +356,10 @@ export default function ProfilePage() {
     if (!signaturePreview) return;
     setSavingSignature(true);
     try {
-      await setUserSignature(signaturePreview);
+      const res = await setUserSignature(signaturePreview);
+      if (res?.signatureUrl) {
+        setSignaturePreview(res.signatureUrl);
+      }
       await refetch();
       showToast("success", t("sigSaveSuccess"));
     } catch (err) {
@@ -351,7 +373,7 @@ export default function ProfilePage() {
     if (!confirm(t("confirmDeleteSig"))) return;
     setSavingSignature(true);
     try {
-      await removeUserSignature();
+      await setUserSignature(null);
       await refetch();
       setSignaturePreview("");
       showToast("success", t("sigDeleteSuccess"));
@@ -670,7 +692,15 @@ export default function ProfilePage() {
                 <div className="h-44 rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/20 flex flex-col items-center justify-center overflow-hidden p-4 relative group">
                   {signaturePreview ? (
                     <>
-                      <img src={signaturePreview} alt="Signature Preview" className="max-h-full max-w-full object-contain dark:invert" />
+                      <img 
+                        src={getSignatureSrc(signaturePreview)} 
+                        alt="Signature Preview" 
+                        className="max-h-full max-w-full object-contain dark:invert"
+                        onError={(e) => {
+                          // If remote image fails to load, hide broken image icon cleanly
+                          (e.target as HTMLElement).style.display = "none";
+                        }}
+                      />
                       <button
                         onClick={handleDeleteSignature}
                         className="absolute bottom-3 right-3 w-8 h-8 rounded-xl bg-rose-50 dark:bg-rose-955 hover:bg-rose-100 dark:hover:bg-rose-900 flex items-center justify-center text-rose-600 transition-colors shadow-sm cursor-pointer"

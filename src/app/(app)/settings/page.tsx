@@ -9,7 +9,7 @@ import { getSystemSettings, updateSystemSettings, updateFooter, generateBackup, 
 
 import { archiveCurrentCycle, importBackupFromJson, exportLeaveBackup, importLeaveBackup, importLeaveSimple, getImportHistory, undoImportLeave } from "@/app/actions/archive";
 
-import { adminClearAllLeaveData } from "@/app/actions/leave";
+import { adminClearAllLeaveData, testGoogleDriveConnectionAction } from "@/app/actions/leave";
 import { updateAttendanceSettings } from "@/app/actions/attendance";
 import {
   getMemoSections,
@@ -136,6 +136,13 @@ export default function SettingsPage() {
   const [pdfFont, setPdfFont] = useState("Prompt");
 
   const [googleDriveFormat, setGoogleDriveFormat] = useState("PDF");
+  const [googleDriveUploadUrl, setGoogleDriveUploadUrl] = useState("");
+  const [googleDriveSecret, setGoogleDriveSecret] = useState("");
+  const [googleDriveFolderId, setGoogleDriveFolderId] = useState("");
+  const [showDriveSecret, setShowDriveSecret] = useState(false);
+  const [isTestingDrive, setIsTestingDrive] = useState(false);
+  const [driveTestMessage, setDriveTestMessage] = useState<{ type: "success" | "error"; text: string; url?: string } | null>(null);
+  const [showGasTemplate, setShowGasTemplate] = useState(false);
 
   const [lastLeaveMode, setLastLeaveMode] = useState("SAME");
 
@@ -457,6 +464,9 @@ export default function SettingsPage() {
       setPdfFont(data.pdfFont || "Prompt");
 
       setGoogleDriveFormat(data.googleDriveFormat || "PDF");
+      setGoogleDriveUploadUrl(data.googleDriveUploadUrl || "");
+      setGoogleDriveSecret(data.googleDriveSecret || "");
+      setGoogleDriveFolderId(data.googleDriveFolderId || "");
 
       setLastLeaveMode(data.lastLeaveMode || "SAME");
 
@@ -715,6 +725,12 @@ export default function SettingsPage() {
         pdfFont,
 
         googleDriveFormat,
+
+        googleDriveUploadUrl: googleDriveUploadUrl.trim() || null,
+
+        googleDriveSecret: googleDriveSecret.trim() || null,
+
+        googleDriveFolderId: googleDriveFolderId.trim() || null,
 
         lastLeaveMode,
 
@@ -5094,10 +5110,249 @@ export default function SettingsPage() {
 
                 ? "JPG may display Thai text better in some cases" 
 
-                : "JPG อาจแสดงตัวอักษรไทยได้ดีกว่าในบางกรณี"}
+                : "PDF เป็นรูปแบบมาตรฐาน (หรือเลือก JPG หากต้องการความเข้ากันได้ของฟอนต์)"}
 
             </p>
 
+          </div>
+
+          {/* Google Apps Script Webhook URL */}
+          <div className="space-y-2 md:col-span-2 pt-2 border-t border-gray-150 dark:border-gray-800">
+            <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 flex items-center justify-between">
+              <span>Google Apps Script Webhook URL (URL สำหรับบันทึกไฟล์ลง Drive)</span>
+              <span className="text-xs font-normal text-indigo-600 dark:text-indigo-400">Web App Exec URL</span>
+            </label>
+            <input
+              type="url"
+              value={googleDriveUploadUrl}
+              onChange={(e) => setGoogleDriveUploadUrl(e.target.value)}
+              placeholder="https://script.google.com/macros/s/.../exec"
+              className="w-full h-11 px-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm font-mono"
+            />
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              นำ Web App URL ที่ได้จากการ Deploy ใน Google Apps Script (เลือก Execute as: Me, Access: Anyone) มาวางที่นี่
+            </p>
+          </div>
+
+          {/* Google Drive Secret Token */}
+          <div className="space-y-2">
+            <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300">
+              Secret Token (รหัสยืนยันตัวตน Webhook)
+            </label>
+            <div className="relative">
+              <input
+                type={showDriveSecret ? "text" : "password"}
+                value={googleDriveSecret}
+                onChange={(e) => setGoogleDriveSecret(e.target.value)}
+                placeholder="ระบุรหัสผ่านที่ตั้งไว้ใน Google Apps Script"
+                className="w-full h-11 pl-4 pr-11 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm font-mono"
+              />
+              <button
+                type="button"
+                onClick={() => setShowDriveSecret(v => !v)}
+                className="absolute inset-y-0 right-0 px-3.5 flex items-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+              >
+                <Eye className="w-4 h-4" />
+              </button>
+            </div>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              รหัส Secret Token เพื่อความปลอดภัยในการส่งข้อมูลเข้าสู่ Google Drive
+            </p>
+          </div>
+
+          {/* Target Folder ID (Optional) */}
+          <div className="space-y-2">
+            <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300">
+              Google Drive Folder ID (โฟลเดอร์ปลายทาง - ไม่บังคับ)
+            </label>
+            <input
+              type="text"
+              value={googleDriveFolderId}
+              onChange={(e) => setGoogleDriveFolderId(e.target.value)}
+              placeholder="เช่น 1tTWD-YZHX4qzkMxVInF0-TDXI2R2TB7j"
+              className="w-full h-11 px-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm font-mono"
+            />
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              หากเว้นว่าง ระบบจะใช้โฟลเดอร์เริ่มต้นที่ระบุไว้ใน Google Apps Script
+            </p>
+          </div>
+
+          {/* Test Connection Button & Message */}
+          <div className="md:col-span-2 pt-2 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-gray-50 dark:bg-gray-800/50 p-4 rounded-2xl border border-gray-200 dark:border-gray-700">
+            <div>
+              <div className="text-xs font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                <HardDrive className="w-4 h-4 text-indigo-500" />
+                ทดสอบการเชื่อมต่อ Google Drive
+              </div>
+              <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">
+                ส่งไฟล์ทดสอบขนาดเล็กไปยัง Google Apps Script เพื่อตรวจสอบว่าบันทึกไฟล์ได้ถูกต้อง
+              </p>
+            </div>
+
+            <button
+              type="button"
+              disabled={isTestingDrive || !googleDriveUploadUrl}
+              onClick={async () => {
+                setIsTestingDrive(true);
+                setDriveTestMessage(null);
+                try {
+                  const res = await testGoogleDriveConnectionAction({
+                    uploadUrl: googleDriveUploadUrl,
+                    secret: googleDriveSecret,
+                    folderId: googleDriveFolderId,
+                    format: googleDriveFormat
+                  });
+                  if (res.success) {
+                    setDriveTestMessage({ type: "success", text: res.message || "เชื่อมต่อสำเร็จ", url: res.url });
+                  } else {
+                    setDriveTestMessage({ type: "error", text: res.error || "เกิดข้อผิดพลาด" });
+                  }
+                } catch (e: any) {
+                  setDriveTestMessage({ type: "error", text: e.message || "เกิดข้อผิดพลาดในการเชื่อมต่อ" });
+                } finally {
+                  setIsTestingDrive(false);
+                }
+              }}
+              className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-bold transition flex items-center gap-2 shadow-xs cursor-pointer shrink-0"
+            >
+              {isTestingDrive ? <Loader2 className="w-4 h-4 animate-spin" /> : <UploadCloud className="w-4 h-4" />}
+              {isTestingDrive ? "กำลังทดสอบ..." : "ทดสอบส่งไฟล์"}
+            </button>
+          </div>
+
+          {/* Test Result Banner */}
+          {driveTestMessage && (
+            <div className={`md:col-span-2 p-3.5 rounded-xl border text-xs flex items-start gap-2.5 ${
+              driveTestMessage.type === "success" 
+                ? "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300"
+                : "bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-300"
+            }`}>
+              {driveTestMessage.type === "success" ? (
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+              ) : (
+                <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+              )}
+              <div className="flex-1 space-y-1">
+                <div className="font-bold">{driveTestMessage.text}</div>
+                {driveTestMessage.url && (
+                  <a 
+                    href={driveTestMessage.url} 
+                    target="_blank" 
+                    rel="noreferrer" 
+                    className="underline text-[11px] block text-emerald-700 dark:text-emerald-300 hover:opacity-80"
+                  >
+                    เปิดดูไฟล์ตัวอย่างใน Google Drive ↗
+                  </a>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* GAS Script Template Accordion */}
+          <div className="md:col-span-2 pt-2">
+            <button
+              type="button"
+              onClick={() => setShowGasTemplate(v => !v)}
+              className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 cursor-pointer"
+            >
+              <Code className="w-3.5 h-3.5" />
+              {showGasTemplate ? "ซ่อนโค้ด Google Apps Script ตัวอย่าง" : "ดูโค้ดต้นฉบับ Google Apps Script (GAS) สำหรับนำไป Deploy ใน Google Drive"}
+            </button>
+
+            {showGasTemplate && (
+              <div className="mt-3 p-4 rounded-2xl bg-slate-900 text-slate-100 text-[11px] font-mono space-y-2 border border-slate-800">
+                <div className="flex items-center justify-between text-slate-400 pb-2 border-b border-slate-800">
+                  <span>Code.gs (Google Apps Script)</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const code = `/**
+ * KP e-Leave: Google Drive PDF/JPG Auto Uploader
+ * Deploy as: Web App (Execute as: Me, Who has access: Anyone)
+ */
+function doPost(e) {
+  try {
+    var data = JSON.parse(e.postData.contents);
+    var SECRET = "${googleDriveSecret || "YOUR_SECRET_TOKEN"}"; // ใส่ Secret ให้ตรงกับในระบบ
+
+    if (!data.secret || data.secret !== SECRET) {
+      return ContentService.createTextOutput(JSON.stringify({
+        success: false,
+        error: "Unauthorized: Invalid secret token"
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    var targetFolderId = data.folderId || "${googleDriveFolderId || "YOUR_GOOGLE_DRIVE_FOLDER_ID"}";
+    var folder = targetFolderId ? DriveApp.getFolderById(targetFolderId) : DriveApp.getRootFolder();
+
+    var file;
+    if (data.action === "upload_base64" && data.fileBase64) {
+      var decoded = Utilities.base64Decode(data.fileBase64);
+      var blob = Utilities.newBlob(decoded, data.mimeType || "application/pdf", data.filename || "leave_request.pdf");
+      file = folder.createFile(blob);
+    } else if (data.action === "upload" && data.printUrl) {
+      var response = UrlFetchApp.fetch(data.printUrl, { muteHttpExceptions: true });
+      var html = response.getContentText();
+      var blob = Utilities.newBlob(html, "text/html", "document.html").getAs("application/pdf");
+      blob.setName(data.filename ? data.filename + ".pdf" : "leave_request.pdf");
+      file = folder.createFile(blob);
+    } else {
+      return ContentService.createTextOutput(JSON.stringify({
+        success: false,
+        error: "Invalid action or payload"
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    return ContentService.createTextOutput(JSON.stringify({
+      success: true,
+      url: file.getUrl(),
+      id: file.getId()
+    })).setMimeType(ContentService.MimeType.JSON);
+
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({
+      success: false,
+      error: err.toString()
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
+}`;
+                      navigator.clipboard.writeText(code);
+                      alert("คัดลอกโค้ด Google Apps Script เรียบร้อยแล้ว");
+                    }}
+                    className="px-2.5 py-1 rounded bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-bold cursor-pointer"
+                  >
+                    คัดลอกโค้ด
+                  </button>
+                </div>
+                <pre className="overflow-x-auto whitespace-pre p-2 bg-slate-950 rounded-lg text-slate-300">
+{`function doPost(e) {
+  try {
+    var data = JSON.parse(e.postData.contents);
+    var SECRET = "${googleDriveSecret || "YOUR_SECRET_TOKEN"}";
+
+    if (!data.secret || data.secret !== SECRET) {
+      return ContentService.createTextOutput(JSON.stringify({
+        success: false,
+        error: "Unauthorized: Invalid secret token"
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    var targetFolderId = data.folderId || "${googleDriveFolderId || "YOUR_FOLDER_ID"}";
+    var folder = targetFolderId ? DriveApp.getFolderById(targetFolderId) : DriveApp.getRootFolder();
+
+    if (data.action === "upload_base64" && data.fileBase64) {
+      var decoded = Utilities.base64Decode(data.fileBase64);
+      var blob = Utilities.newBlob(decoded, data.mimeType || "application/pdf", data.filename);
+      var file = folder.createFile(blob);
+      return ContentService.createTextOutput(JSON.stringify({ success: true, url: file.getUrl() })).setMimeType(ContentService.MimeType.JSON);
+    }
+  } catch(err) {
+    return ContentService.createTextOutput(JSON.stringify({ success: false, error: err.toString() })).setMimeType(ContentService.MimeType.JSON);
+  }
+}`}
+                </pre>
+              </div>
+            )}
           </div>
 
         </div>

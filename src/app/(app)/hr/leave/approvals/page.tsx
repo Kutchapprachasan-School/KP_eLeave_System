@@ -1,7 +1,5 @@
-"use client";
+import { redirect } from "next/navigation";
 
-import ApprovalsPage from "@/app/(app)/approvals/page";
-
-export default function HRLeaveApprovalsPage() {
-  return <ApprovalsPage />;
+export default function Page() {
+  redirect("/approvals");
 }
