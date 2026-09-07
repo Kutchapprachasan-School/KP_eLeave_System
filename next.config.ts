@@ -6,6 +6,9 @@ const nextConfig: NextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
+  serverActions: {
+    bodySizeLimit: "15mb",
+  },
   turbopack: {
     root: path.resolve(__dirname),
   },

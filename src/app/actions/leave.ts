@@ -836,212 +836,234 @@ export async function getPendingApprovals() {
 
 // ========= Approve Leave Request (hierarchical) =========
 export async function approveLeaveRequest(id: string, pdfBase64?: string, skipDriveUpload: boolean = false) {
-  const session = await getSession();
-  const user = session.user as any;
+  try {
+    const session = await getSession();
+    const user = session.user as any;
 
-  const request = await prisma.leaveRequest.findUnique({
-    where: { id },
-    include: { user: { select: { name: true } } },
-  });
-
-  if (!request) throw new Error("Request not found");
-
-  let newStatus = "";
-  let updateData: any = {};
-
-  const isFinalApprover = await canGiveFinalApproval(session.user.id, user.position, user.role);
-
-  if (user.position === "หัวหน้างานบุคคล" && request.status === "PENDING_HEAD") {
-    // Head approves -> move to Executive
-    newStatus = "PENDING_EXEC";
-    const now = new Date();
-    let extraObj: any = {};
-    try {
-      if (request.extraFields) extraObj = JSON.parse(request.extraFields);
-    } catch {}
-    extraObj.headApprovedAt = now.toISOString();
-
-    updateData = { 
-      status: newStatus, 
-      headApproverId: session.user.id,
-      headApprovedAt: now,
-      extraFields: JSON.stringify(extraObj)
-    };
-  } else if (
-    isFinalApprover &&
-    request.status === "PENDING_EXEC"
-  ) {
-    // Director / configured final approver gives final approval
-    newStatus = "APPROVED";
-    
-    const fy = request.fiscalYear || getFiscalYear(request.startDate);
-    const maxApproved = await prisma.leaveRequest.aggregate({
-      where: { fiscalYear: fy, status: "APPROVED" },
-      _max: { approvedSeq: true }
+    const request = await prisma.leaveRequest.findUnique({
+      where: { id },
+      include: { user: { select: { name: true } } },
     });
-    const nextApprovedSeq = (maxApproved._max.approvedSeq || 0) + 1;
 
-    const now = new Date();
-    let extraObj: any = {};
-    try {
-      if (request.extraFields) extraObj = JSON.parse(request.extraFields);
-    } catch {}
-    extraObj.execApprovedAt = now.toISOString();
+    if (!request) return { success: false, error: "ไม่พบข้อมูลคำขอลา" };
 
-    updateData = { 
-      status: newStatus, 
-      execApproverId: session.user.id,
-      execApprovedAt: now,
-      approvedSeq: nextApprovedSeq,
-      fiscalYear: fy,
-      extraFields: JSON.stringify(extraObj)
-    };
-  } else {
-    throw new Error("Cannot approve this request with your role");
-  }
+    let newStatus = "";
+    let updateData: any = {};
 
-  await prisma.leaveRequest.update({ where: { id }, data: updateData });
+    const isFinalApprover = await canGiveFinalApproval(session.user.id, user.position, user.role);
 
-  if (newStatus === "APPROVED" && !skipDriveUpload) {
-    // Auto upload to Google Drive if configured
-    const settings = await prisma.systemSettings.findUnique({
-      where: { id: "default" },
-      select: { googleDriveUploadUrl: true, googleDriveSecret: true, googleDriveFolderId: true }
-    });
-    const uploadUrl = settings?.googleDriveUploadUrl || process.env.GOOGLE_DRIVE_UPLOAD_URL;
-    const secret = settings?.googleDriveSecret || process.env.GOOGLE_DRIVE_SECRET;
-    const folderId = settings?.googleDriveFolderId || undefined;
-    if (uploadUrl && secret) {
-      const fy = updateData.fiscalYear;
-      const seq = updateData.approvedSeq;
-      const formattedSeq = String(seq).padStart(3, "0");
-      const cleanName = (request.user?.name || "user").replace(/\s+/g, "_");
-      
-      const leaveLabels: Record<string, string> = {
-        SICK: "ลาป่วย",
-        MATERNITY: "ลาคลอดบุตร",
-        PATERNITY: "ลาช่วยเหลือภริยาคลอดบุตร",
-        PERSONAL: "ลากิจส่วนตัว",
-        VACATION: "ลาพักผ่อน",
-        MILITARY: "ลาเข้ารับการตรวจเลือกหรือเตรียมพล",
-        STUDY: "ลาศึกษาต่อ_ฝึกอบรม_หรือดูงาน",
-        INTERNATIONAL: "ลาไปปฏิบัติงานในองค์การระหว่างประเทศ",
-        SPOUSE: "ลาติดตามคู่สมรส",
-        REHABILITATION: "ลาฟื้นฟูสมรรถภาพด้านอาชีพ",
-        ORDINATION: "ลาอุปสมบท_ประกอบพิธีฮัจญ์"
+    if (user.position === "หัวหน้างานบุคคล" && request.status === "PENDING_HEAD" && !isFinalApprover) {
+      // Head approves -> move to Executive
+      newStatus = "PENDING_EXEC";
+      const now = new Date();
+      let extraObj: any = {};
+      try {
+        if (request.extraFields) extraObj = JSON.parse(request.extraFields);
+      } catch {}
+      extraObj.headApprovedAt = now.toISOString();
+
+      updateData = { 
+        status: newStatus, 
+        headApproverId: session.user.id,
+        headApprovedAt: now,
+        extraFields: JSON.stringify(extraObj)
       };
-      const leaveLabel = leaveLabels[request.type] || request.type;
-      const filename = `${fy}-${formattedSeq}-${cleanName}-${leaveLabel}`;
+    } else if (
+      isFinalApprover &&
+      (request.status === "PENDING_EXEC" || request.status === "PENDING_HEAD")
+    ) {
+      // Director / configured final approver gives final approval (can directly approve PENDING_HEAD or PENDING_EXEC)
+      newStatus = "APPROVED";
       
-      const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3001";
-      const cleanAppUrl = appUrl.endsWith("/") ? appUrl.slice(0, -1) : appUrl;
-      const printUrl = `${cleanAppUrl}/api/print-legacy/${id}?token=${secret}`;
-
-      const payload: any = {
-        secret: secret,
-        folderId: folderId,
-        filename: filename
-      };
-
-      if (pdfBase64) {
-        payload.action = "upload_base64";
-        payload.fileBase64 = pdfBase64;
-      } else {
-        payload.action = "upload";
-        payload.printUrl = printUrl;
-      }
-
-      fetch(uploadUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      })
-      .then(res => res.json())
-      .then(data => {
-        if (data.success) {
-          console.log(`Successfully uploaded leave request ${id} to Google Drive: ${data.url}`);
-          writeLog("SYSTEM", `อัปโหลดใบลา ${filename} ลง Google Drive สำเร็จ (${data.url})`, "system").catch(() => {});
-        } else {
-          console.error("Google Drive upload failed:", data.error);
-          writeLog("SYSTEM", `อัปโหลดใบลาลง Google Drive ล้มเหลว: ${data.error}`, "system").catch(() => {});
-        }
-      })
-      .catch(err => {
-        console.error("Google Drive upload fetch error:", err);
-        writeLog("SYSTEM", `อัปโหลดใบลาลง Google Drive เกิดข้อผิดพลาด: ${err.message}`, "system").catch(() => {});
+      const fy = request.fiscalYear || getFiscalYear(request.startDate);
+      const maxApproved = await prisma.leaveRequest.aggregate({
+        where: { fiscalYear: fy, status: "APPROVED" },
+        _max: { approvedSeq: true }
       });
+      const nextApprovedSeq = (maxApproved._max.approvedSeq || 0) + 1;
+
+      const now = new Date();
+      let extraObj: any = {};
+      try {
+        if (request.extraFields) extraObj = JSON.parse(request.extraFields);
+      } catch {}
+      if (!extraObj.headApprovedAt && request.status === "PENDING_HEAD") {
+        extraObj.headApprovedAt = now.toISOString();
+      }
+      extraObj.execApprovedAt = now.toISOString();
+
+      updateData = { 
+        status: newStatus, 
+        execApproverId: session.user.id,
+        execApprovedAt: now,
+        headApprovedAt: request.headApprovedAt || (request.status === "PENDING_HEAD" ? now : undefined),
+        headApproverId: request.headApproverId || (request.status === "PENDING_HEAD" ? session.user.id : undefined),
+        approvedSeq: nextApprovedSeq,
+        fiscalYear: fy,
+        extraFields: JSON.stringify(extraObj)
+      };
+    } else {
+      return { success: false, error: "ท่านไม่มีสิทธิ์ในการอนุมัติคำขอลาในสถานะนี้" };
     }
+
+    await prisma.leaveRequest.update({ where: { id }, data: updateData });
+
+    if (newStatus === "APPROVED" && !skipDriveUpload) {
+      // Auto upload to Google Drive if configured
+      const settings = await prisma.systemSettings.findUnique({
+        where: { id: "default" },
+        select: { 
+          googleDriveUploadUrl: true, 
+          googleDriveSecret: true, 
+          googleDriveFolderId: true,
+          googleAppsScriptId: true,
+          enableAutoPdfOnApproval: true
+        }
+      });
+      if (settings?.enableAutoPdfOnApproval) {
+        let uploadUrl = settings?.googleDriveUploadUrl?.trim() || process.env.GOOGLE_DRIVE_UPLOAD_URL;
+        if (!uploadUrl && settings?.googleAppsScriptId?.trim()) {
+          uploadUrl = `https://script.google.com/macros/s/${settings.googleAppsScriptId.trim()}/exec`;
+        }
+        const secret = settings?.googleDriveSecret?.trim() || process.env.GOOGLE_DRIVE_SECRET;
+        const folderId = settings?.googleDriveFolderId?.trim() || undefined;
+        if (uploadUrl && secret) {
+          const fy = updateData.fiscalYear;
+          const seq = updateData.approvedSeq;
+          const formattedSeq = String(seq).padStart(3, "0");
+          const cleanName = (request.user?.name || "user").replace(/\s+/g, "_");
+          
+          const leaveLabels: Record<string, string> = {
+            SICK: "ลาป่วย",
+            MATERNITY: "ลาคลอดบุตร",
+            PATERNITY: "ลาช่วยเหลือภริยาคลอดบุตร",
+            PERSONAL: "ลากิจส่วนตัว",
+            VACATION: "ลาพักผ่อน",
+            MILITARY: "ลาเข้ารับการตรวจเลือกหรือเตรียมพล",
+            STUDY: "ลาศึกษาต่อ_ฝึกอบรม_หรือดูงาน",
+            INTERNATIONAL: "ลาไปปฏิบัติงานในองค์การระหว่างประเทศ",
+            SPOUSE: "ลาติดตามคู่สมรส",
+            REHABILITATION: "ลาฟื้นฟูสมรรถภาพด้านอาชีพ",
+            ORDINATION: "ลาอุปสมบท_ประกอบพิธีฮัจญ์"
+          };
+          const leaveLabel = leaveLabels[request.type] || request.type;
+          const filename = `${fy}-${formattedSeq}-${cleanName}-${leaveLabel}`;
+          
+          const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3001";
+          const cleanAppUrl = appUrl.endsWith("/") ? appUrl.slice(0, -1) : appUrl;
+          const printUrl = `${cleanAppUrl}/api/print-legacy/${id}?token=${secret}`;
+
+          const payload: any = {
+            secret: secret,
+            folderId: folderId,
+            filename: filename
+          };
+
+          if (pdfBase64) {
+            payload.action = "upload_base64";
+            payload.fileBase64 = pdfBase64;
+          } else {
+            payload.action = "upload";
+            payload.printUrl = printUrl;
+          }
+
+          fetch(uploadUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+          })
+          .then(res => res.json())
+          .then(data => {
+            if (data.success) {
+              console.log(`Successfully uploaded leave request ${id} to Google Drive: ${data.url}`);
+              writeLog("SYSTEM", `อัปโหลดใบลา ${filename} ลง Google Drive สำเร็จ (${data.url})`, "system").catch(() => {});
+            } else {
+              console.error("Google Drive upload failed:", data.error);
+              writeLog("SYSTEM", `อัปโหลดใบลาลง Google Drive ล้มเหลว: ${data.error}`, "system").catch(() => {});
+            }
+          })
+          .catch(err => {
+            console.error("Google Drive upload fetch error:", err);
+            writeLog("SYSTEM", `อัปโหลดใบลาลง Google Drive เกิดข้อผิดพลาด: ${err.message}`, "system").catch(() => {});
+          });
+        }
+      }
+    }
+
+    await writeLog(
+      "APPROVE_LEAVE",
+      `${user.name} อนุมัติคำขอลาของ ${request.user?.name} (สถานะ: ${newStatus})`,
+      session.user.id
+    );
+
+    let statusText = "";
+    if (newStatus === "PENDING_EXEC") {
+      statusText = "✅ หัวหน้างานบุคคลอนุมัติแล้ว (รอผู้อำนวยการอนุมัติ)";
+    } else {
+      statusText = "✅ ผู้อำนวยการอนุมัติเรียบร้อยแล้ว";
+    }
+    const notifyMsg = formatLeaveMessage("APPROVE", request.user?.name || "ไม่ทราบชื่อ", request.type, request.startDate.toISOString().split("T")[0], request.endDate.toISOString().split("T")[0], undefined, {
+      actorName: `${user.name} (${user.position || user.role})`,
+      statusText,
+    });
+    await sendLineNotify(notifyMsg);
+
+    revalidatePath("/history");
+    revalidatePath("/dashboard");
+    revalidatePath("/approvals");
+
+    return { success: true, newStatus };
+  } catch (err: any) {
+    console.error("[approveLeaveRequest] Error:", err);
+    return { success: false, error: err?.message || "เกิดข้อผิดพลาดในการอนุมัติคำขอลา" };
   }
-
-  await writeLog(
-    "APPROVE_LEAVE",
-    `${user.name} อนุมัติคำขอลาของ ${request.user?.name} (สถานะ: ${newStatus})`,
-    session.user.id
-  );
-
-  let statusText = "";
-  if (newStatus === "PENDING_EXEC") {
-    statusText = "✅ หัวหน้างานบุคคลอนุมัติแล้ว (รอผู้อำนวยการอนุมัติ)";
-  } else {
-    statusText = "✅ ผู้อำนวยการอนุมัติเรียบร้อยแล้ว";
-  }
-  const notifyMsg = formatLeaveMessage("APPROVE", request.user?.name || "ไม่ทราบชื่อ", request.type, request.startDate.toISOString().split("T")[0], request.endDate.toISOString().split("T")[0], undefined, {
-    actorName: `${user.name} (${user.position || user.role})`,
-    statusText,
-  });
-  await sendLineNotify(notifyMsg);
-
-  revalidatePath("/history");
-  revalidatePath("/dashboard");
-  revalidatePath("/approvals");
-
-  return { success: true, newStatus };
 }
 
 export async function rejectLeaveRequest(id: string, rejectReason?: string, pdfBase64?: string, skipDriveUpload: boolean = false) {
-  const session = await getSession();
-  const user = session.user as any;
+  try {
+    const session = await getSession();
+    const user = session.user as any;
 
-  const request = await prisma.leaveRequest.findUnique({
-    where: { id },
-    include: { user: { select: { name: true } } },
-  });
+    const request = await prisma.leaveRequest.findUnique({
+      where: { id },
+      include: { user: { select: { name: true } } },
+    });
 
-  if (!request) throw new Error("Request not found");
+    if (!request) return { success: false, error: "ไม่พบข้อมูลคำขอลา" };
 
-  if (!rejectReason || !rejectReason.trim()) {
-    throw new Error("จำเป็นต้องระบุเหตุผลในการปฏิเสธการอนุมัติ");
-  }
+    if (!rejectReason || !rejectReason.trim()) {
+      return { success: false, error: "จำเป็นต้องระบุเหตุผลในการปฏิเสธการอนุมัติ" };
+    }
 
-  const isFinalApprover = await canGiveFinalApproval(session.user.id, user.position, user.role);
+    const isFinalApprover = await canGiveFinalApproval(session.user.id, user.position, user.role);
 
-  let canReject = false;
-  if (user.position === "หัวหน้างานบุคคล" && request.status === "PENDING_HEAD") {
-    canReject = true;
-  } else if (
-    isFinalApprover &&
-    request.status === "PENDING_EXEC"
-  ) {
-    canReject = true;
-  }
+    let canReject = false;
+    if (user.position === "หัวหน้างานบุคคล" && request.status === "PENDING_HEAD" && !isFinalApprover) {
+      canReject = true;
+    } else if (
+      isFinalApprover &&
+      (request.status === "PENDING_EXEC" || request.status === "PENDING_HEAD")
+    ) {
+      canReject = true;
+    }
 
-  if (!canReject) {
-    throw new Error("ไม่มีสิทธิ์ปฏิเสธคำขอลาในสถานะนี้");
-  }
+    if (!canReject) {
+      return { success: false, error: "ไม่มีสิทธิ์ปฏิเสธคำขอลาในสถานะนี้" };
+    }
 
-  let updateData: any = { status: "REJECTED", rejectReason: rejectReason.trim() };
-  if (user.position === "หัวหน้างานบุคคล" && !isFinalApprover) {
-    // HR Head rejecting at PENDING_HEAD stage
-    updateData.headApproverId = session.user.id;
-  } else if (isFinalApprover) {
-    // Director / configured final approver rejecting
-    updateData.execApproverId = session.user.id;
-  }
+    let updateData: any = { status: "REJECTED", rejectReason: rejectReason.trim() };
+    if (user.position === "หัวหน้างานบุคคล" && !isFinalApprover) {
+      // HR Head rejecting at PENDING_HEAD stage
+      updateData.headApproverId = session.user.id;
+    } else if (isFinalApprover) {
+      // Director / configured final approver rejecting
+      updateData.execApproverId = session.user.id;
+    }
 
-  await prisma.leaveRequest.update({
-    where: { id },
-    data: updateData,
-  });
+    await prisma.leaveRequest.update({
+      where: { id },
+      data: updateData,
+    });
 
   // Auto upload to Google Drive if configured
   const settings = await prisma.systemSettings.findUnique({
@@ -1127,6 +1149,10 @@ export async function rejectLeaveRequest(id: string, rejectReason?: string, pdfB
   revalidatePath("/approvals");
 
   return { success: true };
+} catch (err: any) {
+  console.error("[rejectLeaveRequest] Error:", err);
+  return { success: false, error: err?.message || "เกิดข้อผิดพลาดในการปฏิเสธคำขอลา" };
+}
 }
 
 // ========= Cancel Leave Request (by owner) =========
@@ -1959,13 +1985,22 @@ export async function uploadLeavePdf(id: string, pdfBase64: string, isRejected: 
   
   const settings = await prisma.systemSettings.findUnique({
     where: { id: "default" },
-    select: { googleDriveUploadUrl: true, googleDriveSecret: true, googleDriveFolderId: true }
+    select: { 
+      googleDriveUploadUrl: true, 
+      googleDriveSecret: true, 
+      googleDriveFolderId: true,
+      googleAppsScriptId: true,
+      enableAutoPdfOnApproval: true
+    }
   });
-  const uploadUrl = settings?.googleDriveUploadUrl || process.env.GOOGLE_DRIVE_UPLOAD_URL;
-  const secret = settings?.googleDriveSecret || process.env.GOOGLE_DRIVE_SECRET;
-  const folderId = settings?.googleDriveFolderId || undefined;
+  let uploadUrl = settings?.googleDriveUploadUrl?.trim() || process.env.GOOGLE_DRIVE_UPLOAD_URL;
+  if (!uploadUrl && settings?.googleAppsScriptId?.trim()) {
+    uploadUrl = `https://script.google.com/macros/s/${settings.googleAppsScriptId.trim()}/exec`;
+  }
+  const secret = settings?.googleDriveSecret?.trim() || process.env.GOOGLE_DRIVE_SECRET;
+  const folderId = settings?.googleDriveFolderId?.trim() || undefined;
   if (!uploadUrl || !secret) {
-    return { success: false, error: "ยังไม่ได้ตั้งค่า Google Drive Webhook URL หรือ Secret ในระบบ" };
+    return { success: false, error: "ยังไม่ได้ตั้งค่า Google Drive Webhook URL / GAS ID หรือ Secret ในระบบ" };
   }
 
   const request = await prisma.leaveRequest.findUnique({
@@ -2037,6 +2072,7 @@ export async function testGoogleDriveConnectionAction(params?: {
   secret?: string;
   folderId?: string;
   format?: string;
+  googleAppsScriptId?: string;
 }) {
   const session = await getSession();
   const user = session.user as any;
@@ -2046,16 +2082,20 @@ export async function testGoogleDriveConnectionAction(params?: {
 
   const settings = await prisma.systemSettings.findUnique({
     where: { id: "default" },
-    select: { googleDriveUploadUrl: true, googleDriveSecret: true, googleDriveFolderId: true, googleDriveFormat: true }
+    select: { googleDriveUploadUrl: true, googleDriveSecret: true, googleDriveFolderId: true, googleDriveFormat: true, googleAppsScriptId: true }
   });
 
-  const uploadUrl = params?.uploadUrl?.trim() || settings?.googleDriveUploadUrl || process.env.GOOGLE_DRIVE_UPLOAD_URL;
-  const secret = params?.secret?.trim() || settings?.googleDriveSecret || process.env.GOOGLE_DRIVE_SECRET;
-  const folderId = params?.folderId?.trim() || settings?.googleDriveFolderId || undefined;
+  let uploadUrl = params?.uploadUrl?.trim() || settings?.googleDriveUploadUrl?.trim() || process.env.GOOGLE_DRIVE_UPLOAD_URL;
+  const gasId = params?.googleAppsScriptId?.trim() || settings?.googleAppsScriptId?.trim();
+  if (!uploadUrl && gasId) {
+    uploadUrl = `https://script.google.com/macros/s/${gasId}/exec`;
+  }
+  const secret = params?.secret?.trim() || settings?.googleDriveSecret?.trim() || process.env.GOOGLE_DRIVE_SECRET;
+  const folderId = params?.folderId?.trim() || settings?.googleDriveFolderId?.trim() || undefined;
   const format = params?.format || settings?.googleDriveFormat || "PDF";
 
   if (!uploadUrl) {
-    return { success: false, error: "กรุณาระบุ Webhook URL ของ Google Apps Script" };
+    return { success: false, error: "กรุณาระบุ Webhook URL หรือ Google Apps Script ID (GAS ID)" };
   }
   if (!secret) {
     return { success: false, error: "กรุณาระบุ Secret Token สำหรับยืนยันตัวตน" };

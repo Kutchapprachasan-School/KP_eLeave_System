@@ -137,6 +137,8 @@ export default function SettingsPage() {
 
   const [googleDriveFormat, setGoogleDriveFormat] = useState("PDF");
   const [googleDriveUploadUrl, setGoogleDriveUploadUrl] = useState("");
+  const [googleAppsScriptId, setGoogleAppsScriptId] = useState("");
+  const [enableAutoPdfOnApproval, setEnableAutoPdfOnApproval] = useState(false);
   const [googleDriveSecret, setGoogleDriveSecret] = useState("");
   const [googleDriveFolderId, setGoogleDriveFolderId] = useState("");
   const [showDriveSecret, setShowDriveSecret] = useState(false);
@@ -465,6 +467,8 @@ export default function SettingsPage() {
 
       setGoogleDriveFormat(data.googleDriveFormat || "PDF");
       setGoogleDriveUploadUrl(data.googleDriveUploadUrl || "");
+      setGoogleAppsScriptId(data.googleAppsScriptId || "");
+      setEnableAutoPdfOnApproval(data.enableAutoPdfOnApproval === true);
       setGoogleDriveSecret(data.googleDriveSecret || "");
       setGoogleDriveFolderId(data.googleDriveFolderId || "");
 
@@ -727,6 +731,10 @@ export default function SettingsPage() {
         googleDriveFormat,
 
         googleDriveUploadUrl: googleDriveUploadUrl.trim() || null,
+
+        googleAppsScriptId: googleAppsScriptId.trim() || null,
+
+        enableAutoPdfOnApproval,
 
         googleDriveSecret: googleDriveSecret.trim() || null,
 
@@ -5116,8 +5124,77 @@ export default function SettingsPage() {
 
           </div>
 
+          {/* Toggle Auto PDF & Google Drive Upload */}
+          <div className="md:col-span-2 p-4 rounded-2xl bg-indigo-50/60 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/40">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                  <span className="text-sm font-bold text-gray-900 dark:text-white">
+                    สร้าง PDF และอัปโหลดลง Google Drive อัตโนมัติเมื่อ ผอ. อนุมัติ
+                  </span>
+                </div>
+                <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
+                  หากเปิดใช้งาน: ระบบจะประมวลผลสร้างเอกสาร PDF และส่งไปเก็บยัง Google Drive ทันทีที่ผู้อนุมัติลำดับสุดท้ายกดอนุมัติ<br className="hidden sm:inline" />
+                  หากปิดใช้งาน: ผู้อนุมัติสามารถอนุมัติได้ทันทีโดยไม่ต้องรอสร้างเอกสาร (ลดภาระเครื่องและเครือข่าย)
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2.5 shrink-0 self-start sm:self-center">
+                <button
+                  type="button"
+                  onClick={() => setEnableAutoPdfOnApproval(!enableAutoPdfOnApproval)}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none cursor-pointer ${
+                    enableAutoPdfOnApproval ? "bg-indigo-600" : "bg-gray-300 dark:bg-gray-700"
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                      enableAutoPdfOnApproval ? "translate-x-6" : "translate-x-1"
+                    }`}
+                  />
+                </button>
+                <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
+                  enableAutoPdfOnApproval 
+                    ? "bg-indigo-100 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300"
+                    : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400"
+                }`}>
+                  {enableAutoPdfOnApproval ? "เปิดใช้งาน" : "ปิดใช้งาน"}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Google Apps Script ID */}
+          <div className="space-y-2 md:col-span-2">
+            <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 flex items-center justify-between">
+              <span>รหัส Google Apps Script ID (GAS ID / Deployment ID)</span>
+              <span className="text-xs font-normal text-indigo-600 dark:text-indigo-400">กรอก ID แล้วระบบจะสร้าง Webhook URL ให้อัตโนมัติ</span>
+            </label>
+            <input
+              type="text"
+              value={googleAppsScriptId}
+              onChange={(e) => {
+                let val = e.target.value.trim();
+                const match = val.match(/\/macros\/s\/([^\/]+)\//);
+                if (match && match[1]) {
+                  val = match[1];
+                }
+                setGoogleAppsScriptId(val);
+                if (val) {
+                  setGoogleDriveUploadUrl(`https://script.google.com/macros/s/${val}/exec`);
+                }
+              }}
+              placeholder="เช่น AKfycbx1234567890abcdef..."
+              className="w-full h-11 px-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm font-mono"
+            />
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              รหัส Deployment ID ที่ได้จากการ Deploy Google Apps Script (หรือวาง Web App URL เต็มที่นี่ก็ได้)
+            </p>
+          </div>
+
           {/* Google Apps Script Webhook URL */}
-          <div className="space-y-2 md:col-span-2 pt-2 border-t border-gray-150 dark:border-gray-800">
+          <div className="space-y-2 md:col-span-2">
             <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 flex items-center justify-between">
               <span>Google Apps Script Webhook URL (URL สำหรับบันทึกไฟล์ลง Drive)</span>
               <span className="text-xs font-normal text-indigo-600 dark:text-indigo-400">Web App Exec URL</span>
@@ -5125,7 +5202,14 @@ export default function SettingsPage() {
             <input
               type="url"
               value={googleDriveUploadUrl}
-              onChange={(e) => setGoogleDriveUploadUrl(e.target.value)}
+              onChange={(e) => {
+                const url = e.target.value;
+                setGoogleDriveUploadUrl(url);
+                const match = url.match(/\/macros\/s\/([^\/]+)\//);
+                if (match && match[1]) {
+                  setGoogleAppsScriptId(match[1]);
+                }
+              }}
               placeholder="https://script.google.com/macros/s/.../exec"
               className="w-full h-11 px-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm font-mono"
             />
@@ -5191,13 +5275,14 @@ export default function SettingsPage() {
 
             <button
               type="button"
-              disabled={isTestingDrive || !googleDriveUploadUrl}
+              disabled={isTestingDrive || (!googleDriveUploadUrl && !googleAppsScriptId)}
               onClick={async () => {
                 setIsTestingDrive(true);
                 setDriveTestMessage(null);
                 try {
+                  const targetUrl = googleDriveUploadUrl.trim() || (googleAppsScriptId.trim() ? `https://script.google.com/macros/s/${googleAppsScriptId.trim()}/exec` : "");
                   const res = await testGoogleDriveConnectionAction({
-                    uploadUrl: googleDriveUploadUrl,
+                    uploadUrl: targetUrl,
                     secret: googleDriveSecret,
                     folderId: googleDriveFolderId,
                     format: googleDriveFormat

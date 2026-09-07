@@ -230,8 +230,17 @@ export default function ApprovalsPage() {
     setProcessingStatus("updating_db");
     try {
       const res = await approveLeaveRequest(id, undefined, true);
+      if (!res?.success) {
+        showToast("error", (lang === "en" ? "Error: " : "เกิดข้อผิดพลาด: ") + (res?.error || "ไม่สามารถอนุมัติได้"));
+        return;
+      }
       
-      if (res?.newStatus === "APPROVED") {
+      const shouldUploadPdf = Boolean(
+        settings?.enableAutoPdfOnApproval && 
+        (settings?.googleDriveUploadUrl || settings?.googleAppsScriptId)
+      );
+
+      if (res?.newStatus === "APPROVED" && shouldUploadPdf) {
         setProcessingStatus("loading_iframe");
         let result: { base64: string; mimeType: string } | undefined = undefined;
         try {
@@ -243,12 +252,17 @@ export default function ApprovalsPage() {
 
         if (result) {
           setProcessingStatus("uploading");
-          const uploadRes = await uploadLeavePdf(id, result.base64, false, result.mimeType);
-          if (uploadRes?.success) {
-            showToast("success", "อนุมัติใบลาและอัปโหลดสำเนาลง Google Drive สำเร็จ");
-          } else if (uploadRes?.error) {
-            console.warn("Google Drive upload notice:", uploadRes.error);
-            showToast("warning", `อนุมัติสำเร็จ (หมายเหตุ Google Drive: ${uploadRes.error})`);
+          try {
+            const uploadRes = await uploadLeavePdf(id, result.base64, false, result.mimeType);
+            if (uploadRes?.success) {
+              showToast("success", "อนุมัติใบลาและอัปโหลดสำเนาลง Google Drive สำเร็จ");
+            } else if (uploadRes?.error) {
+              console.warn("Google Drive upload notice:", uploadRes.error);
+              showToast("warning", `อนุมัติสำเร็จ (หมายเหตุ Google Drive: ${uploadRes.error})`);
+            }
+          } catch (uploadErr: any) {
+            console.warn("uploadLeavePdf error:", uploadErr);
+            showToast("warning", `อนุมัติสำเร็จเรียบร้อยแล้ว (หมายเหตุ: ไม่สามารถส่งไฟล์ไป Google Drive: ${uploadErr?.message || "เกิดข้อผิดพลาด"})`);
           }
         } else {
           showToast("success", "อนุมัติคำขอลาเรียบร้อยแล้ว");
@@ -279,24 +293,42 @@ export default function ApprovalsPage() {
     setProcessingId(id);
     setProcessingStatus("updating_db");
     try {
-      await rejectLeaveRequest(id, trimmedReason, undefined, true);
-
-      setProcessingStatus("loading_iframe");
-      let result: { base64: string; mimeType: string } | undefined = undefined;
-      try {
-        result = await generatePdfForRequest(id);
-      } catch (pdfErr: any) {
-        console.error("Failed to generate PDF client-side:", pdfErr);
-        showToast("warning", t("rejectSuccessPdfError") + `\n\n${lang === "en" ? "Details" : "รายละเอียด"}: ${pdfErr?.message || pdfErr}`);
+      const res = await rejectLeaveRequest(id, trimmedReason, undefined, true);
+      if (!res?.success) {
+        showToast("error", (lang === "en" ? "Error: " : "เกิดข้อผิดพลาด: ") + (res?.error || t("operationFailed")));
+        return;
       }
 
-      if (result) {
-        setProcessingStatus("uploading");
-        const uploadRes = await uploadLeavePdf(id, result.base64, true, result.mimeType);
-        if (uploadRes?.success) {
-          showToast("success", "ปฏิเสธใบลาและอัปโหลดสำเนาลง Google Drive สำเร็จ");
-        } else if (uploadRes?.error) {
-          showToast("warning", `ปฏิเสธใบลาสำเร็จ (หมายเหตุ Google Drive: ${uploadRes.error})`);
+      const shouldUploadPdf = Boolean(
+        settings?.enableAutoPdfOnApproval && 
+        (settings?.googleDriveUploadUrl || settings?.googleAppsScriptId)
+      );
+
+      if (shouldUploadPdf) {
+        setProcessingStatus("loading_iframe");
+        let result: { base64: string; mimeType: string } | undefined = undefined;
+        try {
+          result = await generatePdfForRequest(id);
+        } catch (pdfErr: any) {
+          console.error("Failed to generate PDF client-side:", pdfErr);
+          showToast("warning", t("rejectSuccessPdfError") + `\n\n${lang === "en" ? "Details" : "รายละเอียด"}: ${pdfErr?.message || pdfErr}`);
+        }
+
+        if (result) {
+          setProcessingStatus("uploading");
+          try {
+            const uploadRes = await uploadLeavePdf(id, result.base64, true, result.mimeType);
+            if (uploadRes?.success) {
+              showToast("success", "ปฏิเสธใบลาและอัปโหลดสำเนาลง Google Drive สำเร็จ");
+            } else if (uploadRes?.error) {
+              showToast("warning", `ปฏิเสธใบลาสำเร็จ (หมายเหตุ Google Drive: ${uploadRes.error})`);
+            }
+          } catch (uploadErr: any) {
+            console.warn("uploadLeavePdf error:", uploadErr);
+            showToast("warning", `ปฏิเสธใบลาสำเร็จ (หมายเหตุ: ไม่สามารถส่งไฟล์ไป Google Drive: ${uploadErr?.message || "เกิดข้อผิดพลาด"})`);
+          }
+        } else {
+          showToast("success", "ปฏิเสธคำขอลาเรียบร้อยแล้ว");
         }
       } else {
         showToast("success", "ปฏิเสธคำขอลาเรียบร้อยแล้ว");

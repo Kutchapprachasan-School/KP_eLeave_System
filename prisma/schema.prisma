@@ -158,6 +158,8 @@ model SystemSettings {
   googleDriveFolderId          String?
   googleDriveSecret            String?
   googleDriveUploadUrl         String?
+  enableAutoPdfOnApproval      Boolean  @default(false)
+  googleAppsScriptId           String?
   enableRepair                 Boolean  @default(false)
   enableRepairLineNotify       Boolean  @default(true)
   repairLineChannelAccessToken String?

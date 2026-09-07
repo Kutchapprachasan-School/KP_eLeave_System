@@ -198,7 +198,7 @@ export class WorkflowEngine {
       eventType: PlatformEventType.PLANNING_APPROVED,
       payload: {
         sessionId: planningSessionId,
-        stageOrder,
+        stageOrder: stepOrder,
         approvedBy: approvedById,
         academicYear: session?.academicYear ?? 2569,
         term: session?.term ?? 1,
@@ -251,7 +251,7 @@ export class WorkflowEngine {
       eventType: PlatformEventType.PLANNING_REJECTED,
       payload: {
         sessionId: planningSessionId,
-        stageOrder,
+        stageOrder: stepOrder,
         rejectedBy: rejectedById,
         reason,
       },

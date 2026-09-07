@@ -236,6 +236,11 @@ export async function getSystemSettings() {
           pdfFont: row.pdfFont || "Prompt",
 
           googleDriveFormat: row.googleDriveFormat || "PDF",
+          googleDriveUploadUrl: row.googleDriveUploadUrl || "",
+          googleDriveSecret: row.googleDriveSecret || "",
+          googleDriveFolderId: row.googleDriveFolderId || "",
+          enableAutoPdfOnApproval: row.enableAutoPdfOnApproval ?? false,
+          googleAppsScriptId: row.googleAppsScriptId || "",
 
           lastLeaveMode: row.lastLeaveMode || "SAME",
 
@@ -287,6 +292,11 @@ export async function getSystemSettings() {
       pdfFont: "Prompt",
 
       googleDriveFormat: "PDF",
+      googleDriveUploadUrl: "",
+      googleDriveSecret: "",
+      googleDriveFolderId: "",
+      enableAutoPdfOnApproval: false,
+      googleAppsScriptId: "",
 
       lastLeaveMode: "SAME",
 
@@ -418,6 +428,8 @@ export async function updateSystemSettings(data: {
   googleDriveSecret?: string;
 
   googleDriveFolderId?: string;
+  enableAutoPdfOnApproval?: boolean;
+  googleAppsScriptId?: string;
 
   lastLeaveMode?: string;
 
@@ -516,6 +528,8 @@ export async function updateSystemSettings(data: {
         googleDriveSecret: data.googleDriveSecret !== undefined ? data.googleDriveSecret : undefined,
 
         googleDriveFolderId: data.googleDriveFolderId !== undefined ? data.googleDriveFolderId : undefined,
+        enableAutoPdfOnApproval: data.enableAutoPdfOnApproval !== undefined ? data.enableAutoPdfOnApproval : undefined,
+        googleAppsScriptId: data.googleAppsScriptId !== undefined ? data.googleAppsScriptId : undefined,
 
         lastLeaveMode: data.lastLeaveMode !== undefined ? data.lastLeaveMode : undefined,
 
@@ -605,6 +619,8 @@ export async function updateSystemSettings(data: {
         googleDriveSecret: data.googleDriveSecret || null,
 
         googleDriveFolderId: data.googleDriveFolderId || null,
+        enableAutoPdfOnApproval: data.enableAutoPdfOnApproval !== undefined ? data.enableAutoPdfOnApproval : false,
+        googleAppsScriptId: data.googleAppsScriptId || null,
 
         lastLeaveMode: data.lastLeaveMode || "SAME",
 

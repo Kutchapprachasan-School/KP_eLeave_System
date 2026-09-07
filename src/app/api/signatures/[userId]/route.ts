@@ -167,6 +167,7 @@ export async function GET(
         }
       }
     }
+  }
 
     // Attempt 3: If still not found in storage, check database for inline Base64/SVG fallback
     if (!buffer) {
