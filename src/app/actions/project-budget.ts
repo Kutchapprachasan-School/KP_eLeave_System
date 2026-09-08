@@ -472,7 +472,7 @@ export async function attachProjectFileAction(rawData: z.infer<typeof attachment
  */
 export async function ensureDefaultFiscalYearAction(year = 2569) {
   try {
-    const { user } = await verifyBudgetPermission("MANAGE");
+    const { user } = await verifyBudgetPermission("VIEW");
 
     let fy = await prisma.fiscalYear.findUnique({
       where: { year },

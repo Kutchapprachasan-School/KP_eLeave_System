@@ -113,7 +113,8 @@ model LeaveRequest {
   pendingSeq     Int?
   execApprovedAt DateTime?
   headApprovedAt DateTime?
-  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  attachments    FileAttachment[]
 }
 
 model SystemSettings {
@@ -190,7 +191,8 @@ model SystemSettings {
   supervisionMinPerTerm        Int      @default(2)
   supervisionDirectorRatio     Int      @default(40)
   supervisionDeptRatio         Int      @default(40)
-  supervisionSelfRatio         Int      @default(20)
+  supervisionSelfRatio         Int              @default(20)
+  attachments                  FileAttachment[]
 }
 
 model LeaveConfig {
@@ -304,6 +306,7 @@ model DocumentRecord {
   memoSection    MemoSection?       @relation(fields: [memoSectionId], references: [id])
   outgoingLinks  DocumentRelation[] @relation("FromDocument")
   incomingLinks  DocumentRelation[] @relation("ToDocument")
+  attachments    FileAttachment[]
 }
 
 model SigneePreset {
@@ -441,6 +444,7 @@ model IncomingDocument {
   routingSteps  DocumentRouting[]
   createdBy     User              @relation("IncomingDocCreator", fields: [createdById], references: [id], onDelete: Cascade)
   memoSection   MemoSection?      @relation(fields: [memoSectionId], references: [id])
+  attachments   FileAttachment[]
 }
 
 model DocumentRouting {
@@ -1606,5 +1610,112 @@ model ExpenseAttachment {
 
   @@index([expenseId], map: "idx_exp_attach_exp")
   @@index([uploadedByUserId], map: "idx_exp_attach_user")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Cloudflare R2 Universal Storage & Migration Models (Production-Grade)
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum AccessLevel {
+  PRIVATE
+  PUBLIC
+}
+
+enum StorageProviderType {
+  R2
+  LOCAL
+  SUPABASE
+  NEON
+}
+
+enum UploadStatus {
+  PENDING
+  COMMITTED
+  ABORTED
+}
+
+enum MigrationStatus {
+  PENDING
+  UPLOADED
+  VERIFIED
+  CUTOVER
+  FAILED
+}
+
+model FileAttachment {
+  id                 String              @id @default(cuid())
+  storageProvider    StorageProviderType @default(R2)
+  objectKey          String              @unique
+  originalFileName   String
+  mimeType           String
+  fileSize           BigInt
+  checksumSha256     String
+  accessLevel        AccessLevel         @default(PRIVATE)
+
+  // Explicit Relations with Restrict Integrity (Guards Official Government Records)
+  leaveRequestId     String?
+  leaveRequest       LeaveRequest?       @relation(fields: [leaveRequestId], references: [id], onDelete: Restrict)
+
+  incomingDocumentId String?
+  incomingDocument   IncomingDocument?   @relation(fields: [incomingDocumentId], references: [id], onDelete: Restrict)
+
+  documentRecordId   String?
+  documentRecord     DocumentRecord?     @relation(fields: [documentRecordId], references: [id], onDelete: Restrict)
+
+  systemSettingsId   String?
+  systemSettings     SystemSettings?     @relation(fields: [systemSettingsId], references: [id], onDelete: Restrict)
+
+  uploadLog          StorageUploadLog?
+
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+
+  @@index([leaveRequestId])
+  @@index([incomingDocumentId])
+  @@index([documentRecordId])
+  @@index([systemSettingsId])
+  @@index([objectKey])
+}
+
+model StorageUploadLog {
+  id               String          @id @default(cuid())
+  objectKey        String          @unique
+  bucket           String
+  originalFileName String
+  mimeType         String
+  fileSize         BigInt
+  checksumSha256   String
+  status           UploadStatus    @default(PENDING)
+  uploadedBy       String
+  fileAttachmentId String?         @unique
+  fileAttachment   FileAttachment? @relation(fields: [fileAttachmentId], references: [id], onDelete: SetNull)
+  createdAt        DateTime        @default(now())
+  committedAt      DateTime?
+  abortedAt        DateTime?
+  error            String?
+
+  @@index([status, createdAt])
+}
+
+model StorageMigrationLog {
+  id                   String          @id @default(cuid())
+  sourceTable          String
+  sourceRecordId       String
+  sourceField          String
+  attachmentSlot       Int             @default(0)
+  attachmentId         String?
+  sourceChecksumSha256 String
+  destinationObjectKey String?
+  destChecksumSha256   String?
+  status               MigrationStatus @default(PENDING)
+  errorMessage         String?
+  migratedAt           DateTime?
+  verifiedAt           DateTime?
+  cutoverAt            DateTime?
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @updatedAt
+
+  @@unique([sourceTable, sourceRecordId, sourceField, attachmentSlot])
+  @@index([status])
 }
 

@@ -142,6 +142,8 @@ export default function BudgetAffairsPage() {
         setFiscalYears(fyRes.data);
         activeFyId = fyRes.data[0].id;
         setSelectedFyId(activeFyId);
+      } else if (!fyRes.success) {
+        setActionError(fyRes.error);
       } else {
         // Seed default 2569
         const seedRes = await ensureDefaultFiscalYearAction(2569);
@@ -149,6 +151,8 @@ export default function BudgetAffairsPage() {
           activeFyId = seedRes.data.id;
           setFiscalYears([{ id: seedRes.data.id, year: seedRes.data.year, title: seedRes.data.title, status: seedRes.data.status }]);
           setSelectedFyId(activeFyId);
+        } else if (!seedRes.success) {
+          setActionError(seedRes.error);
         }
       }
 
@@ -166,6 +170,8 @@ export default function BudgetAffairsPage() {
         const metricsRes = await getFiscalYearDashboardAction(activeFyId);
         if (metricsRes.success && metricsRes.data) {
           setDashboardData(metricsRes.data);
+        } else if (!metricsRes.success) {
+          setActionError(metricsRes.error);
         }
       }
     });
