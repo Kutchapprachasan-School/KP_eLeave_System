@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState, useEffect, useTransition } from "react";
+import React, { useState, useEffect, useTransition, Suspense } from "react";
 import Link from "next/link";
-import { motion, AnimatePresence } from "framer-motion";
+import { useSearchParams, useRouter } from "next/navigation";
 import {
   Wallet,
   TrendingUp,
@@ -12,7 +12,6 @@ import {
   CheckCircle2,
   AlertCircle,
   Clock,
-  ArrowRightLeft,
   ChevronDown,
   ChevronUp,
   FileText,
@@ -23,16 +22,15 @@ import {
   Building2,
   Calendar,
   User,
-  ShieldCheck,
   Receipt,
   RotateCcw,
-  Check,
   X,
-  Lock,
   Paperclip,
   Layers,
-  ArrowUpRight,
-  Info
+  FileSpreadsheet,
+  Printer,
+  SlidersHorizontal,
+  Check,
 } from "lucide-react";
 import {
   getFiscalYearDashboardAction,
@@ -42,11 +40,8 @@ import {
   confirmTrancheDepositAction,
   createProjectAction,
   createActivityAction,
-  recordExpenseAction,
   recordAndApproveExpenseAction,
-  approveExpenseAction,
   reverseExpenseAction,
-  transferBudgetAction,
   attachProjectFileAction,
 } from "@/app/actions/project-budget";
 
@@ -68,11 +63,41 @@ const DEPARTMENTS = [
 
 function formatBaht(amount: any): string {
   const num = Number(amount);
-  return (isNaN(num) ? 0 : num).toLocaleString();
+  return (isNaN(num) ? 0 : num).toLocaleString(undefined, {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  });
 }
 
-export default function BudgetAffairsPage() {
-  const [mounted, setMounted] = useState(false);
+function BudgetAffairsSkeleton() {
+  return (
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 p-4 md:p-8 space-y-8 animate-pulse">
+      <div className="flex justify-between items-center border-b border-slate-200 dark:border-slate-800 pb-6">
+        <div className="space-y-2">
+          <div className="h-4 w-40 bg-slate-200 dark:bg-slate-800 rounded" />
+          <div className="h-8 w-72 bg-slate-200 dark:bg-slate-800 rounded" />
+        </div>
+        <div className="h-10 w-32 bg-slate-200 dark:bg-slate-800 rounded-2xl" />
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+        {[1, 2, 3, 4, 5, 6].map((i) => (
+          <div key={i} className="h-28 bg-white dark:bg-slate-900 rounded-3xl p-5 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
+            <div className="h-3 w-20 bg-slate-200 dark:bg-slate-800 rounded" />
+            <div className="h-6 w-24 bg-slate-200 dark:bg-slate-800 rounded" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function BudgetAffairsContent() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+
+  // Active view tab from URL query param: 'overview' | 'projects' | 'reports'
+  const currentView = searchParams.get("view") || "overview";
+
   const [loading, setLoading] = useState(true);
   const [isPending, startTransition] = useTransition();
   const [fiscalYears, setFiscalYears] = useState<Array<{ id: string; year: number; title: string; status: string }>>([]);
@@ -83,16 +108,30 @@ export default function BudgetAffairsPage() {
   const [selectedDeptFilter, setSelectedDeptFilter] = useState("ALL");
   const [expandedProjects, setExpandedProjects] = useState<Record<string, boolean>>({});
 
+  // Reports filters
+  const [reportStatusFilter, setReportStatusFilter] = useState("ALL");
+  const [reportSearchQuery, setReportSearchQuery] = useState("");
+
   // Modals
   const [showDepositModal, setShowDepositModal] = useState(false);
   const [selectedTrancheForDeposit, setSelectedTrancheForDeposit] = useState<any>(null);
+
   const [showProjectModal, setShowProjectModal] = useState(false);
+
   const [showActivityModal, setShowActivityModal] = useState(false);
   const [selectedProjectForActivity, setSelectedProjectForActivity] = useState<any>(null);
+
   const [showExpenseModal, setShowExpenseModal] = useState(false);
-  const [selectedAllocationForExpense, setSelectedAllocationForExpense] = useState<any>(null);
+  const [expenseModalContext, setExpenseModalContext] = useState<{
+    activityId?: string;
+    activityName?: string;
+    allocations?: Array<{ id: string; trancheName?: string; trancheNo?: number; allocatedAmount: number; spentAmount?: number }>;
+    selectedAllocationId?: string;
+  } | null>(null);
+
   const [showReverseModal, setShowReverseModal] = useState(false);
   const [selectedExpenseForReversal, setSelectedExpenseForReversal] = useState<any>(null);
+
   const [showAttachModal, setShowAttachModal] = useState(false);
   const [selectedProjectForAttach, setSelectedProjectForAttach] = useState<any>(null);
 
@@ -120,10 +159,11 @@ export default function BudgetAffairsPage() {
     name: "",
     responsibleUserId: "",
     allocatedAmount: "",
-    trancheAllocations: [] as Array<{ budgetTrancheId: string; allocatedAmount: string }>,
+    trancheAllocations: [] as Array<{ budgetTrancheId: string; name?: string; allocatedAmount: string }>,
   });
 
   const [expenseForm, setExpenseForm] = useState({
+    allocationId: "",
     title: "",
     amount: "",
     expenseDate: new Date().toISOString().split("T")[0],
@@ -139,7 +179,7 @@ export default function BudgetAffairsPage() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
 
-  // Initialize and load data safely
+  // Load Data
   const loadInitialData = async () => {
     setLoading(true);
     setActionError(null);
@@ -151,17 +191,12 @@ export default function BudgetAffairsPage() {
         setFiscalYears(fyRes.data);
         activeFyId = fyRes.data[0].id;
         setSelectedFyId(activeFyId);
-      } else if (fyRes && !fyRes.success) {
-        setActionError(fyRes.error);
       } else {
-        // Seed default 2569
         const seedRes = await ensureDefaultFiscalYearAction(2569);
         if (seedRes?.success && seedRes?.data) {
           activeFyId = seedRes.data.id;
           setFiscalYears([{ id: seedRes.data.id, year: seedRes.data.year, title: seedRes.data.title, status: seedRes.data.status }]);
           setSelectedFyId(activeFyId);
-        } else if (seedRes && !seedRes.success) {
-          setActionError(seedRes.error);
         }
       }
 
@@ -184,7 +219,7 @@ export default function BudgetAffairsPage() {
         }
       }
     } catch (err: any) {
-      console.error("BudgetAffairsPage loadInitialData error:", err);
+      console.error("loadInitialData error:", err);
       setActionError(err?.message || "เกิดข้อผิดพลาดในการโหลดข้อมูลงบประมาณ");
     } finally {
       setLoading(false);
@@ -192,7 +227,6 @@ export default function BudgetAffairsPage() {
   };
 
   useEffect(() => {
-    setMounted(true);
     loadInitialData();
   }, []);
 
@@ -218,6 +252,14 @@ export default function BudgetAffairsPage() {
     const fyId = e.target.value;
     setSelectedFyId(fyId);
     refreshDashboard(fyId);
+  };
+
+  const setViewTab = (tab: string) => {
+    if (tab === "overview") {
+      router.push("/budget");
+    } else {
+      router.push(`/budget?view=${tab}`);
+    }
   };
 
   const toggleExpandProject = (projectId: string) => {
@@ -254,15 +296,21 @@ export default function BudgetAffairsPage() {
 
         if (res?.success) {
           setShowDepositModal(false);
-          setActionSuccess("บันทึกการรับเงินเข้าบัญชีเรียบร้อยแล้ว");
-          setDepositForm({ amount: "", receivedDate: new Date().toISOString().split("T")[0], documentRef: "", bankStatement: "", notes: "" });
+          setActionSuccess(`ยืนยันเงินเข้า ${selectedTrancheForDeposit.name} จำนวน ${amountNum.toLocaleString()} บ. สำเร็จ`);
+          setDepositForm({
+            amount: "",
+            receivedDate: new Date().toISOString().split("T")[0],
+            documentRef: "",
+            bankStatement: "",
+            notes: "",
+          });
           await refreshDashboard();
         } else {
-          setActionError(res?.error || "เกิดข้อผิดพลาดในการบันทึกเงินเข้าบัญชี");
+          setActionError(res?.error || "เกิดข้อผิดพลาดในการยืนยันเงินเข้า");
         }
       } catch (err: any) {
         console.error("handleConfirmDeposit error:", err);
-        setActionError(err?.message || "เกิดข้อผิดพลาดในการบันทึกเงินเข้าบัญชี");
+        setActionError(err?.message || "เกิดข้อผิดพลาดในการยืนยันเงินเข้า");
       }
     });
   };
@@ -279,19 +327,24 @@ export default function BudgetAffairsPage() {
     }
 
     const targetSourceId = dashboardData?.budgetSources?.[0]?.id || dashboardData?.tranches?.[0]?.budgetSourceId;
-    if (!dashboardData?.fiscalYear?.id || !targetSourceId) {
-      setActionError("ไม่พบข้อมูลปีงบประมาณหรือแหล่งงบประมาณ");
+    if (!selectedFyId || !targetSourceId) {
+      setActionError("ไม่พบข้อมูลปีงบประมาณหรือแหล่งงบประมาณ กรุณารีเฟรชหน้าเว็บ");
+      return;
+    }
+
+    const leaderId = projectForm.leaderUserId || users[0]?.id;
+    if (!leaderId) {
+      setActionError("กรุณาเลือกหัวหน้าโครงการ");
       return;
     }
 
     startTransition(async () => {
       try {
-        // Call create project action
         const res = await createProjectAction({
           fiscalYearId: selectedFyId,
           budgetSourceId: targetSourceId,
           departmentName: projectForm.departmentName,
-          leaderUserId: projectForm.leaderUserId || users[0]?.id,
+          leaderUserId: leaderId,
           code: projectForm.code.trim(),
           name: projectForm.name.trim(),
           targetAcademicYear: projectForm.targetAcademicYear,
@@ -299,14 +352,15 @@ export default function BudgetAffairsPage() {
         });
 
         if (res?.success) {
-          // If attachment URL provided, attach it
           if (projectForm.attachmentUrl.trim() && res.data?.id) {
-            await attachProjectFileAction({
-              parentId: res.data.id,
-              storageProvider: "GOOGLE_DRIVE_LINK",
-              objectKey: projectForm.attachmentUrl.trim(),
-              originalFileName: "เอกสารเล่มโครงการ (ลิงก์)",
-            });
+            try {
+              await attachProjectFileAction({
+                parentId: res.data.id,
+                storageProvider: "GOOGLE_DRIVE_LINK",
+                objectKey: projectForm.attachmentUrl.trim(),
+                originalFileName: "เอกสารเล่มโครงการ (ลิงก์)",
+              });
+            } catch (_) {}
           }
 
           setShowProjectModal(false);
@@ -335,7 +389,6 @@ export default function BudgetAffairsPage() {
   const openActivityModal = (project: any) => {
     setSelectedProjectForActivity(project);
     const nextNo = (project.activities?.length || 0) + 1;
-    // Pre-fill tranche allocations with available tranches
     const defaultTranches = (dashboardData?.tranches || []).map((t: any) => ({
       budgetTrancheId: t.id,
       name: t.name,
@@ -376,7 +429,9 @@ export default function BudgetAffairsPage() {
 
     const sumTranches = validTranches.reduce((sum, t) => sum + t.allocatedAmount, 0);
     if (Math.abs(sumTranches - totalAllocNum) > 0.001) {
-      setActionError(`ยอดรวมการจัดสรรในแต่ละงวด (${sumTranches.toLocaleString()} บ.) ไม่เท่ากับงบประมาณกิจกรรม (${totalAllocNum.toLocaleString()} บ.)`);
+      setActionError(
+        `ยอดรวมการจัดสรรในแต่ละงวด (${sumTranches.toLocaleString()} บ.) ไม่เท่ากับงบประมาณกิจกรรม (${totalAllocNum.toLocaleString()} บ.)`
+      );
       return;
     }
 
@@ -405,10 +460,18 @@ export default function BudgetAffairsPage() {
     });
   };
 
-  // 4. Record Expense
-  const openExpenseModal = (allocationId: string, activityName: string) => {
-    setSelectedAllocationForExpense({ id: allocationId, activityName });
+  // 4. Record Expense Modal
+  const openExpenseModal = (activity: any) => {
+    const allocations = activity.trancheAllocations || [];
+    const defaultAllocId = allocations[0]?.id || activity.id;
+    setExpenseModalContext({
+      activityId: activity.id,
+      activityName: activity.name,
+      allocations,
+      selectedAllocationId: defaultAllocId,
+    });
     setExpenseForm({
+      allocationId: defaultAllocId,
       title: "",
       amount: "",
       expenseDate: new Date().toISOString().split("T")[0],
@@ -419,12 +482,18 @@ export default function BudgetAffairsPage() {
 
   const handleRecordExpense = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedAllocationForExpense) return;
+    if (!expenseModalContext) return;
     setActionError(null);
 
     const amountNum = parseFloat(expenseForm.amount);
     if (isNaN(amountNum) || amountNum <= 0) {
       setActionError("กรุณากรอกยอดเบิกจ่ายที่มากกว่า 0 บาท");
+      return;
+    }
+
+    const targetAllocId = expenseForm.allocationId || expenseModalContext.selectedAllocationId || expenseModalContext.activityId;
+    if (!targetAllocId) {
+      setActionError("กรุณาระบุรายการจัดสรรงวดเงินสำหรับการเบิกจ่าย");
       return;
     }
 
@@ -434,7 +503,7 @@ export default function BudgetAffairsPage() {
       try {
         const res = await recordAndApproveExpenseAction({
           idempotencyKey,
-          allocationId: selectedAllocationForExpense.id,
+          allocationId: targetAllocId,
           title: expenseForm.title.trim(),
           amount: amountNum,
           expenseDate: new Date(expenseForm.expenseDate),
@@ -443,7 +512,7 @@ export default function BudgetAffairsPage() {
 
         if (res?.success) {
           setShowExpenseModal(false);
-          setActionSuccess(`บันทึกการเบิกจ่าย "${expenseForm.title}" จำนวน ${amountNum.toLocaleString()} บ. สำเร็จ`);
+          setActionSuccess(`บันทึกการเบิกจ่าย "${expenseForm.title}" จำนวน ${amountNum.toLocaleString()} บ. เรียบร้อย`);
           await refreshDashboard();
         } else {
           setActionError(res?.error || "เกิดข้อผิดพลาดในการบันทึกการเบิกจ่าย");
@@ -456,6 +525,12 @@ export default function BudgetAffairsPage() {
   };
 
   // 5. Reverse Expense
+  const openReverseModal = (expense: any) => {
+    setSelectedExpenseForReversal(expense);
+    setReverseReason("");
+    setShowReverseModal(true);
+  };
+
   const handleReverseExpense = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedExpenseForReversal) return;
@@ -488,7 +563,7 @@ export default function BudgetAffairsPage() {
     });
   };
 
-  // Filter projects
+  // Filtered Projects
   const filteredProjects = (dashboardData?.projects || []).filter((p: any) => {
     const matchesSearch =
       p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -499,51 +574,25 @@ export default function BudgetAffairsPage() {
     return matchesSearch && matchesDept;
   });
 
-  if (!mounted || (loading && !dashboardData)) {
-    return (
-      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 p-4 md:p-8 space-y-8 text-slate-900 dark:text-slate-100 animate-pulse">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-6">
-          <div className="space-y-2">
-            <div className="h-4 w-40 bg-slate-200 dark:bg-slate-800 rounded-lg" />
-            <div className="h-8 w-80 bg-slate-200 dark:bg-slate-800 rounded-xl" />
-            <div className="h-4 w-64 bg-slate-200 dark:bg-slate-800 rounded-lg" />
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-36 bg-slate-200 dark:bg-slate-800 rounded-2xl" />
-            <div className="h-10 w-10 bg-slate-200 dark:bg-slate-800 rounded-2xl" />
-            <div className="h-10 w-32 bg-slate-200 dark:bg-slate-800 rounded-2xl" />
-          </div>
-        </div>
+  // Filtered Reports/Expenses
+  const allExpensesList: Array<any> = dashboardData?.allExpenses || [];
+  const filteredExpenses = allExpensesList.filter((exp: any) => {
+    const matchesSearch =
+      exp.title.toLowerCase().includes(reportSearchQuery.toLowerCase()) ||
+      (exp.receiptNo && exp.receiptNo.toLowerCase().includes(reportSearchQuery.toLowerCase())) ||
+      exp.projectName.toLowerCase().includes(reportSearchQuery.toLowerCase()) ||
+      exp.activityName.toLowerCase().includes(reportSearchQuery.toLowerCase());
 
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-          {[1, 2, 3, 4, 5, 6].map((i) => (
-            <div key={i} className="h-28 bg-white dark:bg-slate-900 rounded-3xl p-5 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
-              <div className="h-3 w-20 bg-slate-200 dark:bg-slate-800 rounded" />
-              <div className="h-6 w-24 bg-slate-200 dark:bg-slate-800 rounded" />
-              <div className="h-2 w-16 bg-slate-200 dark:bg-slate-800 rounded" />
-            </div>
-          ))}
-        </div>
+    const matchesStatus = reportStatusFilter === "ALL" || exp.status === reportStatusFilter;
+    return matchesSearch && matchesStatus;
+  });
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="h-64 bg-white dark:bg-slate-900 rounded-3xl p-5 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
-              <div className="h-4 w-1/2 bg-slate-200 dark:bg-slate-800 rounded" />
-              <div className="h-6 w-3/4 bg-slate-200 dark:bg-slate-800 rounded" />
-              <div className="space-y-2 pt-4">
-                <div className="h-3 w-full bg-slate-200 dark:bg-slate-800 rounded" />
-                <div className="h-3 w-full bg-slate-200 dark:bg-slate-800 rounded" />
-                <div className="h-3 w-full bg-slate-200 dark:bg-slate-800 rounded" />
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    );
+  if (loading) {
+    return <BudgetAffairsSkeleton />;
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 p-4 md:p-8 space-y-8 text-slate-900 dark:text-slate-100">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 p-4 md:p-8 space-y-6 text-slate-900 dark:text-slate-100">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-6">
         <div>
@@ -553,19 +602,19 @@ export default function BudgetAffairsPage() {
             <span>ฝ่ายบริหารงานงบประมาณ</span>
           </div>
           <h1 className="text-2xl md:text-3xl font-black tracking-tight text-slate-900 dark:text-white flex items-center gap-3">
-            <div className="p-2 rounded-2xl bg-emerald-600 text-white shadow-lg shadow-emerald-600/20">
+            <div className="p-2.5 rounded-2xl bg-emerald-600 text-white shadow-lg shadow-emerald-600/20">
               <Wallet className="w-7 h-7" />
             </div>
-            ระบบบริหารงบประมาณ & แผนงานโครงการ
+            ระบบบริหารงานงบประมาณ & แผนงานโครงการ
           </h1>
           <p className="text-xs md:text-sm text-slate-500 dark:text-slate-400 mt-1">
-            โรงเรียนกุดจับประชาสรรค์ — บัญชีคุมงวดเงิน 70%/30% และติดตามงบโครงการแบบเรียลไทม์
+            โรงเรียนกุดจับประชาสรรค์ — บัญชีคุม 4 งวดเงิน (70%/30%) แผนปฏิบัติการ และระบบเบิกจ่าย
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           {/* Year Selector */}
-          <div className="flex items-center gap-2 bg-white dark:bg-slate-900 p-2 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+          <div className="flex items-center gap-2 bg-white dark:bg-slate-900 px-3 py-2 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
             <Calendar className="w-4 h-4 text-emerald-600" />
             <select
               value={selectedFyId}
@@ -583,7 +632,7 @@ export default function BudgetAffairsPage() {
           <button
             onClick={() => refreshDashboard()}
             disabled={isPending}
-            className="p-2.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 transition shadow-sm"
+            className="p-2.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 transition shadow-sm cursor-pointer"
             title="รีเฟรชข้อมูล"
           >
             <RefreshCw className={`w-4 h-4 text-slate-600 dark:text-slate-300 ${isPending ? "animate-spin" : ""}`} />
@@ -591,12 +640,57 @@ export default function BudgetAffairsPage() {
 
           <button
             onClick={() => setShowProjectModal(true)}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md shadow-emerald-600/20 transition active:scale-95"
+            className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md shadow-emerald-600/20 transition active:scale-95 cursor-pointer"
           >
             <Plus className="w-4 h-4" />
             สร้างโครงการใหม่
           </button>
         </div>
+      </div>
+
+      {/* Sub-Pages Tab Navigation (Synchronized with Sidebar) */}
+      <div className="flex flex-wrap items-center gap-2 p-1.5 bg-slate-200/70 dark:bg-slate-900 rounded-2xl border border-slate-300/60 dark:border-slate-800">
+        <button
+          onClick={() => setViewTab("overview")}
+          className={`flex-1 min-w-[180px] flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs transition-all cursor-pointer ${
+            currentView === "overview"
+              ? "bg-white dark:bg-slate-800 text-emerald-700 dark:text-emerald-300 shadow-sm border border-slate-200/80 dark:border-slate-700"
+              : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+          }`}
+        >
+          <Wallet className="w-4 h-4" />
+          <span>บริหารงานงบประมาณ & พัสดุ</span>
+        </button>
+
+        <button
+          onClick={() => setViewTab("projects")}
+          className={`flex-1 min-w-[180px] flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs transition-all cursor-pointer ${
+            currentView === "projects"
+              ? "bg-white dark:bg-slate-800 text-emerald-700 dark:text-emerald-300 shadow-sm border border-slate-200/80 dark:border-slate-700"
+              : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+          }`}
+        >
+          <FileText className="w-4 h-4" />
+          <span>จัดสรรงบโครงการ & แผนงาน</span>
+          <span className="px-2 py-0.5 rounded-full text-[10px] bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-black">
+            {dashboardData?.projects?.length || 0}
+          </span>
+        </button>
+
+        <button
+          onClick={() => setViewTab("reports")}
+          className={`flex-1 min-w-[180px] flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs transition-all cursor-pointer ${
+            currentView === "reports"
+              ? "bg-white dark:bg-slate-800 text-emerald-700 dark:text-emerald-300 shadow-sm border border-slate-200/80 dark:border-slate-700"
+              : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+          }`}
+        >
+          <FileSpreadsheet className="w-4 h-4" />
+          <span>รายงานและการเบิกจ่าย</span>
+          <span className="px-2 py-0.5 rounded-full text-[10px] bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-black">
+            {allExpensesList.length}
+          </span>
+        </button>
       </div>
 
       {/* Notifications Alert */}
@@ -606,7 +700,7 @@ export default function BudgetAffairsPage() {
             <CheckCircle2 className="w-4 h-4 text-emerald-600" />
             <span>{actionSuccess}</span>
           </div>
-          <button onClick={() => setActionSuccess(null)} className="p-1 hover:bg-emerald-100 dark:hover:bg-emerald-900 rounded-lg">
+          <button onClick={() => setActionSuccess(null)} className="p-1 hover:bg-emerald-100 dark:hover:bg-emerald-900 rounded-lg cursor-pointer">
             <X className="w-3.5 h-3.5" />
           </button>
         </div>
@@ -618,410 +712,604 @@ export default function BudgetAffairsPage() {
             <AlertCircle className="w-4 h-4 text-rose-600" />
             <span>{actionError}</span>
           </div>
-          <button onClick={() => setActionError(null)} className="p-1 hover:bg-rose-100 dark:hover:bg-rose-900 rounded-lg">
+          <button onClick={() => setActionError(null)} className="p-1 hover:bg-rose-100 dark:hover:bg-rose-900 rounded-lg cursor-pointer">
             <X className="w-3.5 h-3.5" />
           </button>
         </div>
       )}
 
-      {/* 1. Grand Metric Overview Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-        <div className="bg-white dark:bg-slate-900 rounded-3xl p-5 border border-slate-200 dark:border-slate-800 shadow-sm space-y-1">
-          <div className="flex items-center justify-between text-slate-400">
-            <span className="text-[11px] font-semibold">งบประมาณตามแผน</span>
-            <FileText className="w-4 h-4 text-blue-500" />
+      {/* ======================================================== */}
+      {/* VIEW 1: OVERVIEW & 4 TRANCHES MONITOR */}
+      {/* ======================================================== */}
+      {currentView === "overview" && (
+        <div className="space-y-8 animate-in fade-in">
+          {/* Grand Metric Overview Cards */}
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+            <div className="bg-white dark:bg-slate-900 rounded-3xl p-5 border border-slate-200 dark:border-slate-800 shadow-sm space-y-1">
+              <div className="flex items-center justify-between text-slate-400">
+                <span className="text-[11px] font-semibold">งบประมาณตามแผน</span>
+                <FileText className="w-4 h-4 text-blue-500" />
+              </div>
+              <p className="text-lg md:text-xl font-black text-slate-900 dark:text-white">
+                ฿{formatBaht(dashboardData?.metrics?.totalPlanned)}
+              </p>
+              <p className="text-[10px] text-slate-400 font-medium">รวมทั้งปีงบประมาณ</p>
+            </div>
+
+            <div className="bg-white dark:bg-slate-900 rounded-3xl p-5 border border-slate-200 dark:border-slate-800 shadow-sm space-y-1">
+              <div className="flex items-center justify-between text-slate-400">
+                <span className="text-[11px] font-semibold">เงินโอนเข้าบัญชีจริง</span>
+                <DollarSign className="w-4 h-4 text-emerald-500" />
+              </div>
+              <p className="text-lg md:text-xl font-black text-emerald-600 dark:text-emerald-400">
+                ฿{formatBaht(dashboardData?.metrics?.totalReceived)}
+              </p>
+              <p className="text-[10px] text-slate-400 font-medium">จาก สพฐ. / ต้นสังกัด</p>
+            </div>
+
+            <div className="bg-white dark:bg-slate-900 rounded-3xl p-5 border border-slate-200 dark:border-slate-800 shadow-sm space-y-1">
+              <div className="flex items-center justify-between text-slate-400">
+                <span className="text-[11px] font-semibold">จัดสรรให้โครงการ</span>
+                <Layers className="w-4 h-4 text-purple-500" />
+              </div>
+              <p className="text-lg md:text-xl font-black text-purple-600 dark:text-purple-400">
+                ฿{formatBaht(dashboardData?.metrics?.totalAllocatedToProjects)}
+              </p>
+              <p className="text-[10px] text-slate-400 font-medium">ทุกโครงการรวมกัน</p>
+            </div>
+
+            <div className="bg-white dark:bg-slate-900 rounded-3xl p-5 border border-slate-200 dark:border-slate-800 shadow-sm space-y-1">
+              <div className="flex items-center justify-between text-slate-400">
+                <span className="text-[11px] font-semibold">เบิกจ่ายจริงสุทธิ</span>
+                <Receipt className="w-4 h-4 text-rose-500" />
+              </div>
+              <p className="text-lg md:text-xl font-black text-rose-600 dark:text-rose-400">
+                ฿{formatBaht(dashboardData?.metrics?.totalSpent)}
+              </p>
+              <p className="text-[10px] text-slate-400 font-medium">หักยอดคืนเงินแล้ว</p>
+            </div>
+
+            <div className="bg-gradient-to-br from-emerald-600 to-teal-700 rounded-3xl p-5 text-white shadow-lg shadow-emerald-600/20 space-y-1">
+              <div className="flex items-center justify-between text-emerald-200">
+                <span className="text-[11px] font-semibold">สภาพคล่องในคลัง</span>
+                <Wallet className="w-4 h-4" />
+              </div>
+              <p className="text-lg md:text-xl font-black">
+                ฿{formatBaht(dashboardData?.metrics?.netLiquidity)}
+              </p>
+              <p className="text-[10px] text-emerald-100 font-medium">เงินเข้าลบเงินจ่ายจริง</p>
+            </div>
+
+            <div className="bg-white dark:bg-slate-900 rounded-3xl p-5 border border-slate-200 dark:border-slate-800 shadow-sm space-y-1">
+              <div className="flex items-center justify-between text-slate-400">
+                <span className="text-[11px] font-semibold">เงินรับเข้ายังไม่จัดสรร</span>
+                <PieChart className="w-4 h-4 text-amber-500" />
+              </div>
+              <p className="text-lg md:text-xl font-black text-amber-600 dark:text-amber-400">
+                ฿{formatBaht(dashboardData?.metrics?.remainingUnallocatedInflow)}
+              </p>
+              <p className="text-[10px] text-slate-400 font-medium">พร้อมตั้งโครงการใหม่</p>
+            </div>
           </div>
-          <p className="text-lg md:text-xl font-black text-slate-900 dark:text-white">
-            ฿{formatBaht(dashboardData?.metrics?.totalPlanned)}
-          </p>
-          <p className="text-[10px] text-slate-400 font-medium">รวมทั้งปีงบประมาณ</p>
-        </div>
 
-        <div className="bg-white dark:bg-slate-900 rounded-3xl p-5 border border-slate-200 dark:border-slate-800 shadow-sm space-y-1">
-          <div className="flex items-center justify-between text-slate-400">
-            <span className="text-[11px] font-semibold">เงินโอนเข้าบัญชีจริง</span>
-            <DollarSign className="w-4 h-4 text-emerald-500" />
-          </div>
-          <p className="text-lg md:text-xl font-black text-emerald-600 dark:text-emerald-400">
-            ฿{formatBaht(dashboardData?.metrics?.totalReceived)}
-          </p>
-          <p className="text-[10px] text-slate-400 font-medium">จาก สพฐ. / ต้นสังกัด</p>
-        </div>
-
-        <div className="bg-white dark:bg-slate-900 rounded-3xl p-5 border border-slate-200 dark:border-slate-800 shadow-sm space-y-1">
-          <div className="flex items-center justify-between text-slate-400">
-            <span className="text-[11px] font-semibold">จัดสรรให้โครงการ</span>
-            <Layers className="w-4 h-4 text-purple-500" />
-          </div>
-          <p className="text-lg md:text-xl font-black text-purple-600 dark:text-purple-400">
-            ฿{formatBaht(dashboardData?.metrics?.totalAllocatedToProjects)}
-          </p>
-          <p className="text-[10px] text-slate-400 font-medium">ทุกโครงการรวมกัน</p>
-        </div>
-
-        <div className="bg-white dark:bg-slate-900 rounded-3xl p-5 border border-slate-200 dark:border-slate-800 shadow-sm space-y-1">
-          <div className="flex items-center justify-between text-slate-400">
-            <span className="text-[11px] font-semibold">เบิกจ่ายจริงสุทธิ</span>
-            <Receipt className="w-4 h-4 text-rose-500" />
-          </div>
-          <p className="text-lg md:text-xl font-black text-rose-600 dark:text-rose-400">
-            ฿{formatBaht(dashboardData?.metrics?.totalSpent)}
-          </p>
-          <p className="text-[10px] text-slate-400 font-medium">หักยอดคืนเงินแล้ว</p>
-        </div>
-
-        <div className="bg-gradient-to-br from-emerald-600 to-teal-700 rounded-3xl p-5 text-white shadow-lg shadow-emerald-600/20 space-y-1">
-          <div className="flex items-center justify-between text-emerald-200">
-            <span className="text-[11px] font-semibold">สภาพคล่องในคลัง</span>
-            <Wallet className="w-4 h-4" />
-          </div>
-          <p className="text-lg md:text-xl font-black">
-            ฿{formatBaht(dashboardData?.metrics?.netLiquidity)}
-          </p>
-          <p className="text-[10px] text-emerald-100 font-medium">เงินเข้าลบเงินจ่ายจริง</p>
-        </div>
-
-        <div className="bg-white dark:bg-slate-900 rounded-3xl p-5 border border-slate-200 dark:border-slate-800 shadow-sm space-y-1">
-          <div className="flex items-center justify-between text-slate-400">
-            <span className="text-[11px] font-semibold">เงินรับเข้ายังไม่จัดสรร</span>
-            <PieChart className="w-4 h-4 text-amber-500" />
-          </div>
-          <p className="text-lg md:text-xl font-black text-amber-600 dark:text-amber-400">
-            ฿{formatBaht(dashboardData?.metrics?.remainingUnallocatedInflow)}
-          </p>
-          <p className="text-[10px] text-slate-400 font-medium">พร้อมตั้งโครงการใหม่</p>
-        </div>
-      </div>
-
-      {/* 2. 4 Tranche Inflow Monitor (งวดเงิน 70%/30% ภาคเรียนที่ 1 และ 2) */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-base md:text-lg font-black text-slate-900 dark:text-white flex items-center gap-2">
-            <TrendingUp className="w-5 h-5 text-emerald-600" />
-            การจัดสรรงบประมาณ 4 งวด (รอบ 70% / 30% ประจำภาคเรียนที่ 1 และ 2)
-          </h2>
-          <span className="text-xs text-slate-500">เจ้าหน้าที่การเงินกด &quot;ยืนยันเงินเข้าบัญชี&quot; เมื่อมีเงินเข้าจริง</span>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {(dashboardData?.tranches || []).map((tranche: any) => {
-            const plannedNum = Number(tranche.plannedAmount) || 0;
-            const receivedNum = Number(tranche.receivedAmount) || 0;
-            const spentNum = Number(tranche.spentAmount) || 0;
-            const receivedPct = plannedNum > 0 ? (receivedNum / plannedNum) * 100 : 0;
-            const spentPct = receivedNum > 0 ? (spentNum / receivedNum) * 100 : 0;
-
-            return (
-              <div
-                key={tranche.id}
-                className="bg-white dark:bg-slate-900 rounded-3xl p-5 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between space-y-4 hover:border-emerald-300 dark:hover:border-emerald-700 transition"
+          {/* 4 Tranche Inflow Monitor */}
+          <div className="space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <h2 className="text-base md:text-lg font-black text-slate-900 dark:text-white flex items-center gap-2">
+                  <TrendingUp className="w-5 h-5 text-emerald-600" />
+                  การจัดสรรงบประมาณ 4 งวด (รอบ 70% / 30% ประจำภาคเรียนที่ 1 และ 2)
+                </h2>
+                <p className="text-xs text-slate-500">บัญชีคุมยอดเงินโอนเข้าจาก สพฐ. แบ่งตามภาคเรียนและรอบจัดสรร</p>
+              </div>
+              <button
+                onClick={() => setViewTab("projects")}
+                className="text-xs font-bold text-emerald-600 hover:underline inline-flex items-center gap-1"
               >
-                <div>
-                  <div className="flex items-center justify-between gap-2 mb-2">
-                    <span className="px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 text-[10px] font-bold text-slate-600 dark:text-slate-300">
-                      งวดที่ {tranche.trancheNo}
-                    </span>
-                    <span
-                      className={`px-2.5 py-1 rounded-xl text-[10px] font-bold ${
-                        tranche.status === "RECEIVED"
-                          ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
-                          : tranche.status === "PARTIAL"
-                          ? "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300"
-                          : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400"
-                      }`}
+                ดูแผนงานโครงการทั้งหมด &rarr;
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {(dashboardData?.tranches || []).map((tranche: any) => {
+                const plannedNum = Number(tranche.plannedAmount) || 0;
+                const receivedNum = Number(tranche.receivedAmount) || 0;
+                const spentNum = Number(tranche.spentAmount) || 0;
+                const receivedPct = plannedNum > 0 ? (receivedNum / plannedNum) * 100 : 0;
+                const spentPct = receivedNum > 0 ? (spentNum / receivedNum) * 100 : 0;
+
+                return (
+                  <div
+                    key={tranche.id}
+                    className="bg-white dark:bg-slate-900 rounded-3xl p-5 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between space-y-4 hover:border-emerald-300 dark:hover:border-emerald-700 transition"
+                  >
+                    <div>
+                      <div className="flex items-center justify-between gap-2 mb-2">
+                        <span className="px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 text-[10px] font-bold text-slate-600 dark:text-slate-300">
+                          งวดที่ {tranche.trancheNo}
+                        </span>
+                        <span
+                          className={`px-2.5 py-1 rounded-xl text-[10px] font-bold ${
+                            tranche.status === "RECEIVED"
+                              ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+                              : tranche.status === "PARTIAL"
+                              ? "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300"
+                              : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400"
+                          }`}
+                        >
+                          {tranche.status === "RECEIVED" ? "โอนเข้าครบแล้ว" : tranche.status === "PARTIAL" ? "โอนเข้าบางส่วน" : "รอยืนยันเงินเข้า"}
+                        </span>
+                      </div>
+
+                      <h3 className="font-extrabold text-sm text-slate-900 dark:text-white">{tranche.name}</h3>
+                      <p className="text-[11px] text-slate-400 mt-0.5">ปีการศึกษา {tranche.academicYear} ภาคเรียนที่ {tranche.semester}</p>
+
+                      <div className="mt-4 space-y-2 text-xs">
+                        <div className="flex justify-between text-slate-500">
+                          <span>แผนจัดสรร:</span>
+                          <span className="font-bold text-slate-800 dark:text-slate-200">฿{formatBaht(tranche.plannedAmount)}</span>
+                        </div>
+                        <div className="flex justify-between text-emerald-600 dark:text-emerald-400 font-semibold">
+                          <span>เงินเข้าบัญชีจริง:</span>
+                          <span className="font-black">฿{formatBaht(tranche.receivedAmount)}</span>
+                        </div>
+                        <div className="flex justify-between text-slate-500">
+                          <span>จัดสรรให้กิจกรรม:</span>
+                          <span className="font-bold text-slate-700 dark:text-slate-300">฿{formatBaht(tranche.allocatedAmount)}</span>
+                        </div>
+                        <div className="flex justify-between text-rose-600 dark:text-rose-400">
+                          <span>เบิกจ่ายไปแล้ว:</span>
+                          <span className="font-bold">฿{formatBaht(tranche.spentAmount)}</span>
+                        </div>
+                        <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex justify-between font-bold text-slate-900 dark:text-white">
+                          <span>สภาพคล่องคงเหลืองวด:</span>
+                          <span className="text-emerald-600 dark:text-emerald-400 font-black">฿{formatBaht(tranche.remainingLiquidity)}</span>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 space-y-1">
+                        <div className="flex justify-between text-[10px] text-slate-400 font-medium">
+                          <span>เงินเข้า ({receivedPct.toFixed(0)}%)</span>
+                          <span>ใช้ไป ({spentPct.toFixed(0)}%)</span>
+                        </div>
+                        <div className="w-full h-2 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden flex">
+                          <div style={{ width: `${Math.min(receivedPct, 100)}%` }} className="bg-emerald-500 h-full" />
+                        </div>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => {
+                        setSelectedTrancheForDeposit(tranche);
+                        setShowDepositModal(true);
+                      }}
+                      className="w-full py-2.5 rounded-2xl bg-emerald-50 dark:bg-emerald-950/50 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 text-xs font-bold transition flex items-center justify-center gap-1.5 border border-emerald-200 dark:border-emerald-800 cursor-pointer"
                     >
-                      {tranche.status === "RECEIVED" ? "โอนเข้าครบแล้ว" : tranche.status === "PARTIAL" ? "โอนเข้าบางส่วน" : "รอยืนยันเงินเข้า"}
-                    </span>
+                      <Plus className="w-3.5 h-3.5" />
+                      ยืนยันเงินเข้าบัญชี
+                    </button>
                   </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
 
-                  <h3 className="font-extrabold text-sm text-slate-900 dark:text-white">{tranche.name}</h3>
-                  <p className="text-[11px] text-slate-400 mt-0.5">ปีการศึกษา {tranche.academicYear} ภาคเรียนที่ {tranche.semester}</p>
+      {/* ======================================================== */}
+      {/* VIEW 2: PROJECTS & ACTIVITIES MASTER LEDGER */}
+      {/* ======================================================== */}
+      {currentView === "projects" && (
+        <div className="space-y-6 animate-in fade-in">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <h2 className="text-base md:text-lg font-black text-slate-900 dark:text-white flex items-center gap-2">
+                <Building2 className="w-5 h-5 text-emerald-600" />
+                แผนงานโครงการและกิจกรรมย่อย (Projects & Activities Ledger)
+              </h2>
+              <p className="text-xs text-slate-500">
+                กำหนดวงเงินโครงการ บันทึกกิจกรรมย่อย และจัดสรรลงงวดเงินประจำปีการศึกษา
+              </p>
+            </div>
 
-                  {/* Financial Breakdown */}
-                  <div className="mt-4 space-y-2 text-xs">
-                    <div className="flex justify-between text-slate-500">
-                      <span>แผนจัดสรร:</span>
-                      <span className="font-bold text-slate-800 dark:text-slate-200">฿{formatBaht(tranche.plannedAmount)}</span>
-                    </div>
-                    <div className="flex justify-between text-emerald-600 dark:text-emerald-400 font-semibold">
-                      <span>เงินเข้าบัญชีจริง:</span>
-                      <span className="font-black">฿{formatBaht(tranche.receivedAmount)}</span>
-                    </div>
-                    <div className="flex justify-between text-slate-500">
-                      <span>จัดสรรให้กิจกรรม:</span>
-                      <span className="font-bold text-slate-700 dark:text-slate-300">฿{formatBaht(tranche.allocatedAmount)}</span>
-                    </div>
-                    <div className="flex justify-between text-rose-600 dark:text-rose-400">
-                      <span>เบิกจ่ายไปแล้ว:</span>
-                      <span className="font-bold">฿{formatBaht(tranche.spentAmount)}</span>
-                    </div>
-                    <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex justify-between font-bold text-slate-900 dark:text-white">
-                      <span>สภาพคล่องคงเหลืองวด:</span>
-                      <span className="text-emerald-600 dark:text-emerald-400 font-black">฿{formatBaht(tranche.remainingLiquidity)}</span>
-                    </div>
-                  </div>
+            {/* Search & Filters */}
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="relative">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="ค้นหาชื่อโครงการ, รหัส..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-9 pr-4 py-2 text-xs rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 outline-none focus:ring-2 focus:ring-emerald-500/20 w-48 md:w-64"
+                />
+              </div>
 
-                  {/* Progress Bars */}
-                  <div className="mt-4 space-y-1">
-                    <div className="flex justify-between text-[10px] text-slate-400 font-medium">
-                      <span>เงินเข้า ({receivedPct.toFixed(0)}%)</span>
-                      <span>ใช้ไป ({spentPct.toFixed(0)}%)</span>
-                    </div>
-                    <div className="w-full h-2 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden flex">
-                      <div style={{ width: `${Math.min(receivedPct, 100)}%` }} className="bg-emerald-500 h-full" />
-                    </div>
-                  </div>
+              <select
+                value={selectedDeptFilter}
+                onChange={(e) => setSelectedDeptFilter(e.target.value)}
+                className="py-2 px-3 text-xs font-medium rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 outline-none text-slate-700 dark:text-slate-300 cursor-pointer"
+              >
+                <option value="ALL">ทุกฝ่ายงาน / กลุ่มสาระฯ</option>
+                {DEPARTMENTS.map((dept) => (
+                  <option key={dept} value={dept}>{dept}</option>
+                ))}
+              </select>
+
+              <button
+                onClick={() => setShowProjectModal(true)}
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm transition cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                สร้างโครงการ
+              </button>
+            </div>
+          </div>
+
+          {/* Projects List */}
+          <div className="space-y-4">
+            {filteredProjects.length === 0 ? (
+              <div className="p-12 text-center bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 space-y-3">
+                <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-400 flex items-center justify-center mx-auto">
+                  <FileText className="w-6 h-6" />
                 </div>
-
-                {/* Confirm Receipt Button */}
+                <h3 className="font-bold text-sm text-slate-700 dark:text-slate-300">ยังไม่มีโครงการในหมวดนี้</h3>
+                <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                  กดปุ่ม &quot;สร้างโครงการใหม่&quot; เพื่อเริ่มต้นตั้งแผนงานโครงการประจำปีงบประมาณ 2569
+                </p>
                 <button
-                  onClick={() => {
-                    setSelectedTrancheForDeposit(tranche);
-                    setShowDepositModal(true);
-                  }}
-                  className="w-full py-2.5 rounded-2xl bg-emerald-50 dark:bg-emerald-950/50 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 text-xs font-bold transition flex items-center justify-center gap-1.5 border border-emerald-200 dark:border-emerald-800"
+                  onClick={() => setShowProjectModal(true)}
+                  className="px-4 py-2 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs inline-flex items-center gap-2 cursor-pointer"
                 >
-                  <Plus className="w-3.5 h-3.5" />
-                  ยืนยันเงินเข้าบัญชี
+                  <Plus className="w-4 h-4" /> สร้างโครงการใหม่
                 </button>
               </div>
-            );
-          })}
-        </div>
-      </div>
+            ) : (
+              filteredProjects.map((project: any) => {
+                const isExpanded = expandedProjects[project.id] !== false;
+                const spentPct = project.allocatedAmount > 0 ? (project.spentAmount / project.allocatedAmount) * 100 : 0;
 
-      {/* 3. Projects & Activities Master Ledger */}
-      <div className="space-y-4">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <h2 className="text-base md:text-lg font-black text-slate-900 dark:text-white flex items-center gap-2">
-              <Building2 className="w-5 h-5 text-emerald-600" />
-              แผนงานโครงการและกิจกรรมย่อย (Projects & Activities Ledger)
-            </h2>
-            <p className="text-xs text-slate-500">
-              ติดตามงบประมาณที่ได้รับจัดสรร, ยอดเบิกจ่ายจริงรายกิจกรรม และยอดคงเหลือแต่ละโครงการ
-            </p>
+                return (
+                  <div
+                    key={project.id}
+                    className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden transition"
+                  >
+                    {/* Project Header Row */}
+                    <div className="p-5 md:p-6 flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-slate-50/50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-800">
+                      <div className="space-y-1.5">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="px-2.5 py-1 rounded-xl bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 text-[10px] font-black">
+                            {project.code}
+                          </span>
+                          {project.departmentName && (
+                            <span className="px-2.5 py-1 rounded-xl bg-slate-200 dark:bg-slate-800 text-[10px] font-semibold text-slate-700 dark:text-slate-300">
+                              {project.departmentName}
+                            </span>
+                          )}
+                          <span className="text-xs text-slate-400">ปีการศึกษา {project.targetAcademicYear}</span>
+                        </div>
+
+                        <h3 className="font-extrabold text-base md:text-lg text-slate-900 dark:text-white">
+                          {project.name}
+                        </h3>
+
+                        <div className="flex flex-wrap items-center gap-4 text-xs text-slate-500">
+                          <span className="flex items-center gap-1.5">
+                            <User className="w-3.5 h-3.5 text-slate-400" />
+                            หัวหน้าโครงการ: <strong className="text-slate-700 dark:text-slate-200">{project.leaderUser?.name || "ไม่ระบุ"}</strong>
+                          </span>
+
+                          {project.attachments?.map((att: any) => (
+                            <a
+                              key={att.id}
+                              href={att.objectKey}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 hover:underline font-semibold"
+                            >
+                              <ExternalLink className="w-3 h-3" />
+                              {att.originalFileName}
+                            </a>
+                          ))}
+
+                          <button
+                            onClick={() => {
+                              setSelectedProjectForAttach(project);
+                              setShowAttachModal(true);
+                            }}
+                            className="text-[11px] text-slate-400 hover:text-emerald-600 flex items-center gap-1 underline cursor-pointer"
+                          >
+                            <Paperclip className="w-3 h-3" /> แนบลิงก์ไฟล์
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Project Financial Summary & Actions */}
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+                        <div className="grid grid-cols-3 gap-3 bg-white dark:bg-slate-950 p-3 rounded-2xl border border-slate-200 dark:border-slate-800 text-center min-w-[300px]">
+                          <div>
+                            <p className="text-[10px] text-slate-400">งบจัดสรร</p>
+                            <p className="text-xs font-black text-slate-800 dark:text-slate-200">
+                              ฿{formatBaht(project.allocatedAmount)}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-[10px] text-rose-500">ใช้จ่ายแล้ว</p>
+                            <p className="text-xs font-black text-rose-600 dark:text-rose-400">
+                              ฿{formatBaht(project.spentAmount)}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-[10px] text-emerald-500">คงเหลือสุทธิ</p>
+                            <p className="text-xs font-black text-emerald-600 dark:text-emerald-400">
+                              ฿{formatBaht(project.remainingAmount)}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => openActivityModal(project)}
+                            className="px-3.5 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm flex items-center gap-1.5 transition active:scale-95 cursor-pointer"
+                          >
+                            <Plus className="w-3.5 h-3.5" /> เพิ่มกิจกรรม
+                          </button>
+
+                          <button
+                            onClick={() => toggleExpandProject(project.id)}
+                            className="p-2.5 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition cursor-pointer"
+                          >
+                            {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Activities List */}
+                    {isExpanded && (
+                      <div className="p-5 md:p-6 space-y-4">
+                        <div className="flex items-center justify-between text-xs font-bold text-slate-500">
+                          <span>รายการกิจกรรมย่อย ({project.activities?.length || 0} กิจกรรม)</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[11px] text-slate-400">เบิกจ่ายแล้ว {spentPct.toFixed(1)}%</span>
+                            <div className="w-24 h-2 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
+                              <div style={{ width: `${Math.min(spentPct, 100)}%` }} className="bg-emerald-500 h-full" />
+                            </div>
+                          </div>
+                        </div>
+
+                        {project.activities?.length === 0 ? (
+                          <div className="p-6 text-center bg-slate-50 dark:bg-slate-950/50 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 text-xs text-slate-400">
+                            ยังไม่มีกิจกรรมย่อยในโครงการนี้ กดปุ่ม &quot;+ เพิ่มกิจกรรม&quot; เพื่อระบุงวดเงินและผู้รับผิดชอบ
+                          </div>
+                        ) : (
+                          <div className="divide-y divide-slate-100 dark:divide-slate-800 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden">
+                            {project.activities.map((act: any) => (
+                              <div
+                                key={act.id}
+                                className="p-4 bg-white dark:bg-slate-900 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition"
+                              >
+                                <div className="space-y-1">
+                                  <div className="flex items-center gap-2">
+                                    <span className="w-6 h-6 rounded-lg bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 font-bold text-[10px] flex items-center justify-center">
+                                      {act.activityNo}
+                                    </span>
+                                    <h4 className="font-bold text-xs md:text-sm text-slate-800 dark:text-slate-100">
+                                      {act.name}
+                                    </h4>
+                                  </div>
+                                  <p className="text-[11px] text-slate-400 pl-8">
+                                    ผู้รับผิดชอบ: <strong className="text-slate-600 dark:text-slate-300">{act.responsibleUser?.name || "ไม่ระบุ"}</strong>
+                                  </p>
+                                </div>
+
+                                <div className="flex flex-wrap items-center justify-between md:justify-end gap-4 pl-8 md:pl-0">
+                                  <div className="flex items-center gap-4 text-xs">
+                                    <div className="text-right">
+                                      <p className="text-[10px] text-slate-400">งบจัดสรร</p>
+                                      <p className="font-bold text-slate-800 dark:text-slate-200">฿{formatBaht(act.allocatedAmount)}</p>
+                                    </div>
+                                    <div className="text-right">
+                                      <p className="text-[10px] text-rose-500">ใช้ไปแล้ว</p>
+                                      <p className="font-bold text-rose-600 dark:text-rose-400">฿{formatBaht(act.spentAmount)}</p>
+                                    </div>
+                                    <div className="text-right">
+                                      <p className="text-[10px] text-emerald-500">คงเหลือ</p>
+                                      <p className="font-black text-emerald-600 dark:text-emerald-400">฿{formatBaht(act.remainingAmount)}</p>
+                                    </div>
+                                  </div>
+
+                                  <button
+                                    onClick={() => openExpenseModal(act)}
+                                    className="px-3.5 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 text-[11px] font-bold border border-emerald-200 dark:border-emerald-800 transition flex items-center gap-1 cursor-pointer"
+                                  >
+                                    <Plus className="w-3 h-3" /> เบิกจ่าย
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* VIEW 3: REPORTS & DISBURSEMENTS */}
+      {/* ======================================================== */}
+      {currentView === "reports" && (
+        <div className="space-y-6 animate-in fade-in">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <h2 className="text-base md:text-lg font-black text-slate-900 dark:text-white flex items-center gap-2">
+                <FileSpreadsheet className="w-5 h-5 text-emerald-600" />
+                รายงานและการเบิกจ่ายงบประมาณ (Disbursements & Expenditure Ledger)
+              </h2>
+              <p className="text-xs text-slate-500">
+                ตรวจสอบประวัติการเบิกจ่ายเงินทุกโครงการ เลขที่ใบเสร็จ วันที่ และสถานะการเบิกจ่าย
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => window.print()}
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200 font-bold text-xs shadow-sm hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+              >
+                <Printer className="w-4 h-4 text-slate-500" />
+                พิมพ์รายงาน
+              </button>
+            </div>
           </div>
 
-          {/* Search & Filters */}
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="relative">
+          {/* Report KPI Badges */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200 dark:border-slate-800 shadow-sm">
+              <span className="text-[11px] text-slate-400 font-semibold">ยอดเบิกจ่ายสะสมทั้งสิ้น</span>
+              <p className="text-xl font-black text-rose-600 dark:text-rose-400 mt-1">
+                ฿{formatBaht(dashboardData?.metrics?.totalSpent)}
+              </p>
+            </div>
+
+            <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200 dark:border-slate-800 shadow-sm">
+              <span className="text-[11px] text-slate-400 font-semibold">จำนวนรายการทั้งหมด</span>
+              <p className="text-xl font-black text-slate-900 dark:text-white mt-1">
+                {allExpensesList.length} <span className="text-xs text-slate-400 font-normal">รายการ</span>
+              </p>
+            </div>
+
+            <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200 dark:border-slate-800 shadow-sm">
+              <span className="text-[11px] text-slate-400 font-semibold">อนุมัติเรียบร้อย</span>
+              <p className="text-xl font-black text-emerald-600 dark:text-emerald-400 mt-1">
+                {allExpensesList.filter((e) => e.status === "APPROVED").length}{" "}
+                <span className="text-xs text-slate-400 font-normal">รายการ</span>
+              </p>
+            </div>
+
+            <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200 dark:border-slate-800 shadow-sm">
+              <span className="text-[11px] text-slate-400 font-semibold">ยกเลิก/คืนเงิน</span>
+              <p className="text-xl font-black text-amber-600 dark:text-amber-400 mt-1">
+                {allExpensesList.filter((e) => e.status === "REVERSED").length}{" "}
+                <span className="text-xs text-slate-400 font-normal">รายการ</span>
+              </p>
+            </div>
+          </div>
+
+          {/* Filters */}
+          <div className="flex flex-wrap items-center gap-3 bg-white dark:bg-slate-900 p-3 rounded-2xl border border-slate-200 dark:border-slate-800">
+            <div className="relative flex-1 min-w-[200px]">
               <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
-                placeholder="ค้นหาชื่อโครงการ, รหัส..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9 pr-4 py-2 text-xs rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 outline-none focus:ring-2 focus:ring-emerald-500/20 w-48 md:w-64"
+                placeholder="ค้นหาชื่อรายการ, เลขที่ใบเสร็จ, ชื่อโครงการ..."
+                value={reportSearchQuery}
+                onChange={(e) => setReportSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-4 py-2 text-xs rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 outline-none focus:ring-2 focus:ring-emerald-500/20"
               />
             </div>
 
             <select
-              value={selectedDeptFilter}
-              onChange={(e) => setSelectedDeptFilter(e.target.value)}
-              className="py-2 px-3 text-xs font-medium rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 outline-none text-slate-700 dark:text-slate-300 cursor-pointer"
+              value={reportStatusFilter}
+              onChange={(e) => setReportStatusFilter(e.target.value)}
+              className="py-2 px-3 text-xs font-semibold rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 outline-none text-slate-700 dark:text-slate-200 cursor-pointer"
             >
-              <option value="ALL">ทุกฝ่ายงาน / กลุ่มสาระฯ</option>
-              {DEPARTMENTS.map((dept) => (
-                <option key={dept} value={dept}>{dept}</option>
-              ))}
+              <option value="ALL">สถานะทั้งหมด</option>
+              <option value="APPROVED">อนุมัติแล้ว (APPROVED)</option>
+              <option value="SUBMITTED">รอยืนยัน (SUBMITTED)</option>
+              <option value="REVERSED">ยกเลิกแล้ว (REVERSED)</option>
             </select>
           </div>
-        </div>
 
-        {/* Projects List */}
-        <div className="space-y-4">
-          {filteredProjects.length === 0 ? (
-            <div className="p-12 text-center bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 space-y-3">
-              <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-400 flex items-center justify-center mx-auto">
-                <FileText className="w-6 h-6" />
+          {/* Expenses Table */}
+          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+            {filteredExpenses.length === 0 ? (
+              <div className="p-12 text-center text-xs text-slate-400 space-y-2">
+                <FileSpreadsheet className="w-8 h-8 text-slate-300 mx-auto" />
+                <p className="font-bold text-slate-600 dark:text-slate-300">ไม่พบรายการเบิกจ่ายตามเงื่อนไข</p>
+                <p>คุณสามารถกดปุ่ม &quot;+ เบิกจ่าย&quot; ในแต่ละกิจกรรมเพื่อเริ่มบันทึกค่าใช้จ่าย</p>
               </div>
-              <h3 className="font-bold text-sm text-slate-700 dark:text-slate-300">ยังไม่มีโครงการในหมวดนี้</h3>
-              <p className="text-xs text-slate-400 max-w-sm mx-auto">
-                กดปุ่ม &quot;สร้างโครงการใหม่&quot; เพื่อเริ่มต้นตั้งแผนงานโครงการประจำปีงบประมาณ 2569
-              </p>
-              <button
-                onClick={() => setShowProjectModal(true)}
-                className="px-4 py-2 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs inline-flex items-center gap-2"
-              >
-                <Plus className="w-4 h-4" /> สร้างโครงการใหม่
-              </button>
-            </div>
-          ) : (
-            filteredProjects.map((project: any) => {
-              const isExpanded = expandedProjects[project.id] !== false; // Default expanded
-              const spentPct = project.allocatedAmount > 0 ? (project.spentAmount / project.allocatedAmount) * 100 : 0;
-
-              return (
-                <div
-                  key={project.id}
-                  className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden transition"
-                >
-                  {/* Project Header Row */}
-                  <div className="p-5 md:p-6 flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-slate-50/50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-800">
-                    <div className="space-y-1.5">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="px-2.5 py-1 rounded-xl bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 text-[10px] font-black">
-                          {project.code}
-                        </span>
-                        {project.departmentName && (
-                          <span className="px-2.5 py-1 rounded-xl bg-slate-200 dark:bg-slate-800 text-[10px] font-semibold text-slate-700 dark:text-slate-300">
-                            {project.departmentName}
-                          </span>
-                        )}
-                        <span className="text-xs text-slate-400">ปีการศึกษา {project.targetAcademicYear}</span>
-                      </div>
-
-                      <h3 className="font-extrabold text-base md:text-lg text-slate-900 dark:text-white">
-                        {project.name}
-                      </h3>
-
-                      <div className="flex flex-wrap items-center gap-4 text-xs text-slate-500">
-                        <span className="flex items-center gap-1.5">
-                          <User className="w-3.5 h-3.5 text-slate-400" />
-                          หัวหน้าโครงการ: <strong className="text-slate-700 dark:text-slate-200">{project.leaderUser?.name || "ไม่ระบุ"}</strong>
-                        </span>
-
-                        {/* Attachments */}
-                        {project.attachments?.map((att: any) => (
-                          <a
-                            key={att.id}
-                            href={att.objectKey}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 hover:underline font-semibold"
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-slate-500 text-[11px] font-bold uppercase tracking-wider">
+                      <th className="p-3.5">วันที่เบิกจ่าย</th>
+                      <th className="p-3.5">เลขที่ใบเสร็จ</th>
+                      <th className="p-3.5">โครงการ / ฝ่ายงาน</th>
+                      <th className="p-3.5">กิจกรรม</th>
+                      <th className="p-3.5">รายการค่าใช้จ่าย</th>
+                      <th className="p-3.5">งวดเงิน</th>
+                      <th className="p-3.5 text-right">จำนวนเงิน</th>
+                      <th className="p-3.5 text-center">สถานะ</th>
+                      <th className="p-3.5 text-center">การกระทำ</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {filteredExpenses.map((exp: any) => (
+                      <tr key={exp.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition">
+                        <td className="p-3.5 text-slate-600 dark:text-slate-300 whitespace-nowrap">
+                          {new Date(exp.expenseDate).toLocaleDateString("th-TH")}
+                        </td>
+                        <td className="p-3.5 font-mono text-[11px] text-slate-700 dark:text-slate-300">
+                          {exp.receiptNo || "-"}
+                        </td>
+                        <td className="p-3.5">
+                          <p className="font-bold text-slate-900 dark:text-white line-clamp-1">{exp.projectName}</p>
+                          <span className="text-[10px] text-slate-400">{exp.departmentName || exp.projectCode}</span>
+                        </td>
+                        <td className="p-3.5 text-slate-600 dark:text-slate-300 line-clamp-1">
+                          {exp.activityName}
+                        </td>
+                        <td className="p-3.5 font-bold text-slate-800 dark:text-slate-100">
+                          {exp.title}
+                        </td>
+                        <td className="p-3.5 text-slate-500 text-[11px] whitespace-nowrap">
+                          {exp.trancheName || `งวดที่ ${exp.trancheNo || "-"}`}
+                        </td>
+                        <td className="p-3.5 text-right font-black text-rose-600 dark:text-rose-400 whitespace-nowrap">
+                          ฿{formatBaht(exp.amount)}
+                        </td>
+                        <td className="p-3.5 text-center whitespace-nowrap">
+                          <span
+                            className={`px-2.5 py-1 rounded-xl text-[10px] font-bold ${
+                              exp.status === "APPROVED"
+                                ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+                                : exp.status === "REVERSED"
+                                ? "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300"
+                                : "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300"
+                            }`}
                           >
-                            <ExternalLink className="w-3 h-3" />
-                            {att.originalFileName}
-                          </a>
-                        ))}
-
-                        <button
-                          onClick={() => {
-                            setSelectedProjectForAttach(project);
-                            setShowAttachModal(true);
-                          }}
-                          className="text-[11px] text-slate-400 hover:text-emerald-600 flex items-center gap-1 underline"
-                        >
-                          <Paperclip className="w-3 h-3" /> แนบลิงก์ไฟล์
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Project Financial Summary & Action */}
-                    <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-                      <div className="grid grid-cols-3 gap-3 bg-white dark:bg-slate-950 p-3 rounded-2xl border border-slate-200 dark:border-slate-800 text-center min-w-[320px]">
-                        <div>
-                          <p className="text-[10px] text-slate-400">งบจัดสรร</p>
-                          <p className="text-xs font-black text-slate-800 dark:text-slate-200">
-                            ฿{formatBaht(project.allocatedAmount)}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-[10px] text-rose-500">ใช้จ่ายแล้ว</p>
-                          <p className="text-xs font-black text-rose-600 dark:text-rose-400">
-                            ฿{formatBaht(project.spentAmount)}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-[10px] text-emerald-500">คงเหลือสุทธิ</p>
-                          <p className="text-xs font-black text-emerald-600 dark:text-emerald-400">
-                            ฿{formatBaht(project.remainingAmount)}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => openActivityModal(project)}
-                          className="px-3.5 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm flex items-center gap-1.5 transition active:scale-95"
-                        >
-                          <Plus className="w-3.5 h-3.5" /> เพิ่มกิจกรรม
-                        </button>
-
-                        <button
-                          onClick={() => toggleExpandProject(project.id)}
-                          className="p-2.5 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition"
-                        >
-                          {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Activities List */}
-                  {isExpanded && (
-                    <div className="p-5 md:p-6 space-y-4">
-                      <div className="flex items-center justify-between text-xs font-bold text-slate-500">
-                        <span>รายการกิจกรรมย่อย ({project.activities?.length || 0} กิจกรรม)</span>
-                        <div className="flex items-center gap-2">
-                          <span className="text-[11px] text-slate-400">เบิกจ่ายแล้ว {spentPct.toFixed(1)}%</span>
-                          <div className="w-24 h-2 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
-                            <div style={{ width: `${Math.min(spentPct, 100)}%` }} className="bg-emerald-500 h-full" />
-                          </div>
-                        </div>
-                      </div>
-
-                      {project.activities?.length === 0 ? (
-                        <div className="p-6 text-center bg-slate-50 dark:bg-slate-950/50 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 text-xs text-slate-400">
-                          ยังไม่มีกิจกรรมย่อยในโครงการนี้ กดปุ่ม &quot;+ เพิ่มกิจกรรม&quot; เพื่อระบุงวดเงินและผู้รับผิดชอบ
-                        </div>
-                      ) : (
-                        <div className="divide-y divide-slate-100 dark:divide-slate-800 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden">
-                          {project.activities.map((act: any) => (
-                            <div
-                              key={act.id}
-                              className="p-4 bg-white dark:bg-slate-900 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition"
+                            {exp.status === "APPROVED" ? "อนุมัติแล้ว" : exp.status === "REVERSED" ? "ยกเลิกแล้ว" : "รอยืนยัน"}
+                          </span>
+                        </td>
+                        <td className="p-3.5 text-center whitespace-nowrap">
+                          {exp.status === "APPROVED" && (
+                            <button
+                              onClick={() => openReverseModal(exp)}
+                              className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-rose-50 text-slate-600 hover:text-rose-600 dark:bg-slate-800 dark:hover:bg-rose-950/40 text-[11px] font-semibold transition cursor-pointer"
+                              title="ขอยกเลิกและคืนยอดเงิน"
                             >
-                              <div className="space-y-1">
-                                <div className="flex items-center gap-2">
-                                  <span className="w-6 h-6 rounded-lg bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 font-bold text-[10px] flex items-center justify-center">
-                                    {act.activityNo}
-                                  </span>
-                                  <h4 className="font-bold text-xs md:text-sm text-slate-800 dark:text-slate-100">
-                                    {act.name}
-                                  </h4>
-                                </div>
-                                <p className="text-[11px] text-slate-400 pl-8">
-                                  ผู้รับผิดชอบ: <strong className="text-slate-600 dark:text-slate-300">{act.responsibleUser?.name || "ไม่ระบุ"}</strong>
-                                </p>
-                              </div>
-
-                              <div className="flex flex-wrap items-center justify-between md:justify-end gap-4 pl-8 md:pl-0">
-                                <div className="flex items-center gap-4 text-xs">
-                                  <div className="text-right">
-                                    <p className="text-[10px] text-slate-400">งบจัดสรร</p>
-                                    <p className="font-bold text-slate-800 dark:text-slate-200">฿{formatBaht(act.allocatedAmount)}</p>
-                                  </div>
-                                  <div className="text-right">
-                                    <p className="text-[10px] text-rose-500">ใช้ไปแล้ว</p>
-                                    <p className="font-bold text-rose-600 dark:text-rose-400">฿{formatBaht(act.spentAmount)}</p>
-                                  </div>
-                                  <div className="text-right">
-                                    <p className="text-[10px] text-emerald-500">คงเหลือ</p>
-                                    <p className="font-black text-emerald-600 dark:text-emerald-400">฿{formatBaht(act.remainingAmount)}</p>
-                                  </div>
-                                </div>
-
-                                <button
-                                  onClick={() => openExpenseModal(act.id, act.name)}
-                                  className="px-3 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 text-[11px] font-bold border border-emerald-200 dark:border-emerald-800 transition flex items-center gap-1"
-                                >
-                                  <Plus className="w-3 h-3" /> เบิกจ่าย
-                                </button>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              );
-            })
-          )}
+                              ขอยกเลิก
+                            </button>
+                          )}
+                          {exp.status === "REVERSED" && (
+                            <span className="text-[10px] text-slate-400 italic">คืนยอดแล้ว</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* ======================================================== */}
       {/* MODALS */}
@@ -1032,11 +1320,11 @@ export default function BudgetAffairsPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
           <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 md:p-8 max-w-md w-full border border-slate-200 dark:border-slate-800 shadow-2xl space-y-5">
             <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
-              <h3 className="font-extrabold text-base text-slate-900 dark:white flex items-center gap-2">
+              <h3 className="font-extrabold text-base text-slate-900 dark:text-white flex items-center gap-2">
                 <DollarSign className="w-5 h-5 text-emerald-600" />
                 ยืนยันเงินโอนเข้าบัญชีจริง
               </h3>
-              <button onClick={() => setShowDepositModal(false)} className="p-1 text-slate-400 hover:text-slate-600">
+              <button onClick={() => setShowDepositModal(false)} className="p-1 text-slate-400 hover:text-slate-600 cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -1088,7 +1376,7 @@ export default function BudgetAffairsPage() {
               </div>
 
               <div>
-                <label className="font-bold text-slate-700 dark:text-slate-300">บันทึกเพิ่มเติม / ลิงก์สเตทเมนต์</label>
+                <label className="font-bold text-slate-700 dark:text-slate-300">บันทึกเพิ่มเติม</label>
                 <textarea
                   rows={2}
                   placeholder="บันทึกช่วยจำ..."
@@ -1102,14 +1390,14 @@ export default function BudgetAffairsPage() {
                 <button
                   type="button"
                   onClick={() => setShowDepositModal(false)}
-                  className="w-1/2 py-2.5 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold"
+                  className="w-1/2 py-2.5 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold cursor-pointer"
                 >
                   ยกเลิก
                 </button>
                 <button
                   type="submit"
                   disabled={isPending}
-                  className="w-1/2 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-md shadow-emerald-600/20"
+                  className="w-1/2 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-md shadow-emerald-600/20 cursor-pointer"
                 >
                   {isPending ? "กำลังบันทึก..." : "ยืนยันเงินเข้า"}
                 </button>
@@ -1128,7 +1416,7 @@ export default function BudgetAffairsPage() {
                 <Plus className="w-5 h-5 text-emerald-600" />
                 สร้างแผนงานโครงการใหม่
               </h3>
-              <button onClick={() => setShowProjectModal(false)} className="p-1 text-slate-400 hover:text-slate-600">
+              <button onClick={() => setShowProjectModal(false)} className="p-1 text-slate-400 hover:text-slate-600 cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -1226,14 +1514,14 @@ export default function BudgetAffairsPage() {
                 <button
                   type="button"
                   onClick={() => setShowProjectModal(false)}
-                  className="w-1/2 py-2.5 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold"
+                  className="w-1/2 py-2.5 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold cursor-pointer"
                 >
                   ยกเลิก
                 </button>
                 <button
                   type="submit"
                   disabled={isPending}
-                  className="w-1/2 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-md shadow-emerald-600/20"
+                  className="w-1/2 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-md shadow-emerald-600/20 cursor-pointer"
                 >
                   {isPending ? "กำลังบันทึก..." : "สร้างโครงการ"}
                 </button>
@@ -1255,7 +1543,7 @@ export default function BudgetAffairsPage() {
                 </h3>
                 <p className="text-[11px] text-slate-400">โครงการ: {selectedProjectForActivity.name}</p>
               </div>
-              <button onClick={() => setShowActivityModal(false)} className="p-1 text-slate-400 hover:text-slate-600">
+              <button onClick={() => setShowActivityModal(false)} className="p-1 text-slate-400 hover:text-slate-600 cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -1307,7 +1595,23 @@ export default function BudgetAffairsPage() {
                     required
                     placeholder="เช่น 20000"
                     value={activityForm.allocatedAmount}
-                    onChange={(e) => setActivityForm({ ...activityForm, allocatedAmount: e.target.value })}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setActivityForm((prev) => {
+                        const updated = { ...prev, allocatedAmount: val };
+                        // If only 1 tranche has value, sync it
+                        if (prev.trancheAllocations.length > 0) {
+                          const nonZeros = prev.trancheAllocations.filter((t) => parseFloat(t.allocatedAmount) > 0);
+                          if (nonZeros.length <= 1) {
+                            updated.trancheAllocations = prev.trancheAllocations.map((t, idx) => ({
+                              ...t,
+                              allocatedAmount: idx === 0 ? val : "",
+                            }));
+                          }
+                        }
+                        return updated;
+                      });
+                    }}
                     className="w-full mt-1 p-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-bold text-emerald-600"
                   />
                 </div>
@@ -1315,16 +1619,16 @@ export default function BudgetAffairsPage() {
 
               {/* Tranche Allocation Split */}
               <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-800">
-                <label className="font-bold text-slate-700 dark:text-slate-300 flex items-center justify-between">
-                  <span>จัดสรรลงงวดเงิน (70% / 30%) *</span>
+                <div className="flex items-center justify-between">
+                  <label className="font-bold text-slate-700 dark:text-slate-300">จัดสรรลงงวดเงิน (70% / 30%) *</label>
                   <span className="text-[10px] text-slate-400">ระบุยอดเงินที่ใช้ในแต่ละงวด</span>
-                </label>
+                </div>
 
                 <div className="space-y-2">
                   {activityForm.trancheAllocations.map((t, idx) => (
                     <div key={t.budgetTrancheId} className="flex items-center gap-2">
-                      <span className="text-xs text-slate-600 dark:text-slate-400 w-1/2 truncate">
-                        {(t as any).name || `งวดที่ ${idx + 1}`}
+                      <span className="text-xs text-slate-600 dark:text-slate-400 w-1/2 truncate font-medium">
+                        {t.name || `งวดที่ ${idx + 1}`}
                       </span>
                       <input
                         type="number"
@@ -1347,14 +1651,14 @@ export default function BudgetAffairsPage() {
                 <button
                   type="button"
                   onClick={() => setShowActivityModal(false)}
-                  className="w-1/2 py-2.5 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold"
+                  className="w-1/2 py-2.5 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold cursor-pointer"
                 >
                   ยกเลิก
                 </button>
                 <button
                   type="submit"
                   disabled={isPending}
-                  className="w-1/2 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-md shadow-emerald-600/20"
+                  className="w-1/2 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-md shadow-emerald-600/20 cursor-pointer"
                 >
                   {isPending ? "กำลังบันทึก..." : "เพิ่มกิจกรรม"}
                 </button>
@@ -1365,7 +1669,7 @@ export default function BudgetAffairsPage() {
       )}
 
       {/* 4. Record Expense Modal */}
-      {showExpenseModal && selectedAllocationForExpense && (
+      {showExpenseModal && expenseModalContext && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
           <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 md:p-8 max-w-md w-full border border-slate-200 dark:border-slate-800 shadow-2xl space-y-5">
             <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
@@ -1374,14 +1678,32 @@ export default function BudgetAffairsPage() {
                   <Receipt className="w-5 h-5 text-emerald-600" />
                   บันทึกรายการเบิกจ่ายเงิน
                 </h3>
-                <p className="text-[11px] text-slate-400">กิจกรรม: {selectedAllocationForExpense.activityName}</p>
+                <p className="text-[11px] text-slate-400">กิจกรรม: {expenseModalContext.activityName}</p>
               </div>
-              <button onClick={() => setShowExpenseModal(false)} className="p-1 text-slate-400 hover:text-slate-600">
+              <button onClick={() => setShowExpenseModal(false)} className="p-1 text-slate-400 hover:text-slate-600 cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <form onSubmit={handleRecordExpense} className="space-y-4 text-xs">
+              {/* Tranche Allocation Selection if multiple */}
+              {expenseModalContext.allocations && expenseModalContext.allocations.length > 1 && (
+                <div>
+                  <label className="font-bold text-slate-700 dark:text-slate-300">เบิกจ่ายจากงวดเงิน *</label>
+                  <select
+                    value={expenseForm.allocationId}
+                    onChange={(e) => setExpenseForm({ ...expenseForm, allocationId: e.target.value })}
+                    className="w-full mt-1 p-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white cursor-pointer font-semibold"
+                  >
+                    {expenseModalContext.allocations.map((alloc) => (
+                      <option key={alloc.id} value={alloc.id}>
+                        {alloc.trancheName || `งวดที่ ${alloc.trancheNo}`} (จัดสรร ฿{formatBaht(alloc.allocatedAmount)})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               <div>
                 <label className="font-bold text-slate-700 dark:text-slate-300">รายการค่าใช้จ่าย / ใบสั่งซื้อ *</label>
                 <input
@@ -1434,14 +1756,14 @@ export default function BudgetAffairsPage() {
                 <button
                   type="button"
                   onClick={() => setShowExpenseModal(false)}
-                  className="w-1/2 py-2.5 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold"
+                  className="w-1/2 py-2.5 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold cursor-pointer"
                 >
                   ยกเลิก
                 </button>
                 <button
                   type="submit"
                   disabled={isPending}
-                  className="w-1/2 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-md shadow-emerald-600/20"
+                  className="w-1/2 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-md shadow-emerald-600/20 cursor-pointer"
                 >
                   {isPending ? "กำลังบันทึก..." : "บันทึกการเบิกจ่าย"}
                 </button>
@@ -1451,7 +1773,65 @@ export default function BudgetAffairsPage() {
         </div>
       )}
 
-      {/* 5. Attach Link Modal */}
+      {/* 5. Reverse Expense Modal */}
+      {showReverseModal && selectedExpenseForReversal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 md:p-8 max-w-md w-full border border-slate-200 dark:border-slate-800 shadow-2xl space-y-5">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <h3 className="font-extrabold text-base text-slate-900 dark:text-white flex items-center gap-2 text-rose-600">
+                <RotateCcw className="w-5 h-5" />
+                ขอยกเลิกรายการเบิกจ่าย
+              </h3>
+              <button onClick={() => setShowReverseModal(false)} className="p-1 text-slate-400 hover:text-slate-600 cursor-pointer">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleReverseExpense} className="space-y-4 text-xs">
+              <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-2xl space-y-1">
+                <p className="font-bold text-slate-800 dark:text-slate-200">{selectedExpenseForReversal.title}</p>
+                <p className="text-slate-500">
+                  จำนวน: <strong className="text-rose-600">฿{formatBaht(selectedExpenseForReversal.amount)}</strong>
+                </p>
+                <p className="text-[11px] text-slate-400">โครงการ: {selectedExpenseForReversal.projectName}</p>
+              </div>
+
+              <div>
+                <label className="font-bold text-slate-700 dark:text-slate-300">
+                  เหตุผลการขอยกเลิก / คืนเงิน (อย่างน้อย 5 ตัวอักษร) *
+                </label>
+                <textarea
+                  rows={3}
+                  required
+                  placeholder="เช่น เอกสารซ้ำซ้อน / ร้านค้าคืนเงิน..."
+                  value={reverseReason}
+                  onChange={(e) => setReverseReason(e.target.value)}
+                  className="w-full mt-1 p-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white"
+                />
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowReverseModal(false)}
+                  className="w-1/2 py-2.5 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold cursor-pointer"
+                >
+                  ปิด
+                </button>
+                <button
+                  type="submit"
+                  disabled={isPending}
+                  className="w-1/2 py-2.5 rounded-2xl bg-rose-600 hover:bg-rose-700 text-white font-bold shadow-md shadow-rose-600/20 cursor-pointer"
+                >
+                  {isPending ? "กำลังดำเนินการ..." : "ยืนยันยกเลิกและคืนยอด"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 6. Attach Link Modal */}
       {showAttachModal && selectedProjectForAttach && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
           <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 max-w-md w-full border border-slate-200 dark:border-slate-800 shadow-2xl space-y-4 text-xs">
@@ -1486,7 +1866,7 @@ export default function BudgetAffairsPage() {
               <button
                 type="button"
                 onClick={() => setShowAttachModal(false)}
-                className="w-1/2 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 font-bold"
+                className="w-1/2 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 font-bold cursor-pointer"
               >
                 ยกเลิก
               </button>
@@ -1503,7 +1883,7 @@ export default function BudgetAffairsPage() {
                   setShowAttachModal(false);
                   await refreshDashboard();
                 }}
-                className="w-1/2 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+                className="w-1/2 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold cursor-pointer"
               >
                 บันทึกลิงก์
               </button>
@@ -1512,5 +1892,13 @@ export default function BudgetAffairsPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function BudgetAffairsPage() {
+  return (
+    <Suspense fallback={<BudgetAffairsSkeleton />}>
+      <BudgetAffairsContent />
+    </Suspense>
   );
 }

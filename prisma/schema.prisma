@@ -1434,6 +1434,7 @@ model Project {
   departmentName     String?             // e.g. "ฝ่ายบริหารงานวิชาการ", "กลุ่มสาระการเรียนรู้วิทยาศาสตร์ฯ"
   leaderUserId       String
   leaderUser         User                @relation("ProjectLeader", fields: [leaderUserId], references: [id], onDelete: Restrict)
+  leaderName         String              @default("") // denormalized from User.name for quick display
   code               String              // e.g. "PRJ-2569-001"
   name               String              // ชื่อโครงการ
   targetAcademicYear Int                 // ปีการศึกษาเป้าหมาย e.g. 2569

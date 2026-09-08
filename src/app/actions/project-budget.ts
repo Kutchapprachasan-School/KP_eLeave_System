@@ -335,13 +335,30 @@ export async function createActivityAction(rawData: z.infer<typeof createActivit
 export async function recordExpenseAction(rawData: z.infer<typeof recordExpenseSchema>) {
   try {
     const validated = recordExpenseSchema.parse(rawData);
+
+    // Resolve allocationId: if given an activityId, look up its first tranche allocation
+    let targetAllocationId = validated.allocationId;
+    const existingAlloc = await prisma.activityTrancheAllocation.findUnique({
+      where: { id: targetAllocationId },
+      select: { id: true },
+    });
+    if (!existingAlloc) {
+      const fallbackAlloc = await prisma.activityTrancheAllocation.findFirst({
+        where: { activityId: targetAllocationId },
+        select: { id: true },
+      });
+      if (fallbackAlloc) {
+        targetAllocationId = fallbackAlloc.id;
+      }
+    }
+
     const { user } = await verifyBudgetPermission("SUBMIT", {
-      allocationId: validated.allocationId,
+      allocationId: targetAllocationId,
     });
 
     const expense = await ProjectBudgetService.recordExpense({
       idempotencyKey: validated.idempotencyKey,
-      allocationId: validated.allocationId,
+      allocationId: targetAllocationId,
       requestedByUserId: user.id,
       expenseDate: validated.expenseDate,
       title: validated.title,
@@ -363,10 +380,26 @@ export async function recordAndApproveExpenseAction(rawData: z.infer<typeof reco
     const { user } = await verifyBudgetPermission("MANAGE");
     const validated = recordExpenseSchema.parse(rawData);
 
+    // Resolve allocationId: if given an activityId, look up its first tranche allocation
+    let targetAllocationId = validated.allocationId;
+    const existingAlloc = await prisma.activityTrancheAllocation.findUnique({
+      where: { id: targetAllocationId },
+      select: { id: true },
+    });
+    if (!existingAlloc) {
+      const fallbackAlloc = await prisma.activityTrancheAllocation.findFirst({
+        where: { activityId: targetAllocationId },
+        select: { id: true },
+      });
+      if (fallbackAlloc) {
+        targetAllocationId = fallbackAlloc.id;
+      }
+    }
+
     // Step 1: Record as SUBMITTED
     const expense = await ProjectBudgetService.recordExpense({
       idempotencyKey: validated.idempotencyKey,
-      allocationId: validated.allocationId,
+      allocationId: targetAllocationId,
       requestedByUserId: user.id,
       expenseDate: validated.expenseDate,
       title: validated.title,

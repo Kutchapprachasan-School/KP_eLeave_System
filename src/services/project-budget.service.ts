@@ -420,12 +420,19 @@ export class ProjectBudgetService {
         );
       }
 
+      // Look up leader user name for denormalized display field
+      const leaderUser = await tx.user.findUnique({
+        where: { id: data.leaderUserId },
+        select: { name: true },
+      });
+
       const project = await tx.project.create({
         data: {
           fiscalYearId: data.fiscalYearId,
           budgetSourceId: data.budgetSourceId,
           departmentName: data.departmentName,
           leaderUserId: data.leaderUserId,
+          leaderName: leaderUser?.name || "",
           code: data.code,
           name: data.name,
           targetAcademicYear: data.targetAcademicYear,
@@ -525,11 +532,15 @@ export class ProjectBudgetService {
         );
       }
 
-      // 3. Layer 3 Invariant: For each tranche, SUM(allocations) + newAlloc <= SUM(receipts)
+      // 3. Layer 3 Invariant: For each tranche, SUM(allocations) + newAlloc <= MAX(plannedAmount, receipts)
       for (const tAlloc of data.trancheAllocations) {
         if (tAlloc.allocatedAmount.lte(0)) {
           throw new FinancialInvariantViolationError("ยอดจัดสรรแต่ละงวดต้องมากกว่า 0 บาท");
         }
+
+        const tranche = await tx.budgetTranche.findUniqueOrThrow({
+          where: { id: tAlloc.budgetTrancheId },
+        });
 
         const receiptsAgg = await tx.budgetReceipt.aggregate({
           where: { budgetTrancheId: tAlloc.budgetTrancheId },
@@ -543,10 +554,12 @@ export class ProjectBudgetService {
         });
         const totalAllocated = existingAllocsAgg._sum.allocatedAmount ?? new Prisma.Decimal(0);
 
-        if (totalAllocated.add(tAlloc.allocatedAmount).gt(totalReceived)) {
-          const availableInflow = totalReceived.sub(totalAllocated);
+        // Ceiling is the maximum between total cash received and the planned budget of this tranche
+        const ceiling = Prisma.Decimal.max(totalReceived, tranche.plannedAmount);
+        if (ceiling.gt(0) && totalAllocated.add(tAlloc.allocatedAmount).gt(ceiling)) {
+          const availableInflow = ceiling.sub(totalAllocated);
           throw new FinancialInvariantViolationError(
-            `งวดเงินนี้มีเงินเข้าบัญชีไม่เพียงพอ (เงินรับเข้าคงเหลือให้จัดสรร: ${availableInflow} บาท, ขอจัดสรร: ${tAlloc.allocatedAmount} บาท)`
+            `งวดเงิน "${tranche.name}" มีงบประมาณไม่เพียงพอ (วงเงินคงเหลือให้จัดสรร: ${availableInflow} บาท, ขอจัดสรร: ${tAlloc.allocatedAmount} บาท)`
           );
         }
       }
@@ -990,9 +1003,13 @@ export class ProjectBudgetService {
                 trancheAllocations: {
                   include: {
                     expenses: {
-                      where: { status: { in: ["APPROVED", "REVERSED"] } },
-                      include: { reversal: true },
+                      include: {
+                        reversal: true,
+                        requestedByUser: { select: { id: true, name: true, image: true } },
+                        approvedByUser: { select: { id: true, name: true, image: true } },
+                      },
                     },
+                    budgetTranche: { select: { id: true, trancheNo: true, name: true } },
                   },
                 },
               },
@@ -1080,6 +1097,30 @@ export class ProjectBudgetService {
           remainingAmount: act.allocatedAmount.sub(actSpent).toNumber(),
           status: act.status,
           responsibleUser: act.responsibleUser,
+          trancheAllocations: act.trancheAllocations.map((ta) => ({
+            id: ta.id,
+            budgetTrancheId: ta.budgetTrancheId,
+            trancheName: ta.budgetTranche?.name,
+            trancheNo: ta.budgetTranche?.trancheNo,
+            allocatedAmount: ta.allocatedAmount.toNumber(),
+            expenses: ta.expenses.map((e) => ({
+              id: e.id,
+              title: e.title,
+              amount: e.amount.toNumber(),
+              expenseDate: e.expenseDate,
+              receiptNo: e.receiptNo,
+              status: e.status,
+              requestedByUser: e.requestedByUser,
+              approvedByUser: e.approvedByUser,
+              reversal: e.reversal
+                ? {
+                    id: e.reversal.id,
+                    amount: e.reversal.amount.toNumber(),
+                    reason: e.reversal.reason,
+                  }
+                : null,
+            })),
+          })),
         };
       });
 
@@ -1099,7 +1140,43 @@ export class ProjectBudgetService {
       };
     });
 
-    // 3. Grand Totals (Directly aggregated from breakdowns — 0 redundant loops)
+    // 3. Flat All Expenses for Disbursement & Reports
+    const allExpenses = fy.projects.flatMap((p) =>
+      p.activities.flatMap((a) =>
+        a.trancheAllocations.flatMap((ta) =>
+          ta.expenses.map((e) => ({
+            id: e.id,
+            projectId: p.id,
+            projectCode: p.code,
+            projectName: p.name,
+            departmentName: p.departmentName,
+            activityId: a.id,
+            activityNo: a.activityNo,
+            activityName: a.name,
+            allocationId: ta.id,
+            budgetTrancheId: ta.budgetTrancheId,
+            trancheName: ta.budgetTranche?.name,
+            trancheNo: ta.budgetTranche?.trancheNo,
+            title: e.title,
+            amount: e.amount.toNumber(),
+            expenseDate: e.expenseDate,
+            receiptNo: e.receiptNo,
+            status: e.status,
+            requestedByUser: e.requestedByUser,
+            approvedByUser: e.approvedByUser,
+            reversal: e.reversal
+              ? {
+                  id: e.reversal.id,
+                  amount: e.reversal.amount.toNumber(),
+                  reason: e.reversal.reason,
+                }
+              : null,
+          }))
+        )
+      )
+    ).sort((a, b) => new Date(b.expenseDate).getTime() - new Date(a.expenseDate).getTime());
+
+    // 4. Grand Totals (Directly aggregated from breakdowns — 0 redundant loops)
     const totalPlanned = fy.budgetSources.reduce(
       (sum, s) => sum.add(s.totalPlannedAmount),
       new Prisma.Decimal(0)
@@ -1143,6 +1220,7 @@ export class ProjectBudgetService {
       },
       tranches: tranchesBreakdown,
       projects: projectsBreakdown,
+      allExpenses,
     };
   }
 }
