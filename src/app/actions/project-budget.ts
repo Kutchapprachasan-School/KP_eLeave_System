@@ -16,20 +16,20 @@ import {
 // 🛡️ AUTH & CAPABILITY AUTHORIZATION
 // ==========================================
 
-export async function getCurrentUser() {
+async function getCurrentUser() {
   const session = await auth.api.getSession({
     headers: await headers(),
   });
   return session?.user || null;
 }
 
-export interface BudgetAuthContext {
+interface BudgetAuthContext {
   projectId?: string;
   activityId?: string;
   allocationId?: string;
 }
 
-export async function verifyBudgetPermission(
+async function verifyBudgetPermission(
   action: "MANAGE" | "SUBMIT" | "VIEW",
   context?: BudgetAuthContext
 ) {
@@ -125,7 +125,7 @@ const decimalAmountSchema = z
     message: "จำนวนเงินรองรับทศนิยมสูงสุด 4 ตำแหน่ง",
   });
 
-export const confirmDepositSchema = z.object({
+const confirmDepositSchema = z.object({
   idempotencyKey: z.string().trim().min(16, "Idempotency key สั้นเกินไป").max(64),
   budgetTrancheId: cuidSchema,
   amount: decimalAmountSchema,
@@ -135,7 +135,7 @@ export const confirmDepositSchema = z.object({
   notes: z.string().trim().max(500).optional(),
 });
 
-export const createProjectSchema = z.object({
+const createProjectSchema = z.object({
   fiscalYearId: cuidSchema,
   budgetSourceId: cuidSchema,
   departmentName: z.string().trim().max(150).optional(),
@@ -146,7 +146,7 @@ export const createProjectSchema = z.object({
   allocatedAmount: decimalAmountSchema,
 });
 
-export const createActivitySchema = z.object({
+const createActivitySchema = z.object({
   projectId: cuidSchema,
   responsibleUserId: cuidSchema,
   activityNo: z.number().int().positive({ message: "ลำดับกิจกรรมต้องเป็นจำนวนเต็มบวก" }),
@@ -164,7 +164,7 @@ export const createActivitySchema = z.object({
     .min(1, "ต้องระบุการจัดสรรงวดเงินอย่างน้อย 1 งวด"),
 });
 
-export const recordExpenseSchema = z.object({
+const recordExpenseSchema = z.object({
   idempotencyKey: z.string().trim().min(16, "Idempotency key สั้นเกินไป").max(64),
   allocationId: cuidSchema,
   expenseDate: z.coerce.date(),
@@ -173,12 +173,12 @@ export const recordExpenseSchema = z.object({
   receiptNo: z.string().trim().max(100).optional(),
 });
 
-export const reverseExpenseSchema = z.object({
+const reverseExpenseSchema = z.object({
   originalExpenseId: cuidSchema,
   reason: z.string().trim().min(5, "กรุณาระบุเหตุผลการขอยกเลิกอย่างน้อย 5 ตัวอักษร").max(500),
 });
 
-export const transferBudgetSchema = z
+const transferBudgetSchema = z
   .object({
     fiscalYearId: cuidSchema,
     fromAllocationId: cuidSchema,
@@ -191,7 +191,7 @@ export const transferBudgetSchema = z
     path: ["toAllocationId"],
   });
 
-export const attachmentSchema = z.object({
+const attachmentSchema = z.object({
   parentId: cuidSchema, // projectId or expenseId
   storageProvider: z.enum(["LOCAL", "SUPABASE_STORAGE", "GOOGLE_DRIVE_LINK"]),
   objectKey: z.string().trim().min(1, "กรุณาระบุ URL หรือที่อยู่ไฟล์"),
@@ -199,6 +199,20 @@ export const attachmentSchema = z.object({
   mimeType: z.string().trim().optional(),
   fileSize: z.number().int().positive().optional(),
 });
+
+// ==========================================
+// 🛡️ SERIALIZATION HELPER (React Server Action Safety)
+// ==========================================
+
+function serializeForClient<T>(data: T): T {
+  if (data === null || data === undefined) return data;
+  return JSON.parse(
+    JSON.stringify(data, (key, value) => {
+      if (typeof value === "bigint") return value.toString();
+      return value;
+    })
+  );
+}
 
 // ==========================================
 // 🛡️ ERROR HANDLER
@@ -254,7 +268,7 @@ export async function confirmTrancheDepositAction(rawData: z.infer<typeof confir
       confirmedByUserId: user.id,
     });
 
-    return { success: true as const, data: receipt };
+    return { success: true as const, data: serializeForClient(receipt) };
   } catch (error) {
     return handleActionError(error);
   }
@@ -280,7 +294,7 @@ export async function createProjectAction(rawData: z.infer<typeof createProjectS
       actorUserId: user.id,
     });
 
-    return { success: true as const, data: project };
+    return { success: true as const, data: serializeForClient(project) };
   } catch (error) {
     return handleActionError(error);
   }
@@ -309,7 +323,7 @@ export async function createActivityAction(rawData: z.infer<typeof createActivit
       actorUserId: user.id,
     });
 
-    return { success: true as const, data: activity };
+    return { success: true as const, data: serializeForClient(activity) };
   } catch (error) {
     return handleActionError(error);
   }
@@ -335,7 +349,7 @@ export async function recordExpenseAction(rawData: z.infer<typeof recordExpenseS
       receiptNo: validated.receiptNo,
     });
 
-    return { success: true as const, data: expense };
+    return { success: true as const, data: serializeForClient(expense) };
   } catch (error) {
     return handleActionError(error);
   }
@@ -362,7 +376,7 @@ export async function recordAndApproveExpenseAction(rawData: z.infer<typeof reco
 
     // Step 2: Approve
     const approved = await ProjectBudgetService.approveExpense(expense.id, user.id);
-    return { success: true as const, data: approved };
+    return { success: true as const, data: serializeForClient(approved) };
   } catch (error) {
     return handleActionError(error);
   }
@@ -375,7 +389,7 @@ export async function approveExpenseAction(expenseId: string) {
   try {
     const { user } = await verifyBudgetPermission("MANAGE");
     const approved = await ProjectBudgetService.approveExpense(expenseId, user.id);
-    return { success: true as const, data: approved };
+    return { success: true as const, data: serializeForClient(approved) };
   } catch (error) {
     return handleActionError(error);
   }
@@ -396,7 +410,7 @@ export async function reverseExpenseAction(rawData: z.infer<typeof reverseExpens
       approvedByUserId: user.id,
     });
 
-    return { success: true as const, data: reversal };
+    return { success: true as const, data: serializeForClient(reversal) };
   } catch (error) {
     return handleActionError(error);
   }
@@ -420,7 +434,7 @@ export async function transferBudgetAction(rawData: z.infer<typeof transferBudge
       approvedByUserId: user.id,
     });
 
-    return { success: true as const, data: transfer };
+    return { success: true as const, data: serializeForClient(transfer) };
   } catch (error) {
     return handleActionError(error);
   }
@@ -433,7 +447,7 @@ export async function getFiscalYearDashboardAction(fiscalYearId: string) {
   try {
     await verifyBudgetPermission("VIEW");
     const metrics = await ProjectBudgetService.getFiscalYearDashboardMetrics(fiscalYearId);
-    return { success: true as const, data: metrics };
+    return { success: true as const, data: serializeForClient(metrics) };
   } catch (error) {
     return handleActionError(error);
   }
@@ -461,7 +475,7 @@ export async function attachProjectFileAction(rawData: z.infer<typeof attachment
       },
     });
 
-    return { success: true as const, data: attachment };
+    return { success: true as const, data: serializeForClient(attachment) };
   } catch (error) {
     return handleActionError(error);
   }
@@ -476,11 +490,11 @@ export async function ensureDefaultFiscalYearAction(year = 2569) {
 
     let fy = await prisma.fiscalYear.findUnique({
       where: { year },
-      include: { budgetSources: { include: { tranches: true } } },
+      select: { id: true, year: true, title: true, status: true },
     });
 
     if (!fy) {
-      fy = await prisma.fiscalYear.create({
+      const created = await prisma.fiscalYear.create({
         data: {
           year,
           title: `ปีงบประมาณ พ.ศ. ${year}`,
@@ -535,11 +549,20 @@ export async function ensureDefaultFiscalYearAction(year = 2569) {
             },
           },
         },
-        include: { budgetSources: { include: { tranches: true } } },
+        select: { id: true, year: true, title: true, status: true },
       });
+      fy = created;
     }
 
-    return { success: true as const, data: fy };
+    return {
+      success: true as const,
+      data: {
+        id: fy.id,
+        year: fy.year,
+        title: fy.title,
+        status: fy.status,
+      },
+    };
   } catch (error) {
     return handleActionError(error);
   }
@@ -562,7 +585,7 @@ export async function getBudgetUsersAction() {
       },
       orderBy: { name: "asc" },
     });
-    return { success: true as const, data: users };
+    return { success: true as const, data: serializeForClient(users) };
   } catch (error) {
     return handleActionError(error);
   }
@@ -579,7 +602,7 @@ export async function getFiscalYearsListAction() {
       select: { id: true, year: true, title: true, status: true },
       orderBy: { year: "desc" },
     });
-    return { success: true as const, data: list };
+    return { success: true as const, data: serializeForClient(list) };
   } catch (error) {
     return handleActionError(error);
   }

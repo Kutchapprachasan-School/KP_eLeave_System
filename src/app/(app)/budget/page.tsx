@@ -66,7 +66,14 @@ const DEPARTMENTS = [
   "กิจกรรมพัฒนาผู้เรียน",
 ];
 
+function formatBaht(amount: any): string {
+  const num = Number(amount);
+  return (isNaN(num) ? 0 : num).toLocaleString();
+}
+
 export default function BudgetAffairsPage() {
+  const [mounted, setMounted] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [isPending, startTransition] = useTransition();
   const [fiscalYears, setFiscalYears] = useState<Array<{ id: string; year: number; title: string; status: string }>>([]);
   const [selectedFyId, setSelectedFyId] = useState<string>("");
@@ -132,33 +139,35 @@ export default function BudgetAffairsPage() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
 
-  // Initialize and load data
+  // Initialize and load data safely
   const loadInitialData = async () => {
-    startTransition(async () => {
+    setLoading(true);
+    setActionError(null);
+    try {
       // 1. Fetch Fiscal Years
       const fyRes = await getFiscalYearsListAction();
       let activeFyId = "";
-      if (fyRes.success && fyRes.data && fyRes.data.length > 0) {
+      if (fyRes?.success && fyRes?.data && fyRes.data.length > 0) {
         setFiscalYears(fyRes.data);
         activeFyId = fyRes.data[0].id;
         setSelectedFyId(activeFyId);
-      } else if (!fyRes.success) {
+      } else if (fyRes && !fyRes.success) {
         setActionError(fyRes.error);
       } else {
         // Seed default 2569
         const seedRes = await ensureDefaultFiscalYearAction(2569);
-        if (seedRes.success && seedRes.data) {
+        if (seedRes?.success && seedRes?.data) {
           activeFyId = seedRes.data.id;
           setFiscalYears([{ id: seedRes.data.id, year: seedRes.data.year, title: seedRes.data.title, status: seedRes.data.status }]);
           setSelectedFyId(activeFyId);
-        } else if (!seedRes.success) {
+        } else if (seedRes && !seedRes.success) {
           setActionError(seedRes.error);
         }
       }
 
       // 2. Fetch Users
       const usersRes = await getBudgetUsersAction();
-      if (usersRes.success && usersRes.data) {
+      if (usersRes?.success && usersRes?.data) {
         setUsers(usersRes.data);
         if (usersRes.data.length > 0) {
           setProjectForm((prev) => ({ ...prev, leaderUserId: usersRes.data[0].id }));
@@ -168,16 +177,22 @@ export default function BudgetAffairsPage() {
       // 3. Fetch Dashboard Metrics
       if (activeFyId) {
         const metricsRes = await getFiscalYearDashboardAction(activeFyId);
-        if (metricsRes.success && metricsRes.data) {
+        if (metricsRes?.success && metricsRes?.data) {
           setDashboardData(metricsRes.data);
-        } else if (!metricsRes.success) {
+        } else if (metricsRes && !metricsRes.success) {
           setActionError(metricsRes.error);
         }
       }
-    });
+    } catch (err: any) {
+      console.error("BudgetAffairsPage loadInitialData error:", err);
+      setActionError(err?.message || "เกิดข้อผิดพลาดในการโหลดข้อมูลงบประมาณ");
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
+    setMounted(true);
     loadInitialData();
   }, []);
 
@@ -185,11 +200,16 @@ export default function BudgetAffairsPage() {
     if (!fyId) return;
     setActionError(null);
     startTransition(async () => {
-      const res = await getFiscalYearDashboardAction(fyId);
-      if (res.success && res.data) {
-        setDashboardData(res.data);
-      } else if (!res.success) {
-        setActionError(res.error);
+      try {
+        const res = await getFiscalYearDashboardAction(fyId);
+        if (res?.success && res?.data) {
+          setDashboardData(res.data);
+        } else if (res && !res.success) {
+          setActionError(res.error);
+        }
+      } catch (err: any) {
+        console.error("refreshDashboard error:", err);
+        setActionError(err?.message || "เกิดข้อผิดพลาดในการรีเฟรชข้อมูล");
       }
     });
   };
@@ -221,23 +241,28 @@ export default function BudgetAffairsPage() {
     const idempotencyKey = `dep_${Date.now()}_${Math.random().toString(36).substring(2, 9)}_${Math.random().toString(36).substring(2, 9)}`;
 
     startTransition(async () => {
-      const res = await confirmTrancheDepositAction({
-        idempotencyKey,
-        budgetTrancheId: selectedTrancheForDeposit.id,
-        amount: amountNum,
-        receivedDate: new Date(depositForm.receivedDate),
-        documentRef: depositForm.documentRef || undefined,
-        bankStatement: depositForm.bankStatement || undefined,
-        notes: depositForm.notes || undefined,
-      });
+      try {
+        const res = await confirmTrancheDepositAction({
+          idempotencyKey,
+          budgetTrancheId: selectedTrancheForDeposit.id,
+          amount: amountNum,
+          receivedDate: new Date(depositForm.receivedDate),
+          documentRef: depositForm.documentRef || undefined,
+          bankStatement: depositForm.bankStatement || undefined,
+          notes: depositForm.notes || undefined,
+        });
 
-      if (res.success) {
-        setShowDepositModal(false);
-        setActionSuccess("บันทึกการรับเงินเข้าบัญชีเรียบร้อยแล้ว");
-        setDepositForm({ amount: "", receivedDate: new Date().toISOString().split("T")[0], documentRef: "", bankStatement: "", notes: "" });
-        await refreshDashboard();
-      } else {
-        setActionError(res.error);
+        if (res?.success) {
+          setShowDepositModal(false);
+          setActionSuccess("บันทึกการรับเงินเข้าบัญชีเรียบร้อยแล้ว");
+          setDepositForm({ amount: "", receivedDate: new Date().toISOString().split("T")[0], documentRef: "", bankStatement: "", notes: "" });
+          await refreshDashboard();
+        } else {
+          setActionError(res?.error || "เกิดข้อผิดพลาดในการบันทึกเงินเข้าบัญชี");
+        }
+      } catch (err: any) {
+        console.error("handleConfirmDeposit error:", err);
+        setActionError(err?.message || "เกิดข้อผิดพลาดในการบันทึกเงินเข้าบัญชี");
       }
     });
   };
@@ -260,43 +285,48 @@ export default function BudgetAffairsPage() {
     }
 
     startTransition(async () => {
-      // Call create project action
-      const res = await createProjectAction({
-        fiscalYearId: selectedFyId,
-        budgetSourceId: targetSourceId,
-        departmentName: projectForm.departmentName,
-        leaderUserId: projectForm.leaderUserId || users[0]?.id,
-        code: projectForm.code.trim(),
-        name: projectForm.name.trim(),
-        targetAcademicYear: projectForm.targetAcademicYear,
-        allocatedAmount: amountNum,
-      });
-
-      if (res.success) {
-        // If attachment URL provided, attach it
-        if (projectForm.attachmentUrl.trim() && res.data?.id) {
-          await attachProjectFileAction({
-            parentId: res.data.id,
-            storageProvider: "GOOGLE_DRIVE_LINK",
-            objectKey: projectForm.attachmentUrl.trim(),
-            originalFileName: "เอกสารเล่มโครงการ (ลิงก์)",
-          });
-        }
-
-        setShowProjectModal(false);
-        setActionSuccess(`สร้างโครงการ "${projectForm.name}" สำเร็จ`);
-        setProjectForm({
-          code: "",
-          name: "",
-          departmentName: DEPARTMENTS[0],
-          leaderUserId: users[0]?.id || "",
-          targetAcademicYear: 2569,
-          allocatedAmount: "",
-          attachmentUrl: "",
+      try {
+        // Call create project action
+        const res = await createProjectAction({
+          fiscalYearId: selectedFyId,
+          budgetSourceId: targetSourceId,
+          departmentName: projectForm.departmentName,
+          leaderUserId: projectForm.leaderUserId || users[0]?.id,
+          code: projectForm.code.trim(),
+          name: projectForm.name.trim(),
+          targetAcademicYear: projectForm.targetAcademicYear,
+          allocatedAmount: amountNum,
         });
-        await refreshDashboard();
-      } else {
-        setActionError(res.error);
+
+        if (res?.success) {
+          // If attachment URL provided, attach it
+          if (projectForm.attachmentUrl.trim() && res.data?.id) {
+            await attachProjectFileAction({
+              parentId: res.data.id,
+              storageProvider: "GOOGLE_DRIVE_LINK",
+              objectKey: projectForm.attachmentUrl.trim(),
+              originalFileName: "เอกสารเล่มโครงการ (ลิงก์)",
+            });
+          }
+
+          setShowProjectModal(false);
+          setActionSuccess(`สร้างโครงการ "${projectForm.name}" สำเร็จ`);
+          setProjectForm({
+            code: "",
+            name: "",
+            departmentName: DEPARTMENTS[0],
+            leaderUserId: users[0]?.id || "",
+            targetAcademicYear: 2569,
+            allocatedAmount: "",
+            attachmentUrl: "",
+          });
+          await refreshDashboard();
+        } else {
+          setActionError(res?.error || "เกิดข้อผิดพลาดในการสร้างโครงการ");
+        }
+      } catch (err: any) {
+        console.error("handleCreateProject error:", err);
+        setActionError(err?.message || "เกิดข้อผิดพลาดในการสร้างโครงการ");
       }
     });
   };
@@ -351,21 +381,26 @@ export default function BudgetAffairsPage() {
     }
 
     startTransition(async () => {
-      const res = await createActivityAction({
-        projectId: selectedProjectForActivity.id,
-        responsibleUserId: activityForm.responsibleUserId || users[0]?.id,
-        activityNo: activityForm.activityNo,
-        name: activityForm.name.trim(),
-        allocatedAmount: totalAllocNum,
-        trancheAllocations: validTranches,
-      });
+      try {
+        const res = await createActivityAction({
+          projectId: selectedProjectForActivity.id,
+          responsibleUserId: activityForm.responsibleUserId || users[0]?.id,
+          activityNo: activityForm.activityNo,
+          name: activityForm.name.trim(),
+          allocatedAmount: totalAllocNum,
+          trancheAllocations: validTranches,
+        });
 
-      if (res.success) {
-        setShowActivityModal(false);
-        setActionSuccess(`เพิ่มกิจกรรม "${activityForm.name}" สำเร็จ`);
-        await refreshDashboard();
-      } else {
-        setActionError(res.error);
+        if (res?.success) {
+          setShowActivityModal(false);
+          setActionSuccess(`เพิ่มกิจกรรม "${activityForm.name}" สำเร็จ`);
+          await refreshDashboard();
+        } else {
+          setActionError(res?.error || "เกิดข้อผิดพลาดในการเพิ่มกิจกรรม");
+        }
+      } catch (err: any) {
+        console.error("handleCreateActivity error:", err);
+        setActionError(err?.message || "เกิดข้อผิดพลาดในการเพิ่มกิจกรรม");
       }
     });
   };
@@ -396,21 +431,26 @@ export default function BudgetAffairsPage() {
     const idempotencyKey = `exp_${Date.now()}_${Math.random().toString(36).substring(2, 9)}_${Math.random().toString(36).substring(2, 9)}`;
 
     startTransition(async () => {
-      const res = await recordAndApproveExpenseAction({
-        idempotencyKey,
-        allocationId: selectedAllocationForExpense.id,
-        title: expenseForm.title.trim(),
-        amount: amountNum,
-        expenseDate: new Date(expenseForm.expenseDate),
-        receiptNo: expenseForm.receiptNo.trim() || undefined,
-      });
+      try {
+        const res = await recordAndApproveExpenseAction({
+          idempotencyKey,
+          allocationId: selectedAllocationForExpense.id,
+          title: expenseForm.title.trim(),
+          amount: amountNum,
+          expenseDate: new Date(expenseForm.expenseDate),
+          receiptNo: expenseForm.receiptNo.trim() || undefined,
+        });
 
-      if (res.success) {
-        setShowExpenseModal(false);
-        setActionSuccess(`บันทึกการเบิกจ่าย "${expenseForm.title}" จำนวน ${amountNum.toLocaleString()} บ. สำเร็จ`);
-        await refreshDashboard();
-      } else {
-        setActionError(res.error);
+        if (res?.success) {
+          setShowExpenseModal(false);
+          setActionSuccess(`บันทึกการเบิกจ่าย "${expenseForm.title}" จำนวน ${amountNum.toLocaleString()} บ. สำเร็จ`);
+          await refreshDashboard();
+        } else {
+          setActionError(res?.error || "เกิดข้อผิดพลาดในการบันทึกการเบิกจ่าย");
+        }
+      } catch (err: any) {
+        console.error("handleRecordExpense error:", err);
+        setActionError(err?.message || "เกิดข้อผิดพลาดในการบันทึกการเบิกจ่าย");
       }
     });
   };
@@ -427,18 +467,23 @@ export default function BudgetAffairsPage() {
     }
 
     startTransition(async () => {
-      const res = await reverseExpenseAction({
-        originalExpenseId: selectedExpenseForReversal.id,
-        reason: reverseReason.trim(),
-      });
+      try {
+        const res = await reverseExpenseAction({
+          originalExpenseId: selectedExpenseForReversal.id,
+          reason: reverseReason.trim(),
+        });
 
-      if (res.success) {
-        setShowReverseModal(false);
-        setReverseReason("");
-        setActionSuccess("ยกเลิกรายการเบิกจ่ายและคืนยอดงบประมาณสำเร็จ");
-        await refreshDashboard();
-      } else {
-        setActionError(res.error);
+        if (res?.success) {
+          setShowReverseModal(false);
+          setReverseReason("");
+          setActionSuccess("ยกเลิกรายการเบิกจ่ายและคืนยอดงบประมาณสำเร็จ");
+          await refreshDashboard();
+        } else {
+          setActionError(res?.error || "เกิดข้อผิดพลาดในการยกเลิกรายการ");
+        }
+      } catch (err: any) {
+        console.error("handleReverseExpense error:", err);
+        setActionError(err?.message || "เกิดข้อผิดพลาดในการยกเลิกรายการ");
       }
     });
   };
@@ -453,6 +498,49 @@ export default function BudgetAffairsPage() {
     const matchesDept = selectedDeptFilter === "ALL" || p.departmentName === selectedDeptFilter;
     return matchesSearch && matchesDept;
   });
+
+  if (!mounted || (loading && !dashboardData)) {
+    return (
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 p-4 md:p-8 space-y-8 text-slate-900 dark:text-slate-100 animate-pulse">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-6">
+          <div className="space-y-2">
+            <div className="h-4 w-40 bg-slate-200 dark:bg-slate-800 rounded-lg" />
+            <div className="h-8 w-80 bg-slate-200 dark:bg-slate-800 rounded-xl" />
+            <div className="h-4 w-64 bg-slate-200 dark:bg-slate-800 rounded-lg" />
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-36 bg-slate-200 dark:bg-slate-800 rounded-2xl" />
+            <div className="h-10 w-10 bg-slate-200 dark:bg-slate-800 rounded-2xl" />
+            <div className="h-10 w-32 bg-slate-200 dark:bg-slate-800 rounded-2xl" />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+          {[1, 2, 3, 4, 5, 6].map((i) => (
+            <div key={i} className="h-28 bg-white dark:bg-slate-900 rounded-3xl p-5 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
+              <div className="h-3 w-20 bg-slate-200 dark:bg-slate-800 rounded" />
+              <div className="h-6 w-24 bg-slate-200 dark:bg-slate-800 rounded" />
+              <div className="h-2 w-16 bg-slate-200 dark:bg-slate-800 rounded" />
+            </div>
+          ))}
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="h-64 bg-white dark:bg-slate-900 rounded-3xl p-5 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+              <div className="h-4 w-1/2 bg-slate-200 dark:bg-slate-800 rounded" />
+              <div className="h-6 w-3/4 bg-slate-200 dark:bg-slate-800 rounded" />
+              <div className="space-y-2 pt-4">
+                <div className="h-3 w-full bg-slate-200 dark:bg-slate-800 rounded" />
+                <div className="h-3 w-full bg-slate-200 dark:bg-slate-800 rounded" />
+                <div className="h-3 w-full bg-slate-200 dark:bg-slate-800 rounded" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 p-4 md:p-8 space-y-8 text-slate-900 dark:text-slate-100">
@@ -544,7 +632,7 @@ export default function BudgetAffairsPage() {
             <FileText className="w-4 h-4 text-blue-500" />
           </div>
           <p className="text-lg md:text-xl font-black text-slate-900 dark:text-white">
-            ฿{(dashboardData?.metrics?.totalPlanned || 0).toLocaleString()}
+            ฿{formatBaht(dashboardData?.metrics?.totalPlanned)}
           </p>
           <p className="text-[10px] text-slate-400 font-medium">รวมทั้งปีงบประมาณ</p>
         </div>
@@ -555,7 +643,7 @@ export default function BudgetAffairsPage() {
             <DollarSign className="w-4 h-4 text-emerald-500" />
           </div>
           <p className="text-lg md:text-xl font-black text-emerald-600 dark:text-emerald-400">
-            ฿{(dashboardData?.metrics?.totalReceived || 0).toLocaleString()}
+            ฿{formatBaht(dashboardData?.metrics?.totalReceived)}
           </p>
           <p className="text-[10px] text-slate-400 font-medium">จาก สพฐ. / ต้นสังกัด</p>
         </div>
@@ -566,7 +654,7 @@ export default function BudgetAffairsPage() {
             <Layers className="w-4 h-4 text-purple-500" />
           </div>
           <p className="text-lg md:text-xl font-black text-purple-600 dark:text-purple-400">
-            ฿{(dashboardData?.metrics?.totalAllocatedToProjects || 0).toLocaleString()}
+            ฿{formatBaht(dashboardData?.metrics?.totalAllocatedToProjects)}
           </p>
           <p className="text-[10px] text-slate-400 font-medium">ทุกโครงการรวมกัน</p>
         </div>
@@ -577,7 +665,7 @@ export default function BudgetAffairsPage() {
             <Receipt className="w-4 h-4 text-rose-500" />
           </div>
           <p className="text-lg md:text-xl font-black text-rose-600 dark:text-rose-400">
-            ฿{(dashboardData?.metrics?.totalSpent || 0).toLocaleString()}
+            ฿{formatBaht(dashboardData?.metrics?.totalSpent)}
           </p>
           <p className="text-[10px] text-slate-400 font-medium">หักยอดคืนเงินแล้ว</p>
         </div>
@@ -588,7 +676,7 @@ export default function BudgetAffairsPage() {
             <Wallet className="w-4 h-4" />
           </div>
           <p className="text-lg md:text-xl font-black">
-            ฿{(dashboardData?.metrics?.netLiquidity || 0).toLocaleString()}
+            ฿{formatBaht(dashboardData?.metrics?.netLiquidity)}
           </p>
           <p className="text-[10px] text-emerald-100 font-medium">เงินเข้าลบเงินจ่ายจริง</p>
         </div>
@@ -599,7 +687,7 @@ export default function BudgetAffairsPage() {
             <PieChart className="w-4 h-4 text-amber-500" />
           </div>
           <p className="text-lg md:text-xl font-black text-amber-600 dark:text-amber-400">
-            ฿{(dashboardData?.metrics?.remainingUnallocatedInflow || 0).toLocaleString()}
+            ฿{formatBaht(dashboardData?.metrics?.remainingUnallocatedInflow)}
           </p>
           <p className="text-[10px] text-slate-400 font-medium">พร้อมตั้งโครงการใหม่</p>
         </div>
@@ -617,8 +705,11 @@ export default function BudgetAffairsPage() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {(dashboardData?.tranches || []).map((tranche: any) => {
-            const receivedPct = tranche.plannedAmount > 0 ? (tranche.receivedAmount / tranche.plannedAmount) * 100 : 0;
-            const spentPct = tranche.receivedAmount > 0 ? (tranche.spentAmount / tranche.receivedAmount) * 100 : 0;
+            const plannedNum = Number(tranche.plannedAmount) || 0;
+            const receivedNum = Number(tranche.receivedAmount) || 0;
+            const spentNum = Number(tranche.spentAmount) || 0;
+            const receivedPct = plannedNum > 0 ? (receivedNum / plannedNum) * 100 : 0;
+            const spentPct = receivedNum > 0 ? (spentNum / receivedNum) * 100 : 0;
 
             return (
               <div
@@ -650,23 +741,23 @@ export default function BudgetAffairsPage() {
                   <div className="mt-4 space-y-2 text-xs">
                     <div className="flex justify-between text-slate-500">
                       <span>แผนจัดสรร:</span>
-                      <span className="font-bold text-slate-800 dark:text-slate-200">฿{tranche.plannedAmount.toLocaleString()}</span>
+                      <span className="font-bold text-slate-800 dark:text-slate-200">฿{formatBaht(tranche.plannedAmount)}</span>
                     </div>
                     <div className="flex justify-between text-emerald-600 dark:text-emerald-400 font-semibold">
                       <span>เงินเข้าบัญชีจริง:</span>
-                      <span className="font-black">฿{tranche.receivedAmount.toLocaleString()}</span>
+                      <span className="font-black">฿{formatBaht(tranche.receivedAmount)}</span>
                     </div>
                     <div className="flex justify-between text-slate-500">
                       <span>จัดสรรให้กิจกรรม:</span>
-                      <span className="font-bold text-slate-700 dark:text-slate-300">฿{tranche.allocatedAmount.toLocaleString()}</span>
+                      <span className="font-bold text-slate-700 dark:text-slate-300">฿{formatBaht(tranche.allocatedAmount)}</span>
                     </div>
                     <div className="flex justify-between text-rose-600 dark:text-rose-400">
                       <span>เบิกจ่ายไปแล้ว:</span>
-                      <span className="font-bold">฿{tranche.spentAmount.toLocaleString()}</span>
+                      <span className="font-bold">฿{formatBaht(tranche.spentAmount)}</span>
                     </div>
                     <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex justify-between font-bold text-slate-900 dark:text-white">
                       <span>สภาพคล่องคงเหลืองวด:</span>
-                      <span className="text-emerald-600 dark:text-emerald-400 font-black">฿{tranche.remainingLiquidity.toLocaleString()}</span>
+                      <span className="text-emerald-600 dark:text-emerald-400 font-black">฿{formatBaht(tranche.remainingLiquidity)}</span>
                     </div>
                   </div>
 
@@ -823,19 +914,19 @@ export default function BudgetAffairsPage() {
                         <div>
                           <p className="text-[10px] text-slate-400">งบจัดสรร</p>
                           <p className="text-xs font-black text-slate-800 dark:text-slate-200">
-                            ฿{project.allocatedAmount.toLocaleString()}
+                            ฿{formatBaht(project.allocatedAmount)}
                           </p>
                         </div>
                         <div>
                           <p className="text-[10px] text-rose-500">ใช้จ่ายแล้ว</p>
                           <p className="text-xs font-black text-rose-600 dark:text-rose-400">
-                            ฿{project.spentAmount.toLocaleString()}
+                            ฿{formatBaht(project.spentAmount)}
                           </p>
                         </div>
                         <div>
                           <p className="text-[10px] text-emerald-500">คงเหลือสุทธิ</p>
                           <p className="text-xs font-black text-emerald-600 dark:text-emerald-400">
-                            ฿{project.remainingAmount.toLocaleString()}
+                            ฿{formatBaht(project.remainingAmount)}
                           </p>
                         </div>
                       </div>
@@ -900,15 +991,15 @@ export default function BudgetAffairsPage() {
                                 <div className="flex items-center gap-4 text-xs">
                                   <div className="text-right">
                                     <p className="text-[10px] text-slate-400">งบจัดสรร</p>
-                                    <p className="font-bold text-slate-800 dark:text-slate-200">฿{act.allocatedAmount.toLocaleString()}</p>
+                                    <p className="font-bold text-slate-800 dark:text-slate-200">฿{formatBaht(act.allocatedAmount)}</p>
                                   </div>
                                   <div className="text-right">
                                     <p className="text-[10px] text-rose-500">ใช้ไปแล้ว</p>
-                                    <p className="font-bold text-rose-600 dark:text-rose-400">฿{act.spentAmount.toLocaleString()}</p>
+                                    <p className="font-bold text-rose-600 dark:text-rose-400">฿{formatBaht(act.spentAmount)}</p>
                                   </div>
                                   <div className="text-right">
                                     <p className="text-[10px] text-emerald-500">คงเหลือ</p>
-                                    <p className="font-black text-emerald-600 dark:text-emerald-400">฿{act.remainingAmount.toLocaleString()}</p>
+                                    <p className="font-black text-emerald-600 dark:text-emerald-400">฿{formatBaht(act.remainingAmount)}</p>
                                   </div>
                                 </div>
 
@@ -941,7 +1032,7 @@ export default function BudgetAffairsPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
           <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 md:p-8 max-w-md w-full border border-slate-200 dark:border-slate-800 shadow-2xl space-y-5">
             <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
-              <h3 className="font-extrabold text-base text-slate-900 dark:text-white flex items-center gap-2">
+              <h3 className="font-extrabold text-base text-slate-900 dark:white flex items-center gap-2">
                 <DollarSign className="w-5 h-5 text-emerald-600" />
                 ยืนยันเงินโอนเข้าบัญชีจริง
               </h3>
@@ -956,7 +1047,7 @@ export default function BudgetAffairsPage() {
                 <input
                   type="text"
                   disabled
-                  value={`${selectedTrancheForDeposit.name} (แผนจัดสรร ฿${selectedTrancheForDeposit.plannedAmount.toLocaleString()})`}
+                  value={`${selectedTrancheForDeposit.name} (แผนจัดสรร ฿${formatBaht(selectedTrancheForDeposit.plannedAmount)})`}
                   className="w-full mt-1 p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-semibold"
                 />
               </div>
