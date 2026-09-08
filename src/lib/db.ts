@@ -6,7 +6,7 @@ const connectionString =
   process.env.DATABASE_URL ||
   "postgresql://postgres.ngzflajpifmsvhldhviu:YQSmSuCwZ9_iR_!@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres?pgbouncer=true"
 
-const pool = new Pool({
+export const pool = new Pool({
   connectionString,
   max: 10,
   idleTimeoutMillis: 30000,

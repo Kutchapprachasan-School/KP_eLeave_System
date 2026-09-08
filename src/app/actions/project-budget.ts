@@ -166,11 +166,15 @@ const createActivitySchema = z.object({
 
 const recordExpenseSchema = z.object({
   idempotencyKey: z.string().trim().min(16, "Idempotency key สั้นเกินไป").max(64),
-  allocationId: cuidSchema,
+  allocationId: cuidSchema.optional(),
+  activityId: cuidSchema.optional(),
+  budgetTrancheId: cuidSchema.optional(),
   expenseDate: z.coerce.date(),
   title: z.string().trim().min(1, "กรุณาระบุรายการค่าใช้จ่าย").max(255),
   amount: decimalAmountSchema,
   receiptNo: z.string().trim().max(100).optional(),
+}).refine((data) => Boolean(data.allocationId || data.activityId), {
+  message: "ต้องระบุ allocationId หรือ activityId",
 });
 
 const reverseExpenseSchema = z.object({
@@ -330,27 +334,79 @@ export async function createActivityAction(rawData: z.infer<typeof createActivit
 }
 
 /**
+ * Deterministic allocation resolution protocol:
+ * 1. If direct allocationId provided: verifies existence.
+ * 2. If activityId and budgetTrancheId provided: queries composite unique index.
+ * 3. If only activityId provided:
+ *    - Exactly 1 allocation: resolves safely.
+ *    - More than 1 allocation: REJECTS with error listing the tranches.
+ *    - 0 allocations: REJECTS.
+ */
+async function resolveAllocationDeterministically(input: {
+  allocationId?: string;
+  activityId?: string;
+  budgetTrancheId?: string;
+}): Promise<string> {
+  // 1. Direct allocationId provided
+  if (input.allocationId) {
+    const alloc = await prisma.activityTrancheAllocation.findUnique({
+      where: { id: input.allocationId },
+      select: { id: true },
+    });
+    if (alloc) return alloc.id;
+  }
+
+  // 2. Both activityId and budgetTrancheId provided -> deterministic composite match
+  if (input.activityId && input.budgetTrancheId) {
+    const alloc = await prisma.activityTrancheAllocation.findUnique({
+      where: {
+        activityId_budgetTrancheId: {
+          activityId: input.activityId,
+          budgetTrancheId: input.budgetTrancheId,
+        },
+      },
+      select: { id: true },
+    });
+    if (!alloc) {
+      throw new FinancialInvariantViolationError("กิจกรรมนี้ไม่ได้ถูกจัดสรรงบประมาณไว้ในงวดเงินที่ระบุ");
+    }
+    return alloc.id;
+  }
+
+  // 3. Fallback candidate when only activityId (or an activityId passed as allocationId) is provided
+  const candidateActivityId = input.activityId || input.allocationId;
+  if (candidateActivityId) {
+    const allocs = await prisma.activityTrancheAllocation.findMany({
+      where: { activityId: candidateActivityId },
+      select: { id: true, budgetTranche: { select: { name: true, trancheNo: true } } },
+    });
+
+    if (allocs.length === 1) {
+      return allocs[0].id;
+    }
+
+    if (allocs.length > 1) {
+      const trancheNames = allocs.map((a) => a.budgetTranche.name || `งวดที่ ${a.budgetTranche.trancheNo}`).join(", ");
+      throw new FinancialInvariantViolationError(
+        `กิจกรรมนี้มีการจัดสรรงบประมาณไว้ในหลายงวดเงิน (${trancheNames}) กรุณาระบุงวดเงินที่ต้องการเบิกจ่ายให้ชัดเจน (budgetTrancheId หรือ allocationId)`
+      );
+    }
+
+    if (allocs.length === 0) {
+      throw new FinancialInvariantViolationError("กิจกรรมนี้ยังไม่มีการจัดสรรงบประมาณลงในงวดเงินใดๆ");
+    }
+  }
+
+  throw new FinancialInvariantViolationError("กรุณาระบุข้อมูลการจัดสรรงวดเงิน (allocationId หรือ activityId)");
+}
+
+/**
  * Record an Expense (Always creates as SUBMITTED)
  */
 export async function recordExpenseAction(rawData: z.infer<typeof recordExpenseSchema>) {
   try {
     const validated = recordExpenseSchema.parse(rawData);
-
-    // Resolve allocationId: if given an activityId, look up its first tranche allocation
-    let targetAllocationId = validated.allocationId;
-    const existingAlloc = await prisma.activityTrancheAllocation.findUnique({
-      where: { id: targetAllocationId },
-      select: { id: true },
-    });
-    if (!existingAlloc) {
-      const fallbackAlloc = await prisma.activityTrancheAllocation.findFirst({
-        where: { activityId: targetAllocationId },
-        select: { id: true },
-      });
-      if (fallbackAlloc) {
-        targetAllocationId = fallbackAlloc.id;
-      }
-    }
+    const targetAllocationId = await resolveAllocationDeterministically(validated);
 
     const { user } = await verifyBudgetPermission("SUBMIT", {
       allocationId: targetAllocationId,
@@ -379,22 +435,7 @@ export async function recordAndApproveExpenseAction(rawData: z.infer<typeof reco
   try {
     const { user } = await verifyBudgetPermission("MANAGE");
     const validated = recordExpenseSchema.parse(rawData);
-
-    // Resolve allocationId: if given an activityId, look up its first tranche allocation
-    let targetAllocationId = validated.allocationId;
-    const existingAlloc = await prisma.activityTrancheAllocation.findUnique({
-      where: { id: targetAllocationId },
-      select: { id: true },
-    });
-    if (!existingAlloc) {
-      const fallbackAlloc = await prisma.activityTrancheAllocation.findFirst({
-        where: { activityId: targetAllocationId },
-        select: { id: true },
-      });
-      if (fallbackAlloc) {
-        targetAllocationId = fallbackAlloc.id;
-      }
-    }
+    const targetAllocationId = await resolveAllocationDeterministically(validated);
 
     // Step 1: Record as SUBMITTED
     const expense = await ProjectBudgetService.recordExpense({

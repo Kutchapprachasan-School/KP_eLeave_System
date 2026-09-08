@@ -1,5 +1,5 @@
 import { Prisma } from "@prisma/client";
-import { prisma } from "@/lib/db";
+import { prisma } from "../lib/db.ts";
 
 // ==========================================
 // 🛡️ DOMAIN ERRORS
@@ -264,6 +264,176 @@ export class ProjectBudgetService {
     });
 
     return ProjectBudgetService.calculateNetSpent(expenses, reversals);
+  }
+
+  /**
+   * DB adapter — calculates net spent at the BudgetTranche level across all allocations
+   * Formula: SUM(APPROVED/REVERSED expenses in tranche) - SUM(APPROVED reversals in tranche)
+   */
+  static async calculateTrancheNetSpentFromDB(
+    tx: Prisma.TransactionClient,
+    budgetTrancheId: string
+  ): Promise<Prisma.Decimal> {
+    const expenses = await tx.activityExpense.findMany({
+      where: {
+        allocation: { budgetTrancheId },
+        status: { in: ["APPROVED", "REVERSED"] },
+      },
+      select: { amount: true, status: true },
+    });
+
+    const reversals = await tx.expenseReversal.findMany({
+      where: {
+        originalExpense: { allocation: { budgetTrancheId } },
+        status: "APPROVED",
+      },
+      select: { amount: true, status: true },
+    });
+
+    return ProjectBudgetService.calculateNetSpent(expenses, reversals);
+  }
+
+  /**
+   * Create Budget Tranche with Invariant: SUM(BudgetTranche.plannedAmount) <= BudgetSource.totalPlannedAmount
+   */
+  static async createBudgetTranche(data: {
+    budgetSourceId: string;
+    trancheNo: number;
+    name: string;
+    academicYear: number;
+    semester: number;
+    plannedAmount: Prisma.Decimal;
+    expectedStartDate?: Date;
+    expectedEndDate?: Date;
+    actorUserId: string;
+  }) {
+    if (data.plannedAmount.lte(0)) {
+      throw new FinancialInvariantViolationError("วงเงินงบประมาณตามแผนของงวดเงินต้องมากกว่า 0 บาท");
+    }
+
+    return await prisma.$transaction(async (tx) => {
+      await verifyServiceAuth(tx, data.actorUserId, "MANAGE");
+      await acquireRowLocks(tx, "BudgetSource", [data.budgetSourceId]);
+
+      const source = await tx.budgetSource.findUniqueOrThrow({
+        where: { id: data.budgetSourceId },
+        include: { fiscalYear: true, tranches: true },
+      });
+
+      if (source.fiscalYear.status !== "ACTIVE" || source.fiscalYear.isArchived) {
+        throw new FinancialInvariantViolationError("ไม่สามารถเพิ่มงวดเงินในปีงบประมาณที่ปิดหรือถูกเก็บถาวรแล้ว");
+      }
+
+      // INVARIANT: SUM(BudgetTranche.plannedAmount) <= BudgetSource.totalPlannedAmount
+      const currentTranchesPlanned = source.tranches.reduce(
+        (sum, t) => sum.add(t.plannedAmount),
+        new Prisma.Decimal(0)
+      );
+
+      if (currentTranchesPlanned.add(data.plannedAmount).gt(source.totalPlannedAmount)) {
+        const remaining = source.totalPlannedAmount.sub(currentTranchesPlanned);
+        throw new FinancialInvariantViolationError(
+          `ผลรวมวงเงินงวดเงินตามแผน (${currentTranchesPlanned.add(data.plannedAmount)}) เกินกรอบวงเงินของแหล่งงบประมาณ "${source.name}" (${source.totalPlannedAmount}) (คงเหลือให้ตั้งงวดได้: ${remaining} บาท, ขอตั้งงวด: ${data.plannedAmount} บาท)`
+        );
+      }
+
+      const tranche = await tx.budgetTranche.create({
+        data: {
+          budgetSourceId: data.budgetSourceId,
+          trancheNo: data.trancheNo,
+          name: data.name,
+          academicYear: data.academicYear,
+          semester: data.semester,
+          plannedAmount: data.plannedAmount,
+          expectedStartDate: data.expectedStartDate,
+          expectedEndDate: data.expectedEndDate,
+        },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          tableName: "BudgetTranche",
+          recordId: tranche.id,
+          action: "CREATE",
+          newValue: JSON.stringify({
+            name: tranche.name,
+            trancheNo: tranche.trancheNo,
+            plannedAmount: data.plannedAmount.toString(),
+          }),
+          changedBy: data.actorUserId,
+          reason: "สร้างงวดเงินงบประมาณ",
+        },
+      });
+
+      return tranche;
+    }, TX_OPTIONS);
+  }
+
+  /**
+   * Deterministic allocation resolution protocol:
+   * 1. If direct allocationId provided: verifies existence.
+   * 2. If activityId and budgetTrancheId provided: queries composite unique index.
+   * 3. If only activityId provided:
+   *    - Exactly 1 allocation: resolves safely.
+   *    - More than 1 allocation: REJECTS with error listing the tranches.
+   *    - 0 allocations: REJECTS.
+   */
+  static async resolveAllocationDeterministically(input: {
+    allocationId?: string;
+    activityId?: string;
+    budgetTrancheId?: string;
+  }): Promise<string> {
+    // 1. Direct allocationId provided
+    if (input.allocationId) {
+      const alloc = await prisma.activityTrancheAllocation.findUnique({
+        where: { id: input.allocationId },
+        select: { id: true },
+      });
+      if (alloc) return alloc.id;
+    }
+
+    // 2. Both activityId and budgetTrancheId provided -> deterministic composite match
+    if (input.activityId && input.budgetTrancheId) {
+      const alloc = await prisma.activityTrancheAllocation.findUnique({
+        where: {
+          activityId_budgetTrancheId: {
+            activityId: input.activityId,
+            budgetTrancheId: input.budgetTrancheId,
+          },
+        },
+        select: { id: true },
+      });
+      if (!alloc) {
+        throw new FinancialInvariantViolationError("กิจกรรมนี้ไม่ได้ถูกจัดสรรงบประมาณไว้ในงวดเงินที่ระบุ");
+      }
+      return alloc.id;
+    }
+
+    // 3. Fallback candidate when only activityId (or an activityId passed as allocationId) is provided
+    const candidateActivityId = input.activityId || input.allocationId;
+    if (candidateActivityId) {
+      const allocs = await prisma.activityTrancheAllocation.findMany({
+        where: { activityId: candidateActivityId },
+        select: { id: true, budgetTranche: { select: { name: true, trancheNo: true } } },
+      });
+
+      if (allocs.length === 1) {
+        return allocs[0].id;
+      }
+
+      if (allocs.length > 1) {
+        const trancheNames = allocs.map((a) => a.budgetTranche.name || `งวดที่ ${a.budgetTranche.trancheNo}`).join(", ");
+        throw new FinancialInvariantViolationError(
+          `กิจกรรมนี้มีการจัดสรรงบประมาณไว้ในหลายงวดเงิน (${trancheNames}) กรุณาระบุงวดเงินที่ต้องการเบิกจ่ายให้ชัดเจน (budgetTrancheId หรือ allocationId)`
+        );
+      }
+
+      if (allocs.length === 0) {
+        throw new FinancialInvariantViolationError("กิจกรรมนี้ยังไม่มีการจัดสรรงบประมาณลงในงวดเงินใดๆ");
+      }
+    }
+
+    throw new FinancialInvariantViolationError("กรุณาระบุข้อมูลการจัดสรรงวดเงิน (allocationId หรือ activityId)");
   }
 
   /**
@@ -532,7 +702,8 @@ export class ProjectBudgetService {
         );
       }
 
-      // 3. Layer 3 Invariant: For each tranche, SUM(allocations) + newAlloc <= MAX(plannedAmount, receipts)
+      // 3. Layer 3 Invariant: Plan Allocation Ceiling Check
+      // SUM(existing allocations on this tranche) + newAlloc <= BudgetTranche.plannedAmount
       for (const tAlloc of data.trancheAllocations) {
         if (tAlloc.allocatedAmount.lte(0)) {
           throw new FinancialInvariantViolationError("ยอดจัดสรรแต่ละงวดต้องมากกว่า 0 บาท");
@@ -542,24 +713,16 @@ export class ProjectBudgetService {
           where: { id: tAlloc.budgetTrancheId },
         });
 
-        const receiptsAgg = await tx.budgetReceipt.aggregate({
-          where: { budgetTrancheId: tAlloc.budgetTrancheId },
-          _sum: { amount: true },
-        });
-        const totalReceived = receiptsAgg._sum.amount ?? new Prisma.Decimal(0);
-
         const existingAllocsAgg = await tx.activityTrancheAllocation.aggregate({
           where: { budgetTrancheId: tAlloc.budgetTrancheId },
           _sum: { allocatedAmount: true },
         });
         const totalAllocated = existingAllocsAgg._sum.allocatedAmount ?? new Prisma.Decimal(0);
 
-        // Ceiling is the maximum between total cash received and the planned budget of this tranche
-        const ceiling = Prisma.Decimal.max(totalReceived, tranche.plannedAmount);
-        if (ceiling.gt(0) && totalAllocated.add(tAlloc.allocatedAmount).gt(ceiling)) {
-          const availableInflow = ceiling.sub(totalAllocated);
+        if (totalAllocated.add(tAlloc.allocatedAmount).gt(tranche.plannedAmount)) {
+          const availablePlan = tranche.plannedAmount.sub(totalAllocated);
           throw new FinancialInvariantViolationError(
-            `งวดเงิน "${tranche.name}" มีงบประมาณไม่เพียงพอ (วงเงินคงเหลือให้จัดสรร: ${availableInflow} บาท, ขอจัดสรร: ${tAlloc.allocatedAmount} บาท)`
+            `ยอดจัดสรรตามแผนในงวดเงิน "${tranche.name}" เกินกรอบวงเงินงบประมาณตามแผน (คงเหลือจัดสรรได้ตามแผน: ${availablePlan} บาท, ขอจัดสรร: ${tAlloc.allocatedAmount} บาท)`
           );
         }
       }
@@ -702,7 +865,7 @@ export class ProjectBudgetService {
   }
 
   /**
-   * 5. Approve Expense (Enforces Atomic Lock, State Transition & Layer 4 Invariant)
+   * 5. Approve Expense (Enforces Atomic Lock, State Transition, Layer 4 Plan Ceiling & Layer 5 Cash Inflow Invariant)
    */
   static async approveExpense(expenseId: string, approvedByUserId: string) {
     return await prisma.$transaction(async (tx) => {
@@ -716,7 +879,10 @@ export class ProjectBudgetService {
         where: { id: expenseId },
         include: {
           allocation: {
-            include: { activity: { include: { project: { include: { fiscalYear: true } } } } },
+            include: {
+              activity: { include: { project: { include: { fiscalYear: true } } } },
+              budgetTranche: true,
+            },
           },
         },
       });
@@ -729,16 +895,37 @@ export class ProjectBudgetService {
         throw new FinancialInvariantViolationError("ไม่สามารถอนุมัติรายการในปีงบประมาณที่ปิดแล้ว");
       }
 
+      const trancheId = expense.allocation.budgetTrancheId;
+
+      // 2. Lock BudgetTranche row BEFORE calculating cash (Global lock protocol to prevent concurrency race)
+      await acquireRowLocks(tx, "BudgetTranche", [trancheId]);
       await acquireRowLocks(tx, "Project", [expense.allocation.activity.projectId]);
       await acquireRowLocks(tx, "ProjectActivity", [expense.allocation.activityId]);
       await acquireRowLocks(tx, "ActivityTrancheAllocation", [expense.allocationId]);
 
-      // Layer 4 Invariant Check via Canonical Net Spent Function
-      const currentNetSpent = await ProjectBudgetService.calculateAllocationNetSpentFromDB(tx, expense.allocationId);
-      if (currentNetSpent.add(expense.amount).gt(expense.allocation.allocatedAmount)) {
-        const remaining = expense.allocation.allocatedAmount.sub(currentNetSpent);
+      // 3. Layer 4 Invariant Check: Plan Allocation Ceiling
+      // SUM(approved expenses on this allocation) + expense.amount <= allocation.allocatedAmount
+      const currentAllocNetSpent = await ProjectBudgetService.calculateAllocationNetSpentFromDB(tx, expense.allocationId);
+      if (currentAllocNetSpent.add(expense.amount).gt(expense.allocation.allocatedAmount)) {
+        const remainingPlan = expense.allocation.allocatedAmount.sub(currentAllocNetSpent);
         throw new FinancialInvariantViolationError(
-          `ยอดเบิกจ่ายเกินวงเงินที่จัดสรรไว้ในงวดนี้ (คงเหลือให้เบิกได้: ${remaining} บาท, ยอดที่ขออนุมัติ: ${expense.amount} บาท)`
+          `ยอดเบิกจ่ายเกินวงเงินตามแผนของกิจกรรมในงวดนี้ (คงเหลือให้เบิกตามแผน: ${remainingPlan} บาท, ยอดที่ขออนุมัติ: ${expense.amount} บาท)`
+        );
+      }
+
+      // 4. Layer 5 Invariant Check: Cash Available / Real Cash Inflow Invariant
+      // SUM(approved expenses on this tranche) + expense.amount <= SUM(receipts on this tranche)
+      const receiptsAgg = await tx.budgetReceipt.aggregate({
+        where: { budgetTrancheId: trancheId },
+        _sum: { amount: true },
+      });
+      const totalCashInflow = receiptsAgg._sum.amount ?? new Prisma.Decimal(0);
+
+      const currentTrancheNetSpent = await ProjectBudgetService.calculateTrancheNetSpentFromDB(tx, trancheId);
+      if (currentTrancheNetSpent.add(expense.amount).gt(totalCashInflow)) {
+        const availableCash = totalCashInflow.sub(currentTrancheNetSpent);
+        throw new FinancialInvariantViolationError(
+          `เงินสดรับเข้าจริงในงวดเงิน "${expense.allocation.budgetTranche.name}" ไม่เพียงพอต่อการอนุมัติเบิกจ่าย (เงินสดคงเหลือ: ${availableCash} บาท, ยอดที่ขออนุมัติ: ${expense.amount} บาท)`
         );
       }
 
@@ -787,7 +974,7 @@ export class ProjectBudgetService {
       const original = await tx.activityExpense.findUniqueOrThrow({
         where: { id: data.originalExpenseId },
         include: {
-          allocation: { include: { activity: { include: { project: { include: { fiscalYear: true } } } } } },
+          allocation: { include: { activity: { include: { project: { include: { fiscalYear: true } } } }, budgetTranche: true } },
           reversal: true,
         },
       });
@@ -804,6 +991,8 @@ export class ProjectBudgetService {
         throw new FinancialInvariantViolationError("ไม่สามารถยกเลิกรายการเบิกจ่ายในปีงบประมาณที่ปิดแล้ว");
       }
 
+      // Lock BudgetTranche, Project, Activity, Allocation in global hierarchy order
+      await acquireRowLocks(tx, "BudgetTranche", [original.allocation.budgetTrancheId]);
       await acquireRowLocks(tx, "Project", [original.allocation.activity.projectId]);
       await acquireRowLocks(tx, "ProjectActivity", [original.allocation.activityId]);
       await acquireRowLocks(tx, "ActivityTrancheAllocation", [original.allocationId]);
@@ -1060,7 +1249,7 @@ export class ProjectBudgetService {
           receivedAmount: trancheReceived.toNumber(),
           allocatedAmount: trancheAllocated.toNumber(),
           spentAmount: trancheSpent.toNumber(),
-          availableToAllocate: trancheReceived.sub(trancheAllocated).toNumber(),
+          availableToAllocate: tranche.plannedAmount.sub(trancheAllocated).toNumber(),
           remainingLiquidity: trancheReceived.sub(trancheSpent).toNumber(),
           status: computedStatus,
           isClosed: tranche.isClosed,
