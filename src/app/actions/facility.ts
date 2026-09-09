@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
-import { assertFacilityPermission } from "@/lib/permissions";
+import { assertFacilityPermission, getFacilityRole, hasFacilityPermission } from "@/lib/permissions";
 import type { Prisma, ReservationStatus, ResourceType, ResourceStatus } from "@prisma/client";
 
 export type CreateFacilityResourceInput = {
@@ -14,6 +14,7 @@ export type CreateFacilityResourceInput = {
   capacity?: number;
   location?: string;
   description?: string;
+  status?: ResourceStatus;
   roomProfile?: {
     floor?: string;
     hasProjector?: boolean;
@@ -68,6 +69,33 @@ async function getSessionUser() {
     headers: await headers()
   });
   return session?.user || null;
+}
+
+/**
+ * Domain-scoped Authoritative RBAC check:
+ * - ADMIN: all domains
+ * - HEAD_FACILITY: ROOM / LAB / CLASSROOM / EQUIPMENT / OTHER
+ * - HEAD_VEHICLE: VEHICLE only
+ */
+function assertResourceDomainPermission(user: any, resourceType: ResourceType) {
+  const role = getFacilityRole(user);
+  if (role === "ADMIN") return;
+
+  if (role === "HEAD_FACILITY") {
+    if (resourceType === "VEHICLE") {
+      throw new Error("หัวหน้าฝ่ายอาคารสถานที่สามารถจัดการเฉพาะห้องประชุม อาคาร และอุปกรณ์เท่านั้น");
+    }
+    return;
+  }
+
+  if (role === "HEAD_VEHICLE") {
+    if (resourceType !== "VEHICLE") {
+      throw new Error("หัวหน้างานยานพาหนะสามารถจัดการเฉพาะยานพาหนะโรงเรียนเท่านั้น");
+    }
+    return;
+  }
+
+  throw new Error("ไม่มีสิทธิ์จัดการข้อมูลทรัพยากรส่วนกลาง (ต้องเป็นผู้ดูแลระบบหรือหัวหน้างานที่เกี่ยวข้อง)");
 }
 
 /**
@@ -205,6 +233,26 @@ export async function reserveFacilityAction(input: ReserveFacilityInput) {
   const driverId = input.vehicleDetails?.driverProfileId;
 
   return await executeReservationMutation(input.resourceId, driverId, async (tx) => {
+    // 0. Physical Availability & Active Status Guard
+    const targetResource = await tx.facilityResource.findUnique({
+      where: { id: input.resourceId },
+      select: { id: true, name: true, status: true, type: true }
+    });
+
+    if (!targetResource) {
+      throw new Error("ไม่พบข้อมูลทรัพยากรที่ระบุ");
+    }
+
+    if (targetResource.status !== "AVAILABLE") {
+      const statusLabel = {
+        UNDER_MAINTENANCE: "อยู่ระหว่างปรับปรุง/ซ่อมบำรุง",
+        OUT_OF_SERVICE: "งดให้บริการชั่วคราว",
+        RETIRED: "ยกเลิกการใช้งานแล้ว"
+      }[targetResource.status] || targetResource.status;
+
+      throw new Error(`ไม่สามารถทำรายการจองได้ เนื่องจากทรัพยากร "${targetResource.name}" อยู่ในสถานะ "${statusLabel}"`);
+    }
+
     // 1. Application-level Overlap Pre-check (Resource)
     const conflictingResource = await tx.reservationResourceAssignment.findFirst({
       where: {
@@ -706,10 +754,19 @@ export async function completeVehicleTripAction(
 }
 
 /**
- * Query Facility Resources with Profiles
+ * Query Facility Resources with Profiles (excludes RETIRED by default)
  */
-export async function getFacilityResourcesAction(type?: ResourceType) {
-  const where = type ? { type } : {};
+export async function getFacilityResourcesAction(
+  typeOrOptions?: ResourceType | { type?: ResourceType; includeRetired?: boolean }
+) {
+  const options = typeof typeOrOptions === "string" ? { type: typeOrOptions } : typeOrOptions;
+  const where: any = {};
+  if (options?.type) {
+    where.type = options.type;
+  }
+  if (!options?.includeRetired) {
+    where.status = { not: "RETIRED" };
+  }
   return await prisma.facilityResource.findMany({
     where,
     include: {
@@ -717,62 +774,6 @@ export async function getFacilityResourcesAction(type?: ResourceType) {
       vehicleProfile: true
     },
     orderBy: { code: "asc" }
-  });
-}
-
-/**
- * Query Facility Reservations with Full Details
- */
-export async function getFacilityReservationsAction(params?: {
-  resourceId?: string;
-  consumerModule?: string;
-  status?: ReservationStatus;
-  startDate?: string;
-  endDate?: string;
-}) {
-  const where: any = {};
-  if (params?.resourceId) where.resourceId = params.resourceId;
-  if (params?.consumerModule) where.consumerModule = params.consumerModule;
-  if (params?.status) where.status = params.status;
-  if (params?.startDate || params?.endDate) {
-    where.startAt = {};
-    if (params.startDate) where.startAt.gte = new Date(params.startDate);
-    if (params.endDate) where.startAt.lte = new Date(params.endDate);
-  }
-
-  return await prisma.facilityReservation.findMany({
-    where,
-    include: {
-      resource: {
-        include: {
-          roomProfile: true,
-          vehicleProfile: true
-        }
-      },
-      reservedByUser: {
-        select: { id: true, name: true, email: true, role: true, department: true }
-      },
-      approvalSteps: {
-        include: {
-          approver: {
-            select: { id: true, name: true, role: true }
-          }
-        },
-        orderBy: { stepNo: "asc" }
-      },
-      assignments: {
-        include: {
-          driverProfile: {
-            include: {
-              user: { select: { id: true, name: true, phoneNumber: true } }
-            }
-          }
-        }
-      },
-      roomDetails: true,
-      vehicleDetails: true
-    },
-    orderBy: { startAt: "desc" }
   });
 }
 
@@ -792,42 +793,46 @@ export async function getDriverProfilesAction() {
 }
 
 /**
- * Create Facility Resource Action
+ * 1. Create Facility Resource Action (with Domain-scoped RBAC and Profile Invariant)
  */
 export async function createFacilityResourceAction(data: CreateFacilityResourceInput) {
   const user = await getSessionUser();
   if (!user) throw new Error("กรุณาเข้าสู่ระบบ");
   assertFacilityPermission(user, "facility:resource.create");
+  assertResourceDomainPermission(user, data.type);
 
-  return await prisma.facilityResource.create({
+  const isVehicle = data.type === "VEHICLE";
+  const isRoomLike = ["MEETING_ROOM", "CLASSROOM", "LABORATORY", "EQUIPMENT", "OTHER"].includes(data.type);
+
+  const created = await prisma.facilityResource.create({
     data: {
-      code: data.code,
-      name: data.name,
+      code: data.code.trim().toUpperCase(),
+      name: data.name.trim(),
       type: data.type,
-      capacity: data.capacity,
-      location: data.location,
-      description: data.description,
-      status: "AVAILABLE",
-      ...(data.roomProfile ? {
+      capacity: data.capacity ? Number(data.capacity) : null,
+      location: data.location?.trim() || null,
+      description: data.description?.trim() || null,
+      status: data.status || "AVAILABLE",
+      ...(isRoomLike ? {
         roomProfile: {
           create: {
-            floor: data.roomProfile.floor,
-            hasProjector: data.roomProfile.hasProjector ?? true,
-            hasSoundSystem: data.roomProfile.hasSoundSystem ?? true,
-            hasVideoConference: data.roomProfile.hasVideoConference ?? false,
-            airConditionerCount: data.roomProfile.airConditionerCount ?? 2
+            floor: data.roomProfile?.floor || "ชั้น 1",
+            hasProjector: data.roomProfile?.hasProjector ?? true,
+            hasSoundSystem: data.roomProfile?.hasSoundSystem ?? true,
+            hasVideoConference: data.roomProfile?.hasVideoConference ?? false,
+            airConditionerCount: data.roomProfile?.airConditionerCount ?? 2
           }
         }
       } : {}),
-      ...(data.vehicleProfile ? {
+      ...(isVehicle ? {
         vehicleProfile: {
           create: {
-            licensePlate: data.vehicleProfile.licensePlate,
-            brand: data.vehicleProfile.brand,
-            model: data.vehicleProfile.model,
-            fuelType: data.vehicleProfile.fuelType || "DIESEL",
-            seatCapacity: data.vehicleProfile.seatCapacity ?? 12,
-            currentOdometer: data.vehicleProfile.currentOdometer ?? 0
+            licensePlate: data.vehicleProfile?.licensePlate?.trim() || data.code.trim().toUpperCase(),
+            brand: data.vehicleProfile?.brand?.trim() || "ยานพาหนะโรงเรียน",
+            model: data.vehicleProfile?.model?.trim() || "",
+            fuelType: data.vehicleProfile?.fuelType || "DIESEL",
+            seatCapacity: data.vehicleProfile?.seatCapacity ?? (data.capacity ? Number(data.capacity) : 12),
+            currentOdometer: data.vehicleProfile?.currentOdometer ?? 0
           }
         }
       } : {})
@@ -837,4 +842,350 @@ export async function createFacilityResourceAction(data: CreateFacilityResourceI
       vehicleProfile: true
     }
   });
+
+  revalidatePath("/facility");
+  return created;
+}
+
+/**
+ * 2. Update Facility Resource Action (Row-locked, Domain RBAC, Immutable Type & IN_USE Check)
+ */
+export async function updateFacilityResourceAction(
+  id: string,
+  data: {
+    code?: string;
+    name?: string;
+    capacity?: number;
+    location?: string;
+    description?: string;
+    status?: ResourceStatus;
+    roomProfile?: any;
+    vehicleProfile?: any;
+  }
+) {
+  const user = await getSessionUser();
+  if (!user) throw new Error("กรุณาเข้าสู่ระบบ");
+  assertFacilityPermission(user, "facility:resource.manage");
+
+  return await prisma.$transaction(async (tx) => {
+    // 1. Pessimistic Row Lock on FacilityResource
+    const [locked] = await tx.$queryRaw<Array<{ id: string; type: ResourceType; status: ResourceStatus }>>`
+      SELECT id, type, status FROM "FacilityResource" WHERE id = ${id} FOR UPDATE;
+    `;
+    if (!locked) throw new Error("ไม่พบข้อมูลทรัพยากร");
+    assertResourceDomainPermission(user, locked.type);
+
+    const updateData: any = {
+      ...(data.code ? { code: data.code.trim().toUpperCase() } : {}),
+      ...(data.name ? { name: data.name.trim() } : {}),
+      ...(data.capacity !== undefined ? { capacity: Number(data.capacity) } : {}),
+      ...(data.location !== undefined ? { location: data.location?.trim() || null } : {}),
+      ...(data.description !== undefined ? { description: data.description?.trim() || null } : {}),
+    };
+
+    // If changing status, check IN_USE invariant
+    if (data.status && data.status !== locked.status) {
+      if (data.status === "OUT_OF_SERVICE" || data.status === "UNDER_MAINTENANCE" || data.status === "RETIRED") {
+        const activeInUse = await tx.reservationResourceAssignment.findFirst({
+          where: { resourceId: id, status: "IN_USE" }
+        });
+        if (activeInUse) {
+          throw new Error(`ไม่สามารถเปลี่ยนสถานะเป็น "${data.status}" ได้ เนื่องจากทรัพยากรนี้กำลังถูกใช้งานจริงในขณะนี้ (IN_USE)`);
+        }
+      }
+      updateData.status = data.status;
+    }
+
+    // Upsert profiles appropriately
+    if (locked.type === "VEHICLE" && data.vehicleProfile) {
+      updateData.vehicleProfile = {
+        upsert: {
+          create: {
+            licensePlate: data.vehicleProfile.licensePlate || data.code || id,
+            brand: data.vehicleProfile.brand || "",
+            model: data.vehicleProfile.model || "",
+            fuelType: data.vehicleProfile.fuelType || "DIESEL",
+            seatCapacity: data.vehicleProfile.seatCapacity ?? 12,
+            currentOdometer: data.vehicleProfile.currentOdometer ?? 0
+          },
+          update: {
+            ...(data.vehicleProfile.licensePlate ? { licensePlate: data.vehicleProfile.licensePlate } : {}),
+            ...(data.vehicleProfile.brand !== undefined ? { brand: data.vehicleProfile.brand } : {}),
+            ...(data.vehicleProfile.model !== undefined ? { model: data.vehicleProfile.model } : {}),
+            ...(data.vehicleProfile.fuelType ? { fuelType: data.vehicleProfile.fuelType } : {}),
+            ...(data.vehicleProfile.seatCapacity ? { seatCapacity: Number(data.vehicleProfile.seatCapacity) } : {}),
+            ...(data.vehicleProfile.currentOdometer !== undefined ? { currentOdometer: Number(data.vehicleProfile.currentOdometer) } : {})
+          }
+        }
+      };
+    } else if (data.roomProfile && locked.type !== "VEHICLE") {
+      updateData.roomProfile = {
+        upsert: {
+          create: {
+            floor: data.roomProfile.floor || "ชั้น 1",
+            hasProjector: data.roomProfile.hasProjector ?? true,
+            hasSoundSystem: data.roomProfile.hasSoundSystem ?? true,
+            hasVideoConference: data.roomProfile.hasVideoConference ?? false,
+            airConditionerCount: data.roomProfile.airConditionerCount ?? 2
+          },
+          update: {
+            ...(data.roomProfile.floor !== undefined ? { floor: data.roomProfile.floor } : {}),
+            ...(data.roomProfile.hasProjector !== undefined ? { hasProjector: data.roomProfile.hasProjector } : {}),
+            ...(data.roomProfile.hasSoundSystem !== undefined ? { hasSoundSystem: data.roomProfile.hasSoundSystem } : {}),
+            ...(data.roomProfile.hasVideoConference !== undefined ? { hasVideoConference: data.roomProfile.hasVideoConference } : {}),
+            ...(data.roomProfile.airConditionerCount !== undefined ? { airConditionerCount: Number(data.roomProfile.airConditionerCount) } : {})
+          }
+        }
+      };
+    }
+
+    const updated = await tx.facilityResource.update({
+      where: { id },
+      data: updateData,
+      include: {
+        roomProfile: true,
+        vehicleProfile: true
+      }
+    });
+
+    revalidatePath("/facility");
+    return updated;
+  });
+}
+
+/**
+ * 3. Toggle Facility Resource Status Action (Row-locked with IN_USE Guard)
+ */
+export async function toggleFacilityResourceStatusAction(id: string, newStatus: ResourceStatus) {
+  const user = await getSessionUser();
+  if (!user) throw new Error("กรุณาเข้าสู่ระบบ");
+  assertFacilityPermission(user, "facility:resource.manage");
+
+  return await prisma.$transaction(async (tx) => {
+    // 1. Pessimistic Row Lock
+    const [locked] = await tx.$queryRaw<Array<{ id: string; type: ResourceType; status: ResourceStatus }>>`
+      SELECT id, type, status FROM "FacilityResource" WHERE id = ${id} FOR UPDATE;
+    `;
+    if (!locked) throw new Error("ไม่พบข้อมูลทรัพยากร");
+    assertResourceDomainPermission(user, locked.type);
+
+    // 2. Active IN_USE check
+    if (newStatus === "OUT_OF_SERVICE" || newStatus === "UNDER_MAINTENANCE" || newStatus === "RETIRED") {
+      const activeInUse = await tx.reservationResourceAssignment.findFirst({
+        where: { resourceId: id, status: "IN_USE" }
+      });
+      if (activeInUse) {
+        throw new Error(`ไม่สามารถเปลี่ยนสถานะเป็น "${newStatus}" ได้ เนื่องจากทรัพยากรนี้กำลังถูกใช้งานจริงในขณะนี้ (IN_USE)`);
+      }
+    }
+
+    const updated = await tx.facilityResource.update({
+      where: { id },
+      data: { status: newStatus }
+    });
+
+    revalidatePath("/facility");
+    return updated;
+  });
+}
+
+/**
+ * 4. Delete Facility Resource Action (Authoritative Assignment Check with Specific P2003/23503 Fallback)
+ */
+export async function deleteFacilityResourceAction(id: string) {
+  const user = await getSessionUser();
+  if (!user) throw new Error("กรุณาเข้าสู่ระบบ");
+  assertFacilityPermission(user, "facility:resource.manage");
+
+  return await prisma.$transaction(async (tx) => {
+    // 1. Pessimistic Row Lock
+    const [locked] = await tx.$queryRaw<Array<{ id: string; type: ResourceType; status: ResourceStatus }>>`
+      SELECT id, type, status FROM "FacilityResource" WHERE id = ${id} FOR UPDATE;
+    `;
+    if (!locked) throw new Error("ไม่พบข้อมูลทรัพยากร");
+    assertResourceDomainPermission(user, locked.type);
+
+    // 2. Authoritative check on ReservationResourceAssignment
+    const assignmentCount = await tx.reservationResourceAssignment.count({
+      where: { resourceId: id }
+    });
+
+    if (assignmentCount > 0) {
+      // Historical reservations exist -> MUST RETIRE, NEVER HARD DELETE!
+      const retired = await tx.facilityResource.update({
+        where: { id },
+        data: { status: "RETIRED" }
+      });
+      revalidatePath("/facility");
+      return { action: "RETIRED" as const, resource: retired };
+    }
+
+    // 3. No reservation assignments exist -> Attempt hard delete
+    try {
+      const deleted = await tx.facilityResource.delete({
+        where: { id }
+      });
+      revalidatePath("/facility");
+      return { action: "DELETED" as const, resource: deleted };
+    } catch (err: any) {
+      // Catch ONLY specific foreign key violation errors (P2003 / PostgreSQL 23503)
+      const isFkViolation =
+        err?.code === "P2003" ||
+        err?.code === "23503" ||
+        err?.message?.includes("foreign key constraint") ||
+        err?.message?.includes("Foreign key constraint failed");
+
+      if (isFkViolation) {
+        // Fallback safely to RETIRED to preserve external reference
+        const retired = await tx.facilityResource.update({
+          where: { id },
+          data: { status: "RETIRED" }
+        });
+        revalidatePath("/facility");
+        return { action: "RETIRED" as const, resource: retired };
+      }
+
+      // Any other unexpected error (network, pool timeout, syntax) MUST be rethrown
+      throw err;
+    }
+  });
+}
+
+/**
+ * 5. Seed Default Facility Resources Action (ADMIN only + Idempotent Upsert)
+ */
+export async function seedDefaultFacilityResourcesAction() {
+  const user = await getSessionUser();
+  if (!user) throw new Error("กรุณาเข้าสู่ระบบ");
+  const role = getFacilityRole(user);
+  if (role !== "ADMIN") {
+    throw new Error("เฉพาะผู้ดูแลระบบ (ADMIN) เท่านั้นที่สามารถสร้างข้อมูลตัวอย่างได้");
+  }
+
+  const samples = [
+    {
+      code: "ROOM-CONF-1",
+      name: "ห้องประชุมกุญชร 1",
+      type: "MEETING_ROOM" as const,
+      capacity: 80,
+      location: "อาคาร 1 ชั้น 2",
+      description: "ห้องประชุมใหญ่ส่วนกลาง พร้อมโปรเจคเตอร์และเครื่องเสียง",
+      status: "AVAILABLE" as const,
+      roomProfile: {
+        floor: "ชั้น 2",
+        hasProjector: true,
+        hasSoundSystem: true,
+        hasVideoConference: true,
+        airConditionerCount: 4
+      }
+    },
+    {
+      code: "BUS-01",
+      name: "รถบัสปรับอากาศ 45 ที่นั่ง",
+      type: "VEHICLE" as const,
+      capacity: 45,
+      location: "โรงจอดรถยานพาหนะ",
+      description: "รถบัสโรงเรียนปรับอากาศ สำหรับทัศนศึกษาและการแข่งขันวิชาการ",
+      status: "AVAILABLE" as const,
+      vehicleProfile: {
+        licensePlate: "นข-4501 อุดรธานี",
+        brand: "Hino",
+        model: "S'elega VIP",
+        fuelType: "DIESEL",
+        seatCapacity: 45,
+        currentOdometer: 12500
+      }
+    },
+    {
+      code: "LAB-CHEM-1",
+      name: "ห้องปฏิบัติการเคมี 1",
+      type: "LABORATORY" as const,
+      capacity: 40,
+      location: "อาคารวิทยาศาสตร์ ชั้น 3",
+      description: "ห้องปฏิบัติการเคมีและอุปกรณ์ทดลองส่วนกลาง",
+      status: "AVAILABLE" as const,
+      roomProfile: {
+        floor: "ชั้น 3",
+        hasProjector: true,
+        hasSoundSystem: false,
+        hasVideoConference: false,
+        airConditionerCount: 2
+      }
+    }
+  ];
+
+  const results = [];
+  for (const s of samples) {
+    const isVehicle = s.type === "VEHICLE";
+    const res = await prisma.facilityResource.upsert({
+      where: { code: s.code },
+      update: {
+        name: s.name,
+        type: s.type,
+        capacity: s.capacity,
+        location: s.location,
+        description: s.description,
+        status: s.status
+      },
+      create: {
+        code: s.code,
+        name: s.name,
+        type: s.type,
+        capacity: s.capacity,
+        location: s.location,
+        description: s.description,
+        status: s.status,
+        ...(isVehicle ? {
+          vehicleProfile: {
+            create: s.vehicleProfile!
+          }
+        } : {
+          roomProfile: {
+            create: s.roomProfile!
+          }
+        })
+      },
+      include: {
+        roomProfile: true,
+        vehicleProfile: true
+      }
+    });
+    results.push(res);
+  }
+
+  revalidatePath("/facility");
+  return results;
+}
+
+/**
+ * 6. Get Current User's Facility Role & Permissions
+ */
+export async function getCurrentFacilityUserRoleAction() {
+  const user = await getSessionUser();
+  if (!user) {
+    return {
+      user: null,
+      role: "TEACHER" as const,
+      canManage: false,
+      isAdmin: false,
+      canManageRooms: false,
+      canManageVehicles: false
+    };
+  }
+  const role = getFacilityRole(user);
+  const canManage = hasFacilityPermission(user, "facility:resource.manage");
+  return {
+    user: {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: (user as any).role,
+      position: (user as any).position
+    },
+    role,
+    canManage,
+    isAdmin: role === "ADMIN",
+    canManageRooms: role === "ADMIN" || role === "HEAD_FACILITY",
+    canManageVehicles: role === "ADMIN" || role === "HEAD_VEHICLE"
+  };
 }

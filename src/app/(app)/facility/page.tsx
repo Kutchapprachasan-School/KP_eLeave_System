@@ -10,23 +10,27 @@ import {
   CheckCircle2, 
   Printer, 
   Search, 
-  Filter, 
   MapPin, 
   Users, 
   ShieldCheck, 
   AlertCircle, 
   X, 
-  Send, 
   Check, 
   Car, 
-  FileText, 
-  ChevronRight,
-  Info,
-  Layers,
+  SlidersHorizontal, 
+  UserCheck, 
+  Settings, 
+  Edit2, 
+  Trash2, 
+  RefreshCw, 
   Sparkles,
-  ArrowRight,
-  SlidersHorizontal,
-  UserCheck
+  Layers,
+  FlaskConical,
+  GraduationCap,
+  Wrench,
+  HelpCircle,
+  ToggleLeft,
+  ToggleRight
 } from "lucide-react";
 import { 
   getFacilityResourcesAction, 
@@ -36,11 +40,18 @@ import {
   approveFacilityReservationDirectorAction, 
   rejectFacilityReservationAction, 
   cancelFacilityReservationAction,
-  getDriverProfilesAction 
+  getDriverProfilesAction,
+  createFacilityResourceAction,
+  updateFacilityResourceAction,
+  toggleFacilityResourceStatusAction,
+  deleteFacilityResourceAction,
+  seedDefaultFacilityResourcesAction,
+  getCurrentFacilityUserRoleAction
 } from "@/app/actions/facility";
 import Link from "next/link";
 
 type ModuleMode = "MEETING_ROOM" | "VEHICLE";
+type ActiveTab = "CATALOG" | "CRUD" | "TIMELINE" | "APPROVALS";
 
 function toThaiDateString(dateInput: string | Date | null | undefined) {
   if (!dateInput) return "-";
@@ -68,14 +79,59 @@ function toThaiTimeString(dateInput: string | Date | null | undefined) {
   return `${hours}:${minutes} น.`;
 }
 
+function getResourceTypeName(type: string) {
+  switch (type) {
+    case "MEETING_ROOM": return "ห้องประชุม";
+    case "VEHICLE": return "ยานพาหนะ";
+    case "LABORATORY": return "ห้องแล็บ/ปฏิบัติการ";
+    case "CLASSROOM": return "ห้องเรียนพิเศษ";
+    case "EQUIPMENT": return "อุปกรณ์ส่วนกลาง";
+    default: return "ทรัพยากรทั่วไป";
+  }
+}
+
+function getResourceTypeBadge(type: string) {
+  switch (type) {
+    case "MEETING_ROOM":
+      return <span className="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 flex items-center gap-1"><Building className="w-3 h-3" /> ห้องประชุม</span>;
+    case "VEHICLE":
+      return <span className="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-200 dark:border-amber-800 flex items-center gap-1"><Car className="w-3 h-3" /> รถโรงเรียน</span>;
+    case "LABORATORY":
+      return <span className="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-purple-50 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300 border border-purple-200 dark:border-purple-800 flex items-center gap-1"><FlaskConical className="w-3 h-3" /> ห้องแล็บ</span>;
+    case "CLASSROOM":
+      return <span className="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200 dark:border-blue-800 flex items-center gap-1"><GraduationCap className="w-3 h-3" /> ห้องเรียน</span>;
+    case "EQUIPMENT":
+      return <span className="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-cyan-50 text-cyan-700 dark:bg-cyan-950/60 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-800 flex items-center gap-1"><Wrench className="w-3 h-3" /> อุปกรณ์</span>;
+    default:
+      return <span className="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-200 dark:border-slate-700 flex items-center gap-1"><HelpCircle className="w-3 h-3" /> ทั่วไป</span>;
+  }
+}
+
+function getStatusBadge(status: string) {
+  switch (status) {
+    case "AVAILABLE":
+      return <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">พร้อมให้บริการ</span>;
+    case "UNDER_MAINTENANCE":
+      return <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 dark:bg-amber-950/70 dark:text-amber-300 border border-amber-300 dark:border-amber-800">ซ่อมบำรุง</span>;
+    case "OUT_OF_SERVICE":
+      return <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-100 text-rose-800 dark:bg-rose-950/70 dark:text-rose-300 border border-rose-300 dark:border-rose-800">ไม่พร้อมใช้งาน</span>;
+    case "RETIRED":
+      return <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-400 border border-slate-300 dark:border-slate-700">ปลดระวาง</span>;
+    default:
+      return <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600">{status}</span>;
+  }
+}
+
 export default function UnifiedFacilityPortalPage() {
   const [moduleMode, setModuleMode] = useState<ModuleMode>("MEETING_ROOM");
-  const [activeTab, setActiveTab] = useState<"CATALOG" | "TIMELINE" | "APPROVALS">("CATALOG");
+  const [activeTab, setActiveTab] = useState<ActiveTab>("CATALOG");
 
   const [loading, setLoading] = useState(true);
   const [resources, setResources] = useState<any[]>([]);
+  const [allResources, setAllResources] = useState<any[]>([]);
   const [reservations, setReservations] = useState<any[]>([]);
   const [drivers, setDrivers] = useState<any[]>([]);
+  const [userRoleInfo, setUserRoleInfo] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
   // Booking Modal State
@@ -113,6 +169,35 @@ export default function UnifiedFacilityPortalPage() {
   const [reviewDriverId, setReviewDriverId] = useState("");
   const [reviewComment, setReviewComment] = useState("");
 
+  // CRUD State (Quick Add Resource Form matching Image 2)
+  const [quickAddForm, setQuickAddForm] = useState({
+    code: "",
+    name: "",
+    type: "MEETING_ROOM",
+    capacity: 30,
+    location: "",
+    description: "",
+    licensePlate: "",
+    floor: "ชั้น 1"
+  });
+  const [addingResource, setAddingResource] = useState(false);
+
+  // Edit Resource Modal State
+  const [editingResource, setEditingResource] = useState<any>(null);
+  const [editForm, setEditForm] = useState({
+    code: "",
+    name: "",
+    capacity: 0,
+    location: "",
+    description: "",
+    status: "AVAILABLE",
+    floor: "ชั้น 1",
+    licensePlate: "",
+    brand: "",
+    model: ""
+  });
+  const [savingEdit, setSavingEdit] = useState(false);
+
   useEffect(() => {
     loadData();
   }, [moduleMode]);
@@ -121,15 +206,19 @@ export default function UnifiedFacilityPortalPage() {
     try {
       setLoading(true);
       const targetType = moduleMode === "MEETING_ROOM" ? "MEETING_ROOM" : "VEHICLE";
-      const [resList, bookingList, driverList] = await Promise.all([
+      const [resList, allResList, bookingList, driverList, roleInfo] = await Promise.all([
         getFacilityResourcesAction(targetType as any).catch(() => []),
+        getFacilityResourcesAction({ includeRetired: true }).catch(() => []),
         getFacilityReservationsAction({ consumerModule: moduleMode }).catch(() => []),
-        getDriverProfilesAction().catch(() => [])
+        getDriverProfilesAction().catch(() => []),
+        getCurrentFacilityUserRoleAction().catch(() => null)
       ]);
 
       setResources(resList || []);
+      setAllResources(allResList || []);
       setReservations(bookingList || []);
       setDrivers(driverList || []);
+      setUserRoleInfo(roleInfo);
     } catch (err: any) {
       console.error("Failed to load facility portal data:", err);
     } finally {
@@ -137,6 +226,14 @@ export default function UnifiedFacilityPortalPage() {
     }
   }
 
+  // Open general booking modal (user selects resource inside)
+  const handleOpenGeneralBooking = () => {
+    const defaultRes = resources.find(r => r.status === "AVAILABLE") || allResources.find(r => r.status === "AVAILABLE") || null;
+    setSelectedResource(defaultRes);
+    setIsBookingModalOpen(true);
+  };
+
+  // Open booking modal for specific resource
   const handleOpenBooking = (resource: any) => {
     setSelectedResource(resource);
     setIsBookingModalOpen(true);
@@ -144,14 +241,19 @@ export default function UnifiedFacilityPortalPage() {
 
   const handleSubmittingBooking = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!selectedResource) {
+      alert("กรุณาเลือกทรัพยากรที่ต้องการจอง");
+      return;
+    }
     try {
       setSubmitting(true);
       const startAt = `${bookingForm.startDate}T${bookingForm.startTime}:00`;
       const endAt = `${bookingForm.endDate}T${bookingForm.endTime}:00`;
+      const isVehicleTarget = selectedResource.type === "VEHICLE";
 
       await reserveFacilityAction({
         resourceId: selectedResource.id,
-        consumerModule: moduleMode,
+        consumerModule: isVehicleTarget ? "VEHICLE" : "MEETING_ROOM",
         title: bookingForm.title,
         purpose: bookingForm.purpose,
         startAt: new Date(startAt).toISOString(),
@@ -159,7 +261,7 @@ export default function UnifiedFacilityPortalPage() {
         attendeeCount: Number(bookingForm.attendeeCount),
         department: bookingForm.department,
         contactPhone: bookingForm.contactPhone,
-        ...(moduleMode === "MEETING_ROOM" ? {
+        ...(!isVehicleTarget ? {
           roomDetails: {
             layoutType: bookingForm.layoutType,
             layoutNotes: bookingForm.layoutNotes,
@@ -188,6 +290,160 @@ export default function UnifiedFacilityPortalPage() {
       alert("เกิดข้อผิดพลาด: " + err.message);
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  // Create Resource (Quick Add)
+  const handleCreateResource = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!quickAddForm.code.trim() || !quickAddForm.name.trim()) {
+      alert("กรุณากรอกรหัสกำกับและชื่อทรัพยากร");
+      return;
+    }
+
+    try {
+      setAddingResource(true);
+      const isVehicle = quickAddForm.type === "VEHICLE";
+      await createFacilityResourceAction({
+        code: quickAddForm.code.trim(),
+        name: quickAddForm.name.trim(),
+        type: quickAddForm.type as any,
+        capacity: Number(quickAddForm.capacity) || 30,
+        location: quickAddForm.location.trim() || undefined,
+        description: quickAddForm.description.trim() || undefined,
+        ...(isVehicle ? {
+          vehicleProfile: {
+            licensePlate: quickAddForm.licensePlate.trim() || quickAddForm.code.trim(),
+            seatCapacity: Number(quickAddForm.capacity) || 12
+          }
+        } : {
+          roomProfile: {
+            floor: quickAddForm.floor || "ชั้น 1",
+            hasProjector: true,
+            hasSoundSystem: true
+          }
+        })
+      });
+
+      alert(`เพิ่มรายการ "${quickAddForm.name}" เรียบร้อยแล้ว!`);
+      setQuickAddForm({
+        code: "",
+        name: "",
+        type: "MEETING_ROOM",
+        capacity: 30,
+        location: "",
+        description: "",
+        licensePlate: "",
+        floor: "ชั้น 1"
+      });
+      loadData();
+    } catch (err: any) {
+      alert("ไม่สามารถเพิ่มทรัพยากรได้: " + err.message);
+    } finally {
+      setAddingResource(false);
+    }
+  };
+
+  // Edit Resource
+  const handleOpenEdit = (res: any) => {
+    setEditingResource(res);
+    setEditForm({
+      code: res.code || "",
+      name: res.name || "",
+      capacity: res.capacity || 0,
+      location: res.location || "",
+      description: res.description || "",
+      status: res.status || "AVAILABLE",
+      floor: res.roomProfile?.floor || "ชั้น 1",
+      licensePlate: res.vehicleProfile?.licensePlate || "",
+      brand: res.vehicleProfile?.brand || "",
+      model: res.vehicleProfile?.model || ""
+    });
+  };
+
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingResource) return;
+
+    try {
+      setSavingEdit(true);
+      const isVehicle = editingResource.type === "VEHICLE";
+      await updateFacilityResourceAction(editingResource.id, {
+        code: editForm.code,
+        name: editForm.name,
+        capacity: Number(editForm.capacity),
+        location: editForm.location,
+        description: editForm.description,
+        status: editForm.status as any,
+        ...(isVehicle ? {
+          vehicleProfile: {
+            licensePlate: editForm.licensePlate,
+            brand: editForm.brand,
+            model: editForm.model,
+            seatCapacity: Number(editForm.capacity)
+          }
+        } : {
+          roomProfile: {
+            floor: editForm.floor
+          }
+        })
+      });
+
+      alert("บันทึกการแก้ไขข้อมูลเรียบร้อยแล้ว");
+      setEditingResource(null);
+      loadData();
+    } catch (err: any) {
+      alert("ไม่สามารถบันทึกได้: " + err.message);
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  // Toggle Status
+  const handleToggleStatus = async (resource: any) => {
+    const nextStatus = resource.status === "AVAILABLE" ? "UNDER_MAINTENANCE" : "AVAILABLE";
+    const label = nextStatus === "AVAILABLE" ? "พร้อมให้บริการ" : "แจ้งซ่อมบำรุง";
+    if (!confirm(`ต้องการเปลี่ยนสถานะของ "${resource.name}" เป็น "${label}" หรือไม่?`)) return;
+
+    try {
+      await toggleFacilityResourceStatusAction(resource.id, nextStatus as any);
+      loadData();
+    } catch (err: any) {
+      alert("ไม่สามารถเปลี่ยนสถานะได้: " + err.message);
+    }
+  };
+
+  // Delete / Retire Resource
+  const handleDeleteResource = async (resource: any) => {
+    if (!confirm(`ต้องการลบหรือปลดระวางทรัพยากร "${resource.name}" (${resource.code}) หรือไม่?\n\n(หากเคยมีประวัติการจอง ระบบจะทำการปลดระวาง RETIRED เพื่อรักษาประวัติความถูกต้อง)`)) {
+      return;
+    }
+
+    try {
+      const res = await deleteFacilityResourceAction(resource.id);
+      if (res.action === "RETIRED") {
+        alert(`ทรัพยากรนี้มีประวัติการจองในระบบ จึงถูกเปลี่ยนสถานะเป็น "ปลดระวาง (RETIRED)" เรียบร้อยแล้ว`);
+      } else {
+        alert(`ลบข้อมูลทรัพยากร "${resource.name}" สำเร็จเรียบร้อยแล้ว`);
+      }
+      loadData();
+    } catch (err: any) {
+      alert("ไม่สามารถดำเนินการได้: " + err.message);
+    }
+  };
+
+  // Seed Default Resources
+  const handleSeedDefaults = async () => {
+    if (!confirm("คุณต้องการโหลดข้อมูลตัวอย่างเริ่มต้น (ห้องประชุมกุญชร 1, รถบัส 45 ที่นั่ง, ห้องแล็บเคมี 1) เข้าสู่ระบบหรือไม่?")) return;
+    try {
+      setLoading(true);
+      await seedDefaultFacilityResourcesAction();
+      alert("โหลดข้อมูลตัวอย่างเริ่มต้นสำเร็จ!");
+      loadData();
+    } catch (err: any) {
+      alert("ไม่สามารถโหลดข้อมูลตัวอย่างได้: " + err.message);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -244,15 +500,24 @@ export default function UnifiedFacilityPortalPage() {
     }
   };
 
+  // Filtered lists
   const filteredResources = resources.filter(r => 
     r.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     r.code?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     r.location?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const filteredAllResources = allResources.filter(r =>
+    r.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    r.code?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    r.location?.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const canUserManage = userRoleInfo?.canManage || userRoleInfo?.isAdmin || false;
+
   return (
     <div className="min-h-screen bg-slate-50/60 dark:bg-slate-950 p-4 md:p-8 space-y-6 text-slate-900 dark:text-slate-100 max-w-7xl mx-auto">
-      {/* Top Header with Interactive Dropdown Mode Switcher */}
+      {/* Top Header with Interactive Dropdown Mode Switcher & Primary Action */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-6 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl shadow-xs">
         <div>
           <div className="flex items-center gap-3">
@@ -270,9 +535,14 @@ export default function UnifiedFacilityPortalPage() {
                 <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                   ระบบบริหารทรัพยากรสถานศึกษา
                 </span>
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 font-semibold text-slate-600 dark:text-slate-300">
-                  v7.0 Hardened
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300 font-semibold">
+                  v7.2 Hardened
                 </span>
+                {userRoleInfo?.role && (
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 font-mono">
+                    สิทธิ์: {userRoleInfo.role}
+                  </span>
+                )}
               </div>
               <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
                 {moduleMode === "MEETING_ROOM" ? "ระบบจองห้องประชุมและอาคารสถานที่" : "ระบบจองรถโรงเรียนและยานพาหนะ"}
@@ -280,12 +550,34 @@ export default function UnifiedFacilityPortalPage() {
             </div>
           </div>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 pl-15">
-            ระบบจองและอนุมัติแบบ 2 ขั้นตอน (หัวหน้าฝ่ายจัดสรร ➔ ผู้อำนวยการอนุมัติ) ป้องกันการจองซ้ำซ้อนระดับ Database Engine 100%
+            ศูนย์จัดการทรัพยากรส่วนกลาง CRUD + ระบบจองและอนุมัติ 2 ขั้นตอน (หัวหน้าฝ่ายจัดสรร ➔ ผู้อำนวยการอนุมัติ) ป้องกันการจองซ้อน 100%
           </p>
         </div>
 
-        {/* Dropdown Switcher */}
-        <div className="flex items-center gap-3">
+        {/* Action Controls & Mode Switcher */}
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Primary Top Action: ยื่นคำขอจอง */}
+          <button
+            onClick={handleOpenGeneralBooking}
+            className="px-5 py-3 rounded-2xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-sm shadow-md transition flex items-center gap-2"
+          >
+            <Plus className="w-4 h-4" />
+            + ยื่นคำขอจอง
+          </button>
+
+          {/* Admin Sample Data Seed Button */}
+          {userRoleInfo?.isAdmin && (
+            <button
+              onClick={handleSeedDefaults}
+              title="โหลดข้อมูลตัวอย่างเริ่มต้น (ห้องประชุม, รถบัส, ห้องแล็บ)"
+              className="px-3.5 py-3 rounded-2xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold text-xs transition flex items-center gap-1.5 border border-slate-300 dark:border-slate-700"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+              โหลดข้อมูลตัวอย่าง
+            </button>
+          )}
+
+          {/* Dropdown Mode Switcher */}
           <div className="relative">
             <select
               value={moduleMode}
@@ -293,8 +585,8 @@ export default function UnifiedFacilityPortalPage() {
               aria-label="เลือกระบบที่ต้องการใช้งาน"
               className="appearance-none bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-bold text-sm rounded-2xl px-5 py-3 pr-10 focus:ring-2 focus:ring-emerald-500 cursor-pointer shadow-xs transition"
             >
-              <option value="MEETING_ROOM">🏢 ระบบจองห้องประชุม (Meeting Rooms)</option>
-              <option value="VEHICLE">🚐 ระบบจองรถโรงเรียน (School Vehicles)</option>
+              <option value="MEETING_ROOM">🏢 ระบบห้องประชุม (Meeting Rooms)</option>
+              <option value="VEHICLE">🚐 ระบบรถโรงเรียน (School Vehicles)</option>
             </select>
             <SlidersHorizontal className="w-4 h-4 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
           </div>
@@ -314,6 +606,18 @@ export default function UnifiedFacilityPortalPage() {
           >
             <Layers className="w-4 h-4" />
             รายการทรัพยากร ({filteredResources.length})
+          </button>
+
+          <button
+            onClick={() => setActiveTab("CRUD")}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition whitespace-nowrap ${
+              activeTab === "CRUD"
+                ? "bg-indigo-700 text-white shadow-xs"
+                : "text-slate-600 dark:text-slate-400 hover:bg-white/50 dark:hover:bg-slate-800/50"
+            }`}
+          >
+            <Settings className="w-4 h-4" />
+            จัดการทรัพยากรกลาง (CRUD) ({allResources.length})
           </button>
 
           <button
@@ -346,7 +650,7 @@ export default function UnifiedFacilityPortalPage() {
           <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
           <input
             type="text"
-            placeholder={moduleMode === "MEETING_ROOM" ? "ค้นหาชื่อห้องประชุม, รหัส, อาคาร..." : "ค้นหาทะเบียนรถ, ยี่ห้อ, รถตู้/รถบัส..."}
+            placeholder="ค้นหาชื่อทรัพยากร, รหัส, สถานที่..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-xs text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-emerald-500 focus:outline-hidden shadow-xs"
@@ -361,6 +665,14 @@ export default function UnifiedFacilityPortalPage() {
             <div className="p-12 text-center bg-white dark:bg-slate-900 rounded-3xl border border-dashed border-slate-300 dark:border-slate-800">
               <AlertCircle className="w-10 h-10 text-slate-400 mx-auto mb-3" />
               <p className="text-slate-600 dark:text-slate-400 text-sm font-semibold">ไม่พบรายการทรัพยากรในระบบ</p>
+              {canUserManage && (
+                <button
+                  onClick={() => setActiveTab("CRUD")}
+                  className="mt-4 px-4 py-2 rounded-xl bg-emerald-700 text-white text-xs font-bold shadow-xs inline-flex items-center gap-1.5"
+                >
+                  <Plus className="w-4 h-4" /> ไปที่เมนูจัดการทรัพยากรเพื่อเพิ่มรายการ
+                </button>
+              )}
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
@@ -374,9 +686,7 @@ export default function UnifiedFacilityPortalPage() {
                       <span className="text-[11px] font-mono px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-semibold">
                         {res.code}
                       </span>
-                      <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
-                        พร้อมให้บริการ
-                      </span>
+                      {getStatusBadge(res.status)}
                     </div>
 
                     <div>
@@ -435,17 +745,20 @@ export default function UnifiedFacilityPortalPage() {
                     )}
                   </div>
 
-                  <div className="mt-5 pt-3 border-t border-slate-100 dark:border-slate-800">
+                  <div className="mt-5 pt-3 border-t border-slate-100 dark:border-slate-800 flex gap-2">
                     <button
                       onClick={() => handleOpenBooking(res)}
+                      disabled={res.status !== "AVAILABLE"}
                       className={`w-full py-2.5 px-4 rounded-xl text-xs font-bold text-white shadow-xs transition flex items-center justify-center gap-1.5 ${
-                        moduleMode === "MEETING_ROOM" 
-                          ? "bg-emerald-700 hover:bg-emerald-800" 
-                          : "bg-amber-700 hover:bg-amber-800"
+                        res.status !== "AVAILABLE"
+                          ? "bg-slate-400 cursor-not-allowed opacity-60"
+                          : moduleMode === "MEETING_ROOM" 
+                            ? "bg-emerald-700 hover:bg-emerald-800" 
+                            : "bg-amber-700 hover:bg-amber-800"
                       }`}
                     >
                       <Plus className="w-4 h-4" />
-                      ยื่นคำขอจอง {moduleMode === "MEETING_ROOM" ? "ห้องนี้" : "รถคันนี้"}
+                      {res.status !== "AVAILABLE" ? `ไม่สามารถจองได้ (${res.status})` : `ยื่นคำขอจอง ${moduleMode === "MEETING_ROOM" ? "ห้องนี้" : "รถคันนี้"}`}
                     </button>
                   </div>
                 </div>
@@ -455,7 +768,238 @@ export default function UnifiedFacilityPortalPage() {
         </div>
       )}
 
-      {/* TAB 2: TIMELINE & AGENDA */}
+      {/* TAB 2: CENTRAL RESOURCE MANAGEMENT (CRUD VIEW - MATCHING MOCKUP IMAGE 2) */}
+      {activeTab === "CRUD" && (
+        <div className="space-y-6">
+          {/* Top Info Banner if general teacher */}
+          {!canUserManage && (
+            <div className="p-4 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 rounded-2xl flex items-center gap-3 text-xs text-amber-800 dark:text-amber-200">
+              <Info className="w-5 h-5 shrink-0 text-amber-600" />
+              <div>
+                <strong>โหมดดูข้อมูล:</strong> คุณกำลังดูรายการในฐานะผู้ใช้ทั่วไป (สามารถยื่นขอจองได้) สำหรับการเพิ่ม แก้ไข หรือลบทรัพยากร ต้องใช้สิทธิ์ผู้ดูแลระบบ (Admin) หรือหัวหน้างานที่เกี่ยวข้อง
+              </div>
+            </div>
+          )}
+
+          {/* Quick Add Resource Card (Horizontal Bar - Matching Image 2) */}
+          {canUserManage && (
+            <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-3xl p-6 shadow-xs space-y-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <Plus className="w-5 h-5 text-indigo-600" />
+                  เพิ่มทรัพยากรส่วนกลางใหม่ (Quick Add Resource)
+                </h2>
+                <span className="text-xs text-slate-400 font-medium">บันทึกตรงสู่ระบบฐานข้อมูลส่วนกลาง</span>
+              </div>
+
+              <form onSubmit={handleCreateResource} className="grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
+                <div>
+                  <label className="block font-bold text-xs text-slate-700 dark:text-slate-300 mb-1">
+                    รหัสกำกับ *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="เช่น ROOM-02, BUS-02"
+                    value={quickAddForm.code}
+                    onChange={(e) => setQuickAddForm({ ...quickAddForm, code: e.target.value })}
+                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-xs text-slate-700 dark:text-slate-300 mb-1">
+                    ชื่อทรัพยากร *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="เช่น ห้องประชุมบุณฑริก"
+                    value={quickAddForm.name}
+                    onChange={(e) => setQuickAddForm({ ...quickAddForm, name: e.target.value })}
+                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-xs text-slate-700 dark:text-slate-300 mb-1">
+                    ประเภททรัพยากร *
+                  </label>
+                  <select
+                    value={quickAddForm.type}
+                    onChange={(e) => setQuickAddForm({ ...quickAddForm, type: e.target.value })}
+                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs"
+                  >
+                    <option value="MEETING_ROOM">🏢 ห้องประชุม (MEETING_ROOM)</option>
+                    <option value="VEHICLE">🚐 ยานพาหนะ (VEHICLE)</option>
+                    <option value="LABORATORY">🧪 ห้องแล็บ (LABORATORY)</option>
+                    <option value="CLASSROOM">🎓 ห้องเรียนพิเศษ (CLASSROOM)</option>
+                    <option value="EQUIPMENT">🔧 อุปกรณ์ส่วนกลาง (EQUIPMENT)</option>
+                    <option value="OTHER">📦 อื่น ๆ (OTHER)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-xs text-slate-700 dark:text-slate-300 mb-1">
+                    ความจุ (คน / ที่นั่ง)
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={quickAddForm.capacity}
+                    onChange={(e) => setQuickAddForm({ ...quickAddForm, capacity: Number(e.target.value) })}
+                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs"
+                  />
+                </div>
+
+                <div>
+                  <button
+                    type="submit"
+                    disabled={addingResource}
+                    className="w-full py-2.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-xs transition flex items-center justify-center gap-1.5"
+                  >
+                    <Plus className="w-4 h-4" />
+                    {addingResource ? "กำลังเพิ่ม..." : "+ เพิ่มรายการ"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+
+          {/* Central Resources Table matching Image 2 mockup */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl overflow-hidden shadow-xs">
+            <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-3">
+              <div>
+                <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <Layers className="w-5 h-5 text-indigo-600" />
+                  ตารางทรัพยากรกลางทั้งหมด ({filteredAllResources.length} รายการ)
+                </h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  แสดงรายการทรัพยากรทั้งหมดในระบบ พร้อมเครื่องมือจัดการ (ขอจอง, แก้ไข, สลับสถานะ, ลบ/ปลดระวาง)
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={loadData}
+                  className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-1.5"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} /> รีเฟรช
+                </button>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="bg-slate-50/80 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-700/80 text-slate-600 dark:text-slate-300 font-bold">
+                    <th className="py-3 px-4 font-mono">รหัส</th>
+                    <th className="py-3 px-4">ชื่อรายการทรัพยากร</th>
+                    <th className="py-3 px-4">ประเภท</th>
+                    <th className="py-3 px-4">ความจุ</th>
+                    <th className="py-3 px-4">สถานะ</th>
+                    <th className="py-3 px-4 text-center">จัดการ</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {filteredAllResources.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="text-center py-10 text-slate-400">
+                        ไม่พบรายการทรัพยากรตรงตามเงื่อนไข
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredAllResources.map((res) => (
+                      <tr key={res.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition">
+                        <td className="py-3 px-4 font-mono font-bold text-slate-800 dark:text-slate-200">
+                          {res.code}
+                        </td>
+                        <td className="py-3 px-4">
+                          <div className="font-bold text-slate-900 dark:text-white">{res.name}</div>
+                          {res.location && (
+                            <div className="text-[11px] text-slate-400 flex items-center gap-1">
+                              <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
+                              {res.location}
+                            </div>
+                          )}
+                        </td>
+                        <td className="py-3 px-4">
+                          {getResourceTypeBadge(res.type)}
+                        </td>
+                        <td className="py-3 px-4 font-semibold text-slate-700 dark:text-slate-300">
+                          {res.capacity ? `${res.capacity} คน/ที่นั่ง` : "-"}
+                        </td>
+                        <td className="py-3 px-4">
+                          {getStatusBadge(res.status)}
+                        </td>
+                        <td className="py-3 px-4 text-center">
+                          <div className="inline-flex items-center gap-1.5">
+                            {/* Action 1: ขอจอง (Available for all staff) */}
+                            <button
+                              onClick={() => handleOpenBooking(res)}
+                              disabled={res.status !== "AVAILABLE"}
+                              className={`px-3 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1 ${
+                                res.status === "AVAILABLE"
+                                  ? "bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs"
+                                  : "bg-slate-200 text-slate-400 cursor-not-allowed dark:bg-slate-800"
+                              }`}
+                              title={res.status === "AVAILABLE" ? "ขอจองทรัพยากรนี้" : "ไม่พร้อมให้จอง"}
+                            >
+                              <Plus className="w-3 h-3" /> ขอจอง
+                            </button>
+
+                            {/* Management Actions (Admin / Heads) */}
+                            {canUserManage && (
+                              <>
+                                {/* Action 2: แก้ไข */}
+                                <button
+                                  onClick={() => handleOpenEdit(res)}
+                                  className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-medium transition flex items-center gap-1"
+                                  title="แก้ไขข้อมูล"
+                                >
+                                  <Edit2 className="w-3 h-3" /> แก้ไข
+                                </button>
+
+                                {/* Action 3: สลับสถานะ */}
+                                <button
+                                  onClick={() => handleToggleStatus(res)}
+                                  className="px-2 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 text-xs font-medium transition flex items-center gap-1"
+                                  title="สลับสถานะ (พร้อมใช้งาน <-> ซ่อมบำรุง)"
+                                >
+                                  {res.status === "AVAILABLE" ? (
+                                    <>
+                                      <ToggleRight className="w-3.5 h-3.5 text-emerald-600" /> ปิดซ่อม
+                                    </>
+                                  ) : (
+                                    <>
+                                      <ToggleLeft className="w-3.5 h-3.5 text-slate-400" /> เปิดใช้
+                                    </>
+                                  )}
+                                </button>
+
+                                {/* Action 4: ลบ / ปลดระวาง */}
+                                <button
+                                  onClick={() => handleDeleteResource(res)}
+                                  className="px-2 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 text-rose-700 dark:text-rose-400 text-xs font-medium transition flex items-center gap-1"
+                                  title="ลบหรือปลดระวางทรัพยากร"
+                                >
+                                  <Trash2 className="w-3 h-3" /> ลบ
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 3: TIMELINE & AGENDA */}
       {activeTab === "TIMELINE" && (
         <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-6 space-y-4">
           <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
@@ -530,7 +1074,7 @@ export default function UnifiedFacilityPortalPage() {
         </div>
       )}
 
-      {/* TAB 3: 2-TIER APPROVAL HUB */}
+      {/* TAB 4: 2-TIER APPROVAL HUB */}
       {activeTab === "APPROVALS" && (
         <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-6 space-y-6">
           <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
@@ -630,17 +1174,17 @@ export default function UnifiedFacilityPortalPage() {
         </div>
       )}
 
-      {/* BOOKING MODAL */}
-      {isBookingModalOpen && selectedResource && (
+      {/* DYNAMIC BOOKING MODAL */}
+      {isBookingModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
           <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6 shadow-2xl border border-slate-200 dark:border-slate-800 space-y-5">
             <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
               <div>
                 <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
                   <Plus className="w-5 h-5 text-emerald-700" />
-                  ยื่นคำขอจอง: {selectedResource.name}
+                  ยื่นคำขอจองทรัพยากรส่วนกลาง
                 </h3>
-                <span className="text-xs text-slate-500 font-mono">{selectedResource.code}</span>
+                <span className="text-xs text-slate-500">กรอกข้อมูลวัตถุประสงค์และกำหนดการใช้งาน</span>
               </div>
               <button
                 onClick={() => setIsBookingModalOpen(false)}
@@ -651,6 +1195,46 @@ export default function UnifiedFacilityPortalPage() {
             </div>
 
             <form onSubmit={handleSubmittingBooking} className="space-y-4 text-xs">
+              {/* Dynamic Resource Selector Dropdown */}
+              <div className="p-3.5 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700">
+                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                  เลือกทรัพยากรที่ต้องการจอง *
+                </label>
+                <select
+                  value={selectedResource?.id || ""}
+                  onChange={(e) => {
+                    const picked = allResources.find(r => r.id === e.target.value);
+                    if (picked) setSelectedResource(picked);
+                  }}
+                  required
+                  className="w-full p-2.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl font-bold text-slate-900 dark:text-white text-xs"
+                >
+                  <option value="">-- กรุณาเลือกรายการทรัพยากร --</option>
+                  <optgroup label="🏢 ห้องประชุมและอาคารสถานที่">
+                    {allResources.filter(r => r.type !== "VEHICLE" && r.status === "AVAILABLE").map(r => (
+                      <option key={r.id} value={r.id}>
+                        [{r.code}] {r.name} (ความจุ: {r.capacity || "-"} ที่นั่ง)
+                      </option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="🚐 รถโรงเรียนและยานพาหนะ">
+                    {allResources.filter(r => r.type === "VEHICLE" && r.status === "AVAILABLE").map(r => (
+                      <option key={r.id} value={r.id}>
+                        [{r.code}] {r.name} ({r.vehicleProfile?.licensePlate || "ไม่มีทะเบียน"} - {r.capacity || "-"} ที่นั่ง)
+                      </option>
+                    ))}
+                  </optgroup>
+                </select>
+
+                {selectedResource && (
+                  <div className="mt-2.5 flex items-center gap-2 text-slate-500 dark:text-slate-400">
+                    <span>ประเภท: {getResourceTypeBadge(selectedResource.type)}</span>
+                    <span>• รหัส: <strong className="font-mono text-slate-700 dark:text-slate-200">{selectedResource.code}</strong></span>
+                    {selectedResource.location && <span>• สถานที่: <strong>{selectedResource.location}</strong></span>}
+                  </div>
+                )}
+              </div>
+
               <div>
                 <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
                   วัตถุประสงค์ / ชื่องาน / ภารกิจราชการ *
@@ -658,7 +1242,7 @@ export default function UnifiedFacilityPortalPage() {
                 <input
                   type="text"
                   required
-                  placeholder={moduleMode === "MEETING_ROOM" ? "เช่น การประชุมกลุ่มสาระภาษาไทย, อบรมเชิงปฏิบัติการ..." : "เช่น พานักเรียนไปแข่งขันโอลิมปิกวิชาการ มข..."}
+                  placeholder={selectedResource?.type === "VEHICLE" ? "เช่น พานักเรียนไปแข่งขันโอลิมปิกวิชาการ มข..." : "เช่น การประชุมกลุ่มสาระภาษาไทย, อบรมเชิงปฏิบัติการ..."}
                   value={bookingForm.title}
                   onChange={(e) => setBookingForm({ ...bookingForm, title: e.target.value })}
                   className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white"
@@ -723,7 +1307,7 @@ export default function UnifiedFacilityPortalPage() {
               </div>
 
               {/* Room Specific Fields */}
-              {moduleMode === "MEETING_ROOM" && (
+              {selectedResource?.type !== "VEHICLE" && (
                 <div className="space-y-3 pt-2">
                   <div className="grid grid-cols-2 gap-3">
                     <div>
@@ -763,7 +1347,7 @@ export default function UnifiedFacilityPortalPage() {
               )}
 
               {/* Vehicle Specific Fields */}
-              {moduleMode === "VEHICLE" && (
+              {selectedResource?.type === "VEHICLE" && (
                 <div className="space-y-3 pt-2">
                   <div className="grid grid-cols-2 gap-3">
                     <div>
@@ -841,6 +1425,148 @@ export default function UnifiedFacilityPortalPage() {
                   className="px-5 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs shadow-md transition flex items-center gap-1.5"
                 >
                   {submitting ? "กำลังส่งคำขอ..." : "ยืนยันการขอจอง"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* EDIT RESOURCE MODAL */}
+      {editingResource && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-6 shadow-2xl border border-slate-200 dark:border-slate-800 space-y-4 text-xs">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <Edit2 className="w-5 h-5 text-indigo-600" />
+                แก้ไขข้อมูลทรัพยากร: {editingResource.name}
+              </h3>
+              <button
+                onClick={() => setEditingResource(null)}
+                className="p-1 rounded-lg hover:bg-slate-100 text-slate-400"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEdit} className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">รหัสกำกับ</label>
+                  <input
+                    type="text"
+                    required
+                    value={editForm.code}
+                    onChange={(e) => setEditForm({ ...editForm, code: e.target.value })}
+                    className="w-full p-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">สถานะ</label>
+                  <select
+                    value={editForm.status}
+                    onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
+                    className="w-full p-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl"
+                  >
+                    <option value="AVAILABLE">พร้อมให้บริการ (AVAILABLE)</option>
+                    <option value="UNDER_MAINTENANCE">ซ่อมบำรุง (UNDER_MAINTENANCE)</option>
+                    <option value="OUT_OF_SERVICE">ไม่พร้อมใช้งาน (OUT_OF_SERVICE)</option>
+                    <option value="RETIRED">ปลดระวาง (RETIRED)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">ชื่อทรัพยากร</label>
+                <input
+                  type="text"
+                  required
+                  value={editForm.name}
+                  onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                  className="w-full p-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">ความจุ (คน/ที่นั่ง)</label>
+                  <input
+                    type="number"
+                    value={editForm.capacity}
+                    onChange={(e) => setEditForm({ ...editForm, capacity: Number(e.target.value) })}
+                    className="w-full p-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">สถานที่ตั้ง / ชั้น</label>
+                  <input
+                    type="text"
+                    value={editForm.location}
+                    onChange={(e) => setEditForm({ ...editForm, location: e.target.value })}
+                    className="w-full p-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl"
+                  />
+                </div>
+              </div>
+
+              {editingResource.type === "VEHICLE" && (
+                <div className="p-3 bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 rounded-xl space-y-2">
+                  <span className="font-bold text-amber-800 dark:text-amber-300">ข้อมูลยานพาหนะ</span>
+                  <div className="grid grid-cols-3 gap-2">
+                    <div>
+                      <label className="block text-slate-600 mb-0.5">ทะเบียนรถ</label>
+                      <input
+                        type="text"
+                        value={editForm.licensePlate}
+                        onChange={(e) => setEditForm({ ...editForm, licensePlate: e.target.value })}
+                        className="w-full p-1.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-slate-600 mb-0.5">ยี่ห้อ</label>
+                      <input
+                        type="text"
+                        value={editForm.brand}
+                        onChange={(e) => setEditForm({ ...editForm, brand: e.target.value })}
+                        className="w-full p-1.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-slate-600 mb-0.5">รุ่น</label>
+                      <input
+                        type="text"
+                        value={editForm.model}
+                        onChange={(e) => setEditForm({ ...editForm, model: e.target.value })}
+                        className="w-full p-1.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">รายละเอียดเพิ่มเติม</label>
+                <textarea
+                  rows={2}
+                  value={editForm.description}
+                  onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+                  className="w-full p-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl"
+                />
+              </div>
+
+              <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingResource(null)}
+                  className="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 font-semibold"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingEdit}
+                  className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold shadow-md"
+                >
+                  {savingEdit ? "กำลังบันทึก..." : "บันทึกการเปลี่ยนแปลง"}
                 </button>
               </div>
             </form>

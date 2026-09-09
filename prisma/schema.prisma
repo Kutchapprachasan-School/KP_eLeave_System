@@ -870,6 +870,7 @@ enum ResourceStatus {
   AVAILABLE
   UNDER_MAINTENANCE
   OUT_OF_SERVICE
+  RETIRED
 }
 
 enum ReservationStatus {
