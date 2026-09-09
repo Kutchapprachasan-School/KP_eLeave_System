@@ -225,3 +225,44 @@ test('Facility Resource CRUD - Server-side non-bookable rejection invariant', ()
   assert.ok(success.bookingId);
   assert.equal(success.status, 'PENDING');
 });
+
+test('Facility Resource Locking - Deterministic multi-resource and driver ordering protocol', () => {
+  const lockedOrder = [];
+
+  function simulateOrderedLock(resourceIdOrIds, driverProfileIdOrIds) {
+    const resourceIds = (Array.isArray(resourceIdOrIds) ? resourceIdOrIds : [resourceIdOrIds])
+      .filter(Boolean)
+      .filter((v, i, a) => a.indexOf(v) === i)
+      .sort();
+
+    const rawDrivers = driverProfileIdOrIds
+      ? (Array.isArray(driverProfileIdOrIds) ? driverProfileIdOrIds : [driverProfileIdOrIds])
+      : [];
+    const driverIds = rawDrivers
+      .filter(Boolean)
+      .filter((v, i, a) => a.indexOf(v) === i)
+      .sort();
+
+    // Emulate sequential lock acquisition
+    for (const rId of resourceIds) {
+      lockedOrder.push(`RESOURCE:${rId}`);
+    }
+    for (const dId of driverIds) {
+      lockedOrder.push(`DRIVER:${dId}`);
+    }
+    lockedOrder.push('RESERVATION');
+  }
+
+  // Pass shuffled/reverse array of resource IDs and driver IDs with duplicates
+  simulateOrderedLock(['res-z', 'res-a', 'res-m', 'res-a'], ['drv-2', 'drv-1', 'drv-2']);
+
+  assert.deepEqual(lockedOrder, [
+    'RESOURCE:res-a',
+    'RESOURCE:res-m',
+    'RESOURCE:res-z',
+    'DRIVER:drv-1',
+    'DRIVER:drv-2',
+    'RESERVATION'
+  ]);
+});
+

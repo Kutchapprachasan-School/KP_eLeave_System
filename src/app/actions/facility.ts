@@ -141,28 +141,46 @@ export async function transitionReservationStatus(
 }
 
 /**
- * Deterministic Mutation Protocol Wrapper with DB Exclusion Guard (PostgreSQL Code 23P01 catch)
- * Order: Lock Resource Row -> Lock Driver Row (if present) -> Execute Mutation -> Catch Exclusion Violations
+ * Deterministic Mutation Protocol Wrapper with Multi-Resource Ordered Row Locking & DB Exclusion Guard
+ * Global Lock Hierarchy Contract:
+ *   1. FacilityResource[] (Deduplicated & sorted deterministically by ID ascending)
+ *   2. DriverProfile[] (Deduplicated & sorted deterministically by ID ascending)
+ *   3. FacilityReservation (Master row lock inside transaction body)
  */
 export async function executeReservationMutation<T>(
-  resourceId: string,
-  driverProfileId: string | null | undefined,
+  resourceIdOrIds: string | string[],
+  driverProfileIdOrIds: string | string[] | null | undefined,
   mutationFn: (tx: Prisma.TransactionClient) => Promise<T>
 ): Promise<T> {
+  const resourceIds = (Array.isArray(resourceIdOrIds) ? resourceIdOrIds : [resourceIdOrIds])
+    .filter(Boolean)
+    .filter((v, i, a) => a.indexOf(v) === i)
+    .sort();
+
+  const rawDrivers = driverProfileIdOrIds
+    ? (Array.isArray(driverProfileIdOrIds) ? driverProfileIdOrIds : [driverProfileIdOrIds])
+    : [];
+  const driverIds = rawDrivers
+    .filter(Boolean)
+    .filter((v, i, a) => a.indexOf(v) === i)
+    .sort();
+
   try {
     return await prisma.$transaction(async (tx) => {
-      // 1. Lock Resource Row
-      const [resource] = await tx.$queryRaw<Array<{ id: string; type: string }>>`
-        SELECT id, type FROM "FacilityResource" WHERE id = ${resourceId} FOR UPDATE
-      `;
-      if (!resource) throw new Error("ไม่พบข้อมูลทรัพยากร");
-
-      // 2. Lock Driver Row (if assigned)
-      if (driverProfileId) {
-        const [driver] = await tx.$queryRaw<Array<{ id: string }>>`
-          SELECT id FROM "DriverProfile" WHERE id = ${driverProfileId} AND "isActive" = true FOR UPDATE
+      // 1. Lock all Resource Rows in deterministic ascending ID order
+      for (const rId of resourceIds) {
+        const [resource] = await tx.$queryRaw<Array<{ id: string; type: string }>>`
+          SELECT id, type FROM "FacilityResource" WHERE id = ${rId} FOR UPDATE
         `;
-        if (!driver) throw new Error("ไม่พบข้อมูลพนักงานขับรถหรือสถานะคนขับไม่พร้อมปฏิบัติงาน");
+        if (!resource) throw new Error(`ไม่พบข้อมูลทรัพยากร (ID: ${rId})`);
+      }
+
+      // 2. Lock all Driver Rows in deterministic ascending ID order
+      for (const dId of driverIds) {
+        const [driver] = await tx.$queryRaw<Array<{ id: string }>>`
+          SELECT id FROM "DriverProfile" WHERE id = ${dId} AND "isActive" = true FOR UPDATE
+        `;
+        if (!driver) throw new Error(`ไม่พบข้อมูลพนักงานขับรถหรือสถานะคนขับไม่พร้อมปฏิบัติงาน (ID: ${dId})`);
       }
 
       // 3. Execute Mutation Body
@@ -413,14 +431,17 @@ export async function reviewFacilityReservationHeadAction(
 
   const existing = await prisma.facilityReservation.findUnique({
     where: { id: reservationId },
-    include: { resource: true }
+    include: { resource: true, assignments: true }
   });
   if (!existing) throw new Error("ไม่พบคำขอจอง");
 
   const permission = existing.resource.type === "VEHICLE" ? "facility:vehicle.manage" : "facility:room.manage";
   assertFacilityPermission(user, permission as any);
 
-  return await executeReservationMutation(existing.resourceId, data.driverProfileId, async (tx) => {
+  const resourceIds = Array.from(new Set([existing.resourceId, ...existing.assignments.map(a => a.resourceId)].filter(Boolean))) as string[];
+  const driverIds = Array.from(new Set([data.driverProfileId, ...existing.assignments.map(a => a.driverProfileId)].filter(Boolean))) as string[];
+
+  return await executeReservationMutation(resourceIds, driverIds, async (tx) => {
     const reservation = await tx.facilityReservation.findUnique({
       where: { id: reservationId },
       include: { assignments: true }
@@ -516,9 +537,10 @@ export async function approveFacilityReservationDirectorAction(
   });
   if (!existing) throw new Error("ไม่พบคำขอจอง");
 
-  const driverAssignment = existing.assignments.find(a => a.targetType === "DRIVER");
+  const resourceIds = Array.from(new Set([existing.resourceId, ...existing.assignments.map(a => a.resourceId)].filter(Boolean))) as string[];
+  const driverIds = Array.from(new Set(existing.assignments.map(a => a.driverProfileId).filter(Boolean))) as string[];
 
-  return await executeReservationMutation(existing.resourceId, driverAssignment?.driverProfileId, async (tx) => {
+  return await executeReservationMutation(resourceIds, driverIds, async (tx) => {
     // 1. Row Lock & SLA Check
     const [res] = await tx.$queryRaw<Array<{ id: string; status: ReservationStatus; expiresAt: Date | null }>>`
       SELECT id, status, "expiresAt" FROM "FacilityReservation" WHERE id = ${reservationId} FOR UPDATE
