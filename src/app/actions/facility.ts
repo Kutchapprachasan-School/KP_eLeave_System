@@ -799,6 +799,111 @@ export async function getFacilityResourcesAction(
   });
 }
 
+export type GetFacilityReservationsFilter = {
+  consumerModule?: string;
+  status?: ReservationStatus;
+  resourceId?: string;
+  userId?: string;
+  startDate?: Date | string;
+  endDate?: Date | string;
+};
+
+/**
+ * Query Facility Reservations with all relations
+ */
+export async function getFacilityReservationsAction(filter?: GetFacilityReservationsFilter) {
+  const where: any = {};
+  if (filter?.consumerModule) {
+    where.consumerModule = filter.consumerModule;
+  }
+  if (filter?.status) {
+    where.status = filter.status;
+  }
+  if (filter?.resourceId) {
+    where.resourceId = filter.resourceId;
+  }
+  if (filter?.userId) {
+    where.reservedByUserId = filter.userId;
+  }
+  if (filter?.startDate || filter?.endDate) {
+    where.startAt = {};
+    if (filter.startDate) where.startAt.gte = new Date(filter.startDate);
+    if (filter.endDate) where.startAt.lte = new Date(filter.endDate);
+  }
+
+  return await prisma.facilityReservation.findMany({
+    where,
+    include: {
+      resource: {
+        include: {
+          roomProfile: true,
+          vehicleProfile: true
+        }
+      },
+      reservedByUser: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          position: true,
+          department: true,
+          phoneNumber: true
+        }
+      },
+      assignments: {
+        include: {
+          resource: true,
+          driverProfile: {
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  name: true,
+                  email: true,
+                  phoneNumber: true
+                }
+              }
+            }
+          }
+        }
+      },
+      approvalSteps: {
+        include: {
+          approver: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              role: true,
+              position: true
+            }
+          }
+        },
+        orderBy: { stepNo: "asc" }
+      },
+      roomDetails: true,
+      vehicleDetails: {
+        include: {
+          driverProfile: {
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  name: true,
+                  email: true,
+                  phoneNumber: true
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    orderBy: { startAt: "desc" }
+  });
+}
+
 /**
  * Query Active Driver Profiles
  */
