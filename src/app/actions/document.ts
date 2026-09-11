@@ -1254,8 +1254,9 @@ export async function verifyCertificatePublic(verifyToken: string): Promise<Acti
     }>>`
       SELECT 
         c."certificateNumber", c."seqNo", c.year, c."roleTitle", c."recipientName", c.status, c."createdAt",
-        d.title as "batchTitle", d.origin as "batchOrigin", d.date as "batchDate",
-        d."signeeName" as "batchSignee", d."signeePosition" as "batchSigneePosition", d.status as "batchStatus"
+        d.id as "batchId", d.title as "batchTitle", d.origin as "batchOrigin", d.date as "batchDate",
+        d."signeeName" as "batchSignee", d."signeePosition" as "batchSigneePosition", d.status as "batchStatus",
+        d."attachmentUrl" as "batchAttachmentUrl"
       FROM "CertificateIssuedItem" c
       JOIN "DocumentRecord" d ON d.id = c."batchRecordId"
       WHERE c."verifyToken" = ${tokenHash} OR c."verifyToken" = ${rawToken}
@@ -1274,6 +1275,24 @@ export async function verifyCertificatePublic(verifyToken: string): Promise<Acti
     const isValid = item.status === "ISSUED" && item.batchStatus === "ISSUED";
     const isRevoked = item.status === "CANCELLED" || item.batchStatus === "CANCELLED" || item.status === "REVOKED";
 
+    let downloadPdfUrl = item.batchAttachmentUrl || null;
+    try {
+      const att = await prisma.fileAttachment.findFirst({
+        where: {
+          documentRecordId: item.batchId,
+          attachmentStatus: "ACTIVE",
+          mimeType: { contains: "pdf" },
+        },
+        orderBy: { createdAt: "desc" },
+      });
+      if (att) {
+        const storage = getStorageProvider();
+        downloadPdfUrl = await storage.getUrl(att.objectKey);
+      }
+    } catch {
+      // Fallback to batchAttachmentUrl if any
+    }
+
     return {
       success: true,
       data: {
@@ -1289,6 +1308,7 @@ export async function verifyCertificatePublic(verifyToken: string): Promise<Acti
         issuedDate: item.batchDate,
         signeeName: item.batchSignee,
         signeePosition: item.batchSigneePosition,
+        downloadPdfUrl,
       },
     };
   } catch (err: any) {

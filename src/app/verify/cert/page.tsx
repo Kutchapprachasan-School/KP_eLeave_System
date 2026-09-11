@@ -2,7 +2,7 @@
 
 import { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import { Award, CheckCircle2, XCircle, ShieldCheck, Calendar, Building2, UserCheck, ArrowLeft, RefreshCw } from "lucide-react";
+import { Award, CheckCircle2, XCircle, ShieldCheck, Calendar, Building2, UserCheck, ArrowLeft, RefreshCw, Download, Printer } from "lucide-react";
 import Link from "next/link";
 import { verifyCertificatePublic } from "@/app/actions/document";
 import { formatDocFullDate } from "@/lib/date-format";
@@ -183,11 +183,71 @@ function VerifyContent() {
             </div>
           </div>
 
+          {/* Visual Digital Certificate Preview Card */}
+          <div className="relative p-6 sm:p-8 rounded-2xl border-4 border-double border-amber-500/40 bg-linear-to-b from-amber-50/50 via-white to-amber-50/30 dark:from-slate-900/80 dark:via-slate-950 dark:to-slate-900/80 shadow-inner text-center space-y-3.5">
+            <div className="text-[10px] font-bold text-amber-700 dark:text-amber-400 tracking-widest uppercase">
+              โรงเรียนกุดจับประชาสรรค์
+            </div>
+            <div className="text-xs text-slate-500">
+              ขอมอบเกียรติบัตรฉบับนี้เพื่อแสดงว่า
+            </div>
+            <div className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-wide font-sans">
+              {data.recipientName || "ผู้เข้าร่วมกิจกรรม"}
+            </div>
+            <div className="text-sm font-bold text-amber-700 dark:text-amber-400">
+              {data.roleTitle}
+            </div>
+            <div className="text-xs text-slate-700 dark:text-slate-300 max-w-md mx-auto leading-relaxed">
+              {data.activityTitle}
+            </div>
+            <div className="text-[11px] text-slate-500 pt-1">
+              ให้ไว้ ณ วันที่ {formatDocFullDate(data.issuedDate)}
+            </div>
+
+            <div className="pt-3 border-t border-amber-200/60 dark:border-slate-800 flex justify-between items-center text-[10px] text-slate-400">
+              <span>ผู้รับรอง: {data.signeeName || "ผู้อำนวยการโรงเรียน"}</span>
+              <span className="font-mono text-amber-600 font-bold">{data.certificateNumber}</span>
+            </div>
+          </div>
+
+          {/* Action Buttons: Download PDF & Print */}
+          {isValid && (
+            <div className="pt-2 flex flex-col sm:flex-row gap-2.5">
+              {data.downloadPdfUrl ? (
+                <a
+                  href={data.downloadPdfUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  download={`เกียรติบัตร_${data.certificateNumber}.pdf`}
+                  className="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md transition group"
+                >
+                  <Download className="w-4 h-4 group-hover:translate-y-0.5 transition" />
+                  <span>ดาวน์โหลดไฟล์เกียรติบัตรต้นฉบับ (PDF)</span>
+                </a>
+              ) : (
+                <button
+                  onClick={() => window.print()}
+                  className="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md transition"
+                >
+                  <Printer className="w-4 h-4" />
+                  <span>พิมพ์หรือบันทึกเป็น PDF (Print)</span>
+                </button>
+              )}
+              <button
+                onClick={() => window.print()}
+                className="flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-xs transition"
+              >
+                <Printer className="w-4 h-4" />
+                <span>พิมพ์ใบรับรอง</span>
+              </button>
+            </div>
+          )}
+
           <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[11px] text-slate-400">
-            <span>ฐานข้อมูลทะเบียนเกียรติบัตรกลาง</span>
+            <span>ฐานข้อมูลทะเบียนเกียรติบัตรกลาง • สำนักงานเขตพื้นที่การศึกษามัธยมศึกษาอุดรธานี</span>
             <Link
               href="/"
-              className="font-bold text-amber-600 hover:text-amber-700 transition"
+              className="font-bold text-amber-600 hover:text-amber-700 transition shrink-0"
             >
               เข้าสู่ระบบ KP e-Leave →
             </Link>
