@@ -141,3 +141,124 @@ test('SupervisionService - Director score override', async (t) => {
   assert.equal(finalSession.status_flow.director_approval.director_id, 'DIR-001');
   assert.equal(finalSession.status_flow.director_approval.director_comment, 'ปรับเป็นเต็ม 25 เนื่องจากผลสัมฤทธิ์ดีเยี่ยม');
 });
+
+test('SupervisionService - PA Rating Band calculation', () => {
+  assert.equal(SupervisionService.getPaRatingBand(95).band, 'EXCELLENT');
+  assert.equal(SupervisionService.getPaRatingBand(85).band, 'VERY_GOOD');
+  assert.equal(SupervisionService.getPaRatingBand(75).band, 'GOOD');
+  assert.equal(SupervisionService.getPaRatingBand(65).band, 'PASS');
+  assert.equal(SupervisionService.getPaRatingBand(55).band, 'NEEDS_IMPROVEMENT');
+});
+
+test('SupervisionService - Department KPI Summary aggregates scores and compliance correctly', () => {
+  const store = [];
+  const service = new SupervisionService(store);
+
+  // Department 1: วิทยาศาสตร์ (2 slots: 1 completed 96%, 1 waiting ack 80%)
+  const slot1 = service.createSlot({
+    academic_year: '2569',
+    term: 1,
+    department: 'วิทยาศาสตร์',
+    teacher_id: 'T1',
+  });
+  service.submitEvaluation(slot1.session_id, { scores: { c1: 5, c2: 5, c3: 5, c4: 5, c5: 4 } }, 'SUP1');
+  service.acknowledgeTeacher(slot1.session_id, 'ack');
+  service.overrideDirectorScore(slot1.session_id, 'DIR1', { c1: 5, c2: 5, c3: 5, c4: 5, c5: 4 });
+
+  const slot2 = service.createSlot({
+    academic_year: '2569',
+    term: 1,
+    department: 'วิทยาศาสตร์',
+    teacher_id: 'T2',
+  });
+  service.submitEvaluation(slot2.session_id, { scores: { c1: 4, c2: 4, c3: 4, c4: 4, c5: 4 } }, 'SUP1');
+
+  // Department 2: คณิตศาสตร์ (1 slot: scheduled)
+  service.createSlot({
+    academic_year: '2569',
+    term: 1,
+    department: 'คณิตศาสตร์',
+    teacher_id: 'T3',
+  });
+
+  const summary = service.generateDepartmentKpiSummary('2569', 1);
+
+  assert.equal(summary.length, 2);
+  const sciDept = summary.find((d) => d.department === 'วิทยาศาสตร์');
+  assert.ok(sciDept);
+  assert.equal(sciDept.totalSessions, 2);
+  assert.equal(sciDept.completedSessions, 1);
+  assert.equal(sciDept.pendingAckSessions, 1);
+  assert.equal(sciDept.complianceRate, 50); // 1 out of 2 completed = 50%
+  assert.equal(sciDept.ratingBand.band, 'VERY_GOOD'); // (96 + 80) / 2 = 88%
+
+  const mathDept = summary.find((d) => d.department === 'คณิตศาสตร์');
+  assert.ok(mathDept);
+  assert.equal(mathDept.totalSessions, 1);
+  assert.equal(mathDept.completedSessions, 0);
+  assert.equal(mathDept.complianceRate, 0);
+});
+
+test('SupervisionService - Teacher PA Report computes 5-criteria averages and portfolio breakdown', () => {
+  const store = [];
+  const service = new SupervisionService(store);
+
+  const slotA = service.createSlot({
+    academic_year: '2569',
+    term: 1,
+    teacher_id: 'EMP-TEACHER-1',
+    subject_code: 'ว21101',
+    subject_name: 'วิทยาศาสตร์ 1',
+  });
+  service.submitEvaluation(
+    slotA.session_id,
+    {
+      scores: { c1: 5, c2: 4, c3: 5, c4: 4, c5: 4 },
+      strengths: 'ใช้สื่อประกอบการสอนน่าสนใจ',
+      improvement_points: 'เพิ่มแบบฝึกหัดท้ายบท',
+    },
+    'SUP1'
+  );
+  service.acknowledgeTeacher(slotA.session_id, 'ack');
+  service.overrideDirectorScore(slotA.session_id, 'DIR1', { c1: 5, c2: 4, c3: 5, c4: 4, c5: 4 });
+
+  const slotB = service.createSlot({
+    academic_year: '2569',
+    term: 1,
+    teacher_id: 'EMP-TEACHER-1',
+    subject_code: 'ว21102',
+    subject_name: 'วิทยาศาสตร์ 2',
+  });
+  service.submitEvaluation(
+    slotB.session_id,
+    {
+      scores: { c1: 5, c2: 5, c3: 5, c4: 5, c5: 5 },
+      strengths: 'การจัดการชั้นเรียนยอดเยี่ยม',
+      improvement_points: '',
+    },
+    'SUP2'
+  );
+
+  const report = service.generateTeacherPaReport('EMP-TEACHER-1', '2569');
+
+  assert.equal(report.totalSupervisions, 2);
+  assert.equal(report.evaluatedSupervisions, 2);
+  // c1 avg = (5+5)/2 = 5
+  assert.equal(report.criteriaAverages.c1_lesson_prep, 5);
+  // c2 avg = (4+5)/2 = 4.5
+  assert.equal(report.criteriaAverages.c2_learning_activity, 4.5);
+  // c3 avg = (5+5)/2 = 5
+  assert.equal(report.criteriaAverages.c3_media_technology, 5);
+  // c4 avg = (4+5)/2 = 4.5
+  assert.equal(report.criteriaAverages.c4_assessment, 4.5);
+  // c5 avg = (4+5)/2 = 4.5
+  assert.equal(report.criteriaAverages.c5_classroom_mgmt, 4.5);
+
+  // Total avg = 5 + 4.5 + 5 + 4.5 + 4.5 = 23.5 / 25 = 94%
+  assert.equal(report.totalAverageScore, 23.5);
+  assert.equal(report.overallPercentage, 94);
+  assert.equal(report.ratingBand.band, 'EXCELLENT');
+  assert.equal(report.strengthsSummary.length, 2);
+  assert.equal(report.improvementPointsSummary.length, 1);
+});
+
