@@ -1285,3 +1285,245 @@ export async function verifyCertificatePublic(verifyToken: string): Promise<Acti
   }
 }
 
+// ============================================================================
+// Certificate Mail-Merge Studio & Template Management Server Actions
+// ============================================================================
+
+import {
+  saveTemplateService,
+  forkTemplateService,
+  deleteTemplateService,
+  getTemplatesService,
+  type SaveTemplateInput,
+} from "@/services/certificate/certificate-template.service";
+import { getStorageProvider } from "@/services/storage";
+
+export async function getCertificateTemplatesAction(): Promise<ActionResponse<any[]>> {
+  try {
+    const user = await getSessionUser();
+    const templates = await getTemplatesService({
+      userId: user.id,
+      userRole: user.role,
+      canShareCertTemplates: user.role === "ADMIN",
+    });
+
+    return { success: true, data: templates };
+  } catch (err: any) {
+    return handleActionError(err, "getCertificateTemplatesAction");
+  }
+}
+
+export async function saveCertificateTemplateAction(
+  input: SaveTemplateInput
+): Promise<ActionResponse<any>> {
+  try {
+    const user = await getSessionUser();
+    const result = await saveTemplateService(input, {
+      userId: user.id,
+      userRole: user.role,
+      canShareCertTemplates: user.role === "ADMIN",
+    });
+
+    if (!result.success) {
+      return { success: false, error: result.error };
+    }
+
+    revalidatePath("/document");
+    return { success: true, data: result.data };
+  } catch (err: any) {
+    return handleActionError(err, "saveCertificateTemplateAction");
+  }
+}
+
+export async function forkCertificateTemplateAction(
+  templateId: string
+): Promise<ActionResponse<any>> {
+  try {
+    const user = await getSessionUser();
+    const result = await forkTemplateService(templateId, {
+      userId: user.id,
+      userRole: user.role,
+    });
+
+    if (!result.success) {
+      return { success: false, error: result.error };
+    }
+
+    revalidatePath("/document");
+    return { success: true, data: result.data };
+  } catch (err: any) {
+    return handleActionError(err, "forkCertificateTemplateAction");
+  }
+}
+
+export async function deleteCertificateTemplateAction(
+  templateId: string
+): Promise<ActionResponse<void>> {
+  try {
+    const user = await getSessionUser();
+    const result = await deleteTemplateService(templateId, {
+      userId: user.id,
+      userRole: user.role,
+    });
+
+    if (!result.success) {
+      return { success: false, error: result.error };
+    }
+
+    revalidatePath("/document");
+    return { success: true };
+  } catch (err: any) {
+    return handleActionError(err, "deleteCertificateTemplateAction");
+  }
+}
+
+/**
+ * Invariant P & AH: Upload background image with DB-first UPLOAD_PENDING lifecycle
+ * and unique uploadSessionId idempotency key.
+ */
+export async function uploadCertificateBackgroundAction(
+  formData: FormData
+): Promise<ActionResponse<{ attachmentId: string; url: string; objectKey: string }>> {
+  try {
+    const user = await getSessionUser();
+    const file = formData.get("file") as unknown as File;
+    const clientSessionId = (formData.get("uploadSessionId") as string) || crypto.randomUUID();
+
+    if (!file) {
+      return { success: false, error: "No image file provided" };
+    }
+
+    // Validate image mime type
+    const validMimes = ["image/jpeg", "image/png", "image/webp"];
+    if (!validMimes.includes(file.type)) {
+      return {
+        success: false,
+        error: "รูปแบบไฟล์ไม่ถูกต้อง รองรับเฉพาะ JPG, PNG, WEBP เท่านั้น",
+      };
+    }
+
+    // Limit size to 10MB
+    if (file.size > 10 * 1024 * 1024) {
+      return {
+        success: false,
+        error: "ขนาดไฟล์ต้องไม่เกิน 10MB",
+      };
+    }
+
+    const bytes = await file.arrayBuffer();
+    const buffer = Buffer.from(bytes);
+    const checksumSha256 = crypto.createHash("sha256").update(buffer).digest("hex");
+    const sanitizedFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+    const objectKey = `certificates/backgrounds/${Date.now()}-${crypto.randomBytes(6).toString("hex")}-${sanitizedFileName}`;
+    const uploadExpiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15-minute upload lease
+
+    // 1. DB-First: Create FileAttachment with UPLOAD_PENDING
+    const attachment = await prisma.$transaction(async (tx) => {
+      // Check idempotency key (Invariant AH)
+      const existing = await tx.fileAttachment.findUnique({
+        where: { uploadSessionId: clientSessionId },
+      });
+
+      if (existing) {
+        return existing;
+      }
+
+      const created = await tx.fileAttachment.create({
+        data: {
+          objectKey,
+          originalFileName: file.name,
+          mimeType: file.type,
+          fileSize: BigInt(file.size),
+          checksumSha256,
+          attachmentStatus: "UPLOAD_PENDING",
+          uploadExpiresAt,
+          uploadSessionId: clientSessionId,
+        },
+      });
+
+      await tx.storageUploadLog.create({
+        data: {
+          objectKey,
+          bucket: process.env.R2_BUCKET || "data1",
+          originalFileName: file.name,
+          mimeType: file.type,
+          fileSize: BigInt(file.size),
+          checksumSha256,
+          status: "PENDING",
+          uploadedBy: user.id,
+          fileAttachmentId: created.id,
+        },
+      });
+
+      return created;
+    });
+
+    if (attachment.attachmentStatus === "ACTIVE") {
+      const storage = getStorageProvider();
+      const url = await storage.getUrl(attachment.objectKey);
+      return {
+        success: true,
+        data: {
+          attachmentId: attachment.id,
+          url,
+          objectKey: attachment.objectKey,
+        },
+      };
+    }
+
+    // 2. Upload to Cloud Storage
+    const storage = getStorageProvider();
+    try {
+      await storage.upload({
+        buffer,
+        mimeType: file.type,
+        storageKey: objectKey,
+      });
+    } catch (uploadErr: any) {
+      // Cloud upload failed -> mark FAILED in DB
+      await prisma.$transaction(async (tx) => {
+        await tx.fileAttachment.deleteMany({
+          where: { id: attachment.id, attachmentStatus: "UPLOAD_PENDING" },
+        });
+        await tx.storageUploadLog.updateMany({
+          where: { objectKey, status: "PENDING" },
+          data: { status: "FAILED", error: uploadErr?.message || "Upload error" },
+        });
+      });
+      return { success: false, error: `Cloud upload failed: ${uploadErr?.message || uploadErr}` };
+    }
+
+    // 3. Cloud upload succeeded -> Mark ACTIVE
+    await prisma.$transaction(async (tx) => {
+      await tx.fileAttachment.update({
+        where: { id: attachment.id },
+        data: {
+          attachmentStatus: "ACTIVE",
+          uploadExpiresAt: null,
+        },
+      });
+
+      await tx.storageUploadLog.updateMany({
+        where: { objectKey, status: "PENDING" },
+        data: {
+          status: "UPLOADED",
+          committedAt: new Date(),
+        },
+      });
+    });
+
+    const publicUrl = await storage.getUrl(objectKey);
+
+    return {
+      success: true,
+      data: {
+        attachmentId: attachment.id,
+        url: publicUrl,
+        objectKey,
+      },
+    };
+  } catch (err: any) {
+    return handleActionError(err, "uploadCertificateBackgroundAction");
+  }
+}
+

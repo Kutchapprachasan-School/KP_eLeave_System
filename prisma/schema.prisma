@@ -63,6 +63,7 @@ model User {
   driverProfile              DriverProfile?
   facilityReservations       FacilityReservation[] @relation("FacilityReservationsCreated")
   facilityApprovalSteps      FacilityApprovalStep[] @relation("FacilityApprovalApprover")
+  certificateTemplates       CertificateTemplate[]
 }
 
 model Session {
@@ -1687,7 +1688,18 @@ model FileAttachment {
   systemSettingsId   String?
   systemSettings     SystemSettings?     @relation(fields: [systemSettingsId], references: [id], onDelete: Restrict)
 
+  certificateTemplates CertificateTemplate[]
   uploadLog          StorageUploadLog?
+
+  // Lifecycle State Machine & Crash Recovery (Invariants M, Y, Z, 1-3)
+  attachmentStatus   AttachmentStatus    @default(ACTIVE)
+  orphanedAt         DateTime?
+  deletingAt         DateTime?           // Invariant Y: Crash recovery lease
+  deletionLeaseId    String?             // Invariant 3: Fenced claim token
+  uploadExpiresAt    DateTime?           // Invariant Z: Stale upload deadline
+  uploadSessionId    String?             @unique // Invariant AH: Idempotency key
+  cleanupAttempts    Int                 @default(0) // Invariant 2: Unified generic cleanup counter
+  lastCleanupError   String?             // Invariant 2: Unified error log
 
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
@@ -1696,7 +1708,9 @@ model FileAttachment {
   @@index([incomingDocumentId])
   @@index([documentRecordId])
   @@index([systemSettingsId])
-  @@index([objectKey])
+  @@index([attachmentStatus, orphanedAt])
+  @@index([attachmentStatus, deletingAt])
+  @@index([attachmentStatus, uploadExpiresAt])
 }
 
 model StorageUploadLog {
@@ -1739,5 +1753,44 @@ model StorageMigrationLog {
 
   @@unique([sourceTable, sourceRecordId, sourceField, attachmentSlot])
   @@index([status])
+}
+
+enum TemplateOrientation {
+  LANDSCAPE
+  PORTRAIT
+}
+
+enum TemplateScope {
+  PRIVATE
+  SCHOOL_SHARED
+  SYSTEM_PRESET
+}
+
+enum AttachmentStatus {
+  UPLOAD_PENDING
+  UPLOAD_CLEANUP
+  ACTIVE
+  PENDING_DELETE
+  DELETING
+}
+
+model CertificateTemplate {
+  id                     String               @id @default(cuid())
+  name                   String
+  schemaVersion          Int                  @default(1)
+  templateVersion        Int                  @default(1)
+  orientation            TemplateOrientation  @default(LANDSCAPE)
+  backgroundAttachmentId String
+  backgroundAttachment   FileAttachment       @relation(fields: [backgroundAttachmentId], references: [id], onDelete: Restrict)
+  layoutConfig           Json                 // Validated via CertificateTemplateV1Schema
+  scope                  TemplateScope        @default(PRIVATE)
+  createdById            String?
+  createdBy              User?                @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt              DateTime             @default(now())
+  updatedAt              DateTime             @updatedAt
+
+  @@index([createdById])
+  @@index([scope, createdById])
+  @@index([backgroundAttachmentId])
 }
 

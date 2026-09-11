@@ -5,7 +5,7 @@ import {
   ArrowLeft, Plus, Trash2, Award, Calendar, CheckCircle2, 
   Search, Copy, Check, RefreshCw, Layers,
   Building2, User, Eye, X, ClipboardList, FileSpreadsheet,
-  Printer, Edit3, Ban, AlertTriangle, ShieldCheck, Send
+  Printer, Edit3, Ban, AlertTriangle, ShieldCheck, Send, Palette
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import * as XLSX from "xlsx";
@@ -20,6 +20,7 @@ import { useToast } from "@/components/toast-provider";
 import { formatDocFullDate } from "@/lib/date-format";
 import { useSession } from "@/lib/auth-client";
 import { QRCodeSVG } from "qrcode.react";
+import { CertDesignerStudio } from "./designer/cert-designer-studio";
 
 interface CertificateRoleItem {
   roleTitle: string;
@@ -60,7 +61,8 @@ export default function CertGenerator({ onBack }: { onBack?: () => void }) {
   const { showToast } = useToast();
   const { data: session } = useSession();
 
-  const [activeTab, setActiveTab] = useState<"issue" | "history">("issue");
+  const [activeTab, setActiveTab] = useState<"issue" | "history" | "studio">("issue");
+  const [studioBatch, setStudioBatch] = useState<any | null>(null);
 
   // Form State
   const [activityTitle, setActivityTitle] = useState("");
@@ -119,6 +121,30 @@ export default function CertGenerator({ onBack }: { onBack?: () => void }) {
   useEffect(() => {
     fetchHistory();
   }, []);
+
+  // Launch Visual Mail-Merge Studio with pre-loaded batch items
+  const handleLaunchStudio = async (batchItem: any) => {
+    setLoadingHistory(true);
+    try {
+      const res = await getCertificateBatchItems(batchItem.id);
+      if (res.success && Array.isArray(res.data)) {
+        setStudioBatch({
+          id: batchItem.id,
+          activityTitle: batchItem.title || "",
+          organization: batchItem.origin || "",
+          issuedDate: batchItem.date ? formatDocFullDate(new Date(batchItem.date)) : "",
+          items: res.data,
+        });
+        setActiveTab("studio");
+      } else {
+        showToast("error", "ไม่สามารถดึงข้อมูลรายการเกียรติบัตรสำหรับสตูดิโอได้");
+      }
+    } catch (err: any) {
+      showToast("error", err?.message || "เกิดข้อผิดพลาดในการโหลดข้อมูล");
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
 
   // Total Quantity Calculation
   const totalQuantity = useMemo(() => {
@@ -389,6 +415,18 @@ export default function CertGenerator({ onBack }: { onBack?: () => void }) {
             <ClipboardList className="w-3.5 h-3.5" />
             ประวัติการออกเลข ({historyList.length})
           </button>
+          <button
+            type="button"
+            onClick={() => { setActiveTab("studio"); }}
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              activeTab === "studio"
+                ? "bg-white dark:bg-slate-900 text-purple-600 dark:text-purple-400 shadow-xs"
+                : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+            }`}
+          >
+            <Palette className="w-3.5 h-3.5 text-purple-500" />
+            🎨 สตูดิโอออกแบบ & พิมพ์
+          </button>
         </div>
 
         {onBack && (
@@ -650,6 +688,15 @@ export default function CertGenerator({ onBack }: { onBack?: () => void }) {
                         พิมพ์ใบสรุปเลข
                       </button>
                     </div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleLaunchStudio(lastIssuedResult)}
+                      className="w-full py-2 px-3 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs mt-2"
+                    >
+                      <Palette className="w-4 h-4" />
+                      🎨 ออกแบบ & พิมพ์เกียรติบัตรชุดนี้ (Studio)
+                    </button>
                   </div>
                 </div>
               ) : (
@@ -815,6 +862,16 @@ export default function CertGenerator({ onBack }: { onBack?: () => void }) {
                         </td>
                         <td className="py-3 px-2 text-center whitespace-nowrap">
                           <div className="flex items-center justify-center gap-1">
+                            {/* Launch Studio */}
+                            <button
+                              type="button"
+                              onClick={() => handleLaunchStudio(item)}
+                              className="p-1.5 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-700 dark:bg-purple-950/50 dark:text-purple-300 transition cursor-pointer"
+                              title="🎨 ออกแบบ & พิมพ์เกียรติบัตร (Mail Merge Studio)"
+                            >
+                              <Palette className="w-3.5 h-3.5" />
+                            </button>
+
                             {/* Download Excel */}
                             <button
                               type="button"
@@ -883,6 +940,14 @@ export default function CertGenerator({ onBack }: { onBack?: () => void }) {
             </div>
           )}
         </div>
+      )}
+
+      {/* Tab 3: Visual Mail-Merge Studio */}
+      {activeTab === "studio" && (
+        <CertDesignerStudio
+          initialBatch={studioBatch}
+          onClose={() => setActiveTab("history")}
+        />
       )}
 
       {/* Modal 1: Detail Modal */}
