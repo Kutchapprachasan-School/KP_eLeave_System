@@ -64,7 +64,7 @@ export default function CertGenerator({ onBack }: { onBack?: () => void }) {
 
   // Form State
   const [activityTitle, setActivityTitle] = useState("");
-  const [origin, setOrigin] = useState("กลุ่มสาระการเรียนรู้วิทยาศาสตร์และเทคโนโลยี");
+  const [origin, setOrigin] = useState("");
   const [customOrigin, setCustomOrigin] = useState("");
   const [issueDate, setIssueDate] = useState(new Date().toISOString().split("T")[0]);
   const [requesterName, setRequesterName] = useState("");
@@ -92,15 +92,11 @@ export default function CertGenerator({ onBack }: { onBack?: () => void }) {
   const [slipModalBatch, setSlipModalBatch] = useState<any | null>(null);
   const [slipFirstItem, setSlipFirstItem] = useState<any | null>(null);
 
-  // Auto-fill user profile info
+  // Auto-fill user profile info (name only; origin is left blank by user request)
   useEffect(() => {
     if (session?.user) {
       if (!requesterName && session.user.name) {
         setRequesterName(session.user.name);
-      }
-      const userDept = (session.user as any)?.subjectGroup;
-      if (userDept && DEPARTMENTS.includes(userDept)) {
-        setOrigin(userDept);
       }
     }
   }, [session]);
@@ -128,11 +124,6 @@ export default function CertGenerator({ onBack }: { onBack?: () => void }) {
   const totalQuantity = useMemo(() => {
     return roleItems.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
   }, [roleItems]);
-
-  // Current Thai Year
-  const currentThYear = useMemo(() => {
-    return new Date(issueDate || Date.now()).getFullYear() + 543;
-  }, [issueDate]);
 
   // Handle Add Role
   const handleAddRole = (title = "ผู้เข้าร่วมกิจกรรม", defaultQty = 10) => {
@@ -180,14 +171,19 @@ export default function CertGenerator({ onBack }: { onBack?: () => void }) {
       return;
     }
 
+    const finalOrigin = origin === "CUSTOM" ? customOrigin.trim() : origin.trim();
+    if (!finalOrigin) {
+      showToast("error", "กรุณาเลือกกลุ่มสาระฯ หรือระบุหน่วยงานผู้จัด");
+      return;
+    }
+
     setIssuing(true);
     try {
-      const finalOrigin = origin === "CUSTOM" ? customOrigin.trim() : origin;
       const clientKey = `cert_batch_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 
       const res = await issueActivityCertificatesBatch({
         title: activityTitle.trim(),
-        origin: finalOrigin || "โรงเรียนกุดจับประชาสรรค์",
+        origin: finalOrigin,
         date: issueDate,
         requester: requesterName.trim() || session?.user?.name || "ครูผู้รับผิดชอบ",
         items: roleItems.map(item => ({
@@ -444,10 +440,12 @@ export default function CertGenerator({ onBack }: { onBack?: () => void }) {
                     กลุ่มสาระฯ / หน่วยงานผู้จัด <span className="text-rose-500">*</span>
                   </label>
                   <select
+                    required
                     value={origin}
                     onChange={(e) => setOrigin(e.target.value)}
                     className="w-full h-11 pl-3.5 pr-9 rounded-xl border border-slate-200 dark:border-slate-750 bg-white dark:bg-slate-950 text-sm font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all appearance-none cursor-pointer outline-none"
                   >
+                    <option value="" disabled>-- เลือกกลุ่มสาระฯ / หน่วยงานผู้จัด --</option>
                     {DEPARTMENTS.map((dept) => (
                       <option key={dept} value={dept}>{dept}</option>
                     ))}
@@ -665,51 +663,38 @@ export default function CertGenerator({ onBack }: { onBack?: () => void }) {
                   </div>
 
                   {/* Stat Card */}
-                  <div className="bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-200/70 dark:border-indigo-800/60 rounded-xl p-3.5 text-center shadow-2xs space-y-0.5">
-                    <span className="text-[11px] font-bold text-indigo-800 dark:text-indigo-300 block">
-                      จำนวนที่ขอออกเลขทั้งหมด
-                    </span>
-                    <div className="text-2xl sm:text-3xl font-black font-mono text-indigo-600 dark:text-indigo-400">
-                      {totalQuantity} <span className="text-sm font-bold text-slate-500">ใบ</span>
-                    </div>
-                    <span className="text-[11px] font-semibold text-slate-500 block pt-0.5">
-                      📅 ปีทะเบียน พ.ศ. {currentThYear}
-                    </span>
-                  </div>
-
-                  {/* Details Summary */}
-                  <div className="space-y-2 text-xs">
+                  <div className="bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-200/70 dark:border-indigo-800/60 rounded-xl p-4 text-center shadow-2xs space-y-3">
+                    {/* Activity Title */}
                     <div>
-                      <span className="text-[11px] font-bold text-slate-400 block">กิจกรรม:</span>
-                      <span className="font-bold text-slate-800 dark:text-slate-200 block line-clamp-2">
-                        {activityTitle.trim() || "(ยังไม่ได้ระบุชื่อกิจกรรม)"}
+                      <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 block mb-1">
+                        ชื่อกิจกรรม / โครงการ
                       </span>
+                      <div className="text-sm font-extrabold text-slate-900 dark:text-white line-clamp-2 px-1">
+                        {activityTitle.trim() || (
+                          <span className="text-slate-400 dark:text-slate-500 font-normal italic">
+                            (ยังไม่ได้ระบุชื่อกิจกรรม)
+                          </span>
+                        )}
+                      </div>
                     </div>
 
-                    <div>
-                      <span className="text-[11px] font-bold text-slate-400 block">หน่วยงานผู้จัด:</span>
-                      <span className="font-semibold text-slate-700 dark:text-slate-300 block">
-                        {origin === "CUSTOM" ? (customOrigin.trim() || "-") : origin}
+                    {/* Total Quantity */}
+                    <div className="pt-2.5 border-t border-indigo-100 dark:border-indigo-900/50">
+                      <span className="text-[11px] font-bold text-indigo-800 dark:text-indigo-300 block">
+                        จำนวนที่ขอออกเลขทั้งหมด
                       </span>
+                      <div className="text-2xl sm:text-3xl font-black font-mono text-indigo-600 dark:text-indigo-400 my-0.5">
+                        {totalQuantity} <span className="text-sm font-bold text-slate-500">ใบ</span>
+                      </div>
                     </div>
-                  </div>
 
-                  {/* Breakdown List Preview */}
-                  <div className="space-y-1.5 pt-2 border-t border-slate-100 dark:border-slate-800">
-                    <span className="text-[11px] font-bold text-slate-400 block">
-                      การแจกแจงตามบทบาท ({roleItems.length} รายการ):
-                    </span>
-                    <div className="space-y-1 max-h-48 overflow-y-auto pr-1">
-                      {roleItems.map((item, idx) => (
-                        <div key={idx} className="flex items-center justify-between p-2 rounded-lg bg-slate-50 dark:bg-slate-950/60 text-xs border border-slate-100 dark:border-slate-800">
-                          <span className="font-medium text-slate-700 dark:text-slate-300 truncate max-w-[170px]">
-                            {item.roleTitle.trim() || `บทบาทที่ ${idx + 1}`}
-                          </span>
-                          <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400">
-                            {item.quantity} ใบ
-                          </span>
-                        </div>
-                      ))}
+                    {/* Certificate Issue Date */}
+                    <div className="pt-2 border-t border-indigo-100 dark:border-indigo-900/50 text-xs font-semibold text-slate-600 dark:text-slate-300 flex items-center justify-center gap-1.5">
+                      <span>📅</span>
+                      <span>วันที่ออกเลขเกียรติบัตร:</span>
+                      <span className="font-extrabold text-indigo-700 dark:text-indigo-300">
+                        {issueDate ? formatDocFullDate(issueDate) : "-"}
+                      </span>
                     </div>
                   </div>
 
