@@ -488,7 +488,7 @@ export default function OutboundForm({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
-                    {outboundDocs.slice(0, 10).map((doc, idx) => {
+                    {outboundDocs.filter(d => d.docType !== "CERTIFICATE").slice(0, 10).map((doc, idx) => {
                       const badge = getDocBadge(doc.docType);
                       const isCancelled = doc.status === "CANCELLED";
                       const formattedDate = doc.date ? new Date(doc.date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' }) : '';

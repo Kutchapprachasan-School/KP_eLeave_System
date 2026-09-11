@@ -4,8 +4,8 @@ import { useState, useEffect, useMemo } from "react";
 import { 
   ArrowLeft, Plus, Trash2, Award, Calendar, CheckCircle2, 
   Search, Copy, Check, RefreshCw, Layers,
-  Building2, User, Eye, X, ClipboardList, Download, FileSpreadsheet,
-  Printer, Edit3, Ban, AlertTriangle, ShieldCheck
+  Building2, User, Eye, X, ClipboardList, FileSpreadsheet,
+  Printer, Edit3, Ban, AlertTriangle, ShieldCheck, Send
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import * as XLSX from "xlsx";
@@ -109,7 +109,7 @@ export default function CertGenerator({ onBack }: { onBack?: () => void }) {
   const fetchHistory = async () => {
     setLoadingHistory(true);
     try {
-      const res = await getDocumentsList({ docType: "CERTIFICATE" });
+      const res = await getDocumentsList({ docType: "CERTIFICATE", includeCertificates: true });
       if (res.success && Array.isArray(res.data)) {
         setHistoryList(res.data);
       }
@@ -136,7 +136,6 @@ export default function CertGenerator({ onBack }: { onBack?: () => void }) {
 
   // Handle Add Role
   const handleAddRole = (title = "ผู้เข้าร่วมกิจกรรม", defaultQty = 10) => {
-    // If role already exists, increase its quantity or add row
     setRoleItems(prev => {
       const existingIdx = prev.findIndex(item => item.roleTitle.trim() === title.trim());
       if (existingIdx >= 0) {
@@ -184,7 +183,6 @@ export default function CertGenerator({ onBack }: { onBack?: () => void }) {
     setIssuing(true);
     try {
       const finalOrigin = origin === "CUSTOM" ? customOrigin.trim() : origin;
-      // 🟠 Senior Lock 6: Client idempotency key
       const clientKey = `cert_batch_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 
       const res = await issueActivityCertificatesBatch({
@@ -221,7 +219,7 @@ export default function CertGenerator({ onBack }: { onBack?: () => void }) {
     setTimeout(() => setCopiedId(null), 2000);
   };
 
-  // 🔴 Senior Lock 4: Export Mail Merge Excel directly from committed DB snapshot
+  // 🔴 Export Mail Merge Excel directly from committed DB snapshot
   const handleExportMailMergeXlsx = async (batch: any, passedItems?: any[]) => {
     setDownloadingBatchId(batch.id);
     try {
@@ -291,7 +289,7 @@ export default function CertGenerator({ onBack }: { onBack?: () => void }) {
     }
   };
 
-  // Handle Edit Metadata Submit (🟠 Senior Lock 5)
+  // Handle Edit Metadata Submit
   const handleEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingBatch) return;
@@ -319,7 +317,7 @@ export default function CertGenerator({ onBack }: { onBack?: () => void }) {
     }
   };
 
-  // Handle Cancel Batch Submit (🔴 Senior Lock 3)
+  // Handle Cancel Batch Submit
   const handleCancelSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!cancellingBatch) return;
@@ -367,177 +365,88 @@ export default function CertGenerator({ onBack }: { onBack?: () => void }) {
   const appOrigin = typeof window !== "undefined" ? window.location.origin : "";
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-200 max-w-6xl mx-auto">
-      {/* Top Header & View Tabs */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-white dark:bg-slate-900 p-4 sm:p-5 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
-        <div className="flex items-center gap-3">
-          {onBack && (
-            <button
-              onClick={onBack}
-              className="p-2.5 rounded-2xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 hover:text-slate-900 dark:hover:text-white transition"
-              title="ย้อนกลับ"
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </button>
-          )}
-          <div className="w-11 h-11 rounded-2xl bg-amber-500/10 dark:bg-amber-400/10 text-amber-600 dark:text-amber-400 flex items-center justify-center font-bold">
-            <Award className="w-6 h-6" />
-          </div>
-          <div>
-            <h1 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white tracking-tight">
-              ห้องออกเลขเกียรติบัตร (Certificate Studio)
-            </h1>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              ออกเลขทะเบียนกิจกรรม พร้อมดาวน์โหลดไฟล์ Excel สำหรับทำเกียรติบัตรใน Canva / Word (Mail Merge)
-            </p>
-          </div>
-        </div>
-
-        {/* Tab Switcher */}
-        <div className="flex items-center bg-slate-100 dark:bg-slate-800/80 p-1.5 rounded-2xl border border-slate-200/70 dark:border-slate-700/70 self-stretch sm:self-auto">
+    <div className="space-y-6 animate-in fade-in duration-200">
+      {/* Seamless Tab Navigation Bar (Cut out the redundant inner header card) */}
+      <div className="flex flex-wrap items-center justify-between gap-3 pb-1">
+        <div className="flex items-center bg-slate-100 dark:bg-slate-800/80 p-1 rounded-xl border border-slate-200/70 dark:border-slate-750">
           <button
             type="button"
             onClick={() => { setActiveTab("issue"); setLastIssuedResult(null); }}
-            className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
               activeTab === "issue"
-                ? "bg-white dark:bg-slate-900 text-amber-600 dark:text-amber-400 shadow-xs"
+                ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs"
                 : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
             }`}
           >
-            <Plus className="w-4 h-4" />
+            <Plus className="w-3.5 h-3.5" />
             ขอเลขเกียรติบัตร
           </button>
           <button
             type="button"
             onClick={() => { setActiveTab("history"); fetchHistory(); }}
-            className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
               activeTab === "history"
-                ? "bg-white dark:bg-slate-900 text-amber-600 dark:text-amber-400 shadow-xs"
+                ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs"
                 : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
             }`}
           >
-            <ClipboardList className="w-4 h-4" />
-            ทะเบียนประวัติ ({historyList.length})
+            <ClipboardList className="w-3.5 h-3.5" />
+            ประวัติการออกเลข ({historyList.length})
           </button>
         </div>
+
+        {onBack && (
+          <button
+            onClick={onBack}
+            className="px-3.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-750 bg-white dark:bg-slate-800 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition flex items-center gap-1.5 cursor-pointer shadow-xs"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            ย้อนกลับ
+          </button>
+        )}
       </div>
 
-      {/* Tab 1: Studio Issue Mode (Clean 2-Column Workspace) */}
+      {/* Tab 1: Studio Issue Mode (Clean 2-Column Workspace matching outbound-form typography) */}
       {activeTab === "issue" && (
-        <div className="space-y-6">
-          {/* Post-Issuance Success Card */}
-          {lastIssuedResult && (
-            <motion.div 
-              initial={{ opacity: 0, y: -8 }} 
-              animate={{ opacity: 1, y: 0 }}
-              className="p-6 rounded-3xl bg-slate-50 dark:bg-slate-900 border border-emerald-300 dark:border-emerald-800 shadow-sm space-y-4"
-            >
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200 dark:border-slate-800">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-2xl bg-emerald-500 text-white flex items-center justify-center shadow-xs">
-                    <CheckCircle2 className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <h3 className="text-base font-black text-slate-900 dark:text-white">
-                      ออกเลขทะเบียนเกียรติบัตรเรียบร้อยแล้ว
-                    </h3>
-                    <p className="text-xs text-slate-600 dark:text-slate-400">
-                      {lastIssuedResult.title}
-                    </p>
-                  </div>
+        <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 md:p-6 shadow-xs relative">
+          <div className="lg:grid lg:grid-cols-12 lg:gap-8 space-y-6 lg:space-y-0 items-start">
+            
+            {/* Left Column (7 cols on lg): The Input Form */}
+            <form onSubmit={handleIssueSubmit} className="lg:col-span-7 space-y-4">
+              <div className="flex items-center gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
+                <div className="w-7 h-7 rounded-full bg-indigo-100 dark:bg-indigo-950/80 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-sm font-extrabold">
+                  +
                 </div>
-
-                <div className="flex flex-wrap items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => handleCopy(lastIssuedResult.docNo, "last_issued")}
-                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-50 transition"
-                  >
-                    {copiedId === "last_issued" ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
-                    {copiedId === "last_issued" ? "คัดลอกแล้ว" : "คัดลอกช่วงเลข"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleOpenSlipModal(lastIssuedResult)}
-                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-50 transition"
-                  >
-                    <Printer className="w-4 h-4 text-amber-500" />
-                    พิมพ์ใบสรุปเลข
-                  </button>
-                </div>
-              </div>
-
-              {/* Number Range & Download Button Bar */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 rounded-2xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
-                <div className="md:col-span-2">
-                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
-                    ช่วงเลขที่เกียรติบัตรที่บันทึกในทะเบียน
-                  </span>
-                  <span className="text-2xl sm:text-3xl font-black font-mono text-amber-600 dark:text-amber-400 mt-0.5 block">
-                    {lastIssuedResult.docNo}
-                  </span>
-                  <p className="text-xs text-slate-500 mt-1">
-                    ผู้ขอ: {lastIssuedResult.requester} • หน่วยงาน: {lastIssuedResult.origin}
-                  </p>
-                </div>
-
-                <div className="flex flex-col justify-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => handleExportMailMergeXlsx(lastIssuedResult, lastIssuedResult.certificateItems)}
-                    className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition"
-                  >
-                    <FileSpreadsheet className="w-4 h-4" />
-                    ดาวน์โหลด Excel (Mail Merge)
-                  </button>
-                  <span className="text-[10px] text-center text-slate-400">
-                    นำไฟล์ไป Import ใน Canva หรือ Word ได้ทันที
-                  </span>
-                </div>
-              </div>
-            </motion.div>
-          )}
-
-          {/* 2-Column Clean Studio Workspace */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-            {/* Left Column: Clean Form (7 Cols) */}
-            <form onSubmit={handleIssueSubmit} className="lg:col-span-7 bg-white dark:bg-slate-900 p-6 sm:p-7 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-5">
-              <div className="border-b border-slate-100 dark:border-slate-800 pb-3">
-                <h2 className="text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
-                  <Award className="w-5 h-5 text-amber-500" />
-                  แบบฟอร์มขอเลขทะเบียนเกียรติบัตร
-                </h2>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                  กรอกรายละเอียดกิจกรรมและบทบาทที่ต้องการออกเลข
-                </p>
+                <h3 className="text-base font-extrabold text-slate-900 dark:text-white">
+                  ออกเลขเกียรติบัตรกิจกรรม
+                </h3>
               </div>
 
               {/* Activity Title */}
-              <div className="space-y-1.5">
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+              <div>
+                <label className="block text-sm font-bold text-slate-800 dark:text-slate-200 mb-1.5">
                   ชื่อกิจกรรม / โครงการ / หลักสูตรฝึกอบรม <span className="text-rose-500">*</span>
                 </label>
-                <input
-                  type="text"
+                <textarea
+                  rows={2}
                   required
                   value={activityTitle}
                   onChange={(e) => setActivityTitle(e.target.value)}
                   placeholder="เช่น การแข่งขันตอบปัญหาวิชาการ สัปดาห์วิทยาศาสตร์ ประจำปีการศึกษา 2569"
-                  className="w-full px-4 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-950/60 text-sm font-medium focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 outline-hidden transition"
+                  className="w-full p-3.5 rounded-xl border border-slate-200 dark:border-slate-750 bg-white dark:bg-slate-950 text-sm font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none resize-none"
                 />
               </div>
 
+              {/* Department & Date 2-Col Grid */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {/* Department / Origin */}
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                    <Building2 className="w-3.5 h-3.5 text-amber-500" />
+                <div>
+                  <label className="block text-sm font-bold text-slate-800 dark:text-slate-200 mb-1.5">
                     กลุ่มสาระฯ / หน่วยงานผู้จัด <span className="text-rose-500">*</span>
                   </label>
                   <select
                     value={origin}
                     onChange={(e) => setOrigin(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-950/60 text-xs font-medium focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 outline-hidden transition"
+                    className="w-full h-11 pl-3.5 pr-9 rounded-xl border border-slate-200 dark:border-slate-750 bg-white dark:bg-slate-950 text-sm font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all appearance-none cursor-pointer outline-none"
                   >
                     {DEPARTMENTS.map((dept) => (
                       <option key={dept} value={dept}>{dept}</option>
@@ -552,59 +461,62 @@ export default function CertGenerator({ onBack }: { onBack?: () => void }) {
                       value={customOrigin}
                       onChange={(e) => setCustomOrigin(e.target.value)}
                       placeholder="ระบุชื่อกลุ่มงาน / โครงการ"
-                      className="w-full mt-2 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-xs font-medium focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 outline-hidden transition"
+                      className="w-full mt-2 h-10 px-3.5 rounded-xl border border-slate-200 dark:border-slate-750 bg-white dark:bg-slate-950 text-xs font-medium focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none"
                     />
                   )}
                 </div>
 
-                {/* Date */}
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                    <Calendar className="w-3.5 h-3.5 text-amber-500" />
-                    วันที่ออกเกียรติบัตร <span className="text-rose-500">*</span>
-                  </label>
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-sm font-bold text-slate-800 dark:text-slate-200">
+                      วันที่ออกเกียรติบัตร <span className="text-rose-500">*</span>
+                    </label>
+                    {issueDate && (
+                      <span className="text-xs font-extrabold px-2.5 py-0.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200/60 dark:border-indigo-800/40">
+                        📅 {formatDocFullDate(issueDate)}
+                      </span>
+                    )}
+                  </div>
                   <input
                     type="date"
                     required
                     value={issueDate}
                     onChange={(e) => setIssueDate(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-950/60 text-xs font-medium focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 outline-hidden transition"
+                    className="w-full h-11 px-3.5 rounded-xl border border-slate-200 dark:border-slate-750 bg-white dark:bg-slate-950 text-sm font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none"
                   />
                 </div>
               </div>
 
               {/* Requester Name */}
-              <div className="space-y-1.5">
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                  <User className="w-3.5 h-3.5 text-amber-500" />
-                  ผู้ขอเลข / ครูผู้รับผิดชอบโครงการ <span className="text-rose-500">*</span>
+              <div>
+                <label className="block text-sm font-bold text-slate-800 dark:text-slate-200 mb-1.5">
+                  ผู้ขอเลข / ครูผู้รับผิดชอบ <span className="text-rose-500">*</span>
                 </label>
                 <input
                   type="text"
                   required
                   value={requesterName}
                   onChange={(e) => setRequesterName(e.target.value)}
-                  placeholder="ชื่อ-นามสกุล ครูผู้ขอเลข"
-                  className="w-full px-4 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-950/60 text-xs font-medium focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 outline-hidden transition"
+                  placeholder="ชื่อ-นามสกุล ครูผู้ขอออกเลขเกียรติบัตร"
+                  className="w-full h-11 px-3.5 rounded-xl border border-slate-200 dark:border-slate-750 bg-white dark:bg-slate-950 text-sm font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none"
                 />
               </div>
 
-              {/* Role Items Section with Quick Chips */}
-              <div className="space-y-3 pt-3 border-t border-slate-100 dark:border-slate-800">
+              {/* Dynamic Roles & Quantities */}
+              <div className="space-y-2.5 pt-2 border-t border-slate-100 dark:border-slate-800">
                 <div className="flex items-center justify-between">
-                  <label className="block text-xs font-black text-slate-900 dark:text-white flex items-center gap-1.5">
-                    <Layers className="w-4 h-4 text-amber-500" />
-                    รายการบทบาทและจำนวนใบ
+                  <label className="block text-sm font-bold text-slate-800 dark:text-slate-200">
+                    รายการบทบาทและจำนวนใบ <span className="text-rose-500">*</span>
                   </label>
-                  <span className="text-xs font-bold text-amber-600 dark:text-amber-400">
-                    รวม {totalQuantity} ใบ
+                  <span className="text-xs font-extrabold px-2.5 py-0.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200/60 dark:border-indigo-800/40">
+                    รวมทั้งสิ้น {totalQuantity} ใบ
                   </span>
                 </div>
 
-                {/* Quick Role Chips */}
-                <div className="p-3 rounded-2xl bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200/60 dark:border-amber-900/40 space-y-1.5">
-                  <span className="text-[11px] font-bold text-amber-900 dark:text-amber-300 block">
-                    ✨ แตะเพื่อเพิ่มบทบาทด่วน:
+                {/* Quick Add Role Chips (Soft Indigo theme) */}
+                <div className="p-3 rounded-xl bg-indigo-50/50 dark:bg-indigo-950/30 border border-indigo-100 dark:border-indigo-900/50 space-y-1.5">
+                  <span className="text-[11px] font-bold text-indigo-900 dark:text-indigo-300 block">
+                    ⚡ แตะเพื่อเพิ่มบทบาทด่วน:
                   </span>
                   <div className="flex flex-wrap gap-1.5">
                     {PRESET_ROLES.map((preset) => (
@@ -612,7 +524,7 @@ export default function CertGenerator({ onBack }: { onBack?: () => void }) {
                         key={preset.title}
                         type="button"
                         onClick={() => handleAddRole(preset.title, preset.defaultQty)}
-                        className="px-2.5 py-1 rounded-xl bg-white dark:bg-slate-800 border border-amber-200 dark:border-amber-800/80 hover:bg-amber-50 dark:hover:bg-amber-950/40 text-slate-700 dark:text-slate-200 text-[11px] font-medium transition shadow-2xs"
+                        className="px-2.5 py-1 rounded-lg bg-white dark:bg-slate-800 border border-indigo-200/80 dark:border-indigo-800 text-indigo-800 dark:text-indigo-200 text-[11px] font-medium hover:bg-indigo-50 dark:hover:bg-indigo-900/40 transition cursor-pointer shadow-2xs"
                       >
                         + {preset.title} ({preset.defaultQty})
                       </button>
@@ -625,7 +537,7 @@ export default function CertGenerator({ onBack }: { onBack?: () => void }) {
                   {roleItems.map((item, idx) => (
                     <div 
                       key={idx} 
-                      className="flex items-center gap-2 p-2.5 rounded-2xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800"
+                      className="flex items-center gap-2 p-2 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800"
                     >
                       <span className="w-6 h-6 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-bold flex items-center justify-center shrink-0">
                         {idx + 1}
@@ -636,16 +548,16 @@ export default function CertGenerator({ onBack }: { onBack?: () => void }) {
                         value={item.roleTitle}
                         onChange={(e) => handleRoleChange(idx, "roleTitle", e.target.value)}
                         placeholder="ชื่อบทบาท เช่น ผู้เข้าร่วมกิจกรรม"
-                        className="flex-1 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-medium focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 outline-hidden transition"
+                        className="flex-1 h-9 px-3 rounded-lg border border-slate-200 dark:border-slate-750 bg-white dark:bg-slate-900 text-xs font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none"
                       />
-                      <div className="w-24 flex items-center gap-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-2 py-1">
+                      <div className="w-24 flex items-center gap-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-750 rounded-lg px-2 h-9">
                         <input
                           type="number"
                           min="1"
                           required
                           value={item.quantity}
                           onChange={(e) => handleRoleChange(idx, "quantity", Math.max(1, parseInt(e.target.value) || 1))}
-                          className="w-full text-center text-xs font-bold text-slate-900 dark:text-white outline-hidden bg-transparent"
+                          className="w-full text-center text-xs font-bold text-slate-900 dark:text-white outline-none bg-transparent"
                         />
                         <span className="text-[10px] text-slate-400">ใบ</span>
                       </div>
@@ -653,7 +565,7 @@ export default function CertGenerator({ onBack }: { onBack?: () => void }) {
                         type="button"
                         onClick={() => handleRemoveRole(idx)}
                         disabled={roleItems.length <= 1}
-                        className="p-1.5 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 disabled:opacity-30 transition"
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 disabled:opacity-30 transition cursor-pointer"
                         title="ลบแถวนี้"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -665,128 +577,165 @@ export default function CertGenerator({ onBack }: { onBack?: () => void }) {
                 <button
                   type="button"
                   onClick={() => handleAddRole("ผู้เข้าร่วมกิจกรรม", 10)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-dashed border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400 text-xs font-bold transition"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-dashed border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400 text-xs font-bold transition cursor-pointer"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   เพิ่มแถวใหม่
                 </button>
               </div>
 
-              {/* Submit Trigger in Form */}
-              <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end">
-                <button
-                  type="submit"
-                  disabled={issuing || totalQuantity <= 0}
-                  className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-2.5 rounded-2xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold shadow-md shadow-amber-500/20 disabled:opacity-50 transition"
-                >
-                  {issuing ? (
-                    <>
-                      <RefreshCw className="w-4 h-4 animate-spin" />
-                      กำลังบันทึกและออกเลข...
-                    </>
-                  ) : (
-                    <>
-                      <Award className="w-4 h-4" />
-                      ออกเลขเกียรติบัตร ({totalQuantity} ใบ)
-                    </>
-                  )}
-                </button>
-              </div>
+              {/* Primary Submit Button */}
+              <button
+                type="submit"
+                disabled={issuing || totalQuantity <= 0}
+                className="w-full h-11 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:scale-[0.99] text-white text-xs font-bold transition-all flex items-center justify-center gap-2 shadow-md shadow-indigo-600/20 disabled:opacity-50 cursor-pointer border border-indigo-500/20"
+              >
+                {issuing ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    กำลังขอออกเลขเกียรติบัตร...
+                  </>
+                ) : (
+                  <>
+                    <Send className="w-4 h-4" />
+                    🚀 ยืนยันขอออกเลขเกียรติบัตร ({totalQuantity} ใบ)
+                  </>
+                )}
+              </button>
             </form>
 
-            {/* Right Column: Live Summary Preview Card (5 Cols) */}
-            <div className="lg:col-span-5 space-y-4 lg:sticky lg:top-6">
-              <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-5">
-                <div className="border-b border-slate-100 dark:border-slate-800 pb-3">
-                  <div className="text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-widest">
-                    LIVE PREVIEW
+            {/* Right Column (5 cols on lg): Live Summary & Last Issued Result Card */}
+            <div className="lg:col-span-5 space-y-4">
+              {/* Success Card if just issued */}
+              {lastIssuedResult ? (
+                <div className="bg-emerald-50 dark:bg-emerald-950/70 border-2 border-emerald-500/60 dark:border-emerald-600/60 rounded-xl p-4 space-y-2.5 text-center shadow-md animate-in zoom-in-95 duration-200">
+                  <div className="flex items-center justify-center gap-1.5 text-xs font-black text-emerald-700 dark:text-emerald-300">
+                    <span className="text-base">🎉</span>
+                    ออกเลขเกียรติบัตรของคุณสำเร็จเรียบร้อย!
                   </div>
-                  <h3 className="text-sm font-black text-slate-900 dark:text-white mt-0.5">
-                    สรุปการขอเลขเกียรติบัตร
-                  </h3>
-                </div>
+                  <div className="text-2xl sm:text-3xl font-black font-mono text-emerald-600 dark:text-emerald-400">
+                    {lastIssuedResult.docNo}
+                  </div>
+                  <div className="text-xs font-bold text-slate-800 dark:text-slate-100 line-clamp-1">
+                    เรื่อง: {lastIssuedResult.title}
+                  </div>
+                  <div className="text-[11px] text-slate-600 dark:text-slate-400 flex items-center justify-center gap-2">
+                    <span>ผู้ขอ: {lastIssuedResult.requester}</span>
+                    <span>•</span>
+                    <span>{formatDocFullDate(lastIssuedResult.date)}</span>
+                  </div>
 
-                {/* Big Stat Count */}
-                <div className="p-4 rounded-2xl bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200/60 dark:border-amber-900/40 flex items-center justify-between">
-                  <div>
-                    <span className="text-[11px] font-bold text-amber-800 dark:text-amber-300 block">
-                      จำนวนที่ขอออกเลข
+                  <div className="pt-2 flex flex-col gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleExportMailMergeXlsx(lastIssuedResult, lastIssuedResult.certificateItems)}
+                      className="w-full py-2 px-3 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-xs cursor-pointer active:scale-95"
+                    >
+                      <FileSpreadsheet className="w-4 h-4" />
+                      📥 ดาวน์โหลด Excel สำหรับ Mail Merge
+                    </button>
+                    <div className="flex items-center justify-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleCopy(lastIssuedResult.docNo, "last_issued")}
+                        className="flex-1 py-1.5 px-3 rounded-xl bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 text-xs font-bold transition flex items-center justify-center gap-1 cursor-pointer"
+                      >
+                        {copiedId === "last_issued" ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                        {copiedId === "last_issued" ? "คัดลอกแล้ว" : "คัดลอกช่วงเลข"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenSlipModal(lastIssuedResult)}
+                        className="flex-1 py-1.5 px-3 rounded-xl bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 text-xs font-bold transition flex items-center justify-center gap-1 cursor-pointer"
+                      >
+                        <Printer className="w-3.5 h-3.5 text-indigo-500" />
+                        พิมพ์ใบสรุปเลข
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                /* Live Preview Card */
+                <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 md:p-5 space-y-4">
+                  <div className="flex items-center gap-2 pb-3 border-b border-slate-100 dark:border-slate-800">
+                    <span className="text-base">📊</span>
+                    <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                      สรุปข้อมูลการขอออกเลข
+                    </h3>
+                  </div>
+
+                  {/* Stat Card */}
+                  <div className="bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-200/70 dark:border-indigo-800/60 rounded-xl p-3.5 text-center shadow-2xs space-y-0.5">
+                    <span className="text-[11px] font-bold text-indigo-800 dark:text-indigo-300 block">
+                      จำนวนที่ขอออกเลขทั้งหมด
                     </span>
-                    <span className="text-3xl font-black font-mono text-amber-600 dark:text-amber-400 block mt-0.5">
+                    <div className="text-2xl sm:text-3xl font-black font-mono text-indigo-600 dark:text-indigo-400">
                       {totalQuantity} <span className="text-sm font-bold text-slate-500">ใบ</span>
+                    </div>
+                    <span className="text-[11px] font-semibold text-slate-500 block pt-0.5">
+                      📅 ปีทะเบียน พ.ศ. {currentThYear}
                     </span>
                   </div>
-                  <div className="text-right">
+
+                  {/* Details Summary */}
+                  <div className="space-y-2 text-xs">
+                    <div>
+                      <span className="text-[11px] font-bold text-slate-400 block">กิจกรรม:</span>
+                      <span className="font-bold text-slate-800 dark:text-slate-200 block line-clamp-2">
+                        {activityTitle.trim() || "(ยังไม่ได้ระบุชื่อกิจกรรม)"}
+                      </span>
+                    </div>
+
+                    <div>
+                      <span className="text-[11px] font-bold text-slate-400 block">หน่วยงานผู้จัด:</span>
+                      <span className="font-semibold text-slate-700 dark:text-slate-300 block">
+                        {origin === "CUSTOM" ? (customOrigin.trim() || "-") : origin}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Breakdown List Preview */}
+                  <div className="space-y-1.5 pt-2 border-t border-slate-100 dark:border-slate-800">
                     <span className="text-[11px] font-bold text-slate-400 block">
-                      ปีทะเบียน พ.ศ.
+                      การแจกแจงตามบทบาท ({roleItems.length} รายการ):
                     </span>
-                    <span className="text-lg font-black font-mono text-slate-800 dark:text-slate-200 block">
-                      /{currentThYear}
+                    <div className="space-y-1 max-h-48 overflow-y-auto pr-1">
+                      {roleItems.map((item, idx) => (
+                        <div key={idx} className="flex items-center justify-between p-2 rounded-lg bg-slate-50 dark:bg-slate-950/60 text-xs border border-slate-100 dark:border-slate-800">
+                          <span className="font-medium text-slate-700 dark:text-slate-300 truncate max-w-[170px]">
+                            {item.roleTitle.trim() || `บทบาทที่ ${idx + 1}`}
+                          </span>
+                          <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400">
+                            {item.quantity} ใบ
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Feature Hint Box */}
+                  <div className="p-3 rounded-xl bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200/70 dark:border-emerald-800/50 text-[11px] text-emerald-800 dark:text-emerald-300 flex items-start gap-2">
+                    <FileSpreadsheet className="w-4 h-4 shrink-0 text-emerald-600 mt-0.5" />
+                    <span>
+                      เมื่อออกเลขแล้ว ดาวน์โหลดไฟล์ Excel เพื่อนำไปผสานข้อมูล (Mail Merge) ใน Canva หรือ Word ได้ทันที
                     </span>
                   </div>
                 </div>
-
-                {/* Activity & Target Preview */}
-                <div className="space-y-2 text-xs">
-                  <div>
-                    <span className="text-[11px] font-bold text-slate-400 block">กิจกรรม:</span>
-                    <span className="font-bold text-slate-800 dark:text-slate-200 block line-clamp-2">
-                      {activityTitle.trim() || "(ยังไม่ได้ระบุชื่อกิจกรรม)"}
-                    </span>
-                  </div>
-
-                  <div>
-                    <span className="text-[11px] font-bold text-slate-400 block">หน่วยงานผู้จัด:</span>
-                    <span className="font-semibold text-slate-700 dark:text-slate-300 block">
-                      {origin === "CUSTOM" ? (customOrigin.trim() || "-") : origin}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Breakdown List Preview */}
-                <div className="space-y-2 pt-3 border-t border-slate-100 dark:border-slate-800">
-                  <span className="text-[11px] font-bold text-slate-400 block">
-                    การแจกแจงตามบทบาท ({roleItems.length} รายการ):
-                  </span>
-                  <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
-                    {roleItems.map((item, idx) => (
-                      <div key={idx} className="flex items-center justify-between p-2 rounded-xl bg-slate-50 dark:bg-slate-950/60 text-xs border border-slate-100 dark:border-slate-800">
-                        <span className="font-medium text-slate-700 dark:text-slate-300 truncate max-w-[180px]">
-                          {item.roleTitle.trim() || `บทบาทที่ ${idx + 1}`}
-                        </span>
-                        <span className="font-mono font-bold text-amber-600 dark:text-amber-400">
-                          {item.quantity} ใบ
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Immediate Feature Highlight */}
-                <div className="p-3 rounded-2xl bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-200/60 dark:border-emerald-900/40 text-[11px] text-emerald-800 dark:text-emerald-300 flex items-start gap-2">
-                  <FileSpreadsheet className="w-4 h-4 shrink-0 text-emerald-600 mt-0.5" />
-                  <span>
-                    เมื่อออกเลขสำเร็จ ระบบจะสร้างไฟล์ Excel (Mail Merge) ที่เรียงเลขทีละแถวให้ทันที นำไปผสานข้อมูลใน Canva / Word ได้เลย
-                  </span>
-                </div>
-              </div>
+              )}
             </div>
           </div>
         </div>
       )}
 
-      {/* Tab 2: Registry History View */}
+      {/* Tab 2: Registry History View (Matches Outbound History style) */}
       {activeTab === "history" && (
-        <div className="bg-white dark:bg-slate-900 p-5 sm:p-7 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-5">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-4">
-            <div>
-              <h2 className="text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
-                <ClipboardList className="w-5 h-5 text-amber-500" />
-                ทะเบียนประวัติการออกเลขเกียรติบัตร
-              </h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                รายการขอเลขทั้งหมดในระบบ ({filteredHistory.length} รายการ)
-              </p>
+        <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 md:p-5 space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
+            <div className="flex items-center gap-2">
+              <span className="text-base">🕒</span>
+              <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                ทะเบียนประวัติการออกเลขเกียรติบัตร ({filteredHistory.length} รายการ)
+              </h3>
             </div>
 
             <div className="flex items-center gap-2">
@@ -797,7 +746,7 @@ export default function CertGenerator({ onBack }: { onBack?: () => void }) {
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="ค้นหากิจกรรม, เลขที่, ผู้ขอ..."
-                  className="w-full pl-9 pr-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-xs font-medium focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 outline-hidden transition"
+                  className="w-full pl-9 pr-4 py-1.5 rounded-xl border border-slate-200 dark:border-slate-750 bg-white dark:bg-slate-950 text-xs font-medium outline-none focus:ring-2 focus:ring-indigo-500/20"
                 />
               </div>
 
@@ -805,102 +754,88 @@ export default function CertGenerator({ onBack }: { onBack?: () => void }) {
                 type="button"
                 onClick={fetchHistory}
                 disabled={loadingHistory}
-                className="p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition"
+                className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-950/50 transition cursor-pointer border border-slate-200 dark:border-slate-750"
                 title="รีเฟรชข้อมูล"
               >
-                <RefreshCw className={`w-4 h-4 ${loadingHistory ? "animate-spin text-amber-500" : ""}`} />
+                <RefreshCw className={`w-3.5 h-3.5 ${loadingHistory ? "animate-spin" : ""}`} />
+                รีเฟรช
               </button>
             </div>
           </div>
 
-          {/* History Data Table */}
+          {/* Table */}
           {filteredHistory.length === 0 ? (
-            <div className="py-12 text-center space-y-3">
-              <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-400 flex items-center justify-center mx-auto">
-                <Award className="w-6 h-6" />
-              </div>
-              <p className="text-sm font-bold text-slate-600 dark:text-slate-400">
-                {searchQuery ? "ไม่พบข้อมูลที่ตรงกับคำค้นหา" : "ยังไม่มีประวัติการออกเลขเกียรติบัตร"}
-              </p>
-              {!searchQuery && (
-                <button
-                  type="button"
-                  onClick={() => setActiveTab("issue")}
-                  className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold transition shadow-xs"
-                >
-                  + ขอเลขเกียรติบัตรรายการแรก
-                </button>
-              )}
+            <div className="text-center py-12 text-xs text-slate-400">
+              {searchQuery ? "ไม่พบข้อมูลที่ตรงกับคำค้นหา" : "ยังไม่มีประวัติการขอออกเลขเกียรติบัตร"}
             </div>
           ) : (
-            <div className="overflow-x-auto rounded-2xl border border-slate-200/80 dark:border-slate-800">
+            <div className="overflow-x-auto custom-scrollbar">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
-                  <tr className="bg-slate-50/80 dark:bg-slate-950/80 text-slate-500 border-b border-slate-200 dark:border-slate-800">
-                    <th className="py-3 px-3.5 font-bold text-center w-12">ลำดับ</th>
-                    <th className="py-3 px-3.5 font-bold min-w-[140px]">เลขที่เกียรติบัตร</th>
-                    <th className="py-3 px-3.5 font-bold min-w-[220px]">ชื่อกิจกรรม / โครงการ</th>
-                    <th className="py-3 px-3.5 font-bold min-w-[140px]">หน่วยงานผู้จัด</th>
-                    <th className="py-3 px-3.5 font-bold min-w-[110px]">ผู้ขอเลข</th>
-                    <th className="py-3 px-3.5 font-bold text-center w-20">สถานะ</th>
-                    <th className="py-3 px-3.5 font-bold text-center min-w-[180px]">จัดการ</th>
+                  <tr className="border-b border-slate-100 dark:border-slate-800 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                    <th className="py-2 px-2.5 text-center w-12">ลำดับ</th>
+                    <th className="py-2 px-2.5">เลขที่</th>
+                    <th className="py-2 px-2.5">ชื่อกิจกรรม / โครงการ</th>
+                    <th className="py-2 px-2">หน่วยงานผู้จัด</th>
+                    <th className="py-2 px-2">ผู้ขอเลข</th>
+                    <th className="py-2 px-2 text-center">สถานะ</th>
+                    <th className="py-2 px-2 text-center">จัดการ</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium">
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
                   {filteredHistory.map((item, index) => {
                     const isCancelled = item.status === "CANCELLED";
+                    const formattedDate = item.date ? new Date(item.date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' }) : '';
 
                     return (
-                      <tr key={item.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition">
-                        <td className="py-3 px-3.5 text-center text-slate-400 font-mono">
+                      <tr key={item.id} className={`transition ${isCancelled ? "bg-rose-50/30 dark:bg-rose-950/20" : "hover:bg-slate-50/80 dark:hover:bg-slate-800/50"}`}>
+                        <td className="py-3 px-2.5 text-center text-slate-400 font-mono">
                           {index + 1}
                         </td>
-                        <td className="py-3 px-3.5">
+                        <td className="py-3 px-2.5 font-mono font-bold whitespace-nowrap">
                           <div className="flex items-center gap-1.5">
-                            <span className={`font-mono font-black text-xs ${isCancelled ? "text-slate-400 line-through" : "text-amber-600 dark:text-amber-400"}`}>
+                            <span className={isCancelled ? "line-through text-rose-600 dark:text-rose-400 font-bold" : "text-slate-900 dark:text-white hover:text-indigo-600"}>
                               {item.docNo}
                             </span>
                             <button
                               type="button"
                               onClick={() => handleCopy(item.docNo, item.id)}
-                              className="p-1 rounded-md hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-700 transition"
+                              className="p-1 rounded-md hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-700 transition cursor-pointer"
                               title="คัดลอกเลขที่"
                             >
                               {copiedId === item.id ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
                             </button>
                           </div>
                           <div className="text-[10px] text-slate-400 mt-0.5">
-                            {formatDocFullDate(item.date || item.createdAt)}
+                            {formattedDate}
                           </div>
                         </td>
-                        <td className="py-3 px-3.5">
-                          <div className={`font-bold line-clamp-2 ${isCancelled ? "text-slate-400 line-through" : "text-slate-900 dark:text-white"}`}>
-                            {item.title}
-                          </div>
+                        <td className={`py-3 px-2.5 max-w-[240px] truncate text-xs ${isCancelled ? "line-through text-slate-400 dark:text-slate-500" : "text-slate-700 dark:text-slate-300 font-medium"}`}>
+                          {item.title}
                         </td>
-                        <td className="py-3 px-3.5 text-slate-600 dark:text-slate-300">
+                        <td className="py-3 px-2 text-slate-600 dark:text-slate-400 whitespace-nowrap text-xs">
                           {item.origin || "-"}
                         </td>
-                        <td className="py-3 px-3.5 text-slate-600 dark:text-slate-300">
+                        <td className="py-3 px-2 text-slate-600 dark:text-slate-400 whitespace-nowrap text-xs">
                           {item.requester || "-"}
                         </td>
-                        <td className="py-3 px-3.5 text-center">
-                          <span className={`px-2 py-0.5 rounded-md text-[11px] font-bold ${
+                        <td className="py-3 px-2 text-center whitespace-nowrap">
+                          <span className={`px-2.5 py-0.5 rounded-lg text-xs font-extrabold border ${
                             isCancelled 
-                              ? "bg-rose-50 text-rose-600 dark:bg-rose-950/40 dark:text-rose-400 line-through" 
-                              : "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
+                              ? "bg-rose-50 border-rose-200 text-rose-600 dark:bg-rose-950/70 dark:border-rose-900 dark:text-rose-400 line-through" 
+                              : "bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-950/70 dark:border-emerald-900 dark:text-emerald-300"
                           }`}>
                             {isCancelled ? "ยกเลิก" : "ออกเลขแล้ว"}
                           </span>
                         </td>
-                        <td className="py-3 px-3.5 text-center">
+                        <td className="py-3 px-2 text-center whitespace-nowrap">
                           <div className="flex items-center justify-center gap-1">
-                            {/* 1-Click Excel Mail Merge Export Button */}
+                            {/* Download Excel */}
                             <button
                               type="button"
                               onClick={() => handleExportMailMergeXlsx(item)}
                               disabled={downloadingBatchId === item.id}
-                              className="p-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 transition"
+                              className="p-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300 transition cursor-pointer"
                               title="ดาวน์โหลด Excel สำหรับ Mail Merge"
                             >
                               {downloadingBatchId === item.id ? (
@@ -914,17 +849,17 @@ export default function CertGenerator({ onBack }: { onBack?: () => void }) {
                             <button
                               type="button"
                               onClick={() => handleOpenSlipModal(item)}
-                              className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-300 transition"
+                              className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-300 transition cursor-pointer"
                               title="พิมพ์ใบสรุปเลข (Print Slip)"
                             >
-                              <Printer className="w-3.5 h-3.5" />
+                              <Printer className="w-3.5 h-3.5 text-indigo-500" />
                             </button>
 
                             {/* View Detail */}
                             <button
                               type="button"
                               onClick={() => setSelectedBatchDetail(item)}
-                              className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-300 transition"
+                              className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-300 transition cursor-pointer"
                               title="ดูรายละเอียด"
                             >
                               <Eye className="w-3.5 h-3.5" />
@@ -935,7 +870,7 @@ export default function CertGenerator({ onBack }: { onBack?: () => void }) {
                               <button
                                 type="button"
                                 onClick={() => setEditingBatch({ ...item, date: item.date ? new Date(item.date).toISOString().split("T")[0] : "" })}
-                                className="p-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 transition"
+                                className="p-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300 transition cursor-pointer"
                                 title="แก้ไขชื่อกิจกรรม/หน่วยงาน"
                               >
                                 <Edit3 className="w-3.5 h-3.5" />
@@ -947,7 +882,7 @@ export default function CertGenerator({ onBack }: { onBack?: () => void }) {
                               <button
                                 type="button"
                                 onClick={() => setCancellingBatch(item)}
-                                className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 dark:bg-rose-950/40 dark:text-rose-400 transition"
+                                className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 dark:bg-rose-950/50 dark:text-rose-400 transition cursor-pointer"
                                 title="ยกเลิกเลขเกียรติบัตรชุดนี้"
                               >
                                 <Ban className="w-3.5 h-3.5" />
@@ -973,15 +908,15 @@ export default function CertGenerator({ onBack }: { onBack?: () => void }) {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-6 max-w-lg w-full shadow-2xl space-y-5"
+              className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 sm:p-6 max-w-lg w-full shadow-2xl space-y-4"
             >
               <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-600 flex items-center justify-center font-bold">
-                    <Award className="w-5 h-5" />
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-full bg-indigo-100 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-bold">
+                    <Award className="w-4 h-4" />
                   </div>
                   <div>
-                    <h3 className="text-sm font-black text-slate-900 dark:text-white">
+                    <h3 className="text-sm font-extrabold text-slate-900 dark:text-white">
                       รายละเอียดการออกเลขเกียรติบัตร
                     </h3>
                     <p className="text-[11px] text-slate-500 font-mono">
@@ -992,7 +927,7 @@ export default function CertGenerator({ onBack }: { onBack?: () => void }) {
 
                 <button
                   onClick={() => setSelectedBatchDetail(null)}
-                  className="p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-700 transition"
+                  className="p-1 text-slate-400 hover:text-slate-600 cursor-pointer"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -1034,7 +969,7 @@ export default function CertGenerator({ onBack }: { onBack?: () => void }) {
                     </div>
                     <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
                       {parseBreakdown(selectedBatchDetail.content).map((line: string, idx: number) => (
-                        <div key={idx} className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 font-mono text-[11px] text-slate-800 dark:text-slate-200 border border-slate-200/80 dark:border-slate-800">
+                        <div key={idx} className="p-2 rounded-lg bg-slate-50 dark:bg-slate-950 font-mono text-[11px] text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-800">
                           {line}
                         </div>
                       ))}
@@ -1047,23 +982,23 @@ export default function CertGenerator({ onBack }: { onBack?: () => void }) {
                 <button
                   type="button"
                   onClick={() => handleExportMailMergeXlsx(selectedBatchDetail)}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition shadow-xs"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition shadow-xs cursor-pointer"
                 >
-                  <FileSpreadsheet className="w-4 h-4" />
+                  <FileSpreadsheet className="w-3.5 h-3.5" />
                   ดาวน์โหลด Excel
                 </button>
                 <button
                   type="button"
                   onClick={() => handleCopy(selectedBatchDetail.docNo, "modal_copy")}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-200 transition"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-200 transition cursor-pointer"
                 >
-                  {copiedId === "modal_copy" ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
+                  {copiedId === "modal_copy" ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
                   {copiedId === "modal_copy" ? "คัดลอกแล้ว" : "คัดลอกช่วงเลข"}
                 </button>
                 <button
                   type="button"
                   onClick={() => setSelectedBatchDetail(null)}
-                  className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-600 dark:text-slate-300 text-xs font-bold transition"
+                  className="px-3.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-600 dark:text-slate-300 text-xs font-bold transition cursor-pointer"
                 >
                   ปิด
                 </button>
@@ -1073,7 +1008,7 @@ export default function CertGenerator({ onBack }: { onBack?: () => void }) {
         )}
       </AnimatePresence>
 
-      {/* Modal 2: Edit Metadata Modal (🟠 Senior Lock 5) */}
+      {/* Modal 2: Edit Metadata Modal */}
       <AnimatePresence>
         {editingBatch && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
@@ -1081,63 +1016,71 @@ export default function CertGenerator({ onBack }: { onBack?: () => void }) {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-6 max-w-lg w-full shadow-2xl space-y-4"
+              className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 sm:p-6 max-w-lg w-full shadow-2xl space-y-4"
             >
               <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
                 <div className="flex items-center gap-2">
-                  <Edit3 className="w-5 h-5 text-amber-500" />
-                  <h3 className="text-sm font-black text-slate-900 dark:text-white">
+                  <Edit3 className="w-4 h-4 text-indigo-500" />
+                  <h3 className="text-sm font-extrabold text-slate-900 dark:text-white">
                     แก้ไขข้อมูลกิจกรรม (เลขที่ {editingBatch.docNo})
                   </h3>
                 </div>
-                <button onClick={() => setEditingBatch(null)} className="p-1 text-slate-400 hover:text-slate-600">
+                <button onClick={() => setEditingBatch(null)} className="p-1 text-slate-400 hover:text-slate-600 cursor-pointer">
                   <X className="w-4 h-4" />
                 </button>
               </div>
 
-              <div className="p-3 rounded-2xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200/60 dark:border-amber-900/40 text-[11px] text-amber-800 dark:text-amber-300">
-                ℹ️ เลขที่เกียรติบัตรและจำนวนใบจะไม่เปลี่ยนแปลง เพื่อรักษาความถูกต้องของทะเบียน
+              <div className="p-3 rounded-xl bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-200/70 dark:border-indigo-800/60 text-[11px] text-indigo-900 dark:text-indigo-300">
+                ℹ️ เลขที่เกียรติบัตรและจำนวนใบจะไม่เปลี่ยนแปลง เพื่อรักษาความถูกต้องของทะเบียนโรงเรียน
               </div>
 
               <form onSubmit={handleEditSubmit} className="space-y-3.5 text-xs">
-                <div className="space-y-1">
-                  <label className="font-bold text-slate-700 dark:text-slate-300">ชื่อกิจกรรม / โครงการ *</label>
+                <div>
+                  <label className="block text-sm font-bold text-slate-800 dark:text-slate-200 mb-1.5">
+                    ชื่อกิจกรรม / โครงการ *
+                  </label>
                   <input
                     type="text"
                     required
                     value={editingBatch.title || ""}
                     onChange={(e) => setEditingBatch({ ...editingBatch, title: e.target.value })}
-                    className="w-full px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-medium outline-hidden focus:ring-2 focus:ring-amber-500/20"
+                    className="w-full h-11 px-3.5 rounded-xl border border-slate-200 dark:border-slate-750 bg-white dark:bg-slate-950 text-sm font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none"
                   />
                 </div>
 
-                <div className="space-y-1">
-                  <label className="font-bold text-slate-700 dark:text-slate-300">กลุ่มสาระฯ / หน่วยงาน</label>
+                <div>
+                  <label className="block text-sm font-bold text-slate-800 dark:text-slate-200 mb-1.5">
+                    กลุ่มสาระฯ / หน่วยงาน
+                  </label>
                   <input
                     type="text"
                     value={editingBatch.origin || ""}
                     onChange={(e) => setEditingBatch({ ...editingBatch, origin: e.target.value })}
-                    className="w-full px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-medium outline-hidden focus:ring-2 focus:ring-amber-500/20"
+                    className="w-full h-11 px-3.5 rounded-xl border border-slate-200 dark:border-slate-750 bg-white dark:bg-slate-950 text-sm font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none"
                   />
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <label className="font-bold text-slate-700 dark:text-slate-300">วันที่ออกเกียรติบัตร</label>
+                  <div>
+                    <label className="block text-sm font-bold text-slate-800 dark:text-slate-200 mb-1.5">
+                      วันที่ออกเกียรติบัตร
+                    </label>
                     <input
                       type="date"
                       value={editingBatch.date || ""}
                       onChange={(e) => setEditingBatch({ ...editingBatch, date: e.target.value })}
-                      className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-medium outline-hidden"
+                      className="w-full h-11 px-3.5 rounded-xl border border-slate-200 dark:border-slate-750 bg-white dark:bg-slate-950 text-sm font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none"
                     />
                   </div>
-                  <div className="space-y-1">
-                    <label className="font-bold text-slate-700 dark:text-slate-300">ผู้ขอเลข</label>
+                  <div>
+                    <label className="block text-sm font-bold text-slate-800 dark:text-slate-200 mb-1.5">
+                      ผู้ขอเลข
+                    </label>
                     <input
                       type="text"
                       value={editingBatch.requester || ""}
                       onChange={(e) => setEditingBatch({ ...editingBatch, requester: e.target.value })}
-                      className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-medium outline-hidden"
+                      className="w-full h-11 px-3.5 rounded-xl border border-slate-200 dark:border-slate-750 bg-white dark:bg-slate-950 text-sm font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none"
                     />
                   </div>
                 </div>
@@ -1146,16 +1089,16 @@ export default function CertGenerator({ onBack }: { onBack?: () => void }) {
                   <button
                     type="button"
                     onClick={() => setEditingBatch(null)}
-                    className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold"
+                    className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-bold cursor-pointer"
                   >
                     ยกเลิก
                   </button>
                   <button
                     type="submit"
                     disabled={submittingAction}
-                    className="px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold transition flex items-center gap-1.5"
+                    className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs"
                   >
-                    {submittingAction ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                    {submittingAction ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
                     บันทึกการแก้ไข
                   </button>
                 </div>
@@ -1165,7 +1108,7 @@ export default function CertGenerator({ onBack }: { onBack?: () => void }) {
         )}
       </AnimatePresence>
 
-      {/* Modal 3: Cancel Batch Modal (🔴 Senior Lock 3: No recycling) */}
+      {/* Modal 3: Cancel Batch Modal */}
       <AnimatePresence>
         {cancellingBatch && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
@@ -1173,14 +1116,14 @@ export default function CertGenerator({ onBack }: { onBack?: () => void }) {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-6 max-w-md w-full shadow-2xl space-y-4"
+              className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 sm:p-6 max-w-md w-full shadow-2xl space-y-4"
             >
               <div className="flex items-center gap-3 text-rose-600">
-                <div className="w-10 h-10 rounded-2xl bg-rose-50 dark:bg-rose-950/50 flex items-center justify-center">
-                  <AlertTriangle className="w-6 h-6" />
+                <div className="w-9 h-9 rounded-xl bg-rose-50 dark:bg-rose-950/50 flex items-center justify-center">
+                  <AlertTriangle className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-base font-black text-slate-900 dark:text-white">
+                  <h3 className="text-base font-extrabold text-slate-900 dark:text-white">
                     ยืนยันยกเลิกเลขเกียรติบัตร
                   </h3>
                   <p className="text-xs text-slate-500 font-mono">
@@ -1189,7 +1132,7 @@ export default function CertGenerator({ onBack }: { onBack?: () => void }) {
                 </div>
               </div>
 
-              <div className="p-3.5 rounded-2xl bg-rose-50 dark:bg-rose-950/20 border border-rose-200/60 dark:border-rose-900/40 text-xs text-rose-800 dark:text-rose-300 space-y-1">
+              <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/20 border border-rose-200/60 dark:border-rose-900/40 text-xs text-rose-800 dark:text-rose-300 space-y-1">
                 <p className="font-bold">⚠️ กฎความปลอดภัยทางทะเบียน:</p>
                 <p>
                   เลขที่ถูกยกเลิกจะถูกคงไว้ในทะเบียนและขึ้นสถานะ "ยกเลิก" จะไม่มีการนำเลขนี้กลับมาออกซ้ำ เพื่อความโปร่งใสของเอกสาร
@@ -1197,8 +1140,8 @@ export default function CertGenerator({ onBack }: { onBack?: () => void }) {
               </div>
 
               <form onSubmit={handleCancelSubmit} className="space-y-3 text-xs">
-                <div className="space-y-1">
-                  <label className="font-bold text-slate-700 dark:text-slate-300">
+                <div>
+                  <label className="block text-sm font-bold text-slate-800 dark:text-slate-200 mb-1.5">
                     ระบุเหตุผลในการยกเลิกเลข <span className="text-rose-500">*</span>
                   </label>
                   <textarea
@@ -1207,7 +1150,7 @@ export default function CertGenerator({ onBack }: { onBack?: () => void }) {
                     value={cancelReason}
                     onChange={(e) => setCancelReason(e.target.value)}
                     placeholder="เช่น กรอกจำนวนผิดพลาด, กิจกรรมถูกยกเลิก..."
-                    className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 font-medium outline-hidden focus:ring-2 focus:ring-rose-500/20"
+                    className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-750 bg-white dark:bg-slate-950 text-sm font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-rose-500/20 outline-none resize-none"
                   />
                 </div>
 
@@ -1215,16 +1158,16 @@ export default function CertGenerator({ onBack }: { onBack?: () => void }) {
                   <button
                     type="button"
                     onClick={() => { setCancellingBatch(null); setCancelReason(""); }}
-                    className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold"
+                    className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-bold cursor-pointer"
                   >
                     ปิด
                   </button>
                   <button
                     type="submit"
                     disabled={submittingAction || !cancelReason.trim()}
-                    className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold transition flex items-center gap-1.5 disabled:opacity-50"
+                    className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition flex items-center gap-1.5 disabled:opacity-50 cursor-pointer shadow-xs"
                   >
-                    {submittingAction ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Ban className="w-4 h-4" />}
+                    {submittingAction ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Ban className="w-3.5 h-3.5" />}
                     ยืนยันยกเลิกเลข
                   </button>
                 </div>
@@ -1234,7 +1177,7 @@ export default function CertGenerator({ onBack }: { onBack?: () => void }) {
         )}
       </AnimatePresence>
 
-      {/* Modal 4: Official Printable Slip Modal with QR (🟠 Senior Lock 7) */}
+      {/* Modal 4: Official Printable Slip Modal with QR */}
       <AnimatePresence>
         {slipModalBatch && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
@@ -1242,30 +1185,30 @@ export default function CertGenerator({ onBack }: { onBack?: () => void }) {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-6 max-w-lg w-full shadow-2xl space-y-5"
+              className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 sm:p-6 max-w-lg w-full shadow-2xl space-y-4"
             >
               <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
                 <div className="flex items-center gap-2">
-                  <Printer className="w-5 h-5 text-amber-500" />
-                  <h3 className="text-sm font-black text-slate-900 dark:text-white">
+                  <Printer className="w-4 h-4 text-indigo-500" />
+                  <h3 className="text-sm font-extrabold text-slate-900 dark:text-white">
                     ใบสรุปการขอเลขทะเบียนเกียรติบัตร (Certificate Slip)
                   </h3>
                 </div>
-                <button onClick={() => setSlipModalBatch(null)} className="p-1 text-slate-400 hover:text-slate-600">
+                <button onClick={() => setSlipModalBatch(null)} className="p-1 text-slate-400 hover:text-slate-600 cursor-pointer">
                   <X className="w-4 h-4" />
                 </button>
               </div>
 
               {/* Slip Printable Sheet */}
-              <div id="cert-slip-sheet" className="p-5 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-4">
+              <div id="cert-slip-sheet" className="p-5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-4">
                 <div className="text-center border-b border-slate-200 dark:border-slate-800 pb-3">
-                  <h4 className="text-base font-black text-slate-900 dark:text-white">
+                  <h4 className="text-base font-extrabold text-slate-900 dark:text-white">
                     โรงเรียนกุดจับประชาสรรค์
                   </h4>
                   <p className="text-[11px] text-slate-500">
                     ใบยืนยันการออกเลขทะเบียนเกียรติบัตรกิจกรรม
                   </p>
-                  <div className="mt-2 text-xl font-black font-mono text-amber-600 dark:text-amber-400">
+                  <div className="mt-2 text-xl font-black font-mono text-indigo-600 dark:text-indigo-400">
                     {slipModalBatch.docNo}
                   </div>
                 </div>
@@ -1289,7 +1232,7 @@ export default function CertGenerator({ onBack }: { onBack?: () => void }) {
                   </div>
                 </div>
 
-                {/* QR Code Verification Link (🟠 Senior Lock 7) */}
+                {/* QR Code Verification Link */}
                 <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex items-center gap-4">
                   <div className="p-2 bg-white rounded-xl border border-slate-200 shadow-2xs shrink-0">
                     <QRCodeSVG
@@ -1314,7 +1257,7 @@ export default function CertGenerator({ onBack }: { onBack?: () => void }) {
                 <button
                   type="button"
                   onClick={() => window.print()}
-                  className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-xs"
+                  className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-xs cursor-pointer"
                 >
                   <Printer className="w-4 h-4" />
                   พิมพ์ใบสรุป
@@ -1322,7 +1265,7 @@ export default function CertGenerator({ onBack }: { onBack?: () => void }) {
                 <button
                   type="button"
                   onClick={() => setSlipModalBatch(null)}
-                  className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-bold"
+                  className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-bold cursor-pointer"
                 >
                   ปิด
                 </button>

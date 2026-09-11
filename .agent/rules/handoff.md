@@ -113,10 +113,35 @@ flowchart TD
 
 ---
 
-## 6. สรุปคำสั่งสำหรับ AI ในแชทถัดไป (Quick Prompt for Future Sessions)
+## 6. มาตรฐานขนาดตัวอักษรและ UI/UX ของระบบเอกสาร (Document System Typography Standard)
+
+เพื่อให้ทุกแบบฟอร์มในระบบออกเลขและทะเบียนเอกสารราชการ (ออกเลขหนังสือ, ทะเบียนเกียรติบัตร ฯลฯ) มีความสม่ำเสมอ เป็นระเบียบ สบายตา และอ่านง่าย ให้ยึดมาตรฐานดังนี้:
+
+| องค์ประกอบ UI | Tailwind Classes & Specification | รายละเอียด |
+|---|---|---|
+| **Main Card Container** | `bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 md:p-6 shadow-xs` | การ์ดคอนเทนเนอร์หลักของฟอร์ม |
+| **Section Header (Badge)** | `w-7 h-7 rounded-full bg-indigo-100 dark:bg-indigo-950/80 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-sm font-extrabold` | ตัวเลขลำดับหัวข้อหน้าฟอร์ม |
+| **Section Title Text** | `text-base font-extrabold text-slate-900 dark:text-white` | ชื่อหัวข้อฟอร์ม (ขนาด 16px หนาพิเศษ) |
+| **Field Labels** | `block text-sm font-bold text-slate-800 dark:text-slate-200 mb-1.5` | ป้ายกำกับช่องกรอก (14px หนา) |
+| **Helper / Subtext** | `text-[11px] font-medium text-slate-500 dark:text-slate-400` | คำอธิบายกำกับใต้ช่องกรอก (11px) |
+| **Inputs / Selects / Dates** | `w-full h-11 px-3.5 rounded-xl border border-slate-200 dark:border-slate-750 bg-white dark:bg-slate-950 text-sm font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none` | ความสูงมาตรฐาน 44px (h-11) ตัวหนังสือ 14px |
+| **Textarea** | `w-full p-3.5 rounded-xl border border-slate-200 dark:border-slate-750 bg-white dark:bg-slate-950 text-sm font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none resize-none` | ช่องข้อความหลายบรรทัด 14px |
+| **Primary Action Button** | `w-full h-11 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:scale-[0.99] text-white text-xs font-bold transition-all flex items-center justify-center gap-2 shadow-md shadow-indigo-600/20 disabled:opacity-50 cursor-pointer border border-indigo-500/20` | ปุ่มยืนยันหลัก สูง 44px ตัวหนังสือ 12px หนา |
+| **Secondary Button** | `px-3.5 py-1.5 rounded-xl bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 text-xs font-bold transition cursor-pointer` | ปุ่มรอง/ตัวเลือกเสริม |
+| **Table Header Cells** | `border-b border-slate-100 dark:border-slate-800 text-[11px] font-bold text-slate-400 uppercase tracking-wider py-2 px-2.5` | ส่วนหัวตารางประวัติ 11px ตัวพิมพ์ใหญ่ |
+| **Table Data Cells** | `py-3 px-2.5 text-xs text-slate-700 dark:text-slate-300 font-medium` | ข้อมูลแถวตาราง 12px กลาง |
+| **Document Number Code** | `font-mono font-bold whitespace-nowrap text-slate-900 dark:text-white` | เลขที่เอกสารใช้ฟอนต์ Mono หนา |
+
+*โทนสีมาตรฐาน*: ใช้โทนสีสุภาพ **Indigo / Slate / Emerald** หลีกเลี่ยงการใช้สีจัดจ้านอย่างสีส้มสดสำหรับงานราชการทั่วไป เพื่อความสบายตาในการใช้งานต่อเนื่องของครู
+
+---
+
+## 7. สรุปคำสั่งสำหรับ AI ในแชทถัดไป (Quick Prompt for Future Sessions)
 
 หากเริ่มเซสชันใหม่ ให้ AI อ่านไฟล์นี้ทันที:
 1. อ่านกฎเหล็กใน [`.agent/rules/handoff.md`](file:///g:/My%20Drive/01%20Web%20app/01%20ระบบการลา/.agent/rules/handoff.md)
 2. ยึดกิ่ง `dev` ในการทำงานเสมอ
 3. ตรวจสอบ [ADR-001](file:///g:/My%20Drive/01%20Web%20app/01%20ระบบการลา/docs/adr/20260909-budget-simplified-disbursement-and-clone-engine.md) หากต้องแก้ไขหรือขยายระบบงบประมาณ
-4. เมื่อพร้อม Deploy ให้รันขั้นตอนการ Push `dev` $\rightarrow$ Merge `main` $\rightarrow$ Push `main` ตามขั้นตอนในข้อ 1
+4. รักษามาตรฐานฟอนต์และ UI/UX ของระบบเอกสารตามข้อ 6
+5. เมื่อพร้อม Deploy ให้รันขั้นตอนการ Push `dev` $\rightarrow$ Merge `main` $\rightarrow$ Push `main` ตามขั้นตอนในข้อ 1
+

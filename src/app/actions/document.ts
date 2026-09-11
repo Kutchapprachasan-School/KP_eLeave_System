@@ -792,10 +792,16 @@ export async function getDocumentsList(filters: {
   memoSectionId?: string;
   status?: string;
   year?: number;
+  includeCertificates?: boolean;
 }): Promise<ActionResponse> {
   try {
     const where: any = {};
-    if (filters.docType) where.docType = filters.docType;
+    if (filters.docType) {
+      where.docType = filters.docType;
+    } else if (!filters.includeCertificates) {
+      // By default, exclude CERTIFICATE from standard book lists (MEMO, OUTGOING, COMMAND, ANNOUNCEMENT)
+      where.docType = { not: "CERTIFICATE" };
+    }
     if (filters.memoSectionId) where.memoSectionId = filters.memoSectionId;
     if (filters.status) where.status = filters.status;
     if (filters.year) where.year = filters.year;
