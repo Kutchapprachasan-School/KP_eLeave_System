@@ -216,6 +216,19 @@ const closeFiscalYearSchema = z.object({
   fiscalYearId: cuidSchema,
 });
 
+const simplifiedDisburseSchema = z.object({
+  idempotencyKey: z.string().trim().min(16, "Idempotency key สั้นเกินไป").max(64),
+  projectId: cuidSchema.optional(),
+  activityId: cuidSchema,
+  budgetTrancheId: cuidSchema.optional(),
+  allocationId: cuidSchema.optional(),
+  amount: decimalAmountSchema,
+  title: z.string().trim().min(1, "กรุณาระบุรายการค่าใช้จ่าย").max(255),
+  expenseDate: z.coerce.date(),
+  receiptNo: z.string().trim().max(100).optional(),
+  receiptAttachmentId: cuidSchema.optional(),
+});
+
 // ==========================================
 // 🛡️ SERIALIZATION HELPER (React Server Action Safety)
 // ==========================================
@@ -728,6 +741,34 @@ export async function getFiscalYearsListAction(includeArchived = true) {
       orderBy: { year: "desc" },
     });
     return { success: true as const, data: serializeForClient(list) };
+  } catch (error) {
+    return handleActionError(error);
+  }
+}
+
+/**
+ * Simplified Budget Disbursement Action (ADR-001)
+ */
+export async function simplifiedDisburseBudgetAction(rawData: z.infer<typeof simplifiedDisburseSchema>) {
+  try {
+    const { user } = await verifyBudgetPermission("MANAGE");
+    const validated = simplifiedDisburseSchema.parse(rawData);
+
+    const result = await ProjectBudgetService.simplifiedDisburseBudget({
+      idempotencyKey: validated.idempotencyKey,
+      projectId: validated.projectId,
+      activityId: validated.activityId,
+      budgetTrancheId: validated.budgetTrancheId,
+      allocationId: validated.allocationId,
+      amount: new Prisma.Decimal(validated.amount),
+      title: validated.title,
+      expenseDate: validated.expenseDate,
+      receiptNo: validated.receiptNo,
+      receiptAttachmentId: validated.receiptAttachmentId,
+      actorUserId: user.id,
+    });
+
+    return { success: true as const, data: serializeForClient(result) };
   } catch (error) {
     return handleActionError(error);
   }

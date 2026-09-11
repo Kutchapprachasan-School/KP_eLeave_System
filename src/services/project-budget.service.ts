@@ -1515,7 +1515,12 @@ export class ProjectBudgetService {
         }
 
         let newCode = sp.code;
-        if (existingProjectCodes.has(newCode) && sourceFy) {
+        if (sourceFy && targetFy && sourceFy.year !== targetFy.year) {
+          const autoReplaced = newCode.replaceAll(String(sourceFy.year), String(targetFy.year));
+          if (!existingProjectCodes.has(autoReplaced)) {
+            newCode = autoReplaced;
+          }
+        } else if (existingProjectCodes.has(newCode) && sourceFy) {
           const autoReplaced = newCode.replaceAll(String(sourceFy.year), String(targetFy.year));
           if (!existingProjectCodes.has(autoReplaced)) {
             newCode = autoReplaced;
@@ -1737,6 +1742,149 @@ export class ProjectBudgetService {
           netSurplus: netSurplus.toNumber(),
         },
       };
+    }, TX_OPTIONS);
+  }
+
+  /**
+   * 10. Simplified Budget Disbursement (ADR-001)
+   * Resolves allocation deterministically from (activityId, budgetTrancheId),
+   * validates 5-layer financial invariants (Layer 4 Plan Ceiling & Layer 5 Cash Inflow),
+   * and records/approves the disbursement atomically under row-level locks.
+   */
+  static async simplifiedDisburseBudget(data: {
+    idempotencyKey: string;
+    projectId?: string;
+    activityId: string;
+    budgetTrancheId?: string;
+    allocationId?: string;
+    amount: Prisma.Decimal;
+    title: string;
+    expenseDate: Date;
+    receiptNo?: string;
+    receiptAttachmentId?: string;
+    actorUserId: string;
+  }) {
+    if (data.amount.lte(0)) {
+      throw new FinancialInvariantViolationError("ยอดเบิกจ่ายต้องมากกว่า 0 บาท");
+    }
+
+    // 1. Resolve allocation deterministically
+    const targetAllocationId =
+      data.allocationId ||
+      (await ProjectBudgetService.resolveAllocationDeterministically({
+        activityId: data.activityId,
+        budgetTrancheId: data.budgetTrancheId,
+      }));
+
+    return await prisma.$transaction(async (tx) => {
+      // Security: verify MANAGE or SUBMIT permissions
+      const isFinAdmin = await isFinanceAdmin(tx, data.actorUserId);
+
+      // Acquire lock on allocation
+      await acquireRowLocks(tx, "ActivityTrancheAllocation", [targetAllocationId]);
+
+      const alloc = await tx.activityTrancheAllocation.findUniqueOrThrow({
+        where: { id: targetAllocationId },
+        include: {
+          activity: { include: { project: { include: { fiscalYear: true } } } },
+          budgetTranche: true,
+        },
+      });
+
+      const fy = alloc.activity.project.fiscalYear;
+      if (fy.status !== "ACTIVE" || fy.isArchived) {
+        throw new FinancialInvariantViolationError("ไม่สามารถเบิกจ่ายในปีงบประมาณที่ปิดหรือถูกเก็บถาวรแล้ว");
+      }
+
+      if (alloc.activity.project.status === "CANCELLED") {
+        throw new FinancialInvariantViolationError("โครงการถูกยกเลิกแล้ว ไม่สามารถเบิกจ่ายได้");
+      }
+
+      await verifyServiceAuth(tx, data.actorUserId, isFinAdmin ? "MANAGE" : "SUBMIT", {
+        responsibleUserId: alloc.activity.responsibleUserId,
+        leaderUserId: alloc.activity.project.leaderUserId,
+      });
+
+      const trancheId = alloc.budgetTrancheId;
+
+      // Lock hierarchy in PK-ascending order
+      await acquireRowLocks(tx, "BudgetTranche", [trancheId]);
+      await acquireRowLocks(tx, "Project", [alloc.activity.projectId]);
+      await acquireRowLocks(tx, "ProjectActivity", [alloc.activityId]);
+
+      // Check Invariant Layer 4: Plan Allocation Ceiling
+      const currentAllocNetSpent = await ProjectBudgetService.calculateAllocationNetSpentFromDB(tx, targetAllocationId);
+      if (currentAllocNetSpent.add(data.amount).gt(alloc.allocatedAmount)) {
+        const remainingPlan = alloc.allocatedAmount.sub(currentAllocNetSpent);
+        throw new FinancialInvariantViolationError(
+          `ยอดเบิกจ่ายเกินวงเงินตามแผนของกิจกรรมในงวดนี้ (คงเหลือให้เบิกตามแผน: ${remainingPlan} บาท, ยอดที่ขออนุมัติ: ${data.amount} บาท)`
+        );
+      }
+
+      // Check Invariant Layer 5: Real Cash Inflow Guard
+      const receiptsAgg = await tx.budgetReceipt.aggregate({
+        where: { budgetTrancheId: trancheId },
+        _sum: { amount: true },
+      });
+      const totalCashInflow = receiptsAgg._sum.amount ?? new Prisma.Decimal(0);
+
+      const currentTrancheNetSpent = await ProjectBudgetService.calculateTrancheNetSpentFromDB(tx, trancheId);
+      if (currentTrancheNetSpent.add(data.amount).gt(totalCashInflow)) {
+        const availableCash = totalCashInflow.sub(currentTrancheNetSpent);
+        throw new FinancialInvariantViolationError(
+          `เงินสดรับเข้าจริงในงวดเงิน "${alloc.budgetTranche.name}" ไม่เพียงพอ (เงินสดคงเหลือ: ${availableCash} บาท, ยอดที่ขอเบิก: ${data.amount} บาท) กรุณาบันทึกเงินรับเข้าบัญชีก่อน`
+        );
+      }
+
+      // If actor is finance admin, create directly as APPROVED, otherwise SUBMITTED
+      const expenseStatus = isFinAdmin ? "APPROVED" : "SUBMITTED";
+      const now = new Date();
+
+      const expense = await tx.activityExpense.create({
+        data: {
+          idempotencyKey: data.idempotencyKey,
+          allocationId: targetAllocationId,
+          requestedByUserId: data.actorUserId,
+          approvedByUserId: isFinAdmin ? data.actorUserId : null,
+          approvedAt: isFinAdmin ? now : null,
+          expenseDate: data.expenseDate,
+          title: data.title,
+          amount: data.amount,
+          receiptNo: data.receiptNo,
+          status: expenseStatus,
+        },
+      });
+
+      if (data.receiptAttachmentId) {
+        await tx.expenseAttachment.create({
+          data: {
+            expenseId: expense.id,
+            storageProvider: "LOCAL",
+            objectKey: data.receiptAttachmentId,
+            originalFileName: `receipt_${expense.id}.pdf`,
+            uploadedByUserId: data.actorUserId,
+          },
+        });
+      }
+
+      await tx.auditLog.create({
+        data: {
+          tableName: "ActivityExpense",
+          recordId: expense.id,
+          action: isFinAdmin ? "APPROVE" : "CREATE",
+          newValue: JSON.stringify({
+            title: data.title,
+            amount: data.amount.toString(),
+            status: expenseStatus,
+          }),
+          changedBy: data.actorUserId,
+          reason: isFinAdmin
+            ? "เบิกจ่ายและอนุมัติทันที (Simplified Disbursement)"
+            : "บันทึกขอเบิกจ่าย (Simplified Disbursement)",
+        },
+      });
+
+      return expense;
     }, TX_OPTIONS);
   }
 }

@@ -46,6 +46,7 @@ import {
   createProjectAction,
   createActivityAction,
   recordAndApproveExpenseAction,
+  simplifiedDisburseBudgetAction,
   reverseExpenseAction,
   attachProjectFileAction,
   cloneProjectsFromFiscalYearAction,
