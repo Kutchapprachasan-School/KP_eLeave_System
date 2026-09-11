@@ -204,6 +204,18 @@ const attachmentSchema = z.object({
   fileSize: z.number().int().positive().optional(),
 });
 
+const cloneProjectsSchema = z.object({
+  sourceFiscalYearId: cuidSchema,
+  targetFiscalYearId: cuidSchema,
+  projectIds: z.array(cuidSchema).min(1, "กรุณาเลือกโครงการที่ต้องการคัดลอกอย่างน้อย 1 โครงการ"),
+  copyAllocatedAmount: z.boolean().default(true),
+  targetAcademicYear: z.number().int().min(2500).max(2650),
+});
+
+const closeFiscalYearSchema = z.object({
+  fiscalYearId: cuidSchema,
+});
+
 // ==========================================
 // 🛡️ SERIALIZATION HELPER (React Server Action Safety)
 // ==========================================
@@ -666,14 +678,53 @@ export async function getBudgetUsersAction() {
 }
 
 /**
- * Get Available Fiscal Years List
+ * Clone Projects and Activities from a previous Fiscal Year
  */
-export async function getFiscalYearsListAction() {
+export async function cloneProjectsFromFiscalYearAction(rawData: z.infer<typeof cloneProjectsSchema>) {
+  try {
+    const { user } = await verifyBudgetPermission("MANAGE");
+    const validated = cloneProjectsSchema.parse(rawData);
+
+    const result = await ProjectBudgetService.cloneProjectsFromFiscalYear({
+      sourceFiscalYearId: validated.sourceFiscalYearId,
+      targetFiscalYearId: validated.targetFiscalYearId,
+      projectIds: validated.projectIds,
+      copyAllocatedAmount: validated.copyAllocatedAmount,
+      targetAcademicYear: validated.targetAcademicYear,
+      actorUserId: user.id,
+    });
+
+    return { success: true as const, data: serializeForClient(result) };
+  } catch (error) {
+    return handleActionError(error);
+  }
+}
+
+/**
+ * Close Fiscal Year (Strict Financial Freeze)
+ */
+export async function closeFiscalYearAction(rawData: z.infer<typeof closeFiscalYearSchema>) {
+  try {
+    const { user } = await verifyBudgetPermission("MANAGE");
+    const validated = closeFiscalYearSchema.parse(rawData);
+
+    const result = await ProjectBudgetService.closeFiscalYear(validated.fiscalYearId, user.id);
+
+    return { success: true as const, data: serializeForClient(result) };
+  } catch (error) {
+    return handleActionError(error);
+  }
+}
+
+/**
+ * Get Available Fiscal Years List (supports viewing all years including closed/archived)
+ */
+export async function getFiscalYearsListAction(includeArchived = true) {
   try {
     await verifyBudgetPermission("VIEW");
     const list = await prisma.fiscalYear.findMany({
-      where: { isArchived: false },
-      select: { id: true, year: true, title: true, status: true },
+      where: includeArchived ? {} : { isArchived: false },
+      select: { id: true, year: true, title: true, status: true, isArchived: true },
       orderBy: { year: "desc" },
     });
     return { success: true as const, data: serializeForClient(list) };
@@ -681,3 +732,4 @@ export async function getFiscalYearsListAction() {
     return handleActionError(error);
   }
 }
+

@@ -31,6 +31,11 @@ import {
   Printer,
   SlidersHorizontal,
   Check,
+  Copy,
+  Lock,
+  CheckSquare,
+  Square,
+  AlertTriangle,
 } from "lucide-react";
 import {
   getFiscalYearDashboardAction,
@@ -43,6 +48,8 @@ import {
   recordAndApproveExpenseAction,
   reverseExpenseAction,
   attachProjectFileAction,
+  cloneProjectsFromFiscalYearAction,
+  closeFiscalYearAction,
 } from "@/app/actions/project-budget";
 
 const DEPARTMENTS = [
@@ -123,9 +130,10 @@ function BudgetAffairsContent() {
 
   const [showExpenseModal, setShowExpenseModal] = useState(false);
   const [expenseModalContext, setExpenseModalContext] = useState<{
+    projectId?: string;
     activityId?: string;
     activityName?: string;
-    allocations?: Array<{ id: string; trancheName?: string; trancheNo?: number; allocatedAmount: number; spentAmount?: number }>;
+    allocations?: Array<{ id: string; trancheName?: string; trancheNo?: number; budgetTrancheId?: string; allocatedAmount: number; spentAmount?: number }>;
     selectedAllocationId?: string;
   } | null>(null);
 
@@ -134,6 +142,18 @@ function BudgetAffairsContent() {
 
   const [showAttachModal, setShowAttachModal] = useState(false);
   const [selectedProjectForAttach, setSelectedProjectForAttach] = useState<any>(null);
+
+  // Clone Projects Modal States
+  const [showCloneModal, setShowCloneModal] = useState(false);
+  const [cloneSourceFyId, setCloneSourceFyId] = useState("");
+  const [cloneSourceProjects, setCloneSourceProjects] = useState<any[]>([]);
+  const [loadingSourceProjects, setLoadingSourceProjects] = useState(false);
+  const [selectedProjectIdsForClone, setSelectedProjectIdsForClone] = useState<string[]>([]);
+  const [copyAllocatedAmount, setCopyAllocatedAmount] = useState(true);
+  const [cloneTargetAcademicYear, setCloneTargetAcademicYear] = useState(2569);
+
+  // Close Fiscal Year Modal State
+  const [showCloseFyModal, setShowCloseFyModal] = useState(false);
 
   // Form States
   const [depositForm, setDepositForm] = useState({
@@ -163,6 +183,8 @@ function BudgetAffairsContent() {
   });
 
   const [expenseForm, setExpenseForm] = useState({
+    projectId: "",
+    activityId: "",
     allocationId: "",
     title: "",
     amount: "",
@@ -175,6 +197,7 @@ function BudgetAffairsContent() {
     originalFileName: "",
     objectKey: "",
   });
+
 
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
@@ -460,17 +483,39 @@ function BudgetAffairsContent() {
     });
   };
 
-  // 4. Record Expense Modal
-  const openExpenseModal = (activity: any) => {
-    const allocations = activity.trancheAllocations || [];
-    const defaultAllocId = allocations[0]?.id || activity.id;
+  // 4. Record Expense Modal (Supports direct activity click OR global header action)
+  const openExpenseModal = (activity?: any, project?: any) => {
+    let targetProjId = project?.id || "";
+    let targetActId = activity?.id || "";
+    let targetActName = activity?.name || "";
+    let allocations = activity?.trancheAllocations || [];
+
+    if (!activity && dashboardData?.projects && dashboardData.projects.length > 0) {
+      // Global open: find first project with activities
+      const pWithAct = dashboardData.projects.find((p: any) => p.activities && p.activities.length > 0) || dashboardData.projects[0];
+      targetProjId = pWithAct?.id || "";
+      const firstAct = pWithAct?.activities?.[0];
+      targetActId = firstAct?.id || "";
+      targetActName = firstAct?.name || "";
+      allocations = firstAct?.trancheAllocations || [];
+    } else if (activity && !targetProjId && dashboardData?.projects) {
+      const foundProj = dashboardData.projects.find((p: any) =>
+        p.activities?.some((a: any) => a.id === activity.id)
+      );
+      targetProjId = foundProj?.id || "";
+    }
+
+    const defaultAllocId = allocations[0]?.id || targetActId;
     setExpenseModalContext({
-      activityId: activity.id,
-      activityName: activity.name,
+      projectId: targetProjId,
+      activityId: targetActId,
+      activityName: targetActName,
       allocations,
       selectedAllocationId: defaultAllocId,
     });
     setExpenseForm({
+      projectId: targetProjId,
+      activityId: targetActId,
       allocationId: defaultAllocId,
       title: "",
       amount: "",
@@ -491,9 +536,9 @@ function BudgetAffairsContent() {
       return;
     }
 
-    const targetAllocId = expenseForm.allocationId || expenseModalContext.selectedAllocationId || expenseModalContext.activityId;
+    const targetAllocId = expenseForm.allocationId || expenseModalContext.selectedAllocationId || expenseForm.activityId || expenseModalContext.activityId;
     if (!targetAllocId) {
-      setActionError("กรุณาระบุรายการจัดสรรงวดเงินสำหรับการเบิกจ่าย");
+      setActionError("กรุณาระบุรายการกิจกรรมหรืองวดเงินสำหรับการเบิกจ่าย");
       return;
     }
 
@@ -504,6 +549,7 @@ function BudgetAffairsContent() {
         const res = await recordAndApproveExpenseAction({
           idempotencyKey,
           allocationId: targetAllocId,
+          activityId: expenseForm.activityId || undefined,
           title: expenseForm.title.trim(),
           amount: amountNum,
           expenseDate: new Date(expenseForm.expenseDate),
@@ -520,6 +566,95 @@ function BudgetAffairsContent() {
       } catch (err: any) {
         console.error("handleRecordExpense error:", err);
         setActionError(err?.message || "เกิดข้อผิดพลาดในการบันทึกการเบิกจ่าย");
+      }
+    });
+  };
+
+  // 4.1 Batch Project Clone Handlers
+  const loadSourceProjectsForClone = async (sourceId: string) => {
+    setLoadingSourceProjects(true);
+    try {
+      const res = await getFiscalYearDashboardAction(sourceId);
+      if (res?.success && res.data?.projects) {
+        setCloneSourceProjects(res.data.projects);
+        setSelectedProjectIdsForClone(res.data.projects.map((p: any) => p.id));
+      } else {
+        setCloneSourceProjects([]);
+        setSelectedProjectIdsForClone([]);
+      }
+    } catch (err) {
+      console.error("loadSourceProjectsForClone error:", err);
+      setCloneSourceProjects([]);
+      setSelectedProjectIdsForClone([]);
+    } finally {
+      setLoadingSourceProjects(false);
+    }
+  };
+
+  const openCloneModal = async () => {
+    const otherFys = fiscalYears.filter((f) => f.id !== selectedFyId);
+    if (otherFys.length === 0) {
+      setActionError("ไม่พบปีงบประมาณอื่นสำหรับคัดลอกโครงการ กรุณาสร้างปีงบประมาณก่อนหน้าก่อน");
+      return;
+    }
+    const initialSourceId = otherFys[0].id;
+    setCloneSourceFyId(initialSourceId);
+    setCopyAllocatedAmount(true);
+    setCloneTargetAcademicYear(dashboardData?.fiscalYear?.year || 2569);
+    setShowCloneModal(true);
+    await loadSourceProjectsForClone(initialSourceId);
+  };
+
+  const handleCloneProjects = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (selectedProjectIdsForClone.length === 0) {
+      setActionError("กรุณาเลือกโครงการที่ต้องการคัดลอกอย่างน้อย 1 โครงการ");
+      return;
+    }
+
+    startTransition(async () => {
+      try {
+        const res = await cloneProjectsFromFiscalYearAction({
+          sourceFiscalYearId: cloneSourceFyId,
+          targetFiscalYearId: selectedFyId,
+          projectIds: selectedProjectIdsForClone,
+          copyAllocatedAmount,
+          targetAcademicYear: cloneTargetAcademicYear,
+        });
+
+        if (res?.success) {
+          setShowCloneModal(false);
+          setActionSuccess(`คัดลอกโครงการและกิจกรรมสำเร็จ ${res.data.clonedCount} โครงการ เรียบร้อยแล้ว`);
+          await refreshDashboard();
+        } else {
+          setActionError(res?.error || "เกิดข้อผิดพลาดในการคัดลอกโครงการ");
+        }
+      } catch (err: any) {
+        console.error("handleCloneProjects error:", err);
+        setActionError(err?.message || "เกิดข้อผิดพลาดในการคัดลอกโครงการ");
+      }
+    });
+  };
+
+  // 4.2 Close Fiscal Year Handler
+  const handleCloseFiscalYear = async () => {
+    startTransition(async () => {
+      try {
+        const res = await closeFiscalYearAction({ fiscalYearId: selectedFyId });
+        if (res?.success) {
+          setShowCloseFyModal(false);
+          setActionSuccess(
+            `ปิดรอบปีงบประมาณ พ.ศ. ${res.data.fiscalYear.year} เรียบร้อยแล้ว (ยอดเงินคงเหลือสุทธิ: ฿${formatBaht(
+              res.data.summary.netSurplus
+            )})`
+          );
+          await refreshDashboard();
+        } else {
+          setActionError(res?.error || "เกิดข้อผิดพลาดในการปิดรอบปีงบประมาณ");
+        }
+      } catch (err: any) {
+        console.error("handleCloseFiscalYear error:", err);
+        setActionError(err?.message || "เกิดข้อผิดพลาดในการปิดรอบปีงบประมาณ");
       }
     });
   };
@@ -612,7 +747,7 @@ function BudgetAffairsContent() {
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2.5">
           {/* Year Selector */}
           <div className="flex items-center gap-2 bg-white dark:bg-slate-900 px-3 py-2 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
             <Calendar className="w-4 h-4 text-emerald-600" />
@@ -623,11 +758,36 @@ function BudgetAffairsContent() {
             >
               {fiscalYears.map((fy) => (
                 <option key={fy.id} value={fy.id} className="dark:bg-slate-900">
-                  {fy.title}
+                  {fy.title} {fy.status === "CLOSED" ? "(ปิดรอบแล้ว)" : ""}
                 </option>
               ))}
             </select>
           </div>
+
+          {/* Fiscal Year Status Badge */}
+          {dashboardData?.fiscalYear?.status === "CLOSED" ? (
+            <span className="px-3 py-2 rounded-2xl bg-slate-200/80 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-extrabold text-xs border border-slate-300 dark:border-slate-700 flex items-center gap-1.5 shadow-sm">
+              <Lock className="w-3.5 h-3.5 text-slate-500" />
+              ปิดรอบบัญชีแล้ว
+            </span>
+          ) : (
+            <span className="px-3 py-2 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 font-extrabold text-xs border border-emerald-200 dark:border-emerald-800 flex items-center gap-1.5 shadow-sm">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              เปิดใช้งาน
+            </span>
+          )}
+
+          {/* Close Fiscal Year Button */}
+          {dashboardData?.fiscalYear?.status !== "CLOSED" && (
+            <button
+              onClick={() => setShowCloseFyModal(true)}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-2xl bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-900/60 font-bold text-xs border border-rose-200 dark:border-rose-900 transition active:scale-95 cursor-pointer shadow-sm"
+              title="ปิดรอบปีงบประมาณและตรึงข้อมูลเป็นประวัติ"
+            >
+              <Lock className="w-3.5 h-3.5" />
+              ปิดรอบปีงบ
+            </button>
+          )}
 
           <button
             onClick={() => refreshDashboard()}
@@ -638,14 +798,42 @@ function BudgetAffairsContent() {
             <RefreshCw className={`w-4 h-4 text-slate-600 dark:text-slate-300 ${isPending ? "animate-spin" : ""}`} />
           </button>
 
-          <button
-            onClick={() => setShowProjectModal(true)}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md shadow-emerald-600/20 transition active:scale-95 cursor-pointer"
-          >
-            <Plus className="w-4 h-4" />
-            สร้างโครงการใหม่
-          </button>
+          {/* Clone Projects from Previous Fiscal Year */}
+          {dashboardData?.fiscalYear?.status !== "CLOSED" && (
+            <button
+              onClick={openCloneModal}
+              className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/80 font-bold text-xs border border-indigo-200 dark:border-indigo-800 transition active:scale-95 cursor-pointer shadow-sm"
+              title="คัดลอกโครงการและกิจกรรมจากปีก่อนหน้า"
+            >
+              <Copy className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+              คัดลอกโครงการจากปีก่อน
+            </button>
+          )}
+
+          {/* Direct Expense Disbursement */}
+          {dashboardData?.fiscalYear?.status !== "CLOSED" && (
+            <button
+              onClick={() => openExpenseModal()}
+              className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-2xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs shadow-md shadow-amber-500/20 transition active:scale-95 cursor-pointer"
+              title="บันทึกการเบิกจ่ายงบประมาณ"
+            >
+              <Receipt className="w-4 h-4" />
+              บันทึกเบิกจ่าย
+            </button>
+          )}
+
+          {/* Create Project */}
+          {dashboardData?.fiscalYear?.status !== "CLOSED" && (
+            <button
+              onClick={() => setShowProjectModal(true)}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md shadow-emerald-600/20 transition active:scale-95 cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              สร้างโครงการใหม่
+            </button>
+          )}
         </div>
+
       </div>
 
       {/* Sub-Pages Tab Navigation (Synchronized with Sidebar) */}
@@ -1668,17 +1856,19 @@ function BudgetAffairsContent() {
         </div>
       )}
 
-      {/* 4. Record Expense Modal */}
-      {showExpenseModal && expenseModalContext && (
+      {/* 4. Record Expense Modal (Simplified Project & Activity Selector + Smart Tranche Allocation) */}
+      {showExpenseModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
           <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 md:p-8 max-w-md w-full border border-slate-200 dark:border-slate-800 shadow-2xl space-y-5">
             <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
               <div>
                 <h3 className="font-extrabold text-base text-slate-900 dark:text-white flex items-center gap-2">
-                  <Receipt className="w-5 h-5 text-emerald-600" />
+                  <Receipt className="w-5 h-5 text-amber-500" />
                   บันทึกรายการเบิกจ่ายเงิน
                 </h3>
-                <p className="text-[11px] text-slate-400">กิจกรรม: {expenseModalContext.activityName}</p>
+                <p className="text-[11px] text-slate-400">
+                  {dashboardData?.fiscalYear?.title} • ตัดจ่ายงบประมาณโครงการและกิจกรรม
+                </p>
               </div>
               <button onClick={() => setShowExpenseModal(false)} className="p-1 text-slate-400 hover:text-slate-600 cursor-pointer">
                 <X className="w-5 h-5" />
@@ -1686,8 +1876,103 @@ function BudgetAffairsContent() {
             </div>
 
             <form onSubmit={handleRecordExpense} className="space-y-4 text-xs">
-              {/* Tranche Allocation Selection if multiple */}
-              {expenseModalContext.allocations && expenseModalContext.allocations.length > 1 && (
+              {/* Project Selection */}
+              <div>
+                <label className="font-bold text-slate-700 dark:text-slate-300">โครงการเป้าหมาย *</label>
+                <select
+                  value={expenseForm.projectId}
+                  onChange={(e) => {
+                    const newProjId = e.target.value;
+                    const proj = dashboardData?.projects?.find((p: any) => p.id === newProjId);
+                    const firstAct = proj?.activities?.[0];
+                    const allocs = firstAct?.trancheAllocations || [];
+                    const firstAllocId = allocs[0]?.id || firstAct?.id || "";
+                    setExpenseForm({
+                      ...expenseForm,
+                      projectId: newProjId,
+                      activityId: firstAct?.id || "",
+                      allocationId: firstAllocId,
+                    });
+                    setExpenseModalContext({
+                      projectId: newProjId,
+                      activityId: firstAct?.id || "",
+                      activityName: firstAct?.name || "",
+                      allocations: allocs,
+                      selectedAllocationId: firstAllocId,
+                    });
+                  }}
+                  className="w-full mt-1 p-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-bold cursor-pointer"
+                >
+                  {dashboardData?.projects?.map((p: any) => (
+                    <option key={p.id} value={p.id}>
+                      {p.code} - {p.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Activity Selection */}
+              <div>
+                <label className="font-bold text-slate-700 dark:text-slate-300">กิจกรรมที่เบิกจ่าย *</label>
+                <select
+                  value={expenseForm.activityId}
+                  onChange={(e) => {
+                    const newActId = e.target.value;
+                    const proj = dashboardData?.projects?.find((p: any) => p.id === expenseForm.projectId);
+                    const act = proj?.activities?.find((a: any) => a.id === newActId);
+                    const allocs = act?.trancheAllocations || [];
+                    const firstAllocId = allocs[0]?.id || act?.id || "";
+                    setExpenseForm({
+                      ...expenseForm,
+                      activityId: newActId,
+                      allocationId: firstAllocId,
+                    });
+                    setExpenseModalContext({
+                      ...expenseModalContext,
+                      activityId: newActId,
+                      activityName: act?.name || "",
+                      allocations: allocs,
+                      selectedAllocationId: firstAllocId,
+                    });
+                  }}
+                  className="w-full mt-1 p-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-semibold cursor-pointer"
+                >
+                  {dashboardData?.projects
+                    ?.find((p: any) => p.id === expenseForm.projectId)
+                    ?.activities?.map((a: any) => (
+                      <option key={a.id} value={a.id}>
+                        กิจกรรมที่ {a.activityNo}: {a.name} (จัดสรร ฿{formatBaht(a.allocatedAmount)})
+                      </option>
+                    ))}
+                </select>
+              </div>
+
+              {/* Smart Tranche Selector: Single allocation auto badge */}
+              {expenseModalContext?.allocations && expenseModalContext.allocations.length === 1 && (() => {
+                const singleAlloc = expenseModalContext.allocations[0];
+                const matchedTranche = dashboardData?.tranches?.find((t: any) => t.id === singleAlloc.budgetTrancheId);
+                const remainingPlan = singleAlloc.allocatedAmount - (singleAlloc.spentAmount || 0);
+                const cashInBank = matchedTranche?.remainingLiquidity ?? 0;
+                return (
+                  <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 rounded-2xl border border-emerald-200 dark:border-emerald-800/60 space-y-1">
+                    <div className="flex items-center justify-between text-xs font-bold text-emerald-800 dark:text-emerald-300">
+                      <span className="flex items-center gap-1.5">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                        ตัดงบจาก: {singleAlloc.trancheName || `งวดที่ ${singleAlloc.trancheNo}`} (อัตโนมัติ)
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-[11px] text-slate-600 dark:text-slate-400">
+                      <span>คงเหลือตามแผน: ฿{formatBaht(remainingPlan)}</span>
+                      <span className="font-semibold text-emerald-700 dark:text-emerald-400">
+                        เงินสดในบัญชี: ฿{formatBaht(cashInBank)}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Smart Tranche Selector: Multiple allocations dropdown */}
+              {expenseModalContext?.allocations && expenseModalContext.allocations.length > 1 && (
                 <div>
                   <label className="font-bold text-slate-700 dark:text-slate-300">เบิกจ่ายจากงวดเงิน *</label>
                   <select
@@ -1695,11 +1980,16 @@ function BudgetAffairsContent() {
                     onChange={(e) => setExpenseForm({ ...expenseForm, allocationId: e.target.value })}
                     className="w-full mt-1 p-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white cursor-pointer font-semibold"
                   >
-                    {expenseModalContext.allocations.map((alloc) => (
-                      <option key={alloc.id} value={alloc.id}>
-                        {alloc.trancheName || `งวดที่ ${alloc.trancheNo}`} (จัดสรร ฿{formatBaht(alloc.allocatedAmount)})
-                      </option>
-                    ))}
+                    {expenseModalContext.allocations.map((alloc) => {
+                      const matchedTranche = dashboardData?.tranches?.find((t: any) => t.id === alloc.budgetTrancheId);
+                      const remainingPlan = alloc.allocatedAmount - (alloc.spentAmount || 0);
+                      const cashInBank = matchedTranche?.remainingLiquidity ?? 0;
+                      return (
+                        <option key={alloc.id} value={alloc.id}>
+                          {alloc.trancheName || `งวดที่ ${alloc.trancheNo}`} (แผนเหลือ: ฿{formatBaht(remainingPlan)} | เงินสด: ฿{formatBaht(cashInBank)})
+                        </option>
+                      );
+                    })}
                   </select>
                 </div>
               )}
@@ -1728,6 +2018,28 @@ function BudgetAffairsContent() {
                   className="w-full mt-1 p-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-bold text-base text-rose-600"
                 />
               </div>
+
+              {/* Cash Inflow Warning (Cash-gated Indicator) */}
+              {(() => {
+                const selectedAlloc = expenseModalContext?.allocations?.find((a) => a.id === expenseForm.allocationId) || expenseModalContext?.allocations?.[0];
+                const matchedTranche = dashboardData?.tranches?.find((t: any) => t.id === selectedAlloc?.budgetTrancheId);
+                const cashInBank = matchedTranche?.remainingLiquidity ?? 0;
+                const amt = parseFloat(expenseForm.amount) || 0;
+                if (amt > 0 && cashInBank < amt) {
+                  return (
+                    <div className="p-3 bg-amber-50 dark:bg-amber-950/40 rounded-2xl border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300 text-xs space-y-1">
+                      <div className="flex items-center gap-1.5 font-bold">
+                        <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0" />
+                        <span>เงินสดรับเข้าจริงในงวดนี้มีไม่เพียงพอ (฿{formatBaht(cashInBank)})</span>
+                      </div>
+                      <p className="text-[11px] text-amber-700 dark:text-amber-400">
+                        ยอดเบิกจ่าย ฿{formatBaht(amt)} เกินเงินสดรับเข้าจริงในบัญชี หากกดยืนยัน ระบบจะบล็อกการเบิกจ่ายตามวินัยการเงินจนกว่าจะมีการบันทึกเงินงวดเข้าบัญชี
+                      </p>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -1763,7 +2075,7 @@ function BudgetAffairsContent() {
                 <button
                   type="submit"
                   disabled={isPending}
-                  className="w-1/2 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-md shadow-emerald-600/20 cursor-pointer"
+                  className="w-1/2 py-2.5 rounded-2xl bg-amber-500 hover:bg-amber-600 text-white font-bold shadow-md shadow-amber-500/20 cursor-pointer"
                 >
                   {isPending ? "กำลังบันทึก..." : "บันทึกการเบิกจ่าย"}
                 </button>
@@ -1772,6 +2084,245 @@ function BudgetAffairsContent() {
           </div>
         </div>
       )}
+
+      {/* 5. Batch Project Clone Modal */}
+      {showCloneModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 md:p-8 max-w-2xl w-full border border-slate-200 dark:border-slate-800 shadow-2xl space-y-5 max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div>
+                <h3 className="font-extrabold text-base text-slate-900 dark:text-white flex items-center gap-2">
+                  <Copy className="w-5 h-5 text-indigo-600" />
+                  คัดลอกโครงการและกิจกรรมจากปีก่อนหน้า
+                </h3>
+                <p className="text-[11px] text-slate-400">
+                  โคลนโครงสร้างโครงการ กิจกรรม และการจัดสรรงวดเงินมายัง {dashboardData?.fiscalYear?.title}
+                </p>
+              </div>
+              <button
+                onClick={() => setShowCloneModal(false)}
+                className="p-1 text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCloneProjects} className="space-y-4 text-xs flex-1 flex flex-col overflow-hidden">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-slate-700 dark:text-slate-300">คัดลอกจากปีงบประมาณ *</label>
+                  <select
+                    value={cloneSourceFyId}
+                    onChange={(e) => {
+                      setCloneSourceFyId(e.target.value);
+                      loadSourceProjectsForClone(e.target.value);
+                    }}
+                    className="w-full mt-1 p-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-bold cursor-pointer"
+                  >
+                    {fiscalYears
+                      .filter((f) => f.id !== selectedFyId)
+                      .map((fy) => (
+                        <option key={fy.id} value={fy.id}>
+                          {fy.title} {fy.status === "CLOSED" ? "(ปิดรอบแล้ว)" : ""}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="font-bold text-slate-700 dark:text-slate-300">ปีการศึกษาเป้าหมาย *</label>
+                  <input
+                    type="number"
+                    required
+                    value={cloneTargetAcademicYear}
+                    onChange={(e) => setCloneTargetAcademicYear(parseInt(e.target.value) || 2569)}
+                    className="w-full mt-1 p-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-bold"
+                  />
+                </div>
+              </div>
+
+              {/* Amount Copy Toggle */}
+              <div className="flex items-center gap-3 p-3 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700">
+                <input
+                  type="checkbox"
+                  id="copyAmountToggle"
+                  checked={copyAllocatedAmount}
+                  onChange={(e) => setCopyAllocatedAmount(e.target.checked)}
+                  className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                />
+                <label htmlFor="copyAmountToggle" className="cursor-pointer font-medium text-slate-700 dark:text-slate-300">
+                  <span className="font-bold">คัดลอกจำนวนเงินงบประมาณเดิมมาด้วย</span>{" "}
+                  <span className="text-slate-400 text-[11px]">(หากไม่ติ๊ก วงเงินโครงการและกิจกรรมจะตั้งต้นเป็น 0 บาท เพื่อรอระบุยอดใหม่)</span>
+                </label>
+              </div>
+
+              {/* Projects List with Checkboxes */}
+              <div className="flex-1 flex flex-col min-h-0 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-slate-700 dark:text-slate-300">
+                    รายการโครงการที่เลือก ({selectedProjectIdsForClone.length}/{cloneSourceProjects.length})
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedProjectIdsForClone(cloneSourceProjects.map((p) => p.id))}
+                      className="text-[11px] font-bold text-emerald-600 hover:text-emerald-700 cursor-pointer"
+                    >
+                      เลือกทั้งหมด
+                    </button>
+                    <span className="text-slate-300">|</span>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedProjectIdsForClone([])}
+                      className="text-[11px] font-bold text-rose-500 hover:text-rose-600 cursor-pointer"
+                    >
+                      ยกเลิกทั้งหมด
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex-1 overflow-y-auto border border-slate-200 dark:border-slate-700 rounded-2xl divide-y divide-slate-100 dark:divide-slate-800 p-1">
+                  {loadingSourceProjects ? (
+                    <div className="p-8 text-center text-slate-400">กำลังโหลดรายการโครงการ...</div>
+                  ) : cloneSourceProjects.length === 0 ? (
+                    <div className="p-8 text-center text-slate-400">ไม่พบโครงการในปีงบประมาณที่เลือก</div>
+                  ) : (
+                    cloneSourceProjects.map((p: any) => {
+                      const isSelected = selectedProjectIdsForClone.includes(p.id);
+                      return (
+                        <div
+                          key={p.id}
+                          onClick={() => {
+                            if (isSelected) {
+                              setSelectedProjectIdsForClone(selectedProjectIdsForClone.filter((id) => id !== p.id));
+                            } else {
+                              setSelectedProjectIdsForClone([...selectedProjectIdsForClone, p.id]);
+                            }
+                          }}
+                          className={`p-3 rounded-xl flex items-center justify-between gap-3 cursor-pointer transition ${
+                            isSelected ? "bg-indigo-50/60 dark:bg-indigo-950/30" : "hover:bg-slate-50 dark:hover:bg-slate-800/40"
+                          }`}
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => {}}
+                              className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                            />
+                            <div className="min-w-0">
+                              <p className="font-bold text-slate-900 dark:text-white truncate text-xs">
+                                <span className="font-mono text-indigo-600 mr-1.5">{p.code}</span>
+                                {p.name}
+                              </p>
+                              <p className="text-[11px] text-slate-400 truncate">
+                                {p.departmentName || "ไม่ระบุฝ่าย"} • {p.activities?.length || 0} กิจกรรม
+                              </p>
+                            </div>
+                          </div>
+                          <span className="font-bold text-slate-700 dark:text-slate-300 text-xs flex-shrink-0">
+                            ฿{formatBaht(p.allocatedAmount)}
+                          </span>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+
+              <div className="flex gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setShowCloneModal(false)}
+                  className="w-1/3 py-2.5 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold cursor-pointer"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="submit"
+                  disabled={isPending || selectedProjectIdsForClone.length === 0}
+                  className="w-2/3 py-2.5 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold shadow-md shadow-indigo-600/20 cursor-pointer disabled:opacity-50"
+                >
+                  {isPending ? "กำลังคัดลอก..." : `คัดลอก ${selectedProjectIdsForClone.length} โครงการ`}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 6. Close Fiscal Year Confirmation Modal */}
+      {showCloseFyModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 md:p-8 max-w-md w-full border border-slate-200 dark:border-slate-800 shadow-2xl space-y-5">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div>
+                <h3 className="font-extrabold text-base text-rose-600 flex items-center gap-2">
+                  <Lock className="w-5 h-5" />
+                  ยืนยันการปิดรอบปีงบประมาณ
+                </h3>
+                <p className="text-[11px] text-slate-400">{dashboardData?.fiscalYear?.title}</p>
+              </div>
+              <button
+                onClick={() => setShowCloseFyModal(false)}
+                className="p-1 text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div className="p-3.5 bg-rose-50 dark:bg-rose-950/40 rounded-2xl border border-rose-200 dark:border-rose-900 text-rose-800 dark:text-rose-300 space-y-1.5">
+                <p className="font-bold flex items-center gap-1.5">
+                  <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                  คำเตือนทางวินัยการเงินและการตรวจสอบ (Audit-Ready)
+                </p>
+                <p className="text-[11px] text-rose-700 dark:text-rose-400 leading-relaxed">
+                  เมื่อปิดรอบปีงบประมาณแล้ว ระบบจะ <strong>Freeze ข้อมูลทั้งหมดให้เป็นประวัติแบบ Immutable</strong> ไม่สามารถสร้างโครงการ เพิ่มกิจกรรม หรือเบิกจ่าย/โอนเงินในรอบปีนี้ได้อีกต่อไป
+                </p>
+              </div>
+
+              <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-1.5 text-[11px]">
+                <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                  <span>งบประมาณตามแผนทั้งหมด:</span>
+                  <span className="font-bold text-slate-900 dark:text-white">฿{formatBaht(dashboardData?.metrics?.totalPlanned)}</span>
+                </div>
+                <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                  <span>เงินสดรับเข้าจริงในบัญชี:</span>
+                  <span className="font-bold text-emerald-600">฿{formatBaht(dashboardData?.metrics?.totalReceived)}</span>
+                </div>
+                <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                  <span>เบิกจ่ายจริงสุทธิ:</span>
+                  <span className="font-bold text-rose-600">฿{formatBaht(dashboardData?.metrics?.totalSpent)}</span>
+                </div>
+                <div className="border-t border-slate-200 dark:border-slate-700 pt-1.5 flex justify-between font-extrabold text-xs">
+                  <span>เงินคงเหลือสุทธิยกไป:</span>
+                  <span className="text-emerald-700 dark:text-emerald-400">฿{formatBaht(dashboardData?.metrics?.netLiquidity)}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => setShowCloseFyModal(false)}
+                className="w-1/2 py-2.5 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold cursor-pointer"
+              >
+                ยกเลิก
+              </button>
+              <button
+                type="button"
+                onClick={handleCloseFiscalYear}
+                disabled={isPending}
+                className="w-1/2 py-2.5 rounded-2xl bg-rose-600 hover:bg-rose-700 text-white font-bold shadow-md shadow-rose-600/20 cursor-pointer disabled:opacity-50"
+              >
+                {isPending ? "กำลังปิดรอบ..." : "ยืนยันปิดรอบปีงบ"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
 
       {/* 5. Reverse Expense Modal */}
       {showReverseModal && selectedExpenseForReversal && (

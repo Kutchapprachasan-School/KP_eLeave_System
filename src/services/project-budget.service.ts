@@ -1412,4 +1412,331 @@ export class ProjectBudgetService {
       allExpenses,
     };
   }
+
+  /**
+   * 8. Clone Projects and Activities from a previous Fiscal Year
+   */
+  static async cloneProjectsFromFiscalYear(data: {
+    sourceFiscalYearId: string;
+    targetFiscalYearId: string;
+    projectIds: string[];
+    copyAllocatedAmount?: boolean;
+    targetAcademicYear: number;
+    actorUserId: string;
+  }) {
+    const copyAmount = data.copyAllocatedAmount ?? true;
+
+    if (data.sourceFiscalYearId === data.targetFiscalYearId) {
+      throw new FinancialInvariantViolationError("ไม่สามารถคัดลอกโครงการภายในปีงบประมาณเดียวกันได้");
+    }
+
+    if (!data.projectIds || data.projectIds.length === 0) {
+      throw new FinancialInvariantViolationError("กรุณาเลือกโครงการที่ต้องการคัดลอกอย่างน้อย 1 โครงการ");
+    }
+
+    return await prisma.$transaction(async (tx) => {
+      // 1. Authorization check
+      await verifyServiceAuth(tx, data.actorUserId, "MANAGE");
+
+      // 2. Lock target FiscalYear to serialize cloning operations
+      await acquireRowLocks(tx, "FiscalYear", [data.targetFiscalYearId]);
+
+      const targetFy = await tx.fiscalYear.findUniqueOrThrow({
+        where: { id: data.targetFiscalYearId },
+        include: {
+          budgetSources: {
+            include: { tranches: true },
+          },
+          projects: {
+            select: { code: true },
+          },
+        },
+      });
+
+      if (targetFy.status !== "ACTIVE" || targetFy.isArchived) {
+        throw new FinancialInvariantViolationError("ไม่สามารถคัดลอกโครงการไปยังปีงบประมาณที่ปิดหรือถูกเก็บถาวรแล้ว");
+      }
+
+      if (targetFy.budgetSources.length === 0) {
+        throw new FinancialInvariantViolationError(
+          `ปีงบประมาณปลายทาง (${targetFy.title}) ยังไม่มีโครงสร้างแหล่งเงิน กรุณากด "สร้างโครงสร้างงบประมาณเริ่มต้น" ก่อน`
+        );
+      }
+
+      const existingProjectCodes = new Set(targetFy.projects.map((p) => p.code));
+
+      // 3. Fetch source projects with their activities and allocations
+      const sourceProjects = await tx.project.findMany({
+        where: {
+          id: { in: data.projectIds },
+          fiscalYearId: data.sourceFiscalYearId,
+        },
+        include: {
+          budgetSource: true,
+          activities: {
+            include: {
+              trancheAllocations: {
+                include: { budgetTranche: true },
+              },
+            },
+            orderBy: { activityNo: "asc" },
+          },
+        },
+      });
+
+      if (sourceProjects.length === 0) {
+        throw new FinancialInvariantViolationError("ไม่พบโครงการต้นทางที่เลือกสำหรับคัดลอก");
+      }
+
+      const sourceFy = await tx.fiscalYear.findUnique({
+        where: { id: data.sourceFiscalYearId },
+        select: { year: true },
+      });
+
+      // Map target BudgetSources by code
+      const targetSourcesByCode = new Map<string, (typeof targetFy.budgetSources)[0]>();
+      for (const bs of targetFy.budgetSources) {
+        targetSourcesByCode.set(bs.code, bs);
+      }
+
+      const clonedProjects: any[] = [];
+
+      for (const sp of sourceProjects) {
+        const targetBs = targetSourcesByCode.get(sp.budgetSource.code);
+        if (!targetBs) {
+          throw new FinancialInvariantViolationError(
+            `ไม่พบแหล่งเงินรหัส "${sp.budgetSource.code}" (${sp.budgetSource.name}) ในปีงบประมาณปลายทาง (${targetFy.title})`
+          );
+        }
+
+        const targetTranchesByNo = new Map<number, (typeof targetBs.tranches)[0]>();
+        for (const tr of targetBs.tranches) {
+          targetTranchesByNo.set(tr.trancheNo, tr);
+        }
+
+        let newCode = sp.code;
+        if (existingProjectCodes.has(newCode) && sourceFy) {
+          const autoReplaced = newCode.replaceAll(String(sourceFy.year), String(targetFy.year));
+          if (!existingProjectCodes.has(autoReplaced)) {
+            newCode = autoReplaced;
+          }
+        }
+
+        if (existingProjectCodes.has(newCode)) {
+          throw new FinancialInvariantViolationError(
+            `รหัสโครงการ "${newCode}" มีอยู่แล้วในปีงบประมาณปลายทาง (${targetFy.title})`
+          );
+        }
+        existingProjectCodes.add(newCode);
+
+        const projectAllocatedAmount = copyAmount ? sp.allocatedAmount : new Prisma.Decimal(0);
+
+        if (copyAmount && projectAllocatedAmount.gt(0)) {
+          const currentTotalAlloc = await tx.project.aggregate({
+            where: { budgetSourceId: targetBs.id },
+            _sum: { allocatedAmount: true },
+          });
+          const currentTotal = currentTotalAlloc._sum.allocatedAmount ?? new Prisma.Decimal(0);
+          if (currentTotal.add(projectAllocatedAmount).gt(targetBs.totalPlannedAmount)) {
+            const remaining = targetBs.totalPlannedAmount.sub(currentTotal);
+            throw new FinancialInvariantViolationError(
+              `การคัดลอกโครงการ "${sp.name}" ทำให้วงเงินเกินแหล่งเงิน "${targetBs.name}" (คงเหลือจัดสรรได้: ${remaining} บ., ขอจัดสรร: ${projectAllocatedAmount} บ.)`
+            );
+          }
+        }
+
+        const clonedProject = await tx.project.create({
+          data: {
+            fiscalYearId: targetFy.id,
+            budgetSourceId: targetBs.id,
+            departmentName: sp.departmentName,
+            leaderUserId: sp.leaderUserId,
+            leaderName: sp.leaderName,
+            code: newCode,
+            name: sp.name,
+            targetAcademicYear: data.targetAcademicYear,
+            allocatedAmount: projectAllocatedAmount,
+            status: "APPROVED",
+          },
+        });
+
+        for (const act of sp.activities) {
+          const actAllocatedAmount = copyAmount ? act.allocatedAmount : new Prisma.Decimal(0);
+
+          const trancheAllocationsData: { budgetTrancheId: string; allocatedAmount: Prisma.Decimal }[] = [];
+
+          for (const alloc of act.trancheAllocations) {
+            const targetTranche = targetTranchesByNo.get(alloc.budgetTranche.trancheNo);
+            if (!targetTranche) {
+              throw new FinancialInvariantViolationError(
+                `ไม่พบงวดเงินที่ ${alloc.budgetTranche.trancheNo} ของแหล่งเงิน "${targetBs.name}" ในปีงบประมาณปลายทาง`
+              );
+            }
+
+            const allocAmount = copyAmount ? alloc.allocatedAmount : new Prisma.Decimal(0);
+            trancheAllocationsData.push({
+              budgetTrancheId: targetTranche.id,
+              allocatedAmount: allocAmount,
+            });
+          }
+
+          await tx.projectActivity.create({
+            data: {
+              projectId: clonedProject.id,
+              responsibleUserId: act.responsibleUserId,
+              activityNo: act.activityNo,
+              name: act.name,
+              allocatedAmount: actAllocatedAmount,
+              plannedStartDate: act.plannedStartDate,
+              plannedEndDate: act.plannedEndDate,
+              status: "NOT_STARTED",
+              trancheAllocations: {
+                create: trancheAllocationsData,
+              },
+            },
+          });
+        }
+
+        await tx.auditLog.create({
+          data: {
+            tableName: "Project",
+            recordId: clonedProject.id,
+            action: "CREATE",
+            newValue: JSON.stringify({
+              action: "CLONE",
+              sourceProjectId: sp.id,
+              code: clonedProject.code,
+              name: clonedProject.name,
+              copyAmount,
+            }),
+            changedBy: data.actorUserId,
+            reason: `คัดลอกโครงการจากปีงบประมาณ ${data.sourceFiscalYearId}`,
+          },
+        });
+
+        clonedProjects.push(clonedProject);
+      }
+
+      return {
+        clonedCount: clonedProjects.length,
+        projects: clonedProjects,
+      };
+    }, TX_OPTIONS);
+  }
+
+  /**
+   * 9. Close Fiscal Year and Freeze Records (Strict Financial Freeze)
+   */
+  static async closeFiscalYear(fiscalYearId: string, actorUserId: string) {
+    return await prisma.$transaction(async (tx) => {
+      // 1. Authorization check
+      await verifyServiceAuth(tx, actorUserId, "MANAGE");
+
+      // 2. Lock FiscalYear
+      await acquireRowLocks(tx, "FiscalYear", [fiscalYearId]);
+
+      const fy = await tx.fiscalYear.findUniqueOrThrow({
+        where: { id: fiscalYearId },
+        include: {
+          budgetSources: {
+            include: {
+              tranches: {
+                include: {
+                  receipts: true,
+                  activityAllocations: {
+                    include: {
+                      expenses: {
+                        select: { id: true, title: true, amount: true, status: true },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          transfers: {
+            where: { status: "PENDING" },
+            select: { id: true, amount: true },
+          },
+        },
+      });
+
+      if (fy.status === "CLOSED") {
+        throw new FinancialInvariantViolationError(`ปีงบประมาณ พ.ศ. ${fy.year} ถูกปิดรอบบัญชีไปแล้ว`);
+      }
+
+      // Check invariant 1: Pending submitted expenses
+      const pendingExpenses: Array<{ id: string; title: string; amount: any }> = [];
+      let totalReceived = new Prisma.Decimal(0);
+      let totalSpent = new Prisma.Decimal(0);
+
+      for (const bs of fy.budgetSources) {
+        for (const tr of bs.tranches) {
+          for (const rc of tr.receipts) {
+            totalReceived = totalReceived.add(rc.amount);
+          }
+          for (const alloc of tr.activityAllocations) {
+            for (const exp of alloc.expenses) {
+              if (exp.status === "SUBMITTED") {
+                pendingExpenses.push(exp);
+              } else if (exp.status === "APPROVED") {
+                totalSpent = totalSpent.add(exp.amount);
+              }
+            }
+          }
+        }
+      }
+
+      if (pendingExpenses.length > 0) {
+        throw new FinancialInvariantViolationError(
+          `ไม่สามารถปิดปีงบประมาณได้ เนื่องจากยังมีรายการเบิกจ่ายค้างรออนุมัติ (${pendingExpenses.length} รายการ) กรุณาอนุมัติหรือปฏิเสธให้เสร็จสิ้นก่อนปิดปี`
+        );
+      }
+
+      // Check invariant 2: Pending transfers
+      if (fy.transfers.length > 0) {
+        throw new FinancialInvariantViolationError(
+          `ไม่สามารถปิดปีงบประมาณได้ เนื่องจากยังมีรายการโอนงบประมาณค้างรออนุมัติ (${fy.transfers.length} รายการ)`
+        );
+      }
+
+      const netSurplus = totalReceived.sub(totalSpent);
+
+      // Close and archive
+      const updatedFy = await tx.fiscalYear.update({
+        where: { id: fiscalYearId },
+        data: {
+          status: "CLOSED",
+          isArchived: true,
+        },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          tableName: "FiscalYear",
+          recordId: fiscalYearId,
+          action: "UPDATE",
+          oldValue: JSON.stringify({ status: fy.status }),
+          newValue: JSON.stringify({ status: "CLOSED", isArchived: true, netSurplus: netSurplus.toString() }),
+          changedBy: actorUserId,
+          reason: `ปิดรอบปีงบประมาณ พ.ศ. ${fy.year} (เงินสดคงเหลือสุทธิ: ${netSurplus.toString()} บาท)`,
+        },
+      });
+
+      return {
+        fiscalYear: {
+          id: updatedFy.id,
+          year: updatedFy.year,
+          title: updatedFy.title,
+          status: updatedFy.status,
+          isArchived: updatedFy.isArchived,
+        },
+        summary: {
+          totalReceived: totalReceived.toNumber(),
+          totalSpent: totalSpent.toNumber(),
+          netSurplus: netSurplus.toNumber(),
+        },
+      };
+    }, TX_OPTIONS);
+  }
 }

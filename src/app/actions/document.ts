@@ -1,6 +1,7 @@
 "use server";
 
 import prisma from "@/lib/prisma";
+import crypto from "crypto";
 import { revalidatePath } from "next/cache";
 import { formatDocNumber } from "@/lib/document-utils";
 import { ActionResponse } from "@/lib/utils";
@@ -357,12 +358,27 @@ export async function cancelDoc(id: string, reason: string): Promise<ActionRespo
 
     await verifyDocumentManagePermission(doc, fullUser);
 
-    const updated = await prisma.documentRecord.update({
-      where: { id },
-      data: {
-        status: "CANCELLED",
-        cancelReason: reason
+    // 🔴 Senior Lock 3: Cancelled numbers NEVER recycled
+    // We update status to CANCELLED on DocumentRecord AND all child CertificateIssuedItem
+    // currentSeq is NEVER decremented. Rows stay permanently in DB ledger.
+    const updated = await prisma.$transaction(async (tx) => {
+      const rec = await tx.documentRecord.update({
+        where: { id },
+        data: {
+          status: "CANCELLED",
+          cancelReason: reason
+        }
+      });
+
+      if (rec.docType === "CERTIFICATE") {
+        await tx.$executeRaw`
+          UPDATE "CertificateIssuedItem"
+          SET status = 'CANCELLED'
+          WHERE "batchRecordId" = ${id};
+        `;
       }
+
+      return rec;
     });
 
     await prisma.systemLog.create({
@@ -392,12 +408,24 @@ export async function restoreDoc(id: string): Promise<ActionResponse> {
 
     await verifyDocumentManagePermission(doc, fullUser);
 
-    const updated = await prisma.documentRecord.update({
-      where: { id },
-      data: {
-        status: "ISSUED",
-        cancelReason: null
+    const updated = await prisma.$transaction(async (tx) => {
+      const rec = await tx.documentRecord.update({
+        where: { id },
+        data: {
+          status: "ISSUED",
+          cancelReason: null
+        }
+      });
+
+      if (rec.docType === "CERTIFICATE") {
+        await tx.$executeRaw`
+          UPDATE "CertificateIssuedItem"
+          SET status = 'ISSUED'
+          WHERE "batchRecordId" = ${id};
+        `;
       }
+
+      return rec;
     });
 
     await prisma.systemLog.create({
@@ -930,79 +958,324 @@ export async function issueActivityCertificatesBatch(payload: {
   date: string;
   requester: string;
   items: { roleTitle: string; quantity: number }[];
+  idempotencyKey?: string;
 }): Promise<ActionResponse> {
   try {
     const user = await getSessionUser();
     if (!user) throw new Error("Unauthorized");
 
-    const totalQty = payload.items.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
+    if (!payload.title || !payload.title.trim()) {
+      throw new Error("กรุณาระบุชื่อกิจกรรม / โครงการ");
+    }
+
+    const validItems = (payload.items || []).filter(it => it.roleTitle?.trim() && Number(it.quantity) > 0);
+    if (validItems.length === 0) {
+      throw new Error("กรุณาระบุรายการบทบาทอย่างน้อย 1 รายการ");
+    }
+
+    const totalQty = validItems.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
     if (totalQty <= 0) throw new Error("จำนวนเกียรติบัตรต้องมากกว่า 0");
 
     const year = new Date(payload.date || Date.now()).getFullYear();
     const thYear = year + 543;
 
-    // Get config or sequence for CERTIFICATE
-    let config = await prisma.documentConfig.findFirst({
-      where: { docType: "CERTIFICATE" },
-    });
-
-    if (!config) {
-      config = await prisma.documentConfig.create({
-        data: {
-          docType: "CERTIFICATE",
-          prefix: "",
-          currentSeq: 0,
-          useThaiNumerals: false,
-          paddingDigits: 1,
-          yearFormat: "TH_BE",
+    // 🟠 Senior Lock 6: Batch Idempotency
+    if (payload.idempotencyKey && payload.idempotencyKey.trim()) {
+      const existing = await prisma.documentRecord.findUnique({
+        where: { idempotencyKey: payload.idempotencyKey.trim() },
+        include: {
+          certificateItems: {
+            orderBy: { seqNo: "asc" },
+          },
         },
       });
+      if (existing) {
+        return { success: true, data: existing };
+      }
     }
 
-    const startSeq = config.currentSeq + 1;
-    const endSeq = config.currentSeq + totalQty;
+    // Execute atomic issuance under transaction
+    const issuedBatch = await prisma.$transaction(async (tx) => {
+      // 🟠 Re-check idempotency inside transaction
+      if (payload.idempotencyKey && payload.idempotencyKey.trim()) {
+        const existingInside = await tx.documentRecord.findUnique({
+          where: { idempotencyKey: payload.idempotencyKey.trim() },
+          include: {
+            certificateItems: {
+              orderBy: { seqNo: "asc" },
+            },
+          },
+        });
+        if (existingInside) return existingInside;
+      }
 
-    // Update config currentSeq
-    await prisma.documentConfig.update({
-      where: { id: config.id },
-      data: { currentSeq: endSeq },
+      // 🔴 Senior Lock 1: Authoritative Row-Level Lock (SELECT ... FOR UPDATE)
+      const configRows = await tx.$queryRaw<Array<{ id: string; currentSeq: number }>>`
+        SELECT id, "currentSeq" 
+        FROM "DocumentConfig" 
+        WHERE "docType" = 'CERTIFICATE' 
+        FOR UPDATE
+      `;
+
+      let configId: string;
+      let currentSeq: number;
+
+      if (configRows.length === 0) {
+        const createdConfig = await tx.documentConfig.create({
+          data: {
+            docType: "CERTIFICATE",
+            prefix: "",
+            currentSeq: 0,
+            useThaiNumerals: false,
+            paddingDigits: 1,
+            yearFormat: "TH_BE",
+          },
+        });
+        configId = createdConfig.id;
+        currentSeq = 0;
+      } else {
+        configId = configRows[0].id;
+        currentSeq = Number(configRows[0].currentSeq) || 0;
+      }
+
+      const startSeq = currentSeq + 1;
+      const endSeq = currentSeq + totalQty;
+
+      // Update authoritative sequence
+      await tx.documentConfig.update({
+        where: { id: configId },
+        data: { currentSeq: endSeq },
+      });
+
+      // Prepare breakdown text and individual item rows
+      let curr = startSeq;
+      const breakdownItems: string[] = [];
+      const certificateItemsData: Array<{
+        id: string;
+        seqNo: number;
+        year: number;
+        certificateNumber: string;
+        roleTitle: string;
+        verifyToken: string;
+        status: string;
+      }> = [];
+
+      for (const item of validItems) {
+        const itemQty = Number(item.quantity);
+        const itemStart = curr;
+        const itemEnd = curr + itemQty - 1;
+        const rangeText = itemStart === itemEnd ? `${itemStart}/${thYear}` : `${itemStart}-${itemEnd}/${thYear}`;
+        breakdownItems.push(`${item.roleTitle.trim()}: ${rangeText} (${itemQty} ใบ)`);
+
+        for (let s = itemStart; s <= itemEnd; s++) {
+          const certNo = `${s}/${thYear}`;
+          // 🟠 Senior Lock 7: Unguessable verification token
+          const vToken = `cert_${thYear}_${s}_${crypto.randomBytes(8).toString("hex")}`;
+          const itemId = `ci_${crypto.randomBytes(12).toString("hex")}`;
+          certificateItemsData.push({
+            id: itemId,
+            seqNo: s,
+            year: thYear,
+            certificateNumber: certNo,
+            roleTitle: item.roleTitle.trim(),
+            verifyToken: vToken,
+            status: "ISSUED",
+          });
+        }
+        curr += itemQty;
+      }
+
+      const rangeDocNo = startSeq === endSeq ? `${startSeq}/${thYear}` : `${startSeq}-${endSeq}/${thYear}`;
+
+      const newRecord = await tx.documentRecord.create({
+        data: {
+          docType: "CERTIFICATE",
+          docNo: rangeDocNo,
+          seqNo: startSeq,
+          year: year,
+          idempotencyKey: payload.idempotencyKey?.trim() || null,
+          title: payload.title.trim(),
+          to: "ผู้รับเกียรติบัตร",
+          origin: payload.origin?.trim() || "โรงเรียนกุดจับประชาสรรค์",
+          date: new Date(payload.date || Date.now()),
+          content: breakdownItems.join("\n"),
+          signeeName: "ผู้อำนวยการโรงเรียนกุดจับประชาสรรค์",
+          signeePosition: "ผู้อำนวยการโรงเรียน",
+          status: "ISSUED",
+          createdById: user.id,
+          requester: payload.requester?.trim() || user.name || "ครูผู้รับผิดชอบ",
+        },
+      });
+
+      // 🔴 Senior Lock 2: DB Unique Constraint Insertion
+      for (const cItem of certificateItemsData) {
+        await tx.$executeRaw`
+          INSERT INTO "CertificateIssuedItem" (
+            id, "batchRecordId", "seqNo", year, "certificateNumber", "roleTitle", "verifyToken", status, "createdAt"
+          ) VALUES (
+            ${cItem.id}, ${newRecord.id}, ${cItem.seqNo}, ${cItem.year}, ${cItem.certificateNumber}, ${cItem.roleTitle}, ${cItem.verifyToken}, ${cItem.status}, NOW()
+          );
+        `;
+      }
+
+      return {
+        ...newRecord,
+        certificateItems: certificateItemsData,
+      };
     });
 
-    // Build role range items string for content breakdown
-    let curr = startSeq;
-    const breakdownItems = payload.items.map((item) => {
-      const itemStart = curr;
-      const itemEnd = curr + item.quantity - 1;
-      curr += item.quantity;
-      const rangeText = itemStart === itemEnd ? `${itemStart}/${thYear}` : `${itemStart}-${itemEnd}/${thYear}`;
-      return `${item.roleTitle}: ${rangeText} (${item.quantity} ใบ)`;
+    safeRevalidatePath("/document");
+    return { success: true, data: issuedBatch };
+  } catch (err: any) {
+    return handleActionError(err, "issueActivityCertificatesBatch");
+  }
+}
+
+// 🔴 Senior Lock 4: Mail Merge Export exclusively queries committed DB records
+export async function getCertificateBatchItems(batchRecordId: string): Promise<ActionResponse> {
+  try {
+    const user = await getSessionUser();
+    if (!user) throw new Error("Unauthorized");
+
+    const items = await prisma.$queryRaw<Array<{
+      id: string;
+      batchRecordId: string;
+      seqNo: number;
+      year: number;
+      certificateNumber: string;
+      roleTitle: string;
+      recipientName: string | null;
+      verifyToken: string;
+      status: string;
+      createdAt: Date;
+    }>>`
+      SELECT id, "batchRecordId", "seqNo", year, "certificateNumber", "roleTitle", "recipientName", "verifyToken", status, "createdAt"
+      FROM "CertificateIssuedItem"
+      WHERE "batchRecordId" = ${batchRecordId}
+      ORDER BY "seqNo" ASC
+    `;
+
+    return { success: true, data: items };
+  } catch (err: any) {
+    return handleActionError(err, "getCertificateBatchItems");
+  }
+}
+
+// 🟠 Senior Lock 5: Strictly separated editable metadata vs locked immutable fields
+export async function updateCertificateMetadata(
+  id: string,
+  data: {
+    title: string;
+    origin?: string;
+    requester?: string;
+    date?: string;
+  }
+): Promise<ActionResponse> {
+  try {
+    const user = await getSessionUser();
+    const fullUser = await prisma.user.findUnique({ where: { id: user.id } });
+    if (!fullUser) throw new Error("Unauthorized");
+
+    const doc = await prisma.documentRecord.findUnique({ where: { id } });
+    if (!doc || doc.docType !== "CERTIFICATE") {
+      throw new Error("ไม่พบข้อมูลทะเบียนเกียรติบัตร");
+    }
+
+    await verifyDocumentManagePermission(doc, fullUser);
+
+    if (!data.title || !data.title.trim()) {
+      throw new Error("กรุณาระบุชื่อกิจกรรม / โครงการ");
+    }
+
+    // Editable fields ONLY (docNo, seqNo, year, idempotencyKey remain immutable)
+    const updatePayload: any = {
+      title: data.title.trim(),
+    };
+    if (data.origin !== undefined) updatePayload.origin = data.origin.trim();
+    if (data.requester !== undefined) updatePayload.requester = data.requester.trim();
+    if (data.date) updatePayload.date = new Date(data.date);
+
+    const updated = await prisma.documentRecord.update({
+      where: { id },
+      data: updatePayload,
     });
 
-    const rangeDocNo = startSeq === endSeq ? `${startSeq}/${thYear}` : `${startSeq}-${endSeq}/${thYear}`;
-
-    const newRecord = await prisma.documentRecord.create({
+    await prisma.systemLog.create({
       data: {
-        docType: "CERTIFICATE",
-        docNo: rangeDocNo,
-        seqNo: startSeq,
-        year: year,
-        title: payload.title,
-        to: "ผู้รับเกียรติบัตร",
-        origin: payload.origin || "โรงเรียนกุดจับประชาสรรค์",
-        date: new Date(payload.date || Date.now()),
-        content: breakdownItems.join("\n"),
-        signeeName: "ผู้อำนวยการโรงเรียนกุดจับประชาสรรค์",
-        signeePosition: "ผู้อำนวยการโรงเรียน",
-        status: "ISSUED",
-        createdById: user.id,
-        requester: payload.requester || user.name || "ครูผู้รับผิดชอบ",
+        actionType: "DOC_UPDATE",
+        subsystem: "DOCUMENT",
+        description: `แก้ไขข้อมูลทะเบียนเกียรติบัตร ${updated.docNo || id}: เปลี่ยนชื่อเป็น "${updated.title}" โดย ${fullUser.name || user.name || "Unknown"} (ID: ${user.id})`,
+        userId: user.id,
       },
     });
 
     safeRevalidatePath("/document");
-    return { success: true, data: newRecord };
+    return { success: true, data: updated };
   } catch (err: any) {
-    return handleActionError(err, "issueActivityCertificatesBatch");
+    return handleActionError(err, "updateCertificateMetadata");
+  }
+}
+
+// 🟠 Senior Lock 7: Public Certificate Verification Query
+export async function verifyCertificatePublic(verifyToken: string): Promise<ActionResponse> {
+  try {
+    if (!verifyToken || !verifyToken.trim()) {
+      throw new Error("ไม่พบรหัสตรวจสอบเกียรติบัตร");
+    }
+
+    const rows = await prisma.$queryRaw<Array<{
+      certificateNumber: string;
+      seqNo: number;
+      year: number;
+      roleTitle: string;
+      recipientName: string | null;
+      status: string;
+      createdAt: Date;
+      batchTitle: string;
+      batchOrigin: string;
+      batchDate: Date;
+      batchSignee: string;
+      batchSigneePosition: string;
+      batchStatus: string;
+    }>>`
+      SELECT 
+        c."certificateNumber", c."seqNo", c.year, c."roleTitle", c."recipientName", c.status, c."createdAt",
+        d.title as "batchTitle", d.origin as "batchOrigin", d.date as "batchDate",
+        d."signeeName" as "batchSignee", d."signeePosition" as "batchSigneePosition", d.status as "batchStatus"
+      FROM "CertificateIssuedItem" c
+      JOIN "DocumentRecord" d ON d.id = c."batchRecordId"
+      WHERE c."verifyToken" = ${verifyToken.trim()}
+      LIMIT 1
+    `;
+
+    if (rows.length === 0) {
+      return {
+        success: false,
+        error: "ไม่พบข้อมูลเกียรติบัตรนี้ในระบบทะเบียน หรือรหัสตรวจสอบไม่ถูกต้อง",
+      };
+    }
+
+    const item = rows[0];
+    const isValid = item.status === "ISSUED" && item.batchStatus === "ISSUED";
+
+    return {
+      success: true,
+      data: {
+        certificateNumber: item.certificateNumber,
+        seqNo: item.seqNo,
+        year: item.year,
+        roleTitle: item.roleTitle,
+        recipientName: item.recipientName,
+        status: isValid ? "VALID" : "CANCELLED",
+        activityTitle: item.batchTitle,
+        organization: item.batchOrigin,
+        issuedDate: item.batchDate,
+        signeeName: item.batchSignee,
+        signeePosition: item.batchSigneePosition,
+      },
+    };
+  } catch (err: any) {
+    return handleActionError(err, "verifyCertificatePublic");
   }
 }
 

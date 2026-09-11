@@ -516,6 +516,9 @@ export async function reviewFacilityReservationHeadAction(
     });
 
     revalidatePath("/facility");
+    revalidatePath("/general/facility");
+    revalidatePath("/academic/facility");
+    revalidatePath("/facility/settings");
     return { success: true };
   });
 }
@@ -572,6 +575,7 @@ export async function approveFacilityReservationDirectorAction(
       throw new Error("ไม่สามารถอนุมัติได้ เนื่องจากทรัพยากรถูกอนุมัติให้รายการอื่นในช่วงเวลาเดียวกันไปแล้ว");
     }
 
+    const driverAssignment = existing.assignments.find(a => a.targetType === "DRIVER");
     if (driverAssignment?.driverProfileId) {
       const conflictDriver = await tx.reservationResourceAssignment.findFirst({
         where: {
@@ -605,6 +609,9 @@ export async function approveFacilityReservationDirectorAction(
     const updated = await transitionReservationStatus(tx, reservationId, "APPROVED", { currentStep: 2 });
 
     revalidatePath("/facility");
+    revalidatePath("/general/facility");
+    revalidatePath("/academic/facility");
+    revalidatePath("/facility/settings");
     return updated;
   });
 }
@@ -639,6 +646,9 @@ export async function rejectFacilityReservationAction(reservationId: string, rea
 
     const updated = await transitionReservationStatus(tx, reservationId, "REJECTED", { rejectionReason: reason });
     revalidatePath("/facility");
+    revalidatePath("/general/facility");
+    revalidatePath("/academic/facility");
+    revalidatePath("/facility/settings");
     return updated;
   });
 }
@@ -680,6 +690,9 @@ export async function cancelFacilityReservationAction(reservationId: string) {
     });
 
     revalidatePath("/facility");
+    revalidatePath("/general/facility");
+    revalidatePath("/academic/facility");
+    revalidatePath("/facility/settings");
     return updated;
   });
 }
@@ -804,12 +817,14 @@ export type GetFacilityReservationsFilter = {
   status?: ReservationStatus;
   resourceId?: string;
   userId?: string;
+  onlyMine?: boolean;
   startDate?: Date | string;
   endDate?: Date | string;
 };
 
 /**
  * Query Facility Reservations with all relations
+ * Strictly enforces session identity when onlyMine is specified to prevent IDOR
  */
 export async function getFacilityReservationsAction(filter?: GetFacilityReservationsFilter) {
   const where: any = {};
@@ -822,9 +837,23 @@ export async function getFacilityReservationsAction(filter?: GetFacilityReservat
   if (filter?.resourceId) {
     where.resourceId = filter.resourceId;
   }
-  if (filter?.userId) {
-    where.reservedByUserId = filter.userId;
+
+  // Anti-IDOR: onlyMine uses authenticated session user id directly
+  if (filter?.onlyMine) {
+    const sessionUser = await getSessionUser();
+    if (!sessionUser) return [];
+    where.reservedByUserId = sessionUser.id;
+  } else if (filter?.userId) {
+    const sessionUser = await getSessionUser();
+    if (sessionUser && (sessionUser.id === filter.userId || hasFacilityPermission(sessionUser, "facility:view.all"))) {
+      where.reservedByUserId = filter.userId;
+    } else if (sessionUser) {
+      where.reservedByUserId = sessionUser.id;
+    } else {
+      return [];
+    }
   }
+
   if (filter?.startDate || filter?.endDate) {
     where.startAt = {};
     if (filter.startDate) where.startAt.gte = new Date(filter.startDate);
@@ -847,7 +876,7 @@ export async function getFacilityReservationsAction(filter?: GetFacilityReservat
           email: true,
           role: true,
           position: true,
-          department: true,
+          subjectGroup: true,
           phoneNumber: true
         }
       },
@@ -883,22 +912,7 @@ export async function getFacilityReservationsAction(filter?: GetFacilityReservat
         orderBy: { stepNo: "asc" }
       },
       roomDetails: true,
-      vehicleDetails: {
-        include: {
-          driverProfile: {
-            include: {
-              user: {
-                select: {
-                  id: true,
-                  name: true,
-                  email: true,
-                  phoneNumber: true
-                }
-              }
-            }
-          }
-        }
-      }
+      vehicleDetails: true
     },
     orderBy: { startAt: "desc" }
   });
@@ -971,6 +985,9 @@ export async function createFacilityResourceAction(data: CreateFacilityResourceI
   });
 
   revalidatePath("/facility");
+  revalidatePath("/general/facility");
+  revalidatePath("/academic/facility");
+  revalidatePath("/facility/settings");
   return created;
 }
 
@@ -1039,13 +1056,13 @@ export async function updateFacilityResourceAction(
             ...(data.vehicleProfile.licensePlate ? { licensePlate: data.vehicleProfile.licensePlate } : {}),
             ...(data.vehicleProfile.brand !== undefined ? { brand: data.vehicleProfile.brand } : {}),
             ...(data.vehicleProfile.model !== undefined ? { model: data.vehicleProfile.model } : {}),
-            ...(data.vehicleProfile.fuelType ? { fuelType: data.vehicleProfile.fuelType } : {}),
-            ...(data.vehicleProfile.seatCapacity ? { seatCapacity: Number(data.vehicleProfile.seatCapacity) } : {}),
+            ...(data.vehicleProfile.fuelType !== undefined ? { fuelType: data.vehicleProfile.fuelType } : {}),
+            ...(data.vehicleProfile.seatCapacity !== undefined ? { seatCapacity: Number(data.vehicleProfile.seatCapacity) } : {}),
             ...(data.vehicleProfile.currentOdometer !== undefined ? { currentOdometer: Number(data.vehicleProfile.currentOdometer) } : {})
           }
         }
       };
-    } else if (data.roomProfile && locked.type !== "VEHICLE") {
+    } else if (locked.type === "MEETING_ROOM" && data.roomProfile) {
       updateData.roomProfile = {
         upsert: {
           create: {
@@ -1076,6 +1093,9 @@ export async function updateFacilityResourceAction(
     });
 
     revalidatePath("/facility");
+    revalidatePath("/general/facility");
+    revalidatePath("/academic/facility");
+    revalidatePath("/facility/settings");
     return updated;
   });
 }
@@ -1112,6 +1132,9 @@ export async function toggleFacilityResourceStatusAction(id: string, newStatus: 
     });
 
     revalidatePath("/facility");
+    revalidatePath("/general/facility");
+    revalidatePath("/academic/facility");
+    revalidatePath("/facility/settings");
     return updated;
   });
 }
@@ -1144,6 +1167,9 @@ export async function deleteFacilityResourceAction(id: string) {
         data: { status: "RETIRED" }
       });
       revalidatePath("/facility");
+      revalidatePath("/general/facility");
+      revalidatePath("/academic/facility");
+      revalidatePath("/facility/settings");
       return { action: "RETIRED" as const, resource: retired };
     }
 
@@ -1153,6 +1179,9 @@ export async function deleteFacilityResourceAction(id: string) {
         where: { id }
       });
       revalidatePath("/facility");
+      revalidatePath("/general/facility");
+      revalidatePath("/academic/facility");
+      revalidatePath("/facility/settings");
       return { action: "DELETED" as const, resource: deleted };
     } catch (err: any) {
       // Catch ONLY specific foreign key violation errors (P2003 / PostgreSQL 23503)
@@ -1169,6 +1198,9 @@ export async function deleteFacilityResourceAction(id: string) {
           data: { status: "RETIRED" }
         });
         revalidatePath("/facility");
+        revalidatePath("/general/facility");
+        revalidatePath("/academic/facility");
+        revalidatePath("/facility/settings");
         return { action: "RETIRED" as const, resource: retired };
       }
 

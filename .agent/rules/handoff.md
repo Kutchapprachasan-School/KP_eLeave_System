@@ -1,97 +1,122 @@
-# Session Handoff & System Architectural Rulebook (v2.0)
+# Session Handoff & System Architectural Rulebook (v3.0)
 
-**Project:** KP e-Leave System (ระบบบริหารจัดการการลาออนไลน์ โรงเรียนกุดจับประชาสรรค์)  
-**Date:** 2026-09-02  
+**Project:** KP e-Leave & School Enterprise System (โรงเรียนกุดจับประชาสรรค์)  
+**Updated Date:** 2026-09-11  
 **Working Branch:** `dev`  
-**Production Branch:** `main`  
+**Production Branch:** `main` (ต่อกับ Vercel Auto-Deployment)  
 **Git Remotes:**
 - `origin`: `https://github.com/Kutchapprachasan-School/KP_eLeave_System.git`
-- `school`: `https://github.com/khamyangpittayaschool-code/e-leave.git`
+- `school`: `https://github.com/khamyangpittayaschool-code/e-leave.git` (Mirror ผ่าน GitHub Actions)
 
 ---
 
-## 1. Strict User Directives & Prompt Rules (กฎเหล็กประจำระบบ)
+## 1. กฎเหล็กการพัฒนาและ Deploy (Strict Deployment Principles)
 
-1. **Development Branch Rule (กฎการพัฒนาบนกิ่ง dev เท่านั้น):**
-   > *"ต่อไปพัฒนาใน bruch เท่านั้น"*
-   - งานเขียนโค้ด ทดสอบ แก้ไขไฟล์ทุกชนิด **ต้องทำบนกิ่ง `dev` เท่านั้น**
-   - **ห้าม Commit ตรงเข้ากิ่ง `main` โดยเด็ดขาด** (กิ่ง `main` จะใช้เมื่อผู้ใช้สั่งให้ "เอาขึ้น main" หรือ Deploy ขึ้น Production เท่านั้น)
-2. **Private & Authenticated Signature Access (กฎความปลอดภัยลายเซ็นต์):**
-   - **ห้ามเปิด Public URL ให้กับภาพลายเซ็นต์เด็ดขาด** เพื่อป้องกันการถูกสุ่มเดาหรือดาวน์โหลดไปปลอมแปลง
-   - ทุกการเรียกดูภาพลายเซ็นต์ต้องผ่าน Route [`/api/signatures/[userId]`](file:///C:/dev/eLeave/src/app/api/signatures/%5BuserId%5D/route.ts) ซึ่งตรวจสอบ Session (`auth.api.getSession`) เสมอ
-   - มีระบบ In-Memory Fast Cache และ ETag เพื่อรองรับการเปิดหรือพิมพ์ PDF แบบกลุ่ม (Batch Print 50-100 ใบ) ได้ในเวลา < 1ms โดยไม่เกิด Serverless Timeout
-3. **Immutable Versioned Signatures (กฎห้ามเขียนทับลายเซ็นต์เดิม):**
-   - การบันทึกลายเซ็นต์ต้องเป็นแบบ **Immutable** โดยใส่ Timestamp และ Hash ทุกครั้ง (`signatures/<userId>/sig_<timestamp>_<hash>.png`)
-   - **ห้ามเขียนทับไฟล์เดิม** เพื่อให้ใบลาและประวัติในอดีตคงลายเซ็นต์ ณ วันที่ลงนามไว้ 100% ตามระเบียบงานสารบรรณ
-4. **Pure ASCII Storage Keys for Attachments (กฎความปลอดภัยของ URL ภาษาไทย):**
-   - ไฟล์ที่อัปโหลดขึ้น Storage ต้องใช้ชื่อไฟล์และโฟลเดอร์เป็น **ASCII + UUID Hash ล้วนๆ** (`leaves/<reqId>/<timestamp>_<hash>.<ext>`)
-   - เพื่อป้องกันปัญหา Percent-Encoding (`%E0%B8...`) ใน PDF Generators, HTTP Headers และ Mobile Browsers
-   - ชื่อภาษาไทย (เช่น `เอกสารแนบ_1.jpeg`, `ใบรับรองแพทย์.pdf`) จะถูกเก็บไว้เฉพาะในฟิลด์ `displayName` ในฐานข้อมูลเพื่อแสดงผลบนหน้าเว็บเท่านั้น
-5. **Automated CI/CD Dual-Remote Sync (ระบบซิงก์กิ่งอัตโนมัติ):**
-   - ยกเลิกการ Push 2 Remotes แบบ Manual โดยเด็ดขาด เพื่อป้องกัน Human Error
-   - มี GitHub Actions Workflow [`.github/workflows/mirror-to-school.yml`](file:///C:/dev/eLeave/.github/workflows/mirror-to-school.yml) ทำหน้าที่ Mirror โค้ดจาก `origin/main` ไปยัง `school/main` โดยอัตโนมัติเมื่อมีการ Merge เข้า `main`
-6. **No Floating Telemetry Widgets:**
-   - ห้ามเพิ่ม Floating Widget หรือแท็บมอนิเตอร์ Egress เข้ามาในหน้าเว็บ เพื่อรักษาความเร็วและความสะอาดตาของ UI
+### 📌 กฎข้อที่ 1: การทำงานบนกิ่ง `dev` เท่านั้น (Development Branch Rule)
+> *"ต่อไปพัฒนาใน branch dev เท่านั้น ห้าม commit ตรงเข้า main"*
+- **ทุกฟีเจอร์ บั๊กฟิกซ์ และการทดสอบ ต้องทำบนกิ่ง `dev` เท่านั้น**
+- กิ่ง `main` มีไว้สำหรับ Production Deployment เท่านั้น
+- เมื่อผู้ใช้สั่งให้ "เอาขึ้น main" หรือ "Deploy" ให้ทำตาม **ขั้นตอนการ Deploy มาตรฐาน (Standard Deployment Pipeline)**
+
+### 📌 กฎข้อที่ 2: ขั้นตอนการ Deploy มาตรฐาน (Standard Git Pipeline to Production)
+เมื่อการพัฒนาและทดสอบบนกิ่ง `dev` ผ่านเรียบร้อยแล้ว ให้ปฏิบัติตามลำดับคำสั่งนี้เสมอ:
+```bash
+# 1. ตรวจสอบสถานะไฟล์และคอมมิตงานบน dev
+git status
+git add .
+git commit -m "feat(scope): คำอธิบายฟังก์ชันที่เพิ่มหรือแก้ไข"
+
+# 2. ผลักดันกิ่ง dev ขึ้น GitHub
+git push origin dev
+
+# 3. สลับไปกิ่ง main และผสานโค้ด (Merge)
+git checkout main
+git merge dev
+
+# 4. ผลักดันกิ่ง main ขึ้น GitHub (ทริกเกอร์ Vercel Build และ GitHub Actions Mirror)
+git push origin main
+
+# 5. สลับกลับมาที่กิ่ง dev เพื่อทำงานต่อไปทันที
+git checkout dev
+```
+> **หมายเหตุ:** ทันทีที่ `origin/main` ได้รับโค้ดใหม่:
+> 1. **Vercel** จะเริ่ม Build และ Deploy ระบบจริงขึ้น Production อัตโนมัติ
+> 2. **GitHub Actions Workflow** [`.github/workflows/mirror-to-school.yml`](file:///g:/My%20Drive/01%20Web%20app/01%20ระบบการลา/.github/workflows/mirror-to-school.yml) จะทำการ Sync โค้ดไปยัง `school/main` โดยอัตโนมัติ
 
 ---
 
-## 2. System Architecture & Cloud Locations
+## 2. กฎความปลอดภัยของฐานข้อมูล Production (Database & Migration Protocol)
+
+1. **ห้ามใช้คำสั่งทำลายข้อมูลเด็ดขาด (No Destructive Migrations):**
+   - **ห้ามรัน `prisma migrate reset` บน Production เด็ดขาด**
+   - การปรับแก้ตารางต้องเป็นแบบ Additive (เช่น `ADD COLUMN IF NOT EXISTS`, ตั้งค่า Default, หรืออนุญาตให้ Nullable)
+   - ใช้ `prisma db push` หรือรันสคริปต์ SQL แบบมีเงื่อนไข `IF NOT EXISTS`
+2. **Global Row-Locking Hierarchy (ป้องกัน Deadlock 100%):**
+   - ทุกธุรกรรมการเงินและการจองทรัพยากรที่มีการแก้ไขยอดหรือสถานะ ต้องใช้ `SELECT ... FOR UPDATE NOWAIT`
+   - **ต้องเรียงลำดับ Primary Key ตามตัวอักษร (Ascending PK Order)** เสมอก่อนทำการ Acquire Lock เพื่อป้องกัน Deadlock ข้าม Transaction
+3. **ห้าม Hard-Delete ข้อมูลที่มี Foreign Key อ้างอิง:**
+   - ทรัพยากร (เช่น รถ/ห้องประชุมในระบบ `/facility`) ที่มีประวัติการจอง ให้ Fallback เป็น Soft-Delete/`RETIRED` เมื่อเจอ Error รหัส `P2003` หรือ `23503` (Foreign Key Constraint Violation) เท่านั้น Error อื่นให้ Throw ตามปกติ
+
+---
+
+## 3. กฎความปลอดภัย Next.js 16 / Turbopack / Server Actions (Vercel Build Rules)
+
+1. **Server Action Export Safety:**
+   - ทุกฟังก์ชันในไฟล์ที่ขึ้นต้นด้วย `"use server"` หากถูกเรียกใช้จากภายนอก **ต้อง Export ให้ถูกต้อง** ห้ามมี Unexported Action หรือ Dead Import ที่ทำให้ Turbopack บน Vercel Compile ไม่ผ่าน
+2. **Server-to-Client Serialization Boundary:**
+   - React Server Actions ไม่รองรับการส่งผ่านค่า `BigInt`, Raw Prisma Object ที่ซับซ้อน หรือ Decimal Object ออกไปยัง Client โดยตรง
+   - ให้ครอบผลลัพธ์ผ่านฟังก์ชัน `serializeForClient()` หรือ `JSON.parse(JSON.stringify(...))` ก่อนส่งกลับ Client เสมอ
+3. **รักษาความสะอาดของ `.vercelignore`:**
+   - ไฟล์ทดสอบใน `scratch/`, `tests/`, และเอกสาร PDF/Excel ให้คงอยู่ใน `.vercelignore` เพื่อให้เครื่อง Vercel Build ทำงานรวดเร็ว ไม่กิน Memory และไม่ติด Timeout
+
+---
+
+## 4. สถาปัตยกรรมและโมดูลสำคัญในระบบ (System Subsystems)
 
 ```mermaid
 flowchart TD
-    subgraph Client["Client / Browser / PDF Print"]
-        Viewer["Leave View / PDF Generator"]
+    subgraph Core["แกนหลักของระบบ (Core Services)"]
+        Auth["Better-Auth + RBAC"]
+        DB[(PostgreSQL Neon/Supabase)]
+        Storage["Supabase Storage (Bucket data1)"]
     end
 
-    subgraph Security["1. Authenticated API Layer"]
-        SigAPI["GET /api/signatures/[userId]"]
-        AuthCheck{"auth.api.getSession<br/>(Is Authenticated?)"}
-        SigAPI --> AuthCheck
+    subgraph Subsystems["โมดูลระบบงานหลัก (Enterprise Subsystems)"]
+        Leave["1. ระบบวันลาออนไลน์ (/dashboard)"]
+        Facility["2. ระบบจองห้องประชุมและยานพาหนะ (/facility)"]
+        Budget["3. ระบบงบประมาณและสมุดบัญชีย่อย (/budget)"]
+        DocNum["4. ระบบออกเลขหนังสือราชการ"]
     end
 
-    subgraph Storage["2. Supabase Storage (Bucket data1)"]
-        Supa[(Supabase Storage)]
-        SigStore["signatures/<userId>/sig_<timestamp>_<hash>.png<br/>(Immutable Versioned)"]
-        LeaveStore["leaves/<reqId>/<timestamp>_<hash>.<ext><br/>(Pure ASCII Path)"]
-        Supa --- SigStore
-        Supa --- LeaveStore
-    end
-
-    subgraph Database["3. PostgreSQL Database"]
-        UserTable["User.signatureUrl = /api/signatures/<userId>"]
-        LeaveTable["LeaveRequest.documentUrl = JSON with displayName & ASCII url"]
-    end
-
-    Viewer -->|1. Authenticated Request| SigAPI
-    AuthCheck -->|2. Authorized| Supa
-    AuthCheck -->|3. Unauthorized| Deny[401 / 403 Forbidden]
-    Supa -->|4. Stream Transparent PNG / SVG (<1ms Cached)| Viewer
+    Leave --> Auth
+    Facility --> Auth
+    Budget --> Auth
+    Leave --> DB
+    Facility --> DB
+    Budget --> DB
 ```
 
----
-
-## 3. Key Code Locations & Engines
-
-| โมดูล / หน้าที่ | ไฟล์โค้ดหลัก | คำอธิบายการทำงาน |
-|---|---|---|
-| **Private Signature Streaming API** | [`src/app/api/signatures/[userId]/route.ts`](file:///C:/dev/eLeave/src/app/api/signatures/%5BuserId%5D/route.ts) | สตรีมลายเซ็นต์เฉพาะผู้มีสิทธิ์ พร้อม In-Memory Fast Cache ป้องกัน Timeout ตอน Batch PDF |
-| **Resilient Storage Upload** | [`src/services/storage/resilient-upload.ts`](file:///C:/dev/eLeave/src/services/storage/resilient-upload.ts) | จัดการอัปโหลดไฟล์ลายเซ็นต์ (Immutable) และเอกสารแนบ (ASCII Key) พร้อมระบบ Fallback |
-| **User Signature Actions** | [`src/app/actions/user.ts`](file:///C:/dev/eLeave/src/app/actions/user.ts) | บันทึกลายเซ็นต์ใหม่ และอัปเดตฐานข้อมูลให้ชี้มาที่ `/api/signatures/[userId]` |
-| **Document Upload Action** | [`src/app/actions/upload.ts`](file:///C:/dev/eLeave/src/app/actions/upload.ts) | อัปโหลดเอกสารแนบโดยแยก `displayName` ภาษาไทยกับ `storageKey` ASCII ปลอดภัย 100% |
-| **Attachment Normalizer** | [`src/lib/attachment-utils.ts`](file:///C:/dev/eLeave/src/lib/attachment-utils.ts) | ตัวแปลง URL สากล รองรับทั้ง JSON, CSV, และถอดรหัส `displayName` |
-| **Print & Batch Layouts** | [`src/app/print/leave/[id]/page.tsx`](file:///C:/dev/eLeave/src/app/print/leave/%5Bid%5D/page.tsx) & [`batch/page.tsx`](file:///C:/dev/eLeave/src/app/print/leave/batch/page.tsx) | ระบบออกเอกสารใบลาเดี่ยวและกลุ่ม ดึงลายเซ็นต์ผ่าน Private Stream ไวระดับมิลลิวินาที |
-| **CI/CD Mirror Pipeline** | [`.github/workflows/mirror-to-school.yml`](file:///C:/dev/eLeave/.github/workflows/mirror-to-school.yml) | GitHub Actions ทำหน้าที่ซิงก์โค้ด `main` ไปยัง `school/main` โดยอัตโนมัติ |
+| โมดูล / ระบบ | หน้าเว็บหลัก | Service / Server Actions | Architectural Invariants & ADR |
+|---|---|---|---|
+| **ระบบวันลา (e-Leave)** | `/dashboard`, `/print/leave` | `src/app/actions/user.ts`, `upload.ts` | ลายเซ็นต์เป็น Private Authenticated Stream (`/api/signatures/[userId]`), เก็บไฟล์ด้วย Pure ASCII Key |
+| **ระบบจองยานพาหนะ/สถานที่** | `/facility` | `src/services/facility-reservation.service.ts`, `src/app/actions/facility.ts` | Lock Order เรียงตาม PK, Catch `P2003` เพื่อ Fallback เป็น `RETIRED`, Server-side RBAC |
+| **ระบบงบประมาณ & แผนงาน** | `/budget` | `src/services/project-budget.service.ts`, `src/app/actions/project-budget.ts` | [ADR-001](file:///g:/My%20Drive/01%20Web%20app/01%20ระบบการลา/docs/adr/20260909-budget-simplified-disbursement-and-clone-engine.md): 5-Layer Invariants, Cash-gated Approval, FY Closure & Financial Freeze, Batch Project Cloning Engine |
 
 ---
 
-## 4. Verification & Testing Standards
+## 5. เครื่องมือและสกิลที่ติดตั้งในระบบ (Skills Ecosystem)
 
-1. **Unit Test Suite:**
-   ```bash
-   node --test eLeave/tests/unit/storageProvider.test.js eLeave/tests/unit/attachmentUtils.test.js eLeave/tests/unit/vectorSignature.test.js eLeave/tests/unit/signatureApiSecurity.test.js
-   ```
-2. **Security Checks:**
-   - คำขอที่ไม่ผ่านการล็อกอิน (`Unauthenticated`) เมื่อเรียก `/api/signatures/[userId]` ต้องได้รับ `HTTP 401 Unauthorized` ทันที
-3. **Deployment Rule:**
-   - พัฒนาและทดสอบบนกิ่ง `dev`
-   - เมื่อต้องการ Deploy เข้า `main` ให้ทำการ Merge `dev` ➔ `main` และผลักดันขึ้น `origin main` ซึ่ง CI/CD จะทำการ Mirror ไปที่ `school main` ให้อัตโนมัติ
+- **`grill-doc`**: สกิลสัมภาษณ์และ Stress-Test แผนงาน/สถาปัตยกรรมเชิงลึก พร้อมสร้าง **Architecture Decision Record (ADR)** บันทึกไว้ใน `docs/adr/`
+- **`handoff`**: สกิลสรุปและส่งต่องานระหว่างเซสชัน
+- **`ui-ux-pro-max`**: คลังดีไซน์ UI/UX มาตรฐานสถานศึกษา
+- **`html-planner`**: ระบบวางแผนงานแบบ Multi-Agent
+
+---
+
+## 6. สรุปคำสั่งสำหรับ AI ในแชทถัดไป (Quick Prompt for Future Sessions)
+
+หากเริ่มเซสชันใหม่ ให้ AI อ่านไฟล์นี้ทันที:
+1. อ่านกฎเหล็กใน [`.agent/rules/handoff.md`](file:///g:/My%20Drive/01%20Web%20app/01%20ระบบการลา/.agent/rules/handoff.md)
+2. ยึดกิ่ง `dev` ในการทำงานเสมอ
+3. ตรวจสอบ [ADR-001](file:///g:/My%20Drive/01%20Web%20app/01%20ระบบการลา/docs/adr/20260909-budget-simplified-disbursement-and-clone-engine.md) หากต้องแก้ไขหรือขยายระบบงบประมาณ
+4. เมื่อพร้อม Deploy ให้รันขั้นตอนการ Push `dev` $\rightarrow$ Merge `main` $\rightarrow$ Push `main` ตามขั้นตอนในข้อ 1

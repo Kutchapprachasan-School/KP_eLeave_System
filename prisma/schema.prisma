@@ -300,6 +300,7 @@ model DocumentRecord {
   updatedAt      DateTime           @updatedAt
   department     String?
   requester      String?
+  idempotencyKey String?            @unique
   attachmentName String?
   attachmentUrl  String?
   user           User               @relation(fields: [createdById], references: [id], onDelete: Cascade)
@@ -307,6 +308,25 @@ model DocumentRecord {
   outgoingLinks  DocumentRelation[] @relation("FromDocument")
   incomingLinks  DocumentRelation[] @relation("ToDocument")
   attachments    FileAttachment[]
+  certificateItems CertificateIssuedItem[]
+}
+
+model CertificateIssuedItem {
+  id                String         @id @default(cuid())
+  batchRecordId     String
+  batchRecord       DocumentRecord @relation(fields: [batchRecordId], references: [id], onDelete: Cascade)
+  seqNo             Int
+  year              Int
+  certificateNumber String         @unique
+  roleTitle         String
+  recipientName     String?
+  verifyToken       String         @unique @default(cuid())
+  status            String         @default("ISSUED")
+  createdAt         DateTime       @default(now())
+
+  @@unique([year, seqNo], map: "uk_cert_item_year_seq")
+  @@index([batchRecordId])
+  @@index([verifyToken])
 }
 
 model SigneePreset {
