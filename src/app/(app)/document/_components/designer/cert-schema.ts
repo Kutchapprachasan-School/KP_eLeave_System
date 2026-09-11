@@ -68,6 +68,60 @@ export function truncateThaiGrapheme(text: string, maxGraphemes: number): string
   return text.length > maxGraphemes ? text.slice(0, maxGraphemes) + "..." : text;
 }
 
+export {
+  SUPPORTED_FONTS,
+  type SupportedFont,
+  type FontManifestItem,
+  FONT_MANIFEST,
+} from "./font-manifest.ts";
+
+/**
+ * Screen (clientX, clientY) -> Normalized Document Coordinate (0..100%).
+ * Completely immune to CSS transform scale, pan, and client scrolling.
+ */
+export function screenToDocumentPercent(
+  clientX: number,
+  clientY: number,
+  canvasRect: DOMRect
+): { xPercent: number; yPercent: number } {
+  const rawX = ((clientX - canvasRect.left) / canvasRect.width) * 100;
+  const rawY = ((clientY - canvasRect.top) / canvasRect.height) * 100;
+
+  return {
+    xPercent: Math.max(0, Math.min(100, Math.round(rawX * 10) / 10)),
+    yPercent: Math.max(0, Math.min(100, Math.round(rawY * 10) / 10)),
+  };
+}
+
+/**
+ * Normalized Document Coordinate (0..100%) -> Screen (clientX, clientY).
+ */
+export function documentPointToScreen(
+  xPercent: number,
+  yPercent: number,
+  canvasRect: DOMRect
+): { screenX: number; screenY: number } {
+  const screenX = canvasRect.left + (xPercent / 100) * canvasRect.width;
+  const screenY = canvasRect.top + (yPercent / 100) * canvasRect.height;
+  return { screenX, screenY };
+}
+
+/**
+ * Proximity Snap calculation for Center X/Y and sibling alignment guides.
+ */
+export function computeSnap(
+  val: number,
+  targets: number[],
+  threshold: number = 1.5
+): { snappedVal: number; isSnapped: boolean; guidePos?: number } {
+  for (const target of targets) {
+    if (Math.abs(val - target) <= threshold) {
+      return { snappedVal: target, isSnapped: true, guidePos: target };
+    }
+  }
+  return { snappedVal: val, isSnapped: false };
+}
+
 /**
  * Element Layout Schema for V1 Templates.
  */
@@ -80,13 +134,19 @@ export const CertificateElementSchema = z.object({
   yPercent: z.number().min(0).max(100),
   widthPercent: z.number().min(1).max(100).optional(),
   fontSizePt: z.number().min(8).max(120).default(24),
-  fontFamily: z.enum(["Sarabun", "Prompt"]).default("Sarabun"),
+  fontFamily: z.string().default("Sarabun"),
   fontWeight: z.enum(["normal", "bold"]).default("normal"),
+  italic: z.boolean().optional().default(false),
   color: z.string().default("#1e293b"),
   textAlign: z.enum(["left", "center", "right"]).default("center"),
+  letterSpacing: z.number().optional().default(0),
+  shadow: z.boolean().optional().default(false),
+  shadowColor: z.string().optional().default("rgba(0,0,0,0.2)"),
+  shadowBlur: z.number().optional().default(4),
   prefix: z.string().optional(),
   suffix: z.string().optional(),
   sampleText: z.string().optional(),
+  hidden: z.boolean().optional().default(false),
 });
 
 export type CertificateElement = z.infer<typeof CertificateElementSchema>;
@@ -101,6 +161,209 @@ export const CertificateTemplateV1Schema = z.object({
 });
 
 export type CertificateTemplateV1 = z.infer<typeof CertificateTemplateV1Schema>;
+
+/**
+ * Teacher-Friendly Typography Presets for School Certificates.
+ */
+export const ELEMENT_PRESETS: Array<{
+  key: string;
+  label: string;
+  type: "text" | "qrcode";
+  defaultElement: Omit<CertificateElement, "id">;
+}> = [
+  {
+    key: "fullName",
+    label: "ชื่อ-นามสกุล ผู้รับ",
+    type: "text",
+    defaultElement: {
+      type: "text",
+      key: "fullName",
+      label: "ชื่อ - นามสกุล ผู้รับ",
+      xPercent: 50,
+      yPercent: 48,
+      fontSizePt: 34,
+      fontFamily: "Kanit",
+      fontWeight: "bold",
+      italic: false,
+      color: "#0f172a",
+      textAlign: "center",
+      sampleText: "นายสมศักดิ์ รักเรียน",
+    },
+  },
+  {
+    key: "certNumber",
+    label: "เลขที่เกียรติบัตร",
+    type: "text",
+    defaultElement: {
+      type: "text",
+      key: "certNumber",
+      label: "เลขที่เกียรติบัตร",
+      xPercent: 85,
+      yPercent: 12,
+      fontSizePt: 15,
+      fontFamily: "Sarabun",
+      fontWeight: "normal",
+      italic: false,
+      color: "#64748b",
+      textAlign: "right",
+      prefix: "เลขที่ ",
+      sampleText: "กจ. 001/2569",
+    },
+  },
+  {
+    key: "role",
+    label: "รางวัล / บทบาทที่ได้รับ",
+    type: "text",
+    defaultElement: {
+      type: "text",
+      key: "role",
+      label: "รางวัล / บทบาทที่ได้รับ",
+      xPercent: 50,
+      yPercent: 66,
+      fontSizePt: 22,
+      fontFamily: "Prompt",
+      fontWeight: "bold",
+      italic: false,
+      color: "#b45309",
+      textAlign: "center",
+      sampleText: "รางวัลชนะเลิศ อันดับ ๑",
+    },
+  },
+  {
+    key: "activityName",
+    label: "ชื่องาน / กิจกรรม",
+    type: "text",
+    defaultElement: {
+      type: "text",
+      key: "activityName",
+      label: "ชื่องาน / กิจกรรม",
+      xPercent: 50,
+      yPercent: 58,
+      fontSizePt: 20,
+      fontFamily: "Sarabun",
+      fontWeight: "normal",
+      italic: false,
+      color: "#1e293b",
+      textAlign: "center",
+      sampleText: "การแข่งขันโครงงานวิทยาศาสตร์และเทคโนโลยี ประจำปีการศึกษา ๒๕๖๙",
+    },
+  },
+  {
+    key: "department",
+    label: "กลุ่มสาระฯ / หน่วยงาน",
+    type: "text",
+    defaultElement: {
+      type: "text",
+      key: "department",
+      label: "กลุ่มสาระฯ / หน่วยงาน",
+      xPercent: 50,
+      yPercent: 26,
+      fontSizePt: 18,
+      fontFamily: "Sarabun",
+      fontWeight: "bold",
+      italic: false,
+      color: "#1e3a8a",
+      textAlign: "center",
+      sampleText: "โรงเรียนกุดจับประชาสรรค์",
+    },
+  },
+  {
+    key: "date",
+    label: "วันที่ออกเกียรติบัตร",
+    type: "text",
+    defaultElement: {
+      type: "text",
+      key: "date",
+      label: "วันที่ออกเกียรติบัตร",
+      xPercent: 50,
+      yPercent: 75,
+      fontSizePt: 16,
+      fontFamily: "Sarabun",
+      fontWeight: "normal",
+      italic: false,
+      color: "#475569",
+      textAlign: "center",
+      prefix: "ให้ไว้ ณ วันที่ ",
+      sampleText: "๑๑ กันยายน พ.ศ. ๒๕๖๙",
+    },
+  },
+  {
+    key: "signeeName",
+    label: "ชื่อผู้ลงนาม",
+    type: "text",
+    defaultElement: {
+      type: "text",
+      key: "signeeName",
+      label: "ชื่อผู้ลงนาม",
+      xPercent: 50,
+      yPercent: 86,
+      fontSizePt: 18,
+      fontFamily: "Taviraj",
+      fontWeight: "bold",
+      italic: false,
+      color: "#0f172a",
+      textAlign: "center",
+      sampleText: "( นายวิจิตร สุขสงบ )",
+    },
+  },
+  {
+    key: "signeePosition",
+    label: "ตำแหน่งผู้ลงนาม",
+    type: "text",
+    defaultElement: {
+      type: "text",
+      key: "signeePosition",
+      label: "ตำแหน่งผู้ลงนาม",
+      xPercent: 50,
+      yPercent: 91,
+      fontSizePt: 15,
+      fontFamily: "Taviraj",
+      fontWeight: "normal",
+      italic: false,
+      color: "#475569",
+      textAlign: "center",
+      sampleText: "ผู้อำนวยการโรงเรียนกุดจับประชาสรรค์",
+    },
+  },
+  {
+    key: "qrCode",
+    label: "กล่อง QR Code ตรวจสอบ",
+    type: "qrcode",
+    defaultElement: {
+      type: "qrcode",
+      key: "qrCode",
+      label: "กล่อง QR Code ตรวจสอบ",
+      xPercent: 88,
+      yPercent: 82,
+      fontSizePt: 18,
+      fontFamily: "Sarabun",
+      fontWeight: "normal",
+      italic: false,
+      color: "#000000",
+      textAlign: "center",
+      sampleText: "https://eleave.kutchap.ac.th/verify/cert?token=SAMPLE",
+    },
+  },
+  {
+    key: "customText",
+    label: "ข้อความกำหนดเอง",
+    type: "text",
+    defaultElement: {
+      type: "text",
+      key: "customText",
+      label: "ข้อความกำหนดเอง",
+      xPercent: 50,
+      yPercent: 40,
+      fontSizePt: 18,
+      fontFamily: "Sarabun",
+      fontWeight: "normal",
+      italic: false,
+      color: "#1e293b",
+      textAlign: "center",
+      sampleText: "ข้อความเพิ่มเติม...",
+    },
+  },
+];
 
 /**
  * Standard Default Elements for Thai School Certificates.

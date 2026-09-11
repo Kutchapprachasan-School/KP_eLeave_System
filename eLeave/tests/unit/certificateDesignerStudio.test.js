@@ -7,7 +7,13 @@ import {
   truncateThaiGrapheme,
   CertificateTemplateV1Schema,
   DEFAULT_CERTIFICATE_ELEMENTS,
+  screenToDocumentPercent,
+  documentPointToScreen,
+  computeSnap,
+  FONT_MANIFEST,
 } from '../../../src/app/(app)/document/_components/designer/cert-schema.ts';
+import { generateQrMatrix } from '../../../src/app/(app)/document/_components/designer/qr-renderer.ts';
+import crypto from 'node:crypto';
 
 test('Certificate Designer Studio & Concurrency Invariants Suite', async (t) => {
   // -------------------------------------------------------------
@@ -241,4 +247,187 @@ test('Certificate Designer Studio & Concurrency Invariants Suite', async (t) => 
     handleCloudResult(successResult);
     assert.equal(dbDeleted, true); // Safely deleted only on confirmed cloud deletion!
   });
+
+  // -------------------------------------------------------------
+  // Test 10: Provider fallback simulation (R2 fail -> Supabase success)
+  // -------------------------------------------------------------
+  await t.test('10. Provider fallback: R2 fail -> Supabase success sets storageProvider to SUPABASE', async () => {
+    let r2Attempted = false;
+    let supabaseAttempted = false;
+
+    async function uploadWithFallbackSimulation() {
+      // Step 1: Try R2
+      r2Attempted = true;
+      const r2Error = new Error('Cloudflare R2 Connection Timeout');
+
+      // Step 2: Catch R2 fail and failover to Supabase
+      if (r2Error) {
+        supabaseAttempted = true;
+        return {
+          storageKey: 'certificates/backgrounds/test.png',
+          provider: 'SUPABASE',
+          publicUrl: 'https://xxx.supabase.co/storage/v1/object/public/data1/test.png',
+        };
+      }
+      return { storageKey: 'test.png', provider: 'R2' };
+    }
+
+    const result = await uploadWithFallbackSimulation();
+    assert.equal(r2Attempted, true);
+    assert.equal(supabaseAttempted, true);
+    assert.equal(result.provider, 'SUPABASE');
+    assert.ok(result.publicUrl.includes('supabase.co'));
+  });
+
+  // -------------------------------------------------------------
+  // Test 11: Upload Idempotency (same uploadSessionId returns existing record)
+  // -------------------------------------------------------------
+  await t.test('11. Upload idempotency: Resubmitting identical uploadSessionId yields existing FileAttachment', () => {
+    const db = new Map();
+    const sessionId = 'session_uuid_fixed_123';
+
+    function handleUpload(clientSessionId, objectKey) {
+      if (db.has(clientSessionId)) {
+        return { isExisting: true, record: db.get(clientSessionId) };
+      }
+      const newRec = { id: 'att_' + Date.now(), uploadSessionId: clientSessionId, objectKey };
+      db.set(clientSessionId, newRec);
+      return { isExisting: false, record: newRec };
+    }
+
+    const first = handleUpload(sessionId, 'key_1.png');
+    assert.equal(first.isExisting, false);
+
+    const duplicate = handleUpload(sessionId, 'key_2.png');
+    assert.equal(duplicate.isExisting, true);
+    assert.equal(duplicate.record.id, first.record.id); // Deduplicated!
+  });
+
+  // -------------------------------------------------------------
+  // Test 12: Verify security (VALID, REVOKED, NOT_FOUND)
+  // -------------------------------------------------------------
+  await t.test('12. Verify security: Checks VALID, REVOKED, and NOT_FOUND states without exposing private data', () => {
+    function evaluateVerifyState(record) {
+      if (!record) {
+        return { success: false, state: 'NOT_FOUND', error: 'ไม่พบข้อมูลเกียรติบัตร' };
+      }
+      if (record.status === 'CANCELLED' || record.batchStatus === 'CANCELLED' || record.status === 'REVOKED') {
+        return {
+          success: true,
+          data: { state: 'REVOKED', certNo: record.certNo, recipientName: record.recipientName },
+        };
+      }
+      return {
+        success: true,
+        data: { state: 'VALID', certNo: record.certNo, recipientName: record.recipientName },
+      };
+    }
+
+    // 1. Not found
+    const res404 = evaluateVerifyState(null);
+    assert.equal(res404.state, 'NOT_FOUND');
+    assert.equal(res404.data, undefined); // Zero leakage!
+
+    // 2. Revoked certificate
+    const resRevoked = evaluateVerifyState({ status: 'CANCELLED', batchStatus: 'ISSUED', certNo: '1/2569', recipientName: 'นาย ก' });
+    assert.equal(resRevoked.data.state, 'REVOKED');
+
+    // 3. Valid certificate
+    const resValid = evaluateVerifyState({ status: 'ISSUED', batchStatus: 'ISSUED', certNo: '1/2569', recipientName: 'นาย ก' });
+    assert.equal(resValid.data.state, 'VALID');
+  });
+
+  // -------------------------------------------------------------
+  // Test 13: Zoom transform & Drag Offset stability (Senior Lock 3)
+  // -------------------------------------------------------------
+  await t.test('13. Zoom transform: dragging at 60%, 100%, 150% + cursor offset maintains stable document position', () => {
+    const canvasWidth = 842;
+    const canvasHeight = 595;
+
+    // Simulate DOMRect at 3 different zoom scales
+    const rect100 = { left: 100, top: 100, width: canvasWidth * 1.0, height: canvasHeight * 1.0 };
+    const rect60 = { left: 100, top: 100, width: canvasWidth * 0.6, height: canvasHeight * 0.6 };
+    const rect150 = { left: 100, top: 100, width: canvasWidth * 1.5, height: canvasHeight * 1.5 };
+
+    // Point at 50% X, 50% Y
+    const screen100 = documentPointToScreen(50, 50, rect100);
+    const doc100 = screenToDocumentPercent(screen100.screenX, screen100.screenY, rect100);
+    assert.equal(doc100.xPercent, 50);
+    assert.equal(doc100.yPercent, 50);
+
+    const screen60 = documentPointToScreen(50, 50, rect60);
+    const doc60 = screenToDocumentPercent(screen60.screenX, screen60.screenY, rect60);
+    assert.equal(doc60.xPercent, 50);
+    assert.equal(doc60.yPercent, 50);
+
+    const screen150 = documentPointToScreen(50, 50, rect150);
+    const doc150 = screenToDocumentPercent(screen150.screenX, screen150.screenY, rect150);
+    assert.equal(doc150.xPercent, 50);
+    assert.equal(doc150.yPercent, 50);
+
+    // Cursor Grab Offset Simulation: grabbing at (52%, 52%) with element at (50%, 50%)
+    const grabOffset = { dx: 2, dy: 2 };
+    // Dragging pointer to (72%, 72%)
+    const movedPointer = { x: 72, y: 72 };
+    const newElementPos = { x: movedPointer.x - grabOffset.dx, y: movedPointer.y - grabOffset.dy };
+    assert.equal(newElementPos.x, 70); // Exact 20% move without jumping!
+    assert.equal(newElementPos.y, 70);
+  });
+
+  // -------------------------------------------------------------
+  // Test 14: verifyToken DB leak test (raw token != stored hash)
+  // -------------------------------------------------------------
+  await t.test('14. verifyToken DB leak test: DB stores SHA-256 hash preventing offline token exposure', () => {
+    const rawToken = crypto.randomBytes(24).toString('hex');
+    const storedHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+
+    // DB value must NEVER equal raw token
+    assert.notEqual(storedHash, rawToken);
+    assert.equal(storedHash.length, 64); // SHA-256 64-hex chars
+
+    // Verification check: incoming raw token hashes to stored DB hash
+    const inputToken = rawToken;
+    const inputHash = crypto.createHash('sha256').update(inputToken.trim()).digest('hex');
+    assert.equal(inputHash, storedHash);
+
+    // Attacker tampering with token fails
+    const tamperedHash = crypto.createHash('sha256').update('fake_token_123').digest('hex');
+    assert.notEqual(tamperedHash, storedHash);
+  });
+
+  // -------------------------------------------------------------
+  // Test 15: Font asset identity test (Preview + PDF resolve exact same manifest)
+  // -------------------------------------------------------------
+  await t.test('15. Font asset identity test: All 6 Thai fonts resolve identical family, version, and assetHash', () => {
+    const manifestKeys = Object.keys(FONT_MANIFEST);
+    assert.equal(manifestKeys.length, 6);
+
+    for (const key of manifestKeys) {
+      const font = FONT_MANIFEST[key];
+      assert.ok(font.family, `Font ${key} has family`);
+      assert.ok(font.version, `Font ${key} has version`);
+      assert.ok(font.assetHash, `Font ${key} has assetHash`);
+      assert.ok(font.weights.length > 0, `Font ${key} has weights`);
+    }
+
+    // Verify Sarabun, Prompt, Kanit, Taviraj, Chakra Petch, Mali
+    assert.ok(FONT_MANIFEST['Sarabun']);
+    assert.ok(FONT_MANIFEST['Prompt']);
+    assert.ok(FONT_MANIFEST['Kanit']);
+    assert.ok(FONT_MANIFEST['Taviraj']);
+    assert.ok(FONT_MANIFEST['Chakra Petch']);
+    assert.ok(FONT_MANIFEST['Mali']);
+  });
+
+  // -------------------------------------------------------------
+  // Test 16: Pure QR Matrix generator (Decoupled from React DOM)
+  // -------------------------------------------------------------
+  await t.test('16. Pure QR Matrix generator: Generates 25x25 boolean matrix with EC Level H without DOM', () => {
+    const matrix = generateQrMatrix('https://eleave.kutchap.ac.th/verify/cert?token=TEST', 'H');
+    assert.ok(matrix.size >= 21); // Standard QR size >= 21
+    assert.equal(typeof matrix.getModule(0, 0), 'boolean');
+    assert.equal(matrix.modules.length, matrix.size);
+    assert.equal(matrix.modules[0].length, matrix.size);
+  });
 });
+

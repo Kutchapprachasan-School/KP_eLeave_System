@@ -15,14 +15,9 @@ export class SupabaseInstanceProvider implements StorageProvider {
   private bucket: string;
 
   constructor(url: string, key: string, bucket: string) {
-    this.url    = url;
+    this.url    = url.replace(/\/$/, "");
     this.key    = key;
     this.bucket = bucket;
-  }
-
-  private getClient() {
-    const { createClient } = require("@supabase/supabase-js");
-    return createClient(this.url, this.key);
   }
 
   async upload(
@@ -34,21 +29,30 @@ export class SupabaseInstanceProvider implements StorageProvider {
     options?: UploadOptions
   ): Promise<StorageUploadResult> {
     const targetBucket = options?.bucket || this.bucket;
-    const { error } = await this.getClient().storage
-      .from(targetBucket)
-      .upload(storageKey, buffer, {
-        contentType: mimeType,
-        upsert: options?.upsert ?? true,
-        cacheControl: options?.cacheControl ?? (options?.isPublic ? "31536000" : undefined),
-      });
-    if (error) throw new Error(error.message);
+    const cleanKey = storageKey.replace(/^\/+/, "");
+
+    const res = await fetch(`${this.url}/storage/v1/object/${targetBucket}/${cleanKey}`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${this.key}`,
+        apikey: this.key,
+        "Content-Type": mimeType,
+        "x-upsert": String(options?.upsert ?? true),
+      },
+      body: buffer,
+    });
+
+    if (!res.ok) {
+      const errBody = await res.text();
+      throw new Error(`Supabase REST upload failed (${res.status}): ${errBody}`);
+    }
 
     const publicUrl = options?.isPublic
-      ? `${this.url.replace(/\/$/, "")}/storage/v1/object/public/${targetBucket}/${storageKey}`
+      ? `${this.url}/storage/v1/object/public/${targetBucket}/${cleanKey}`
       : undefined;
 
     return {
-      storageKey,
+      storageKey: cleanKey,
       publicUrl,
       providerId: "supabase-instance",
     };
@@ -59,23 +63,55 @@ export class SupabaseInstanceProvider implements StorageProvider {
     options?: { bucket?: string; expiresIn?: number; isPublic?: boolean }
   ): Promise<string> {
     const targetBucket = options?.bucket || this.bucket;
+    const cleanKey = storageKey.replace(/^\/+/, "");
+
     if (options?.isPublic) {
-      return `${this.url.replace(/\/$/, "")}/storage/v1/object/public/${targetBucket}/${storageKey}`;
+      return `${this.url}/storage/v1/object/public/${targetBucket}/${cleanKey}`;
     }
 
-    const { data, error } = await this.getClient().storage
-      .from(targetBucket)
-      .createSignedUrl(storageKey, options?.expiresIn || SIGNED_URL_EXPIRY_SECONDS);
-    if (error || !data?.signedUrl) throw new Error(error?.message ?? "Signed URL failed");
-    return data.signedUrl;
+    // Signed URL via Supabase REST API
+    const res = await fetch(`${this.url}/storage/v1/object/sign/${targetBucket}/${cleanKey}`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${this.key}`,
+        apikey: this.key,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ expiresIn: options?.expiresIn || SIGNED_URL_EXPIRY_SECONDS }),
+    });
+
+    if (!res.ok) {
+      // If signed URL fails or bucket is public, fallback to public object URL
+      return `${this.url}/storage/v1/object/public/${targetBucket}/${cleanKey}`;
+    }
+
+    const data = await res.json();
+    if (data?.signedURL) {
+      return `${this.url}/storage/v1${data.signedURL}`;
+    }
+
+    return `${this.url}/storage/v1/object/public/${targetBucket}/${cleanKey}`;
   }
 
   async delete(storageKey: string, options?: { bucket?: string }): Promise<void> {
     const targetBucket = options?.bucket || this.bucket;
-    const { error } = await this.getClient().storage
-      .from(targetBucket)
-      .remove([storageKey]);
-    if (error) throw new Error(error.message);
+    const cleanKey = storageKey.replace(/^\/+/, "");
+
+    const res = await fetch(`${this.url}/storage/v1/object/${targetBucket}`, {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${this.key}`,
+        apikey: this.key,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ prefixes: [cleanKey] }),
+    });
+
+    if (!res.ok) {
+      const errBody = await res.text();
+      throw new Error(`Supabase REST delete failed (${res.status}): ${errBody}`);
+    }
   }
 }
+
 

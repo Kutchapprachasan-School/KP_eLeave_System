@@ -4,15 +4,11 @@ import {
   type CertificateElement,
   ptToCanvasPx,
   truncateThaiGrapheme,
-} from "./cert-schema";
-
-export interface LoadedFontSet {
-  sarabunRegular: boolean;
-  sarabunBold: boolean;
-  promptRegular: boolean;
-  promptBold: boolean;
-  verifiedAt: number;
-}
+  FONT_MANIFEST,
+  SUPPORTED_FONTS,
+} from "./cert-schema.ts";
+import { drawQRCodeBadge } from "./qr-renderer.ts";
+export { ensureFontsLoaded, type LoadedFontSet } from "./font-loader.ts";
 
 export const A4_DIMS = {
   LANDSCAPE: {
@@ -28,50 +24,6 @@ export const A4_DIMS = {
     previewHeight: 842,
   },
 } as const;
-
-/**
- * Invariant I: Tri-Layer Thai Typography Gate
- * Ensures Sarabun and Prompt (weights 400 + 700) are fully loaded and shaped by the browser
- * using an authoritative Thai test glyph string before any canvas drawing occurs.
- */
-export async function ensureFontsLoaded(): Promise<LoadedFontSet> {
-  const THAI_TEST_GLYPHS = "กขคงญณฐฎฏฯ ๑๒๓๔๕๖๗๘๙๐ ที่ปิ้งชี้สิทธิ์พญาไท";
-
-  if (typeof document === "undefined" || !("fonts" in document)) {
-    return {
-      sarabunRegular: true,
-      sarabunBold: true,
-      promptRegular: true,
-      promptBold: true,
-      verifiedAt: Date.now(),
-    };
-  }
-
-  const fontDescriptors = [
-    { family: "Sarabun", weight: "400", key: "sarabunRegular" as const },
-    { family: "Sarabun", weight: "700", key: "sarabunBold" as const },
-    { family: "Prompt", weight: "400", key: "promptRegular" as const },
-    { family: "Prompt", weight: "700", key: "promptBold" as const },
-  ];
-
-  await Promise.all(
-    fontDescriptors.map(async ({ family, weight }) => {
-      try {
-        await document.fonts.load(`${weight} 16px "${family}"`, THAI_TEST_GLYPHS);
-      } catch (err) {
-        console.warn(`[ensureFontsLoaded] Font ${family} (${weight}) load warning:`, err);
-      }
-    })
-  );
-
-  return {
-    sarabunRegular: true,
-    sarabunBold: true,
-    promptRegular: true,
-    promptBold: true,
-    verifiedAt: Date.now(),
-  };
-}
 
 /**
  * Invariant R & H: Cloud Storage CORS Image Loader
@@ -127,6 +79,8 @@ export function drawCertificatePage({
 
   // 2. Render each placeholder element
   for (const el of template.elements) {
+    if (el.hidden) continue;
+
     if (el.type === "text") {
       const rawValue = data[el.key] ?? el.sampleText ?? "";
       if (!rawValue && !el.prefix && !el.suffix) continue;
@@ -135,25 +89,44 @@ export function drawCertificatePage({
 
       // Scaled font size based on DPI (Invariant V)
       const fontSizePx = ptToCanvasPx(el.fontSizePt, dpi);
-      ctx.font = `${el.fontWeight === "bold" ? "bold" : "normal"} ${fontSizePx}px "${el.fontFamily}", sans-serif`;
+      const fontStyle = el.italic ? "italic " : "";
+      const fontWeight = el.fontWeight === "bold" ? "bold" : "normal";
+      ctx.font = `${fontStyle}${fontWeight} ${fontSizePx}px "${el.fontFamily}", sans-serif`;
       ctx.fillStyle = el.color || "#000000";
       ctx.textAlign = el.textAlign || "center";
       ctx.textBaseline = "middle";
+
+      // Text effects: shadow & letter spacing
+      ctx.save();
+      if (el.shadow) {
+        ctx.shadowColor = el.shadowColor || "rgba(0, 0, 0, 0.25)";
+        ctx.shadowBlur = (el.shadowBlur || 4) * (dpi / 72);
+        ctx.shadowOffsetY = 2 * (dpi / 72);
+      }
+
+      if (el.letterSpacing && typeof (ctx as any).letterSpacing !== "undefined") {
+        (ctx as any).letterSpacing = `${el.letterSpacing * (dpi / 72)}px`;
+      }
 
       const x = (el.xPercent / 100) * width;
       const y = (el.yPercent / 100) * height;
 
       // Thai-safe grapheme truncation to prevent text overflowing bounds
-      const safeText = truncateThaiGrapheme(displayText, 80);
+      const safeText = truncateThaiGrapheme(displayText, 100);
       ctx.fillText(safeText, x, y);
+      ctx.restore();
     } else if (el.type === "qrcode") {
-      const qrSource = qrImages[el.key] || qrImages["default"];
-      if (qrSource) {
-        const qrSize = ptToCanvasPx(el.fontSizePt * 4, dpi); // Scale QR according to sizing
-        const x = (el.xPercent / 100) * width - qrSize / 2;
-        const y = (el.yPercent / 100) * height - qrSize / 2;
-        ctx.drawImage(qrSource, x, y, qrSize, qrSize);
-      }
+      const rawUrl = data[el.key] || el.sampleText || "https://eleave.kutchap.ac.th/verify/cert?token=SAMPLE";
+      const qrBaseSizePx = ptToCanvasPx(el.fontSizePt * 4, dpi);
+      const centerX = (el.xPercent / 100) * width;
+      const centerY = (el.yPercent / 100) * height;
+
+      // Draw high-fidelity square QR badge directly on canvas context
+      drawQRCodeBadge(ctx, centerX, centerY, qrBaseSizePx, rawUrl, {
+        label: "สแกนตรวจสอบ",
+        showBadgeCard: true,
+        dpi,
+      });
     }
   }
 }

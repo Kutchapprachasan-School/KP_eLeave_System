@@ -1,8 +1,11 @@
 const { Pool } = require("pg");
 
-const connectionString =
-  process.env.DATABASE_URL ||
-  "postgresql://postgres.ngzflajpifmsvhldhviu:YQSmSuCwZ9_iR_!@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres?pgbouncer=true";
+const connectionString = process.env.DATABASE_URL;
+
+if (!connectionString) {
+  console.error("Missing process.env.DATABASE_URL. Please set DATABASE_URL in your environment.");
+  process.exit(1);
+}
 
 const pool = new Pool({
   connectionString,

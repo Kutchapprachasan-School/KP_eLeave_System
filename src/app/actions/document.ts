@@ -1075,8 +1075,9 @@ export async function issueActivityCertificatesBatch(payload: {
 
         for (let s = itemStart; s <= itemEnd; s++) {
           const certNo = `${s}/${thYear}`;
-          // 🟠 Senior Lock 7: Unguessable verification token
-          const vToken = `cert_${thYear}_${s}_${crypto.randomBytes(8).toString("hex")}`;
+          // 🔴 Senior Lock 7 & Verdict 5.1: 192-bit unguessable raw token, hashed for DB storage
+          const rawToken = crypto.randomBytes(24).toString("hex");
+          const tokenHash = crypto.createHash("sha256").update(rawToken).digest("hex");
           const itemId = `ci_${crypto.randomBytes(12).toString("hex")}`;
           certificateItemsData.push({
             id: itemId,
@@ -1084,7 +1085,8 @@ export async function issueActivityCertificatesBatch(payload: {
             year: thYear,
             certificateNumber: certNo,
             roleTitle: item.roleTitle.trim(),
-            verifyToken: vToken,
+            verifyToken: tokenHash, // DB stores SHA-256 hash
+            rawToken: rawToken,     // Client QR codes receive unguessable raw token
             status: "ISSUED",
           });
         }
@@ -1126,7 +1128,10 @@ export async function issueActivityCertificatesBatch(payload: {
 
       return {
         ...newRecord,
-        certificateItems: certificateItemsData,
+        certificateItems: certificateItemsData.map((c) => ({
+          ...c,
+          verifyToken: c.rawToken || c.verifyToken,
+        })),
       };
     });
 
@@ -1229,6 +1234,9 @@ export async function verifyCertificatePublic(verifyToken: string): Promise<Acti
       throw new Error("ไม่พบรหัสตรวจสอบเกียรติบัตร");
     }
 
+    const rawToken = verifyToken.trim();
+    const tokenHash = crypto.createHash("sha256").update(rawToken).digest("hex");
+
     const rows = await prisma.$queryRaw<Array<{
       certificateNumber: string;
       seqNo: number;
@@ -1250,7 +1258,7 @@ export async function verifyCertificatePublic(verifyToken: string): Promise<Acti
         d."signeeName" as "batchSignee", d."signeePosition" as "batchSigneePosition", d.status as "batchStatus"
       FROM "CertificateIssuedItem" c
       JOIN "DocumentRecord" d ON d.id = c."batchRecordId"
-      WHERE c."verifyToken" = ${verifyToken.trim()}
+      WHERE c."verifyToken" = ${tokenHash} OR c."verifyToken" = ${rawToken}
       LIMIT 1
     `;
 
@@ -1258,21 +1266,24 @@ export async function verifyCertificatePublic(verifyToken: string): Promise<Acti
       return {
         success: false,
         error: "ไม่พบข้อมูลเกียรติบัตรนี้ในระบบทะเบียน หรือรหัสตรวจสอบไม่ถูกต้อง",
+        data: { state: "NOT_FOUND" },
       };
     }
 
     const item = rows[0];
     const isValid = item.status === "ISSUED" && item.batchStatus === "ISSUED";
+    const isRevoked = item.status === "CANCELLED" || item.batchStatus === "CANCELLED" || item.status === "REVOKED";
 
     return {
       success: true,
       data: {
+        state: isValid ? "VALID" : (isRevoked ? "REVOKED" : "CANCELLED"),
         certificateNumber: item.certificateNumber,
         seqNo: item.seqNo,
         year: item.year,
         roleTitle: item.roleTitle,
         recipientName: item.recipientName,
-        status: isValid ? "VALID" : "CANCELLED",
+        status: isValid ? "VALID" : "REVOKED",
         activityTitle: item.batchTitle,
         organization: item.batchOrigin,
         issuedDate: item.batchDate,
@@ -1296,7 +1307,7 @@ import {
   getTemplatesService,
   type SaveTemplateInput,
 } from "@/services/certificate/certificate-template.service";
-import { getStorageProvider } from "@/services/storage";
+import { getStorageProvider, getStorageProviderByType, uploadWithResilientFallback } from "@/services/storage";
 
 export async function getCertificateTemplatesAction(): Promise<ActionResponse<any[]>> {
   try {
@@ -1459,22 +1470,23 @@ export async function uploadCertificateBackgroundAction(
     });
 
     if (attachment.attachmentStatus === "ACTIVE") {
-      const storage = getStorageProvider();
-      const url = await storage.getUrl(attachment.objectKey);
+      const storage = getStorageProviderByType(attachment.storageProvider);
+      const url = await storage.getUrl(attachment.objectKey, { isPublic: true });
       return {
         success: true,
         data: {
           attachmentId: attachment.id,
           url,
           objectKey: attachment.objectKey,
+          storageProvider: attachment.storageProvider,
         },
       };
     }
 
-    // 2. Upload to Cloud Storage
-    const storage = getStorageProvider();
+    // 2. Upload to Cloud Storage with R2 -> Supabase resilient fallback
+    let uploadRes: { storageKey: string; publicUrl?: string; provider: "R2" | "SUPABASE" };
     try {
-      await storage.upload({
+      uploadRes = await uploadWithResilientFallback({
         buffer,
         mimeType: file.type,
         storageKey: objectKey,
@@ -1493,11 +1505,12 @@ export async function uploadCertificateBackgroundAction(
       return { success: false, error: `Cloud upload failed: ${uploadErr?.message || uploadErr}` };
     }
 
-    // 3. Cloud upload succeeded -> Mark ACTIVE
+    // 3. Cloud upload succeeded -> Mark ACTIVE & commit storageProvider
     await prisma.$transaction(async (tx) => {
       await tx.fileAttachment.update({
         where: { id: attachment.id },
         data: {
+          storageProvider: uploadRes.provider,
           attachmentStatus: "ACTIVE",
           uploadExpiresAt: null,
         },
@@ -1512,7 +1525,7 @@ export async function uploadCertificateBackgroundAction(
       });
     });
 
-    const publicUrl = await storage.getUrl(objectKey);
+    const publicUrl = uploadRes.publicUrl || (await getStorageProviderByType(uploadRes.provider).getUrl(objectKey, { isPublic: true }));
 
     return {
       success: true,
@@ -1520,6 +1533,7 @@ export async function uploadCertificateBackgroundAction(
         attachmentId: attachment.id,
         url: publicUrl,
         objectKey,
+        storageProvider: uploadRes.provider,
       },
     };
   } catch (err: any) {

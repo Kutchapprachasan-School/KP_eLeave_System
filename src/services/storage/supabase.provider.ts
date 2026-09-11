@@ -15,21 +15,20 @@ import type { StorageProvider, UploadOptions, StorageUploadResult } from "./prov
 const BUCKET = process.env.SUPABASE_STORAGE_BUCKET ?? "repair-photos";
 const SIGNED_URL_EXPIRY_SECONDS = 3600; // 1 hour
 
-function getClient() {
-  const url = process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) {
-    throw new Error(
-      "Supabase Storage ยังไม่ได้ตั้งค่า\n" +
-      "ต้องการ: SUPABASE_URL และ SUPABASE_SERVICE_ROLE_KEY\n" +
-      "ดู Project Settings → API ใน Supabase Dashboard"
-    );
-  }
-  const { createClient } = require("@supabase/supabase-js");
-  return createClient(url, key);
-}
-
 export class SupabaseStorageProvider implements StorageProvider {
+  private getCredentials() {
+    const url = process.env.SUPABASE_URL;
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!url || !key) {
+      throw new Error(
+        "Supabase Storage ยังไม่ได้ตั้งค่า\n" +
+        "ต้องการ: SUPABASE_URL และ SUPABASE_SERVICE_ROLE_KEY\n" +
+        "ดู Project Settings → API ใน Supabase Dashboard"
+      );
+    }
+    return { url: url.replace(/\/$/, ""), key };
+  }
+
   async upload(
     {
       buffer,
@@ -43,23 +42,31 @@ export class SupabaseStorageProvider implements StorageProvider {
     options?: UploadOptions
   ): Promise<StorageUploadResult> {
     const targetBucket = options?.bucket || BUCKET;
-    const client = getClient();
-    const { error } = await client.storage
-      .from(targetBucket)
-      .upload(storageKey, buffer, {
-        contentType: mimeType,
-        upsert: options?.upsert ?? true,
-        cacheControl: options?.cacheControl ?? (options?.isPublic ? "31536000" : undefined),
-      });
-    if (error) throw new Error(`Supabase upload failed: ${error.message}`);
+    const { url, key } = this.getCredentials();
+    const cleanKey = storageKey.replace(/^\/+/, "");
 
-    const url = process.env.SUPABASE_URL || "";
+    const res = await fetch(`${url}/storage/v1/object/${targetBucket}/${cleanKey}`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${key}`,
+        apikey: key,
+        "Content-Type": mimeType,
+        "x-upsert": String(options?.upsert ?? true),
+      },
+      body: buffer,
+    });
+
+    if (!res.ok) {
+      const errBody = await res.text();
+      throw new Error(`Supabase upload failed (${res.status}): ${errBody}`);
+    }
+
     const publicUrl = options?.isPublic
-      ? `${url.replace(/\/$/, "")}/storage/v1/object/public/${targetBucket}/${storageKey}`
+      ? `${url}/storage/v1/object/public/${targetBucket}/${cleanKey}`
       : undefined;
 
     return {
-      storageKey,
+      storageKey: cleanKey,
       publicUrl,
       providerId: "supabase",
     };
@@ -70,26 +77,55 @@ export class SupabaseStorageProvider implements StorageProvider {
     options?: { bucket?: string; expiresIn?: number; isPublic?: boolean }
   ): Promise<string> {
     const targetBucket = options?.bucket || BUCKET;
-    const url = process.env.SUPABASE_URL || "";
+    const { url, key } = this.getCredentials();
+    const cleanKey = storageKey.replace(/^\/+/, "");
+
     if (options?.isPublic) {
-      return `${url.replace(/\/$/, "")}/storage/v1/object/public/${targetBucket}/${storageKey}`;
+      return `${url}/storage/v1/object/public/${targetBucket}/${cleanKey}`;
     }
 
-    const client = getClient();
-    const { data, error } = await client.storage
-      .from(targetBucket)
-      .createSignedUrl(storageKey, options?.expiresIn || SIGNED_URL_EXPIRY_SECONDS);
-    if (error || !data?.signedUrl) {
-      throw new Error(`Supabase signed URL failed: ${error?.message}`);
+    const res = await fetch(`${url}/storage/v1/object/sign/${targetBucket}/${cleanKey}`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${key}`,
+        apikey: key,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ expiresIn: options?.expiresIn || SIGNED_URL_EXPIRY_SECONDS }),
+    });
+
+    if (!res.ok) {
+      return `${url}/storage/v1/object/public/${targetBucket}/${cleanKey}`;
     }
-    return data.signedUrl;
+
+    const data = await res.json();
+    if (data?.signedURL) {
+      return `${url}/storage/v1${data.signedURL}`;
+    }
+
+    return `${url}/storage/v1/object/public/${targetBucket}/${cleanKey}`;
   }
 
   async delete(storageKey: string, options?: { bucket?: string }): Promise<void> {
     const targetBucket = options?.bucket || BUCKET;
-    const client = getClient();
-    const { error } = await client.storage.from(targetBucket).remove([storageKey]);
-    if (error) throw new Error(`Supabase delete failed: ${error.message}`);
+    const { url, key } = this.getCredentials();
+    const cleanKey = storageKey.replace(/^\/+/, "");
+
+    const res = await fetch(`${url}/storage/v1/object/${targetBucket}`, {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${key}`,
+        apikey: key,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ prefixes: [cleanKey] }),
+    });
+
+    if (!res.ok) {
+      const errBody = await res.text();
+      throw new Error(`Supabase delete failed (${res.status}): ${errBody}`);
+    }
   }
 }
+
 
