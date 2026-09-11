@@ -122,13 +122,34 @@ export function computeSnap(
   return { snappedVal: val, isSnapped: false };
 }
 
+export type PresetMultiplicity = "singleton" | "role-singleton" | "unlimited";
+
+export const SINGLETON_KEYS = [
+  "fullName",
+  "certNumber",
+  "role",
+  "activityName",
+  "department",
+  "date",
+  "qrCode",
+] as const;
+
+export const ROLE_SINGLETON_KEYS = [
+  "signee1",
+  "signee2",
+  "signature1",
+  "signature2",
+  "signeeName",
+  "signeePosition",
+] as const;
+
 /**
  * Element Layout Schema for V1 Templates.
  */
 export const CertificateElementSchema = z.object({
   id: z.string(),
-  type: z.enum(["text", "qrcode"]),
-  key: z.string(), // Token key e.g. "fullName", "certNumber", "role", "activityName", "department", "date", "qrCode"
+  type: z.enum(["text", "qrcode", "signature"]),
+  key: z.string(), // Token key e.g. "fullName", "certNumber", "role", "activityName", "department", "date", "qrCode", "signee1", "signature1", etc.
   label: z.string(),
   xPercent: z.number().min(0).max(100), // Normalized 0..100% position on canvas
   yPercent: z.number().min(0).max(100),
@@ -147,34 +168,88 @@ export const CertificateElementSchema = z.object({
   suffix: z.string().optional(),
   sampleText: z.string().optional(),
   hidden: z.boolean().optional().default(false),
+  // Senior Patch 1 & 5: Storage SOT Attachment ID & Semantic Signee link
+  signatureAttachmentId: z.string().optional(),
+  signatureFor: z.enum(["signee1", "signee2"]).optional(),
+  imageWidthPercent: z.number().min(3).max(50).default(14),
+  aspectRatio: z.number().positive().optional(),
+  previewUrl: z.string().optional(), // Client-side instant preview URL
 });
 
 export type CertificateElement = z.infer<typeof CertificateElementSchema>;
 
 /**
- * V1 Layout Configuration Schema.
+ * V1 Layout Configuration Schema with Senior Boundary Validation.
  */
-export const CertificateTemplateV1Schema = z.object({
-  schemaVersion: z.literal(1).default(1),
-  orientation: z.enum(["LANDSCAPE", "PORTRAIT"]).default("LANDSCAPE"),
-  elements: z.array(CertificateElementSchema),
-});
+export const CertificateTemplateV1Schema = z
+  .object({
+    schemaVersion: z.literal(1).default(1),
+    orientation: z.enum(["LANDSCAPE", "PORTRAIT"]).default("LANDSCAPE"),
+    elements: z.array(CertificateElementSchema),
+  })
+  .refine(
+    (data) => {
+      // 1. Enforce singleton keys (at most 1 per layout)
+      const keyCounts = new Map<string, number>();
+      for (const el of data.elements) {
+        keyCounts.set(el.key, (keyCounts.get(el.key) || 0) + 1);
+      }
+
+      for (const sKey of SINGLETON_KEYS) {
+        if ((keyCounts.get(sKey) || 0) > 1) {
+          return false;
+        }
+      }
+
+      for (const rKey of ROLE_SINGLETON_KEYS) {
+        if ((keyCounts.get(rKey) || 0) > 1) {
+          return false;
+        }
+      }
+
+      return true;
+    },
+    {
+      message: "INVALID_LAYOUT: Layout contains duplicate singleton or role-singleton element keys.",
+    }
+  );
 
 export type CertificateTemplateV1 = z.infer<typeof CertificateTemplateV1Schema>;
 
 /**
- * Teacher-Friendly Typography Presets for School Certificates.
+ * Senior Architecture Pattern: Signee Layout Strategy Presets
  */
-export const ELEMENT_PRESETS: Array<{
+export const SIGNEE_LAYOUT_PRESETS = {
+  SINGLE_SIGNEE: {
+    signee1: { xPercent: 50, yPercent: 88 },
+    signature1: { xPercent: 50, yPercent: 80 },
+  },
+  DUAL_SIGNEE_BALANCED: {
+    signee1: { xPercent: 28, yPercent: 88 },
+    signature1: { xPercent: 28, yPercent: 80 },
+    signee2: { xPercent: 72, yPercent: 88 },
+    signature2: { xPercent: 72, yPercent: 80 },
+  },
+} as const;
+
+
+export interface ElementPresetItem {
   key: string;
   label: string;
-  type: "text" | "qrcode";
+  type: "text" | "qrcode" | "signature";
+  multiplicity: PresetMultiplicity;
   defaultElement: Omit<CertificateElement, "id">;
-}> = [
+}
+
+/**
+ * Teacher-Friendly Typography Presets for School Certificates.
+ */
+export const ELEMENT_PRESETS: ElementPresetItem[] = [
   {
     key: "fullName",
     label: "ชื่อ-นามสกุล ผู้รับ",
     type: "text",
+    multiplicity: "singleton",
     defaultElement: {
       type: "text",
       key: "fullName",
@@ -194,6 +269,7 @@ export const ELEMENT_PRESETS: Array<{
     key: "certNumber",
     label: "เลขที่เกียรติบัตร",
     type: "text",
+    multiplicity: "singleton",
     defaultElement: {
       type: "text",
       key: "certNumber",
@@ -214,6 +290,7 @@ export const ELEMENT_PRESETS: Array<{
     key: "role",
     label: "รางวัล / บทบาทที่ได้รับ",
     type: "text",
+    multiplicity: "singleton",
     defaultElement: {
       type: "text",
       key: "role",
@@ -233,6 +310,7 @@ export const ELEMENT_PRESETS: Array<{
     key: "activityName",
     label: "ชื่องาน / กิจกรรม",
     type: "text",
+    multiplicity: "singleton",
     defaultElement: {
       type: "text",
       key: "activityName",
@@ -252,6 +330,7 @@ export const ELEMENT_PRESETS: Array<{
     key: "department",
     label: "กลุ่มสาระฯ / หน่วยงาน",
     type: "text",
+    multiplicity: "singleton",
     defaultElement: {
       type: "text",
       key: "department",
@@ -271,6 +350,7 @@ export const ELEMENT_PRESETS: Array<{
     key: "date",
     label: "วันที่ออกเกียรติบัตร",
     type: "text",
+    multiplicity: "singleton",
     defaultElement: {
       type: "text",
       key: "date",
@@ -288,47 +368,92 @@ export const ELEMENT_PRESETS: Array<{
     },
   },
   {
-    key: "signeeName",
-    label: "ชื่อผู้ลงนาม",
+    key: "signee1",
+    label: "ผู้ลงนามคนที่ 1",
     type: "text",
+    multiplicity: "role-singleton",
     defaultElement: {
       type: "text",
-      key: "signeeName",
-      label: "ชื่อผู้ลงนาม",
-      xPercent: 50,
-      yPercent: 86,
-      fontSizePt: 18,
+      key: "signee1",
+      label: "ผู้ลงนามคนที่ 1",
+      xPercent: 28,
+      yPercent: 88,
+      fontSizePt: 16,
       fontFamily: "Taviraj",
       fontWeight: "bold",
       italic: false,
       color: "#0f172a",
       textAlign: "center",
-      sampleText: "( นายวิจิตร สุขสงบ )",
+      sampleText: "( นายสมเกียรติ สว่างวงศ์ )\nครูที่ปรึกษา / หัวหน้าโครงการ",
     },
   },
   {
-    key: "signeePosition",
-    label: "ตำแหน่งผู้ลงนาม",
-    type: "text",
+    key: "signature1",
+    label: "ลายเซ็นสแกน (คนที่ 1)",
+    type: "signature",
+    multiplicity: "role-singleton",
     defaultElement: {
-      type: "text",
-      key: "signeePosition",
-      label: "ตำแหน่งผู้ลงนาม",
-      xPercent: 50,
-      yPercent: 91,
-      fontSizePt: 15,
-      fontFamily: "Taviraj",
+      type: "signature",
+      key: "signature1",
+      label: "ลายเซ็นสแกน (คนที่ 1)",
+      signatureFor: "signee1",
+      xPercent: 28,
+      yPercent: 80,
+      imageWidthPercent: 14,
+      fontSizePt: 14,
+      fontFamily: "Sarabun",
       fontWeight: "normal",
       italic: false,
-      color: "#475569",
+      color: "#3b82f6",
       textAlign: "center",
-      sampleText: "ผู้อำนวยการโรงเรียนกุดจับประชาสรรค์",
+    },
+  },
+  {
+    key: "signee2",
+    label: "ผู้ลงนามคนที่ 2",
+    type: "text",
+    multiplicity: "role-singleton",
+    defaultElement: {
+      type: "text",
+      key: "signee2",
+      label: "ผู้ลงนามคนที่ 2",
+      xPercent: 72,
+      yPercent: 88,
+      fontSizePt: 16,
+      fontFamily: "Taviraj",
+      fontWeight: "bold",
+      italic: false,
+      color: "#0f172a",
+      textAlign: "center",
+      sampleText: "( นายวิจิตร สุขสงบ )\nผู้อำนวยการโรงเรียนกุดจับประชาสรรค์",
+    },
+  },
+  {
+    key: "signature2",
+    label: "ลายเซ็นสแกน (คนที่ 2)",
+    type: "signature",
+    multiplicity: "role-singleton",
+    defaultElement: {
+      type: "signature",
+      key: "signature2",
+      label: "ลายเซ็นสแกน (คนที่ 2)",
+      signatureFor: "signee2",
+      xPercent: 72,
+      yPercent: 80,
+      imageWidthPercent: 14,
+      fontSizePt: 14,
+      fontFamily: "Sarabun",
+      fontWeight: "normal",
+      italic: false,
+      color: "#3b82f6",
+      textAlign: "center",
     },
   },
   {
     key: "qrCode",
     label: "กล่อง QR Code ตรวจสอบ",
     type: "qrcode",
+    multiplicity: "singleton",
     defaultElement: {
       type: "qrcode",
       key: "qrCode",
@@ -348,6 +473,7 @@ export const ELEMENT_PRESETS: Array<{
     key: "customText",
     label: "ข้อความกำหนดเอง",
     type: "text",
+    multiplicity: "unlimited",
     defaultElement: {
       type: "text",
       key: "customText",
@@ -364,6 +490,7 @@ export const ELEMENT_PRESETS: Array<{
     },
   },
 ];
+
 
 /**
  * Standard Default Elements for Thai School Certificates.

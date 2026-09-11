@@ -88,6 +88,7 @@ export function drawCertificatePage({
   template,
   data,
   qrImages = {},
+  signatureImages = {},
 }: {
   ctx: CanvasRenderingContext2D;
   width: number;
@@ -97,6 +98,7 @@ export function drawCertificatePage({
   template: CertificateTemplateV1;
   data: Record<string, string>;
   qrImages?: Record<string, HTMLImageElement | HTMLCanvasElement>;
+  signatureImages?: Record<string, CanvasImageSource>;
 }): void {
   // 1. Draw background image stretched across full page if provided and valid
   if (isValidDrawableImage(backgroundImage)) {
@@ -160,6 +162,52 @@ export function drawCertificatePage({
         showBadgeCard: true,
         dpi,
       });
+    } else if (el.type === "signature") {
+      // Senior Instruction: Preserve natural aspect ratio and render smoothly
+      const targetWidth = ((el.imageWidthPercent || 14) / 100) * width;
+      const centerX = (el.xPercent / 100) * width;
+      const centerY = (el.yPercent / 100) * height;
+
+      const sigImg =
+        (el.signatureAttachmentId && signatureImages[el.signatureAttachmentId]) ||
+        (el.previewUrl && signatureImages[el.previewUrl]);
+
+      if (sigImg && isValidDrawableImage(sigImg)) {
+        const naturalW = (sigImg as any).naturalWidth || (sigImg as any).width || 200;
+        const naturalH = (sigImg as any).naturalHeight || (sigImg as any).height || 80;
+        const aspect = naturalW / naturalH;
+        const targetHeight = targetWidth / aspect;
+
+        ctx.save();
+        ctx.drawImage(
+          sigImg,
+          centerX - targetWidth / 2,
+          centerY - targetHeight / 2,
+          targetWidth,
+          targetHeight
+        );
+        ctx.restore();
+      } else {
+        // Fallback placeholder box in studio preview
+        const targetHeight = targetWidth / (el.aspectRatio || 2.5);
+        ctx.save();
+        ctx.strokeStyle = "#93c5fd";
+        ctx.lineWidth = Math.max(1, 1.5 * (dpi / 72));
+        ctx.setLineDash([4 * (dpi / 72), 3 * (dpi / 72)]);
+        ctx.strokeRect(
+          centerX - targetWidth / 2,
+          centerY - targetHeight / 2,
+          targetWidth,
+          targetHeight
+        );
+
+        ctx.font = `normal ${Math.max(10, Math.round(11 * (dpi / 72)))}px Sarabun, sans-serif`;
+        ctx.fillStyle = "#60a5fa";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText("✍️ ลายเซ็นสแกน", centerX, centerY);
+        ctx.restore();
+      }
     }
   }
 }
@@ -202,6 +250,23 @@ export async function generateCertificatePdfBatch({
   const printWidth = dims.printWidth;
   const printHeight = dims.printHeight;
   const dpi = 300;
+
+  // 3b. Preload signature images keyed by attachmentId (Senior Patch 1 & 2)
+  const signatureImages: Record<string, HTMLImageElement> = {};
+  for (const el of template.elements) {
+    if (el.type === "signature") {
+      const idKey = el.signatureAttachmentId || el.previewUrl;
+      const urlToLoad = el.previewUrl;
+      if (idKey && urlToLoad && !signatureImages[idKey]) {
+        try {
+          const sigImg = await loadCanvasImage(urlToLoad);
+          signatureImages[idKey] = sigImg;
+        } catch (err) {
+          console.warn(`Failed to preload signature image for ${idKey}:`, err);
+        }
+      }
+    }
+  }
 
   // 4. Single reusable 300 DPI offscreen canvas (Invariant F)
   const canvas = document.createElement("canvas");
@@ -247,6 +312,7 @@ export async function generateCertificatePdfBatch({
       template,
       data: row,
       qrImages,
+      signatureImages,
     });
 
     // Encode to high-quality JPEG

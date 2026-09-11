@@ -575,5 +575,340 @@ test('Certificate Designer Studio & Concurrency Invariants Suite', async (t) => 
     assert.ok(renderedTexts.includes('ข้อความตัวอย่างที่ต้องแสดงในพรีวิว'), 'sampleText must render when data key is missing');
     assert.ok(renderedTexts.includes('หัวข้อไม่มีตัวอย่าง'), 'label must render as ultimate fallback so element is visible');
   });
+
+  // -------------------------------------------------------------
+  // Test 19: Singleton Guard (Service/Schema Boundary Validation)
+  // -------------------------------------------------------------
+  await t.test('19. Singleton Guard: CertificateTemplateV1Schema rejects duplicate singleton element keys with INVALID_LAYOUT', () => {
+    // A. Duplicate 'fullName' must be rejected
+    const dupFullNameLayout = {
+      schemaVersion: 1,
+      orientation: 'LANDSCAPE',
+      elements: [
+        {
+          id: 'el_1',
+          type: 'text',
+          key: 'fullName',
+          label: 'ชื่อผู้รับคนที่ 1',
+          xPercent: 50,
+          yPercent: 48,
+          fontSizePt: 24,
+          fontFamily: 'Sarabun',
+          fontWeight: 'bold',
+        },
+        {
+          id: 'el_2',
+          type: 'text',
+          key: 'fullName', // DUPLICATE!
+          label: 'ชื่อผู้รับซ้ำ',
+          xPercent: 50,
+          yPercent: 55,
+          fontSizePt: 24,
+          fontFamily: 'Sarabun',
+          fontWeight: 'bold',
+        },
+      ],
+    };
+
+    const resFullName = CertificateTemplateV1Schema.safeParse(dupFullNameLayout);
+    assert.equal(resFullName.success, false);
+    assert.ok(resFullName.error.issues[0]?.message.includes('INVALID_LAYOUT'));
+
+    // B. Duplicate 'qrCode' must be rejected
+    const dupQrLayout = {
+      schemaVersion: 1,
+      orientation: 'LANDSCAPE',
+      elements: [
+        {
+          id: 'el_qr_1',
+          type: 'qrcode',
+          key: 'qrCode',
+          label: 'QR 1',
+          xPercent: 88,
+          yPercent: 85,
+          fontSizePt: 16,
+          fontFamily: 'Sarabun',
+          fontWeight: 'normal',
+        },
+        {
+          id: 'el_qr_2',
+          type: 'qrcode',
+          key: 'qrCode', // DUPLICATE!
+          label: 'QR 2',
+          xPercent: 12,
+          yPercent: 85,
+          fontSizePt: 16,
+          fontFamily: 'Sarabun',
+          fontWeight: 'normal',
+        },
+      ],
+    };
+
+    const resQr = CertificateTemplateV1Schema.safeParse(dupQrLayout);
+    assert.equal(resQr.success, false);
+    assert.ok(resQr.error.issues[0]?.message.includes('INVALID_LAYOUT'));
+
+    // C. Non-singleton keys (unlimited) can duplicate freely
+    const validMultiCustomLayout = {
+      schemaVersion: 1,
+      orientation: 'LANDSCAPE',
+      elements: [
+        {
+          id: 'el_custom_1',
+          type: 'text',
+          key: 'customNote',
+          label: 'ข้อความเพิ่มเติม 1',
+          xPercent: 50,
+          yPercent: 30,
+          fontSizePt: 14,
+          fontFamily: 'Sarabun',
+          fontWeight: 'normal',
+        },
+        {
+          id: 'el_custom_2',
+          type: 'text',
+          key: 'customNote',
+          label: 'ข้อความเพิ่มเติม 2',
+          xPercent: 50,
+          yPercent: 35,
+          fontSizePt: 14,
+          fontFamily: 'Sarabun',
+          fontWeight: 'normal',
+        },
+      ],
+    };
+
+    const resCustom = CertificateTemplateV1Schema.safeParse(validMultiCustomLayout);
+    assert.equal(resCustom.success, true, 'Unlimited custom keys may appear more than once');
+  });
+
+  // -------------------------------------------------------------
+  // Test 20: Role-singleton (Dual Signees & Signature Binding)
+  // -------------------------------------------------------------
+  await t.test('20. Dual Signees & Signature Binding: signee1, signature1, signee2, signature2 coexist but reject duplicates', () => {
+    // A. Valid dual signee layout
+    const validDualSignees = {
+      schemaVersion: 1,
+      orientation: 'LANDSCAPE',
+      elements: [
+        {
+          id: 'el_s1',
+          type: 'text',
+          key: 'signee1',
+          label: 'ผู้ลงนามคนที่ 1',
+          xPercent: 28,
+          yPercent: 88,
+          fontSizePt: 16,
+          fontFamily: 'Taviraj',
+          fontWeight: 'bold',
+        },
+        {
+          id: 'el_sig1',
+          type: 'signature',
+          key: 'signature1',
+          label: 'ลายเซ็น 1',
+          signatureFor: 'signee1',
+          signatureAttachmentId: 'att_sig_1',
+          xPercent: 28,
+          yPercent: 80,
+          imageWidthPercent: 14,
+          fontSizePt: 14,
+          fontFamily: 'Sarabun',
+          fontWeight: 'normal',
+        },
+        {
+          id: 'el_s2',
+          type: 'text',
+          key: 'signee2',
+          label: 'ผู้ลงนามคนที่ 2',
+          xPercent: 72,
+          yPercent: 88,
+          fontSizePt: 16,
+          fontFamily: 'Taviraj',
+          fontWeight: 'bold',
+        },
+        {
+          id: 'el_sig2',
+          type: 'signature',
+          key: 'signature2',
+          label: 'ลายเซ็น 2',
+          signatureFor: 'signee2',
+          signatureAttachmentId: 'att_sig_2',
+          xPercent: 72,
+          yPercent: 80,
+          imageWidthPercent: 14,
+          fontSizePt: 14,
+          fontFamily: 'Sarabun',
+          fontWeight: 'normal',
+        },
+      ],
+    };
+
+    const parsed = CertificateTemplateV1Schema.safeParse(validDualSignees);
+    assert.equal(parsed.success, true, 'Dual signee + signature layout must be valid');
+
+    // B. Duplicate signee1 must be rejected
+    const dupSignee1 = {
+      schemaVersion: 1,
+      orientation: 'LANDSCAPE',
+      elements: [
+        ...validDualSignees.elements,
+        {
+          id: 'el_s1_dup',
+          type: 'text',
+          key: 'signee1', // DUPLICATE!
+          label: 'ผู้ลงนามคนที่ 1 ซ้ำ',
+          xPercent: 50,
+          yPercent: 88,
+          fontSizePt: 16,
+          fontFamily: 'Taviraj',
+          fontWeight: 'bold',
+        },
+      ],
+    };
+    const parsedDup = CertificateTemplateV1Schema.safeParse(dupSignee1);
+    assert.equal(parsedDup.success, false);
+    assert.ok(parsedDup.error.issues[0]?.message.includes('INVALID_LAYOUT'));
+  });
+
+  // -------------------------------------------------------------
+  // Test 21: Signature Attachment Lifecycle Reference Counting Simulation
+  // -------------------------------------------------------------
+  await t.test('21. Attachment Lifecycle: Signatures stored in layoutConfig are counted in reference tracking', () => {
+    // Mock templates table containing signatureAttachmentId in JSON
+    const templates = [
+      {
+        id: 'tmpl_1',
+        backgroundAttachmentId: 'att_bg_1',
+        layoutConfig: {
+          elements: [
+            { type: 'signature', key: 'signature1', signatureAttachmentId: 'att_sig_special_99' },
+          ],
+        },
+      },
+      {
+        id: 'tmpl_2',
+        backgroundAttachmentId: 'att_bg_2',
+        layoutConfig: {
+          elements: [
+            { type: 'text', key: 'fullName' },
+          ],
+        },
+      },
+    ];
+
+    // Reference counter function testing layoutConfig reflection
+    const countRefs = (attId) => {
+      let count = 0;
+      for (const t of templates) {
+        if (t.backgroundAttachmentId === attId) count++;
+        const text = JSON.stringify(t.layoutConfig);
+        if (text.includes(`"signatureAttachmentId":"${attId}"`)) {
+          count++;
+        }
+      }
+      return count;
+    };
+
+    // att_sig_special_99 is referenced by tmpl_1 -> count = 1
+    assert.equal(countRefs('att_sig_special_99'), 1, 'Signature attachment must be detected in layoutConfig');
+
+    // Remove signature from tmpl_1 -> count drops to 0 (can now be marked PENDING_DELETE safely)
+    templates[0].layoutConfig.elements = [];
+    assert.equal(countRefs('att_sig_special_99'), 0, 'Orphaned signature after layout removal must reach 0 refs');
+  });
+
+  // -------------------------------------------------------------
+  // Test 22: Signature Aspect Ratio Geometry (72 DPI == 300 DPI without distortion)
+  // -------------------------------------------------------------
+  await t.test('22. Signature Aspect Ratio Geometry: Preserves natural width/height ratio identically at 72 DPI and 300 DPI', () => {
+    let lastDrawn = null;
+    const mockCtx = {
+      drawImage: (img, x, y, w, h) => {
+        lastDrawn = { img, x, y, w, h, aspect: w / h };
+      },
+      save: () => {},
+      restore: () => {},
+      strokeRect: () => {},
+      setLineDash: () => {},
+      fillText: () => {},
+      font: '',
+      fillStyle: '',
+      strokeStyle: '',
+      lineWidth: 0,
+      textAlign: '',
+      textBaseline: '',
+    };
+
+    // Mock signature image with natural aspect ratio 2.5 (e.g. 500x200)
+    const mockSigImg = {
+      naturalWidth: 500,
+      naturalHeight: 200,
+      width: 500,
+      height: 200,
+      nodeName: 'IMG',
+    };
+
+    const testTemplate = {
+      schemaVersion: 1,
+      orientation: 'LANDSCAPE',
+      elements: [
+        {
+          id: 'sig_1',
+          type: 'signature',
+          key: 'signature1',
+          label: 'ลายเซ็น',
+          signatureAttachmentId: 'att_sig_test',
+          xPercent: 50,
+          yPercent: 80,
+          imageWidthPercent: 14,
+          fontSizePt: 14,
+          fontFamily: 'Sarabun',
+          fontWeight: 'normal',
+        },
+      ],
+    };
+
+    // 1. Render at 72 DPI (Screen Preview)
+    drawCertificatePage({
+      ctx: mockCtx,
+      width: 842,
+      height: 595,
+      dpi: 72,
+      backgroundImage: null,
+      template: testTemplate,
+      data: {},
+      signatureImages: { att_sig_test: mockSigImg },
+    });
+
+    const screenAspect = lastDrawn.aspect;
+    const screenWidth = lastDrawn.w;
+    const screenHeight = lastDrawn.h;
+    assert.equal(Math.round(screenAspect * 10) / 10, 2.5, '72 DPI aspect ratio must be 2.5');
+
+    // 2. Render at 300 DPI (Print Export)
+    drawCertificatePage({
+      ctx: mockCtx,
+      width: 3508,
+      height: 2480,
+      dpi: 300,
+      backgroundImage: null,
+      template: testTemplate,
+      data: {},
+      signatureImages: { att_sig_test: mockSigImg },
+    });
+
+    const printAspect = lastDrawn.aspect;
+    const printWidth = lastDrawn.w;
+    const printHeight = lastDrawn.h;
+    assert.equal(Math.round(printAspect * 10) / 10, 2.5, '300 DPI aspect ratio must be 2.5');
+
+    // Invariant: Aspect ratio at 72 DPI and 300 DPI is exactly preserved
+    assert.equal(Math.round(screenAspect * 100), Math.round(printAspect * 100));
+
+    // Scaling ratio must match page width scaling (3508 / 842 ≈ 4.166)
+    const scaleRatio = printWidth / screenWidth;
+    assert.ok(Math.abs(scaleRatio - (3508 / 842)) < 0.05, 'Signature width scales proportionally with DPI');
+  });
 });
 

@@ -1541,3 +1541,152 @@ export async function uploadCertificateBackgroundAction(
   }
 }
 
+/**
+ * Senior Patch 1 & 2: Signature Upload adhering strictly to FileAttachment Lifecycle.
+ * Primary R2 -> Secondary Supabase 'data1' with zero local filesystem on Vercel.
+ */
+export async function uploadCertificateSignatureAction(
+  formData: FormData
+): Promise<ActionResponse<{ attachmentId: string; url: string; objectKey: string; storageProvider: string }>> {
+  try {
+    const user = await getCurrentUser();
+    if (!user) {
+      return { success: false, error: "กรุณาเข้าสู่ระบบก่อนอัปโหลดภาพลายเซ็น" };
+    }
+
+    const file = formData.get("file") as File;
+    if (!file || !(file instanceof File)) {
+      return { success: false, error: "ไม่พบไฟล์ภาพลายเซ็นที่ต้องการอัปโหลด" };
+    }
+
+    const allowedMimes = ["image/png", "image/jpeg", "image/webp"];
+    if (!allowedMimes.includes(file.type)) {
+      return { success: false, error: "ไฟล์ต้องเป็นภาพ PNG, JPG หรือ WEBP (แนะนำ PNG พื้นหลังโปร่งใส)" };
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      return { success: false, error: "ขนาดไฟล์ภาพลายเซ็นต้องไม่เกิน 5 MB" };
+    }
+
+    const uploadSessionId = (formData.get("uploadSessionId") as string) || crypto.randomUUID();
+    const arrayBuffer = await file.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    const checksumSha256 = crypto.createHash("sha256").update(buffer).digest("hex");
+
+    const ext = file.name.split(".").pop() || "png";
+    const objectKey = `cert-signatures/${checksumSha256.slice(0, 16)}_${Date.now()}.${ext}`;
+
+    // 1. Two-phase commit: Create UPLOAD_PENDING FileAttachment
+    const attachment = await prisma.$transaction(async (tx) => {
+      const existingAtt = await tx.fileAttachment.findUnique({
+        where: { uploadSessionId },
+      });
+      if (existingAtt) return existingAtt;
+
+      const created = await tx.fileAttachment.create({
+        data: {
+          originalName: file.name,
+          fileName: objectKey.split("/").pop() || file.name,
+          fileSize: BigInt(file.size),
+          mimeType: file.type,
+          objectKey,
+          storageProvider: "R2",
+          attachmentStatus: "UPLOAD_PENDING",
+          uploadSessionId,
+          uploadExpiresAt: new Date(Date.now() + 15 * 60 * 1000),
+          uploadedById: user.id,
+        },
+      });
+
+      await tx.storageUploadLog.create({
+        data: {
+          sessionId: uploadSessionId,
+          provider: "R2",
+          objectKey,
+          fileName: file.name,
+          mimeType: file.type,
+          fileSize: BigInt(file.size),
+          checksumSha256,
+          status: "PENDING",
+          uploadedBy: user.id,
+          fileAttachmentId: created.id,
+        },
+      });
+
+      return created;
+    });
+
+    if (attachment.attachmentStatus === "ACTIVE") {
+      const storage = getStorageProviderByType(attachment.storageProvider);
+      const url = await storage.getUrl(attachment.objectKey, { isPublic: true });
+      return {
+        success: true,
+        data: {
+          attachmentId: attachment.id,
+          url,
+          objectKey: attachment.objectKey,
+          storageProvider: attachment.storageProvider,
+        },
+      };
+    }
+
+    // 2. Cloud Storage upload with R2 -> Supabase resilient fallback
+    let uploadRes: { storageKey: string; publicUrl?: string; provider: "R2" | "SUPABASE" };
+    try {
+      uploadRes = await uploadWithResilientFallback({
+        buffer,
+        mimeType: file.type,
+        storageKey: objectKey,
+      });
+    } catch (uploadErr: any) {
+      await prisma.$transaction(async (tx) => {
+        await tx.fileAttachment.deleteMany({
+          where: { id: attachment.id, attachmentStatus: "UPLOAD_PENDING" },
+        });
+        await tx.storageUploadLog.updateMany({
+          where: { objectKey, status: "PENDING" },
+          data: { status: "FAILED", error: uploadErr?.message || "Upload error" },
+        });
+      });
+      return { success: false, error: `Cloud upload failed: ${uploadErr?.message || uploadErr}` };
+    }
+
+    // 3. Mark ACTIVE
+    await prisma.$transaction(async (tx) => {
+      await tx.fileAttachment.update({
+        where: { id: attachment.id },
+        data: {
+          storageProvider: uploadRes.provider,
+          attachmentStatus: "ACTIVE",
+          uploadExpiresAt: null,
+        },
+      });
+
+      await tx.storageUploadLog.updateMany({
+        where: { objectKey, status: "PENDING" },
+        data: {
+          status: "UPLOADED",
+          committedAt: new Date(),
+        },
+      });
+    });
+
+    const publicUrl =
+      uploadRes.publicUrl ||
+      (await getStorageProviderByType(uploadRes.provider).getUrl(objectKey, { isPublic: true }));
+
+    return {
+      success: true,
+      data: {
+        attachmentId: attachment.id,
+        url: publicUrl,
+        objectKey,
+        storageProvider: uploadRes.provider,
+      },
+    };
+  } catch (err: any) {
+    return handleActionError(err, "uploadCertificateSignatureAction");
+  }
+}
+
+

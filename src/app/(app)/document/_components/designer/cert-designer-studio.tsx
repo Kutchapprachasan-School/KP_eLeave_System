@@ -37,6 +37,7 @@ import {
   ArrowUp,
   ArrowDown,
   RefreshCw,
+  PenTool,
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import {
@@ -45,6 +46,8 @@ import {
   CertificateTemplateV1Schema,
   DEFAULT_CERTIFICATE_ELEMENTS,
   ELEMENT_PRESETS,
+  SIGNEE_LAYOUT_PRESETS,
+  type ElementPresetItem,
   FONT_MANIFEST,
   SUPPORTED_FONTS,
   type SupportedFont,
@@ -68,7 +71,9 @@ import {
   forkCertificateTemplateAction,
   deleteCertificateTemplateAction,
   uploadCertificateBackgroundAction,
+  uploadCertificateSignatureAction,
 } from "@/app/actions/document";
+
 
 interface CertDesignerStudioProps {
   initialBatch?: {
@@ -194,6 +199,7 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
   const [loading, setLoading] = useState<boolean>(false);
   const [saving, setSaving] = useState<boolean>(false);
   const [uploadingBg, setUploadingBg] = useState<boolean>(false);
+  const [uploadingSigId, setUploadingSigId] = useState<string | null>(null);
   const [exportModalOpen, setExportModalOpen] = useState<boolean>(false);
   const [exportProgress, setExportProgress] = useState<{ current: number; total: number } | null>(null);
   const [exportRangeMode, setExportRangeMode] = useState<"ALL" | "RANGE">("ALL");
@@ -287,13 +293,24 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
     const preset = ELEMENT_PRESETS.find((p) => p.key === presetKey);
     if (!preset) return;
 
+    if (preset.multiplicity !== "unlimited") {
+      const existing = elements.find((el) => el.key === preset.key);
+      if (existing) {
+        setSelectedElementId(existing.id);
+        setStatusMessage({
+          type: "error",
+          text: `"${preset.label}" มีอยู่ในแบบแล้ว (สามารถมีได้เพียง 1 รายการ)`,
+        });
+        return;
+      }
+    }
+
     const newId = `el_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
     const newElement: CertificateElement = {
       ...preset.defaultElement,
       id: newId,
-      // Stagger position slightly if multiple
-      xPercent: 50,
-      yPercent: Math.min(85, 30 + elements.length * 6),
+      xPercent: preset.defaultElement.xPercent ?? 50,
+      yPercent: preset.defaultElement.yPercent ?? Math.min(85, 30 + elements.length * 6),
     } as CertificateElement;
 
     pushHistory([...elements, newElement]);
@@ -311,6 +328,15 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
     const target = elements.find((el) => el.id === id);
     if (!target) return;
 
+    const preset = ELEMENT_PRESETS.find((p) => p.key === target.key);
+    if (preset && preset.multiplicity !== "unlimited") {
+      setStatusMessage({
+        type: "error",
+        text: `ไม่สามารถทำสำเนา "${target.label}" ได้เนื่องจากกำหนดให้มีได้เพียง 1 รายการ`,
+      });
+      return;
+    }
+
     const newId = `el_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
     const clone: CertificateElement = {
       ...target,
@@ -322,6 +348,150 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
 
     pushHistory([...elements, clone]);
     setSelectedElementId(newId);
+  };
+
+  // Senior Architecture Pattern: Apply Signee Layout Strategies
+  const handleApplySigneeStrategy = (strategy: "SINGLE_SIGNEE" | "DUAL_SIGNEE_BALANCED") => {
+    const presetConfig = SIGNEE_LAYOUT_PRESETS[strategy];
+    let newElements = [...elements];
+
+    if (strategy === "SINGLE_SIGNEE") {
+      // 1 Signee in center (50%)
+      const signee1Idx = newElements.findIndex((el) => el.key === "signee1");
+      if (signee1Idx >= 0) {
+        newElements[signee1Idx] = {
+          ...newElements[signee1Idx],
+          xPercent: presetConfig.signee1.xPercent,
+          yPercent: presetConfig.signee1.yPercent,
+          textAlign: "center",
+        };
+      } else {
+        const signee1Preset = ELEMENT_PRESETS.find((p) => p.key === "signee1");
+        if (signee1Preset) {
+          newElements.push({
+            ...signee1Preset.defaultElement,
+            id: `el_${Date.now().toString(36)}_s1`,
+            xPercent: presetConfig.signee1.xPercent,
+            yPercent: presetConfig.signee1.yPercent,
+          } as CertificateElement);
+        }
+      }
+
+      // If signature1 exists, center it too
+      const sig1Idx = newElements.findIndex((el) => el.key === "signature1");
+      if (sig1Idx >= 0) {
+        newElements[sig1Idx] = {
+          ...newElements[sig1Idx],
+          xPercent: presetConfig.signature1.xPercent,
+          yPercent: presetConfig.signature1.yPercent,
+        };
+      }
+
+      setStatusMessage({ type: "success", text: "ปรับตำแหน่งเป็น: ผู้ลงนาม 1 ท่าน (กึ่งกลาง 50%)" });
+    } else {
+      // 2 Signees (signee1 left 28%, signee2 right 72%)
+      const signee1Idx = newElements.findIndex((el) => el.key === "signee1");
+      if (signee1Idx >= 0) {
+        newElements[signee1Idx] = {
+          ...newElements[signee1Idx],
+          xPercent: presetConfig.signee1.xPercent,
+          yPercent: presetConfig.signee1.yPercent,
+          textAlign: "center",
+        };
+      } else {
+        const p1 = ELEMENT_PRESETS.find((p) => p.key === "signee1");
+        if (p1) {
+          newElements.push({
+            ...p1.defaultElement,
+            id: `el_${Date.now().toString(36)}_s1`,
+            xPercent: presetConfig.signee1.xPercent,
+            yPercent: presetConfig.signee1.yPercent,
+          } as CertificateElement);
+        }
+      }
+
+      const sig1Idx = newElements.findIndex((el) => el.key === "signature1");
+      if (sig1Idx >= 0) {
+        newElements[sig1Idx] = {
+          ...newElements[sig1Idx],
+          xPercent: presetConfig.signature1.xPercent,
+          yPercent: presetConfig.signature1.yPercent,
+        };
+      }
+
+      const signee2Idx = newElements.findIndex((el) => el.key === "signee2");
+      if (signee2Idx >= 0) {
+        newElements[signee2Idx] = {
+          ...newElements[signee2Idx],
+          xPercent: presetConfig.signee2.xPercent,
+          yPercent: presetConfig.signee2.yPercent,
+          textAlign: "center",
+        };
+      } else {
+        const p2 = ELEMENT_PRESETS.find((p) => p.key === "signee2");
+        if (p2) {
+          newElements.push({
+            ...p2.defaultElement,
+            id: `el_${Date.now().toString(36)}_s2`,
+            xPercent: presetConfig.signee2.xPercent,
+            yPercent: presetConfig.signee2.yPercent,
+          } as CertificateElement);
+        }
+      }
+
+      const sig2Idx = newElements.findIndex((el) => el.key === "signature2");
+      if (sig2Idx >= 0) {
+        newElements[sig2Idx] = {
+          ...newElements[sig2Idx],
+          xPercent: presetConfig.signature2.xPercent,
+          yPercent: presetConfig.signature2.yPercent,
+        };
+      }
+
+      setStatusMessage({ type: "success", text: "ปรับตำแหน่งเป็น: ผู้ลงนาม 2 ท่าน (คู่ ซ้าย 28% / ขวา 72%)" });
+    }
+
+    pushHistory(newElements);
+  };
+
+  // --- Signature Upload Handler with 0ms Instant Preview & Aspect Ratio ---
+  const handleSignatureUpload = async (elementId: string, file: File) => {
+    if (!file) return;
+
+    // 1. Instant 0ms Local Preview & detect natural aspect ratio
+    const localUrl = URL.createObjectURL(file);
+    const img = new Image();
+    img.src = localUrl;
+    img.onload = () => {
+      const aspect = (img.naturalWidth || img.width) / (img.naturalHeight || img.height || 1);
+      updateElementById(elementId, {
+        previewUrl: localUrl,
+        aspectRatio: Math.round(aspect * 100) / 100,
+      });
+    };
+
+    // 2. Commit to Cloud Storage with R2 -> Supabase resilient fallback
+    setUploadingSigId(elementId);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("uploadSessionId", crypto.randomUUID());
+
+      const res = await uploadCertificateSignatureAction(formData);
+      if (res.success && res.data) {
+        updateElementById(elementId, {
+          signatureAttachmentId: res.data.attachmentId,
+          previewUrl: res.data.url,
+        });
+        setStatusMessage({ type: "success", text: "อัปโหลดภาพลายเซ็นสำเร็จ" });
+      } else {
+        setStatusMessage({ type: "error", text: res.error || "อัปโหลดภาพลายเซ็นไม่สำเร็จ" });
+      }
+    } catch (err: any) {
+      setStatusMessage({ type: "error", text: err.message || "เกิดข้อผิดพลาดในการอัปโหลดลายเซ็น" });
+    } finally {
+      setUploadingSigId(null);
+    }
   };
 
   const handleMoveLayer = (id: string, direction: "up" | "down") => {
@@ -430,7 +600,27 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
         drawPlaceholderBg(ctx, dims.previewWidth, dims.previewHeight);
       }
 
-      // 2. Draw Active Certificate Elements using shared PDF engine
+      // 2. Preload signature images for studio canvas preview
+      const signatureImages: Record<string, CanvasImageSource> = {};
+      for (const el of elements) {
+        if (el.type === "signature" && !el.hidden) {
+          const sigSrc = el.previewUrl;
+          if (sigSrc) {
+            try {
+              const loadedImg = await loadCanvasImage(sigSrc);
+              if (el.signatureAttachmentId) {
+                signatureImages[el.signatureAttachmentId] = loadedImg;
+              }
+              signatureImages[sigSrc] = loadedImg;
+            } catch (err) {
+              console.warn("Could not preload signature image for preview:", err);
+            }
+          }
+        }
+      }
+      if (cancelled) return;
+
+      // 3. Draw Active Certificate Elements using shared PDF engine
       const activeData = roster[previewIndex] || roster[0] || {};
       drawCertificatePage({
         ctx,
@@ -440,9 +630,10 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
         backgroundImage: null, // Background is already drawn above directly on canvas
         template: { schemaVersion: 1, orientation, elements },
         data: activeData,
+        signatureImages,
       });
 
-      // 3. Draw Active Snap Guides if dragging
+      // 4. Draw Active Snap Guides if dragging
       if (activeGuides.x !== undefined) {
         ctx.save();
         ctx.strokeStyle = "#38bdf8";
@@ -469,7 +660,7 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
         ctx.restore();
       }
 
-      // 4. Highlight Selected Element Bounding Box
+      // 5. Highlight Selected Element Bounding Box
       if (selectedElement && !selectedElement.hidden) {
         ctx.save();
         ctx.strokeStyle = "#4f46e5";
@@ -492,6 +683,9 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
           const qrSize = ptToCanvasPx(selectedElement.fontSizePt * 4, 72);
           boxW = qrSize + 16;
           boxH = qrSize + 32;
+        } else if (selectedElement.type === "signature") {
+          boxW = ((selectedElement.imageWidthPercent || 14) / 100) * dims.previewWidth + 8;
+          boxH = boxW / (selectedElement.aspectRatio || 2.5) + 8;
         }
 
         let boxX = sx - boxW / 2;
@@ -1069,6 +1263,30 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
                   </label>
                 </div>
 
+                {/* Senior Architecture Pattern: Signee Layout Strategy Presets */}
+                <div className="space-y-2 p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-800">
+                  <div className="flex items-center justify-between text-xs font-bold text-slate-700 dark:text-slate-300">
+                    <span>จัดรูปแบบผู้ลงนาม</span>
+                    <span className="text-[10px] text-indigo-600 font-medium">ตำแหน่งอัตโนมัติ</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      onClick={() => handleApplySigneeStrategy("SINGLE_SIGNEE")}
+                      className="flex flex-col items-center justify-center p-2 rounded-lg border border-slate-200 dark:border-slate-700 hover:border-indigo-500 hover:bg-white dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-semibold transition text-center group"
+                    >
+                      <span className="group-hover:text-indigo-600">👤 ผู้ลงนาม 1 ท่าน</span>
+                      <span className="text-[9px] text-slate-400 font-normal">กึ่งกลาง (50%)</span>
+                    </button>
+                    <button
+                      onClick={() => handleApplySigneeStrategy("DUAL_SIGNEE_BALANCED")}
+                      className="flex flex-col items-center justify-center p-2 rounded-lg border border-slate-200 dark:border-slate-700 hover:border-indigo-500 hover:bg-white dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-semibold transition text-center group"
+                    >
+                      <span className="group-hover:text-indigo-600">👥 ผู้ลงนาม 2 ท่าน</span>
+                      <span className="text-[9px] text-slate-400 font-normal">คู่ ซ้าย/ขวา (28%/72%)</span>
+                    </button>
+                  </div>
+                </div>
+
                 {/* Quick Add Presets Grid */}
                 <div className="space-y-2.5">
                   <div className="flex items-center justify-between">
@@ -1076,27 +1294,65 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
                       เพิ่มหัวข้อลงเกียรติบัตร
                     </span>
                     <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-medium">
-                      คลิกเพื่อเพิ่ม
+                      คลิกเพื่อเพิ่ม / เลือก
                     </span>
                   </div>
                   <div className="grid grid-cols-2 gap-2">
                     {ELEMENT_PRESETS.map((preset) => {
-                      const Icon = preset.type === "qrcode" ? QrCode : Type;
+                      const Icon = preset.type === "qrcode" ? QrCode : preset.type === "signature" ? PenTool : Type;
+                      const isAlreadyAdded = preset.multiplicity !== "unlimited" && elements.some((el) => el.key === preset.key);
+
                       return (
                         <button
                           key={preset.key}
-                          onClick={() => handleAddElementPreset(preset.key)}
-                          className="flex items-center gap-2 p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-indigo-500 hover:bg-indigo-50/40 dark:hover:bg-indigo-950/30 text-left transition group"
+                          onClick={() => {
+                            if (isAlreadyAdded) {
+                              const existing = elements.find((el) => el.key === preset.key);
+                              if (existing) {
+                                setSelectedElementId(existing.id);
+                                setStatusMessage({
+                                  type: "success",
+                                  text: `เลือก "${preset.label}" บนหน้าจอแล้ว`,
+                                });
+                              }
+                            } else {
+                              handleAddElementPreset(preset.key);
+                            }
+                          }}
+                          className={`flex items-center gap-2 p-2.5 rounded-xl border text-left transition group relative ${
+                            isAlreadyAdded
+                              ? "border-emerald-200 dark:border-emerald-800/60 bg-emerald-50/20 dark:bg-emerald-950/20"
+                              : "border-slate-200 dark:border-slate-800 hover:border-indigo-500 hover:bg-indigo-50/40 dark:hover:bg-indigo-950/30"
+                          }`}
                         >
-                          <div className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-800 group-hover:bg-indigo-600 group-hover:text-white flex items-center justify-center text-slate-600 dark:text-slate-300 transition shrink-0">
+                          <div
+                            className={`w-7 h-7 rounded-lg flex items-center justify-center transition shrink-0 ${
+                              isAlreadyAdded
+                                ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/60 dark:text-emerald-300"
+                                : "bg-slate-100 dark:bg-slate-800 group-hover:bg-indigo-600 group-hover:text-white text-slate-600 dark:text-slate-300"
+                            }`}
+                          >
                             <Icon className="w-3.5 h-3.5" />
                           </div>
-                          <div className="truncate">
-                            <div className="text-[11px] font-bold text-slate-800 dark:text-slate-200 group-hover:text-indigo-600 truncate">
-                              {preset.label}
+                          <div className="truncate flex-1 min-w-0">
+                            <div className="flex items-center justify-between gap-1">
+                              <span className="text-[11px] font-bold text-slate-800 dark:text-slate-200 group-hover:text-indigo-600 truncate">
+                                {preset.label}
+                              </span>
                             </div>
-                            <div className="text-[9px] text-slate-400 truncate">
-                              {preset.type === "qrcode" ? "Square Badge" : preset.defaultElement.fontFamily}
+                            <div className="flex items-center justify-between text-[9px] text-slate-400 truncate">
+                              <span className="truncate">
+                                {preset.type === "qrcode"
+                                  ? "Square Badge"
+                                  : preset.type === "signature"
+                                  ? "สแกน PNG"
+                                  : preset.defaultElement.fontFamily}
+                              </span>
+                              {isAlreadyAdded && (
+                                <span className="ml-1 text-[8px] font-bold text-emerald-600 dark:text-emerald-400 shrink-0">
+                                  ✔ มีแล้ว
+                                </span>
+                              )}
                             </div>
                           </div>
                         </button>
@@ -1532,6 +1788,117 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
                         className="w-full text-xs font-bold bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-2"
                       />
                     </div>
+                  </div>
+                )}
+
+                {selectedElement.type === "signature" && (
+                  <div className="space-y-3">
+                    <div className="p-3 bg-blue-50 dark:bg-blue-950/40 rounded-xl border border-blue-200 dark:border-blue-800/50 space-y-1.5">
+                      <div className="text-xs font-bold text-blue-900 dark:text-blue-200 flex items-center gap-1.5">
+                        <PenTool className="w-4 h-4 text-blue-600" />
+                        <span>ภาพลายเซ็นดิจิทัล / สแกน (PNG โปร่งใส)</span>
+                      </div>
+                      <p className="text-[11px] text-blue-700 dark:text-blue-300 leading-relaxed">
+                        แนะนำให้อัปโหลดไฟล์ภาพลายเซ็นที่มีพื้นหลังโปร่งใส (Transparent PNG) ระบบจะรักษาอัตราส่วนภาพจริง (Aspect Ratio) โดยอัตโนมัติ
+                      </p>
+                    </div>
+
+                    {/* Signature Image Upload / Replace */}
+                    <div className="space-y-1.5">
+                      <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400">
+                        ไฟล์ภาพลายเซ็น
+                      </label>
+                      <label className="flex flex-col items-center justify-center border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-blue-500 rounded-xl p-3 cursor-pointer bg-slate-50 dark:bg-slate-800/40 hover:bg-blue-50/30 transition group">
+                        <input
+                          type="file"
+                          accept="image/png,image/jpeg,image/webp"
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            await handleSignatureUpload(selectedElement.id, file);
+                          }}
+                          className="hidden"
+                        />
+                        {uploadingSigId === selectedElement.id ? (
+                          <div className="flex items-center gap-2 py-1 text-xs text-blue-600 font-bold">
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            <span>กำลังอัปโหลดคลาวด์...</span>
+                          </div>
+                        ) : selectedElement.previewUrl ? (
+                          <div className="space-y-2 w-full flex flex-col items-center">
+                            <div className="p-2 bg-white/80 dark:bg-slate-900/80 rounded-lg border border-slate-200 dark:border-slate-700">
+                              <img
+                                src={selectedElement.previewUrl}
+                                alt="Signature preview"
+                                className="max-h-16 object-contain"
+                              />
+                            </div>
+                            <span className="text-[11px] text-blue-600 font-semibold group-hover:underline">
+                              คลิกเพื่อเปลี่ยนรูปภาพ
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2 py-1 text-xs text-slate-600 dark:text-slate-400 group-hover:text-blue-600 font-semibold">
+                            <Upload className="w-4 h-4" />
+                            <span>อัปโหลดลายเซ็น (PNG/JPG)</span>
+                          </div>
+                        )}
+                      </label>
+                    </div>
+
+                    {/* Width Slider (% of page width) */}
+                    <div className="space-y-1.5">
+                      <div className="flex justify-between items-center">
+                        <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400">
+                          ความกว้างของลายเซ็น (% ของเอกสาร)
+                        </label>
+                        <span className="text-xs font-bold text-blue-600">
+                          {selectedElement.imageWidthPercent || 14}%
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min="6"
+                        max="35"
+                        step="1"
+                        value={selectedElement.imageWidthPercent || 14}
+                        onChange={(e) =>
+                          updateSelectedElement({ imageWidthPercent: Number(e.target.value) })
+                        }
+                        className="w-full accent-blue-600 cursor-pointer"
+                      />
+                    </div>
+
+                    {/* Associated signee role selector */}
+                    <div className="space-y-1.5">
+                      <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400">
+                        ผูกกับผู้ลงนาม
+                      </label>
+                      <select
+                        value={selectedElement.signatureFor || "signee1"}
+                        onChange={(e) =>
+                          updateSelectedElement({ signatureFor: e.target.value as "signee1" | "signee2" })
+                        }
+                        className="w-full text-xs font-semibold bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-2"
+                      >
+                        <option value="signee1">ผู้ลงนามคนที่ 1 (signee1)</option>
+                        <option value="signee2">ผู้ลงนามคนที่ 2 (signee2)</option>
+                      </select>
+                    </div>
+
+                    {selectedElement.previewUrl && (
+                      <button
+                        onClick={() =>
+                          updateSelectedElement({
+                            signatureAttachmentId: undefined,
+                            previewUrl: undefined,
+                          })
+                        }
+                        className="w-full py-1.5 text-xs text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-xl border border-rose-200 dark:border-rose-900/50 transition font-medium"
+                      >
+                        ลบภาพลายเซ็นนี้ออก
+                      </button>
+                    )}
                   </div>
                 )}
 

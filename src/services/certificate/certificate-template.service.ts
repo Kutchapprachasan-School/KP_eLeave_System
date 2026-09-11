@@ -6,6 +6,7 @@ import {
   releaseAttachmentReference,
   cleanupOrphanedAttachments,
 } from "@/services/storage/attachment-lifecycle.service";
+import { CertificateTemplateV1Schema } from "@/app/(app)/document/_components/designer/cert-schema";
 import type { TemplateOrientation, TemplateScope } from "@prisma/client";
 
 export interface SaveTemplateInput {
@@ -28,6 +29,17 @@ function isAdmin(user: UserContext): boolean {
   return user.userRole === "ADMIN" || user.userRole === "SUPERADMIN";
 }
 
+export function extractSignatureAttachmentIds(layoutConfig: any): string[] {
+  if (!layoutConfig || !Array.isArray(layoutConfig.elements)) return [];
+  const ids: string[] = [];
+  for (const el of layoutConfig.elements) {
+    if (el && el.type === "signature" && typeof el.signatureAttachmentId === "string" && el.signatureAttachmentId.trim() !== "") {
+      ids.push(el.signatureAttachmentId.trim());
+    }
+  }
+  return Array.from(new Set(ids));
+}
+
 /**
  * Service Layer: Saves a certificate template (Create or Atomic CAS Update).
  * Enforces Invariants AA, AC, AD, Q, S, 4.
@@ -35,10 +47,17 @@ function isAdmin(user: UserContext): boolean {
 export async function saveTemplateService(
   input: SaveTemplateInput,
   user: UserContext
-): Promise<
-  | { success: true; data: any }
-  | { success: false; error: string; code: string }
-> {
+): Promise<any> {
+  // Senior Patch 3: Validate layoutConfig at schema/service boundary
+  const parsedLayout = CertificateTemplateV1Schema.safeParse(input.layoutConfig);
+  if (!parsedLayout.success) {
+    return {
+      success: false,
+      error: `INVALID_LAYOUT:${parsedLayout.error.errors[0]?.message || "Invalid template layout structure"}`,
+      code: "INVALID_LAYOUT",
+    };
+  }
+
   // If creating new template:
   if (!input.id) {
     if (input.scope === "SYSTEM_PRESET") {
@@ -57,11 +76,19 @@ export async function saveTemplateService(
       };
     }
 
+    const sigIds = extractSignatureAttachmentIds(input.layoutConfig);
     const created = await prisma.$transaction(async (tx) => {
-      // 1. Lock and verify attachment is ACTIVE
+      // 1. Lock and verify all attachments are ACTIVE
+      await lockAttachmentsInOrder(tx, [input.backgroundAttachmentId, ...sigIds]);
       const acquireResult = await acquireAttachmentReference(tx, input.backgroundAttachmentId);
       if (!acquireResult.ok) {
         throw new Error(acquireResult.error);
+      }
+      for (const sigId of sigIds) {
+        const acquireSig = await acquireAttachmentReference(tx, sigId);
+        if (!acquireSig.ok) {
+          throw new Error(`ATTACHMENT_UNAVAILABLE:${acquireSig.error}`);
+        }
       }
 
       // 2. Insert CertificateTemplate
@@ -130,16 +157,29 @@ export async function saveTemplateService(
         }
       }
 
-      // 3. Invariant AA: Deterministic lock ordering on attachments
+      // 3. Invariant AA: Deterministic lock ordering on attachments (background + signatures)
       const oldAttId = existing.backgroundAttachmentId;
       const newAttId = input.backgroundAttachmentId;
-      await lockAttachmentsInOrder(tx, [oldAttId, newAttId]);
+      const oldSigIds = extractSignatureAttachmentIds(existing.layoutConfig);
+      const newSigIds = extractSignatureAttachmentIds(input.layoutConfig);
+
+      await lockAttachmentsInOrder(tx, [oldAttId, newAttId, ...oldSigIds, ...newSigIds]);
 
       // If background attachment changed, verify new attachment is ACTIVE
       if (oldAttId !== newAttId) {
         const acquire = await acquireAttachmentReference(tx, newAttId);
         if (!acquire.ok) {
           throw new Error(`ATTACHMENT_UNAVAILABLE:${acquire.error}`);
+        }
+      }
+
+      // Acquire newly added signatures
+      for (const sId of newSigIds) {
+        if (!oldSigIds.includes(sId)) {
+          const acquire = await acquireAttachmentReference(tx, sId);
+          if (!acquire.ok) {
+            throw new Error(`ATTACHMENT_UNAVAILABLE:${acquire.error}`);
+          }
         }
       }
 
@@ -164,11 +204,17 @@ export async function saveTemplateService(
         throw new Error("CONFLICT:Template was modified by another session. Please reload.");
       }
 
-      // 5. If background changed, release reference on old attachment
+      // 5. Release references for removed background or signatures
       let markedForDeletion = false;
       if (oldAttId !== newAttId) {
         const release = await releaseAttachmentReference(tx, oldAttId);
-        markedForDeletion = release.markedForDeletion;
+        if (release.markedForDeletion) markedForDeletion = true;
+      }
+      for (const sId of oldSigIds) {
+        if (!newSigIds.includes(sId)) {
+          const release = await releaseAttachmentReference(tx, sId);
+          if (release.markedForDeletion) markedForDeletion = true;
+        }
       }
 
       const updatedTemplate = await tx.certificateTemplate.findUnique({
@@ -231,10 +277,18 @@ export async function forkTemplateService(
         throw new Error("NOT_FOUND:Template not found");
       }
 
-      // 2. Lock attachment & verify ACTIVE
+      // 2. Lock attachment & verify ACTIVE (background + signatures)
+      const sigIds = extractSignatureAttachmentIds(initial.layoutConfig);
+      await lockAttachmentsInOrder(tx, [initial.backgroundAttachmentId, ...sigIds]);
       const acquire = await acquireAttachmentReference(tx, initial.backgroundAttachmentId);
       if (!acquire.ok) {
         throw new Error(`ATTACHMENT_UNAVAILABLE:${acquire.error}`);
+      }
+      for (const sigId of sigIds) {
+        const acquireSig = await acquireAttachmentReference(tx, sigId);
+        if (!acquireSig.ok) {
+          throw new Error(`ATTACHMENT_UNAVAILABLE:${acquireSig.error}`);
+        }
       }
 
       // 3. Invariant W: Re-read source template after acquiring lock
@@ -301,18 +355,26 @@ export async function deleteTemplateService(
         throw new Error("FORBIDDEN:You can only delete your own templates.");
       }
 
-      // Lock attachment row before deleting template
-      await lockAttachmentsInOrder(tx, [template.backgroundAttachmentId]);
+      // Lock attachment rows before deleting template
+      const sigIds = extractSignatureAttachmentIds(template.layoutConfig);
+      await lockAttachmentsInOrder(tx, [template.backgroundAttachmentId, ...sigIds]);
 
       // Delete template row
       await tx.certificateTemplate.delete({
         where: { id: templateId },
       });
 
-      // Release attachment reference
+      // Release attachment references
+      let markedForDeletion = false;
       const release = await releaseAttachmentReference(tx, template.backgroundAttachmentId);
+      if (release.markedForDeletion) markedForDeletion = true;
 
-      return { markedForDeletion: release.markedForDeletion };
+      for (const sigId of sigIds) {
+        const relSig = await releaseAttachmentReference(tx, sigId);
+        if (relSig.markedForDeletion) markedForDeletion = true;
+      }
+
+      return { markedForDeletion };
     });
 
     // Post-commit: trigger async cleanup worker if attachment became orphan
@@ -388,6 +450,39 @@ export async function getTemplatesService(user: UserContext): Promise<any[]> {
         }
       }
 
+      let layoutConfig = tmpl.layoutConfig as any;
+      if (layoutConfig && Array.isArray(layoutConfig.elements)) {
+        const sigAttIds = extractSignatureAttachmentIds(layoutConfig);
+        if (sigAttIds.length > 0) {
+          try {
+            const sigAttachments = await prisma.fileAttachment.findMany({
+              where: { id: { in: sigAttIds } },
+              select: { id: true, objectKey: true },
+            });
+            const sigUrlMap = new Map<string, string>();
+            for (const att of sigAttachments) {
+              try {
+                const u = await storage.getUrl(att.objectKey);
+                sigUrlMap.set(att.id, u);
+              } catch (err) {
+                console.warn(`[getTemplatesService] Could not resolve signature URL for ${att.objectKey}:`, err);
+              }
+            }
+            layoutConfig = {
+              ...layoutConfig,
+              elements: layoutConfig.elements.map((el: any) => {
+                if (el.type === "signature" && el.signatureAttachmentId && sigUrlMap.has(el.signatureAttachmentId)) {
+                  return { ...el, previewUrl: sigUrlMap.get(el.signatureAttachmentId) };
+                }
+                return el;
+              }),
+            };
+          } catch (err) {
+            console.warn(`[getTemplatesService] Error fetching signature attachments:`, err);
+          }
+        }
+      }
+
       return {
         id: tmpl.id,
         name: tmpl.name,
@@ -396,7 +491,7 @@ export async function getTemplatesService(user: UserContext): Promise<any[]> {
         orientation: tmpl.orientation,
         backgroundAttachmentId: tmpl.backgroundAttachmentId,
         backgroundUrl,
-        layoutConfig: tmpl.layoutConfig,
+        layoutConfig,
         scope: tmpl.scope,
         createdById: tmpl.createdById,
         createdByName: tmpl.createdBy?.name ?? "ระบบ",
