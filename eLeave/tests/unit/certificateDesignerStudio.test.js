@@ -13,6 +13,7 @@ import {
   FONT_MANIFEST,
 } from '../../../src/app/(app)/document/_components/designer/cert-schema.ts';
 import { generateQrMatrix } from '../../../src/app/(app)/document/_components/designer/qr-renderer.ts';
+import { drawCertificatePage, isValidDrawableImage } from '../../../src/app/(app)/document/_components/designer/cert-pdf-engine.ts';
 import crypto from 'node:crypto';
 
 test('Certificate Designer Studio & Concurrency Invariants Suite', async (t) => {
@@ -428,6 +429,151 @@ test('Certificate Designer Studio & Concurrency Invariants Suite', async (t) => 
     assert.equal(typeof matrix.getModule(0, 0), 'boolean');
     assert.equal(matrix.modules.length, matrix.size);
     assert.equal(matrix.modules[0].length, matrix.size);
+  });
+
+  // -------------------------------------------------------------
+  // Test 17: drawCertificatePage immunity against invalid background image
+  // -------------------------------------------------------------
+  await t.test('17. drawCertificatePage immunity: Does not throw TypeError on null or plain object background', () => {
+    let drawImageCalled = false;
+    const drawnTexts = [];
+
+    const mockCtx = {
+      drawImage: () => { drawImageCalled = true; },
+      save: () => {},
+      restore: () => {},
+      fillText: (text) => { drawnTexts.push(text); },
+      font: '',
+      fillStyle: '',
+      textAlign: '',
+      textBaseline: '',
+    };
+
+    // A. Testing with null background
+    assert.doesNotThrow(() => {
+      drawCertificatePage({
+        ctx: mockCtx,
+        width: 842,
+        height: 595,
+        dpi: 72,
+        backgroundImage: null,
+        template: {
+          schemaVersion: 1,
+          orientation: 'LANDSCAPE',
+          elements: [
+            {
+              id: 'el_1',
+              type: 'text',
+              key: 'title',
+              label: 'หัวข้อเกียรติบัตร',
+              sampleText: 'เกียรติบัตรฉบับนี้ให้ไว้เพื่อแสดงว่า',
+              xPercent: 50,
+              yPercent: 30,
+              fontSizePt: 20,
+              fontFamily: 'Sarabun',
+              fontWeight: 'bold',
+            },
+          ],
+        },
+        data: {},
+      });
+    });
+    assert.equal(drawImageCalled, false, 'drawImage should not be called when backgroundImage is null');
+    assert.ok(drawnTexts.includes('เกียรติบัตรฉบับนี้ให้ไว้เพื่อแสดงว่า'), 'Text element must be rendered');
+
+    // B. Testing with invalid plain object (the previous bug: { width, height })
+    assert.equal(isValidDrawableImage({ width: 842, height: 595 }), false);
+    drawImageCalled = false;
+    drawnTexts.length = 0;
+
+    assert.doesNotThrow(() => {
+      drawCertificatePage({
+        ctx: mockCtx,
+        width: 842,
+        height: 595,
+        dpi: 72,
+        backgroundImage: { width: 842, height: 595 },
+        template: {
+          schemaVersion: 1,
+          orientation: 'LANDSCAPE',
+          elements: [
+            {
+              id: 'el_2',
+              type: 'text',
+              key: 'customHeader',
+              label: 'หัวข้อใหม่',
+              sampleText: 'หัวข้อรางวัลยอดเยี่ยม',
+              xPercent: 50,
+              yPercent: 40,
+              fontSizePt: 24,
+              fontFamily: 'Prompt',
+              fontWeight: 'bold',
+            },
+          ],
+        },
+        data: {},
+      });
+    });
+    assert.equal(drawImageCalled, false, 'drawImage must NOT be called for invalid plain objects');
+    assert.ok(drawnTexts.includes('หัวข้อรางวัลยอดเยี่ยม'), 'Newly added element must be rendered successfully');
+  });
+
+  // -------------------------------------------------------------
+  // Test 18: Fallback text rendering for newly added elements
+  // -------------------------------------------------------------
+  await t.test('18. Fallback text rendering: Newly added preset elements render sampleText or label when roster key is missing', () => {
+    const renderedTexts = [];
+    const mockCtx = {
+      drawImage: () => {},
+      save: () => {},
+      restore: () => {},
+      fillText: (text) => { renderedTexts.push(text); },
+      font: '',
+      fillStyle: '',
+      textAlign: '',
+      textBaseline: '',
+    };
+
+    drawCertificatePage({
+      ctx: mockCtx,
+      width: 842,
+      height: 595,
+      dpi: 72,
+      backgroundImage: null,
+      template: {
+        schemaVersion: 1,
+        orientation: 'LANDSCAPE',
+        elements: [
+          {
+            id: 'el_fallback_1',
+            type: 'text',
+            key: 'newTopicWithoutRosterData',
+            label: 'หัวข้อทดสอบ',
+            sampleText: 'ข้อความตัวอย่างที่ต้องแสดงในพรีวิว',
+            xPercent: 50,
+            yPercent: 50,
+            fontSizePt: 18,
+            fontFamily: 'Kanit',
+            fontWeight: 'normal',
+          },
+          {
+            id: 'el_fallback_2',
+            type: 'text',
+            key: 'onlyLabelTopic',
+            label: 'หัวข้อไม่มีตัวอย่าง',
+            xPercent: 50,
+            yPercent: 60,
+            fontSizePt: 18,
+            fontFamily: 'Kanit',
+            fontWeight: 'normal',
+          },
+        ],
+      },
+      data: { existingField: 'someValue' }, // Notice: neither key is in data!
+    });
+
+    assert.ok(renderedTexts.includes('ข้อความตัวอย่างที่ต้องแสดงในพรีวิว'), 'sampleText must render when data key is missing');
+    assert.ok(renderedTexts.includes('หัวข้อไม่มีตัวอย่าง'), 'label must render as ultimate fallback so element is visible');
   });
 });
 

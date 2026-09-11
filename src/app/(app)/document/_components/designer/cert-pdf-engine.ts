@@ -1,4 +1,5 @@
-import { jsPDF } from "jspdf";
+// Dynamic jsPDF import for bundler code-splitting and Node test immunity
+
 import {
   type CertificateTemplateV1,
   type CertificateElement,
@@ -52,6 +53,29 @@ export async function loadCanvasImage(url: string): Promise<HTMLImageElement> {
   });
 }
 
+export function isValidDrawableImage(src: any): src is CanvasImageSource {
+  if (!src || typeof src !== "object") return false;
+  if (typeof HTMLImageElement !== "undefined" && src instanceof HTMLImageElement) {
+    return src.complete && src.naturalWidth > 0;
+  }
+  if (typeof HTMLCanvasElement !== "undefined" && src instanceof HTMLCanvasElement) {
+    return src.width > 0 && src.height > 0;
+  }
+  if (typeof ImageBitmap !== "undefined" && src instanceof ImageBitmap) {
+    return src.width > 0 && src.height > 0;
+  }
+  if (typeof OffscreenCanvas !== "undefined" && src instanceof OffscreenCanvas) {
+    return src.width > 0 && src.height > 0;
+  }
+  if (typeof SVGImageElement !== "undefined" && src instanceof SVGImageElement) {
+    return true;
+  }
+  if (typeof (src as any).nodeName === "string" && (src as any).nodeName === "IMG") {
+    return true;
+  }
+  return false;
+}
+
 /**
  * Draws a single certificate onto the provided canvas context.
  */
@@ -69,20 +93,29 @@ export function drawCertificatePage({
   width: number;
   height: number;
   dpi: number;
-  backgroundImage: HTMLImageElement;
+  backgroundImage?: CanvasImageSource | null;
   template: CertificateTemplateV1;
   data: Record<string, string>;
   qrImages?: Record<string, HTMLImageElement | HTMLCanvasElement>;
 }): void {
-  // 1. Draw background image stretched across full page
-  ctx.drawImage(backgroundImage, 0, 0, width, height);
+  // 1. Draw background image stretched across full page if provided and valid
+  if (isValidDrawableImage(backgroundImage)) {
+    try {
+      ctx.drawImage(backgroundImage, 0, 0, width, height);
+    } catch (err) {
+      console.warn("Could not draw background image:", err);
+    }
+  }
 
   // 2. Render each placeholder element
   for (const el of template.elements) {
     if (el.hidden) continue;
 
     if (el.type === "text") {
-      const rawValue = data[el.key] ?? el.sampleText ?? "";
+      const rawValue =
+        data[el.key] !== undefined && data[el.key] !== ""
+          ? data[el.key]
+          : (el.sampleText || el.label || "");
       if (!rawValue && !el.prefix && !el.suffix) continue;
 
       const displayText = `${el.prefix || ""}${rawValue}${el.suffix || ""}`;
@@ -180,7 +213,8 @@ export async function generateCertificatePdfBatch({
     throw new Error("Unable to create 2D canvas context.");
   }
 
-  // 5. Initialize jsPDF document
+  // 5. Initialize jsPDF document (dynamically loaded)
+  const { jsPDF } = await import("jspdf");
   const pdfOrientation = orientation === "PORTRAIT" ? "p" : "l";
   const doc = new jsPDF({
     orientation: pdfOrientation,

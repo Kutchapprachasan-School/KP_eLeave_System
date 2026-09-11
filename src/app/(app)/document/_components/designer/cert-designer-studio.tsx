@@ -265,16 +265,21 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
     return elements.find((el) => el.id === selectedElementId) || null;
   }, [elements, selectedElementId]);
 
-  // Update a single property on the active element
-  const updateSelectedElement = (partial: Partial<CertificateElement>) => {
-    if (!selectedElementId) return;
+  // Update a single property by element id
+  const updateElementById = (id: string, partial: Partial<CertificateElement>) => {
     const nextElements = elements.map((el) => {
-      if (el.id === selectedElementId) {
+      if (el.id === id) {
         return { ...el, ...partial };
       }
       return el;
     });
     pushHistory(nextElements);
+  };
+
+  // Update a single property on the active element
+  const updateSelectedElement = (partial: Partial<CertificateElement>) => {
+    if (!selectedElementId) return;
+    updateElementById(selectedElementId, partial);
   };
 
   // --- Element Manager Handlers ---
@@ -432,7 +437,7 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
         width: dims.previewWidth,
         height: dims.previewHeight,
         dpi: 72,
-        backgroundImage: { width: dims.previewWidth, height: dims.previewHeight } as any,
+        backgroundImage: null, // Background is already drawn above directly on canvas
         template: { schemaVersion: 1, orientation, elements },
         data: activeData,
       });
@@ -1168,7 +1173,7 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              updateSelectedElement({ hidden: !el.hidden });
+                              updateElementById(el.id, { hidden: !el.hidden });
                             }}
                             className="p-1 hover:bg-slate-200 dark:hover:bg-slate-700 rounded text-slate-400 hover:text-slate-700"
                             title={el.hidden ? "แสดง" : "ซ่อน"}
@@ -1454,26 +1459,49 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
                       </label>
                     </div>
 
-                    {/* Sample / Prefix / Suffix */}
+                    {/* Element Label / Sample / Prefix / Suffix */}
                     <div className="space-y-2 pt-2 border-t border-slate-200 dark:border-slate-800">
                       <div className="space-y-1">
-                        <label className="text-[10px] font-bold text-slate-500">คำนำหน้า (Prefix)</label>
+                        <label className="text-[10px] font-bold text-slate-500">ชื่อหัวข้อ (Label)</label>
                         <input
                           type="text"
-                          value={selectedElement.prefix || ""}
-                          onChange={(e) => updateSelectedElement({ prefix: e.target.value })}
-                          className="w-full text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1"
-                          placeholder="เช่น เลขที่, มอบให้แก่"
+                          value={selectedElement.label || ""}
+                          onChange={(e) => updateSelectedElement({ label: e.target.value })}
+                          className="w-full text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+                          placeholder="เช่น หัวข้อเกียรติบัตร, ชื่องาน"
                         />
                       </div>
                       <div className="space-y-1">
-                        <label className="text-[10px] font-bold text-slate-500">ข้อความตัวอย่าง (Sample)</label>
+                        <label className="text-[10px] font-bold text-slate-500">ข้อความที่แสดง / ตัวอย่าง (Text / Sample)</label>
                         <input
                           type="text"
                           value={selectedElement.sampleText || ""}
                           onChange={(e) => updateSelectedElement({ sampleText: e.target.value })}
-                          className="w-full text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1"
+                          className="w-full text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+                          placeholder="ระบุข้อความที่จะแสดงบนเกียรติบัตร"
                         />
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-slate-500">คำนำหน้า (Prefix)</label>
+                          <input
+                            type="text"
+                            value={selectedElement.prefix || ""}
+                            onChange={(e) => updateSelectedElement({ prefix: e.target.value })}
+                            className="w-full text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+                            placeholder="เช่น เลขที่ "
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-slate-500">คำต่อท้าย (Suffix)</label>
+                          <input
+                            type="text"
+                            value={selectedElement.suffix || ""}
+                            onChange={(e) => updateSelectedElement({ suffix: e.target.value })}
+                            className="w-full text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+                            placeholder="เช่น  บาท,  คน"
+                          />
+                        </div>
                       </div>
                     </div>
                   </>
