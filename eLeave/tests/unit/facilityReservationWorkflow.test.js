@@ -238,3 +238,49 @@ test('FacilityWorkflow - SLA Expiry and Idempotent Cleanup', () => {
   const run2 = service.cleanupExpiredPending(new Date('2026-09-02T00:00:00Z'));
   assert.equal(run2.cancelledCount, 0);
 });
+
+test('FacilityConflictEngine - Comprehensive Collision Protection Matrix (Rooms, Vehicles, Drivers & State Reuse)', () => {
+  const service = new FacilityReservationService();
+  service.reservations = [];
+
+  // 1. Initial booking: Room 1 is booked 09:00 - 12:00
+  service.createReservation({
+    resourceId: 'res-room-1',
+    reservedByUserId: 'teacher-a',
+    title: 'ประชุมกลุ่มสาระ',
+    startAt: '2026-10-01T09:00:00Z',
+    endAt: '2026-10-01T12:00:00Z',
+    consumerModule: 'MEETING_ROOM',
+  });
+
+  // 2. Room 1 at 10:00 - 11:00 conflicts
+  assert.equal(service.checkConflict('res-room-1', '2026-10-01T10:00:00Z', '2026-10-01T11:00:00Z'), true);
+
+  // 3. Room 2 at the exact same time 09:00 - 12:00 does NOT conflict (Resource isolation)
+  assert.equal(service.checkConflict('res-room-2', '2026-10-01T09:00:00Z', '2026-10-01T12:00:00Z'), false);
+
+  // 4. Vehicle 1 with Driver Somchai booked 08:00 - 16:00
+  const vehRes = service.createReservation({
+    resourceId: 'res-veh-van1',
+    reservedByUserId: 'teacher-b',
+    title: 'นำนักเรียนแข่งขันวิชาการ',
+    startAt: '2026-10-02T08:00:00Z',
+    endAt: '2026-10-02T16:00:00Z',
+    consumerModule: 'VEHICLE',
+  });
+  service.reviewByHead(vehRes.reservationId, {
+    driverProfileId: 'driver-somchai',
+    approverUserId: 'head-veh',
+  });
+
+  // 5. Driver collision: Attempting to assign Somchai to Vehicle 2 at 10:00 - 14:00 is blocked
+  assert.equal(service.checkDriverConflict('driver-somchai', '2026-10-02T10:00:00Z', '2026-10-02T14:00:00Z'), true);
+
+  // 6. Independent driver: Driver Sompong on Vehicle 2 at 10:00 - 14:00 is allowed
+  assert.equal(service.checkDriverConflict('driver-sompong', '2026-10-02T10:00:00Z', '2026-10-02T14:00:00Z'), false);
+
+  // 7. Instant State Reuse: Cancel Room 1 reservation -> Room 1 becomes immediately free
+  const roomRes = service.reservations.find(r => r.resourceId === 'res-room-1');
+  service.cancelReservation(roomRes.reservationId, { id: 'teacher-a', role: 'TEACHER' });
+  assert.equal(service.checkConflict('res-room-1', '2026-10-01T09:00:00Z', '2026-10-01T12:00:00Z'), false);
+});
