@@ -220,6 +220,7 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
   const dragElementIdRef = useRef<string | null>(null);
   const dragOffsetRef = useRef<{ dx: number; dy: number }>({ dx: 0, dy: 0 });
   const localPreviewUrlRef = useRef<string | null>(null);
+  const activeBgImageRef = useRef<CanvasImageSource | null>(null);
   const rawSigFilesRef = useRef<Map<string, File | Blob>>(new Map());
 
   // Active snap guides line positions
@@ -284,6 +285,7 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
     setTemplateVersion(tmpl.templateVersion || 1);
     setBackgroundAttachmentId(tmpl.backgroundAttachmentId);
     setBackgroundUrl(tmpl.backgroundUrl);
+    activeBgImageRef.current = null;
 
     if (tmpl.layoutConfig && tmpl.layoutConfig.elements) {
       setElements(tmpl.layoutConfig.elements);
@@ -620,6 +622,9 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
     const file = e.target.files?.[0];
     if (!file) return;
 
+    // Reset input value so selecting the same file again triggers onChange
+    e.target.value = "";
+
     // 1. Instant 0ms Local Preview
     if (localPreviewUrlRef.current) {
       URL.revokeObjectURL(localPreviewUrlRef.current);
@@ -633,6 +638,7 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
     const img = new Image();
     img.src = localUrl;
     img.onload = () => {
+      activeBgImageRef.current = img;
       if (img.width < img.height && orientation === "LANDSCAPE") {
         setOrientation("PORTRAIT");
       } else if (img.width > img.height && orientation === "PORTRAIT") {
@@ -650,7 +656,16 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
       const res = await uploadCertificateBackgroundAction(formData);
       if (res.success && res.data) {
         setBackgroundAttachmentId(res.data.attachmentId);
-        setBackgroundUrl(res.data.url);
+        if (res.data.url) {
+          try {
+            const preloaded = await loadCanvasImage(res.data.url);
+            activeBgImageRef.current = preloaded;
+            setBackgroundUrl(res.data.url);
+          } catch {
+            // Keep local preview URL for rendering, while cloud attachmentId is committed
+            setBackgroundUrl(localUrl);
+          }
+        }
         setStatusMessage({ type: "success", text: "อัปโหลดภาพพื้นหลังไปยังคลาวด์สำเร็จ" });
       } else {
         setStatusMessage({ type: "error", text: res.error || "อัปโหลดคลาวด์ไม่สำเร็จ (ใช้งานพรีวิวภาพปัจจุบันได้)" });
@@ -685,10 +700,16 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
           if (cancelled) return;
           if (isValidDrawableImage(loaded)) {
             bgImg = loaded;
+            activeBgImageRef.current = loaded;
           }
         } catch (err) {
           console.warn("Background load error in preview:", err);
+          if (activeBgImageRef.current && isValidDrawableImage(activeBgImageRef.current)) {
+            bgImg = activeBgImageRef.current;
+          }
         }
+      } else if (activeBgImageRef.current && isValidDrawableImage(activeBgImageRef.current)) {
+        bgImg = activeBgImageRef.current;
       }
 
       // 2. Preload signature images for studio canvas preview

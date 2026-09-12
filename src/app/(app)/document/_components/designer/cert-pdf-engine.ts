@@ -66,6 +66,28 @@ export async function loadCanvasImage(url: string): Promise<HTMLImageElement> {
     };
 
     img.onerror = () => {
+      // Graceful fallback: If anonymous CORS failed on a remote URL, retry without crossOrigin for canvas rendering
+      if (img.crossOrigin === "anonymous" && (url.startsWith("http://") || url.startsWith("https://"))) {
+        const fallbackImg = new Image();
+        fallbackImg.onload = () => {
+          if (isValidDrawableImage(fallbackImg)) {
+            inMemoryImageCache.set(url, fallbackImg);
+            resolve(fallbackImg);
+          } else {
+            reject(new Error(`Image loaded but dimensions are invalid (${url.slice(0, 50)})`));
+          }
+        };
+        fallbackImg.onerror = () => {
+          reject(
+            new Error(
+              `Failed to load image from "${url.slice(0, 80)}". Please ensure Cloudflare R2 / Supabase bucket CORS allows origin "${typeof window !== "undefined" ? window.location.origin : "*"}" with AllowedHeaders: ["*"] and AllowedMethods: ["GET", "HEAD"].`
+            )
+          );
+        };
+        fallbackImg.src = url;
+        return;
+      }
+
       reject(
         new Error(
           `Failed to load image from "${url.slice(0, 80)}". Please ensure Cloudflare R2 / Supabase bucket CORS allows origin "${typeof window !== "undefined" ? window.location.origin : "*"}" with AllowedHeaders: ["*"] and AllowedMethods: ["GET", "HEAD"].`

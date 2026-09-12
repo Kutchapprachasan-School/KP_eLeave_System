@@ -1302,10 +1302,11 @@ export async function saveCertificateTemplateAction(
 }
 
 export async function forkCertificateTemplateAction(
-  templateId: string
+  input: string | { sourceTemplateId: string; newName?: string; targetScope?: string }
 ): Promise<ActionResponse<any>> {
   try {
     const user = await getSessionUser();
+    const templateId = typeof input === "string" ? input : input.sourceTemplateId;
     const result = await forkTemplateService(templateId, {
       userId: user.id,
       userRole: user.role,

@@ -90,8 +90,7 @@ export async function uploadCertificateBackground(params: {
   }
 
   // 4. Upload to Cloud Storage with R2 -> Supabase resilient fallback
-  const resolvedProvider = (process.env.STORAGE_PROVIDER?.toUpperCase() === "SUPABASE" ? "SUPABASE" : "R2") as "R2" | "SUPABASE";
-  let uploadRes: { success: boolean; url: string; storageKey: string };
+  let uploadRes: { storageKey: string; publicUrl?: string; provider: "R2" | "SUPABASE" };
   try {
     uploadRes = await uploadWithResilientFallback({
       buffer,
@@ -116,12 +115,17 @@ export async function uploadCertificateBackground(params: {
     throw new Error(`Cloud upload failed: ${uploadErr?.message || uploadErr}`);
   }
 
+  const actualProvider = uploadRes.provider;
+  const publicUrl =
+    uploadRes.publicUrl ||
+    (await getStorageProviderByType(actualProvider).getUrl(objectKey, { isPublic: true }));
+
   // 5. Cloud upload succeeded -> Mark ACTIVE & status: COMMITTED
   await prisma.$transaction(async (tx) => {
     await tx.fileAttachment.update({
       where: { id: attachment.id },
       data: {
-        storageProvider: resolvedProvider,
+        storageProvider: actualProvider,
         attachmentStatus: "ACTIVE",
         uploadExpiresAt: null,
       },
@@ -136,13 +140,11 @@ export async function uploadCertificateBackground(params: {
     });
   });
 
-  const publicUrl = uploadRes.url || (await getStorageProviderByType(resolvedProvider).getUrl(objectKey, { isPublic: true }));
-
   return {
     attachmentId: attachment.id,
     url: publicUrl,
     objectKey,
-    storageProvider: resolvedProvider,
+    storageProvider: actualProvider,
   };
 }
 
@@ -222,8 +224,7 @@ export async function uploadCertificateSignature(params: {
   }
 
   // 2. Upload to Cloud Storage with R2 -> Supabase resilient fallback
-  const resolvedProvider = (process.env.STORAGE_PROVIDER?.toUpperCase() === "SUPABASE" ? "SUPABASE" : "R2") as "R2" | "SUPABASE";
-  let uploadRes: { success: boolean; url: string; storageKey: string };
+  let uploadRes: { storageKey: string; publicUrl?: string; provider: "R2" | "SUPABASE" };
   try {
     uploadRes = await uploadWithResilientFallback({
       buffer,
@@ -247,12 +248,17 @@ export async function uploadCertificateSignature(params: {
     throw new Error(`Cloud upload failed: ${uploadErr?.message || uploadErr}`);
   }
 
+  const actualProvider = uploadRes.provider;
+  const publicUrl =
+    uploadRes.publicUrl ||
+    (await getStorageProviderByType(actualProvider).getUrl(objectKey, { isPublic: true }));
+
   // 3. Mark ACTIVE & status: COMMITTED
   await prisma.$transaction(async (tx) => {
     await tx.fileAttachment.update({
       where: { id: attachment.id },
       data: {
-        storageProvider: resolvedProvider,
+        storageProvider: actualProvider,
         attachmentStatus: "ACTIVE",
         uploadExpiresAt: null,
       },
@@ -267,14 +273,10 @@ export async function uploadCertificateSignature(params: {
     });
   });
 
-  const publicUrl =
-    uploadRes.url ||
-    (await getStorageProviderByType(resolvedProvider).getUrl(objectKey, { isPublic: true }));
-
   return {
     attachmentId: attachment.id,
     url: publicUrl,
     objectKey,
-    storageProvider: resolvedProvider,
+    storageProvider: actualProvider,
   };
 }
