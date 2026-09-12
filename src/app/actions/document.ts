@@ -9,7 +9,9 @@ import { issueOutboundDocAtomic } from "@/features/document/application/use-case
 import {
   uploadCertificateBackground,
   uploadCertificateSignature,
+  uploadCertificateFont,
 } from "@/features/document/application/services/certificate-upload.service";
+import { getStorageProviderByType } from "@/services/storage";
 import { verifyCertificateByToken } from "@/features/document/application/services/certificate-verification.service";
 
 // Helper to check user session
@@ -1383,13 +1385,13 @@ export async function uploadCertificateSignatureAction(
   formData: FormData
 ): Promise<ActionResponse<{ attachmentId: string; url: string; objectKey: string; storageProvider: string }>> {
   try {
-    const user = await getCurrentUser();
+    const user = await getSessionUser();
     if (!user) {
       return { success: false, error: "กรุณาเข้าสู่ระบบก่อนอัปโหลดภาพลายเซ็น" };
     }
 
-    const file = formData.get("file") as File;
-    if (!file || !(file instanceof File)) {
+    const file = formData.get("file") as unknown as File;
+    if (!file) {
       return { success: false, error: "ไม่พบไฟล์ภาพลายเซ็นที่ต้องการอัปโหลด" };
     }
 
@@ -1421,7 +1423,7 @@ export async function fetchImageAsDataUrlAction(
   targetUrl: string
 ): Promise<ActionResponse<{ dataUrl: string; mimeType: string }>> {
   try {
-    const user = await getCurrentUser();
+    const user = await getSessionUser();
     if (!user) {
       return { success: false, error: "Unauthorized" };
     }
@@ -1473,6 +1475,126 @@ export async function fetchImageAsDataUrlAction(
     };
   } catch (err: any) {
     return handleActionError(err, "fetchImageAsDataUrlAction");
+  }
+}
+
+/**
+ * Senior Hardened Font Upload Action (Item 5):
+ * Magic bytes check, <= 5MB limit, server-side authoritative SHA-256 computation.
+ */
+export async function uploadCertificateFontAction(
+  formData: FormData
+): Promise<
+  ActionResponse<{
+    attachmentId: string;
+    family: string;
+    assetHash: string;
+    fontVersion: string;
+    url: string;
+    objectKey: string;
+    storageProvider: string;
+  }>
+> {
+  try {
+    const user = await getSessionUser();
+    const file = formData.get("file") as unknown as File;
+    const familyName = (formData.get("familyName") as string) || undefined;
+    const clientSessionId = (formData.get("uploadSessionId") as string) || undefined;
+
+    if (!file) {
+      return { success: false, error: "ไม่พบไฟล์ฟอนต์ที่ต้องการอัปโหลด" };
+    }
+
+    const res = await uploadCertificateFont({
+      file,
+      familyName,
+      clientSessionId,
+      userId: user.id,
+    });
+
+    return {
+      success: true,
+      data: res,
+    };
+  } catch (err: any) {
+    return handleActionError(err, "uploadCertificateFontAction");
+  }
+}
+
+/**
+ * Senior Hardened Attachment URL Gate Action (Item 7):
+ * Verifies session, attachment ACTIVE status, category match, and caller authorization.
+ */
+export async function getAttachmentUrlAction(
+  attachmentId: string,
+  expectedCategory?: "BACKGROUND" | "SIGNATURE" | "CUSTOM_FONT"
+): Promise<ActionResponse<{ url: string; expiresAt?: string; mimeType: string }>> {
+  try {
+    const user = await getSessionUser();
+    if (!user) {
+      return { success: false, error: "Unauthorized" };
+    }
+
+    if (!attachmentId || typeof attachmentId !== "string") {
+      return { success: false, error: "Invalid attachment ID" };
+    }
+
+    const attachment = await prisma.fileAttachment.findUnique({
+      where: { id: attachmentId },
+      include: {
+        certificateTemplates: {
+          select: { id: true, scope: true, createdById: true },
+        },
+      },
+    });
+
+    if (!attachment) {
+      return { success: false, error: "Attachment not found" };
+    }
+
+    if (attachment.attachmentStatus !== "ACTIVE") {
+      return { success: false, error: "Attachment is not active" };
+    }
+
+    // Category / path verification if expectedCategory is specified
+    if (expectedCategory) {
+      const key = attachment.objectKey.toLowerCase();
+      if (expectedCategory === "BACKGROUND" && !key.includes("background")) {
+        return { success: false, error: "Attachment is not a background image" };
+      }
+      if (expectedCategory === "SIGNATURE" && !key.includes("signature")) {
+        return { success: false, error: "Attachment is not a signature image" };
+      }
+      if (expectedCategory === "CUSTOM_FONT" && !key.includes("font")) {
+        return { success: false, error: "Attachment is not a font file" };
+      }
+    }
+
+    // Authorization check:
+    // If associated with a template, check if template is SYSTEM_PRESET, SCHOOL_SHARED, or owned by user/admin
+    const isAdminUser = user.role === "ADMIN" || user.role === "SUPERADMIN";
+    if (attachment.certificateTemplates.length > 0) {
+      const hasAccess = attachment.certificateTemplates.some(
+        (t) => t.scope === "SYSTEM_PRESET" || t.scope === "SCHOOL_SHARED" || t.createdById === user.id || isAdminUser
+      );
+      if (!hasAccess) {
+        return { success: false, error: "Forbidden: You do not have permission to view this attachment" };
+      }
+    }
+
+    const storage = getStorageProviderByType(attachment.storageProvider);
+    const url = await storage.getUrl(attachment.objectKey, { isPublic: true });
+
+    return {
+      success: true,
+      data: {
+        url,
+        mimeType: attachment.mimeType,
+        expiresAt: new Date(Date.now() + 3600 * 1000).toISOString(),
+      },
+    };
+  } catch (err: any) {
+    return handleActionError(err, "getAttachmentUrlAction");
   }
 }
 

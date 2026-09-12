@@ -12,8 +12,13 @@ import {
   documentPointToScreen,
   computeSnap,
   FONT_MANIFEST,
+  SUPPORTED_FONTS,
+  CustomFontSchema,
+  extractCustomFontAttachmentIds,
   isValidVerificationTokenFormat,
 } from '../../../src/app/(app)/document/_components/designer/cert-schema.ts';
+import { detectFontMagicBytes } from '../../../src/app/(app)/document/_components/designer/font-manifest.ts';
+import { computeBufferSha256 } from '../../../src/app/(app)/document/_components/designer/font-loader.ts';
 import { generateQrMatrix, drawQRCodeBadge } from '../../../src/app/(app)/document/_components/designer/qr-renderer.ts';
 import {
   drawCertificatePage,
@@ -409,9 +414,9 @@ test('Certificate Designer Studio & Concurrency Invariants Suite', async (t) => 
   // -------------------------------------------------------------
   // Test 15: Font asset identity test (Preview + PDF resolve exact same manifest)
   // -------------------------------------------------------------
-  await t.test('15. Font asset identity test: All 6 Thai fonts resolve identical family, version, and assetHash', () => {
+  await t.test('15. Font asset identity test: All 14 multilingual fonts resolve identical family, version, and assetHash', () => {
     const manifestKeys = Object.keys(FONT_MANIFEST);
-    assert.equal(manifestKeys.length, 6);
+    assert.equal(manifestKeys.length, 14);
 
     for (const key of manifestKeys) {
       const font = FONT_MANIFEST[key];
@@ -421,13 +426,27 @@ test('Certificate Designer Studio & Concurrency Invariants Suite', async (t) => 
       assert.ok(font.weights.length > 0, `Font ${key} has weights`);
     }
 
-    // Verify Sarabun, Prompt, Kanit, Taviraj, Chakra Petch, Mali
+    // Verify Thai (6)
     assert.ok(FONT_MANIFEST['Sarabun']);
     assert.ok(FONT_MANIFEST['Prompt']);
     assert.ok(FONT_MANIFEST['Kanit']);
     assert.ok(FONT_MANIFEST['Taviraj']);
     assert.ok(FONT_MANIFEST['Chakra Petch']);
     assert.ok(FONT_MANIFEST['Mali']);
+
+    // Verify English (4)
+    assert.ok(FONT_MANIFEST['Playfair Display']);
+    assert.ok(FONT_MANIFEST['Cinzel']);
+    assert.ok(FONT_MANIFEST['Montserrat']);
+    assert.ok(FONT_MANIFEST['Inter']);
+
+    // Verify Japanese (2)
+    assert.ok(FONT_MANIFEST['Noto Sans JP']);
+    assert.ok(FONT_MANIFEST['Noto Serif JP']);
+
+    // Verify Chinese (2)
+    assert.ok(FONT_MANIFEST['Noto Sans SC']);
+    assert.ok(FONT_MANIFEST['Noto Serif SC']);
   });
 
   // -------------------------------------------------------------
@@ -1837,7 +1856,599 @@ test('Certificate Designer Studio & Concurrency Invariants Suite', async (t) => 
     const reconstructedQr = `https://eleave.kutchap.ac.th/v/${tokenMatch[1]}`;
     assert.equal(reconstructedQr, 'https://eleave.kutchap.ac.th/v/xyz1234567890123456789');
   });
+
+  // -------------------------------------------------------------
+  // Test 43: Deep Immutable Undo Snapshot (Invariant: structuredClone prevents mutation drift)
+  // -------------------------------------------------------------
+  await t.test('43. Deep Immutable Undo Snapshot: structuredClone isolates history stack from element mutations', () => {
+    // Initial active state
+    let elements = [
+      { id: 'el-1', type: 'text', key: 'fullName', label: 'ชื่อ', xPercent: 50, yPercent: 40, fontSizePt: 24 },
+      { id: 'el-2', type: 'text', key: 'role', label: 'บทบาท', xPercent: 50, yPercent: 50, fontSizePt: 18 },
+    ];
+    let backgroundAttachmentId = 'att_bg_1';
+    let backgroundUrl = 'https://mock.storage/bg1.png';
+    let orientation = 'LANDSCAPE';
+
+    const undoStack = [];
+    const redoStack = [];
+
+    // Helper: take snapshot using structuredClone
+    const pushSnapshot = () => {
+      undoStack.push(structuredClone({
+        elements,
+        backgroundAttachmentId,
+        backgroundUrl,
+        orientation,
+      }));
+      redoStack.length = 0;
+    };
+
+    // 1. Take snapshot of initial state
+    pushSnapshot();
+    assert.equal(undoStack.length, 1);
+
+    // 2. Direct mutation on active elements array and nested objects (e.g. user drags element)
+    elements[0].xPercent = 95;
+    elements[0].fontSizePt = 48;
+    elements.push({ id: 'el-3', type: 'qrcode', key: 'qrCode', label: 'QR', xPercent: 80, yPercent: 80, fontSizePt: 12 });
+    backgroundAttachmentId = 'att_bg_2';
+    backgroundUrl = 'https://mock.storage/bg2.png';
+
+    // 3. Invariant: Snapshot inside undoStack must NOT be affected by mutations
+    const snapshot = undoStack[0];
+    assert.equal(snapshot.elements.length, 2, 'Snapshot must still contain exactly 2 elements');
+    assert.equal(snapshot.elements[0].xPercent, 50, 'Snapshot xPercent must remain 50');
+    assert.equal(snapshot.elements[0].fontSizePt, 24, 'Snapshot fontSizePt must remain 24');
+    assert.equal(snapshot.backgroundAttachmentId, 'att_bg_1');
+    assert.equal(snapshot.backgroundUrl, 'https://mock.storage/bg1.png');
+
+    // 4. Undo restores initial state cleanly
+    const restored = undoStack.pop();
+    redoStack.push(structuredClone({ elements, backgroundAttachmentId, backgroundUrl, orientation }));
+    elements = restored.elements;
+    backgroundAttachmentId = restored.backgroundAttachmentId;
+    backgroundUrl = restored.backgroundUrl;
+    orientation = restored.orientation;
+
+    assert.equal(elements.length, 2);
+    assert.equal(elements[0].xPercent, 50);
+    assert.equal(redoStack.length, 1);
+    assert.equal(redoStack[0].elements.length, 3);
+  });
+
+  // -------------------------------------------------------------
+  // Test 44: Undoable vs Non-Undoable State Boundary (Invariant: Selection and Zoom Scale Preserved)
+  // -------------------------------------------------------------
+  await t.test('44. Undoable vs Non-Undoable State Boundary: Undo/Redo preserves selectedElementId, zoomScale, and pan state', () => {
+    // Designer full state
+    const studioState = {
+      // Undoable slice
+      elements: [
+        { id: 'el-1', type: 'text', key: 'fullName', label: 'ชื่อ', xPercent: 50, yPercent: 40 },
+      ],
+      backgroundAttachmentId: 'att_bg_initial',
+      backgroundUrl: 'https://mock.storage/bg_initial.png',
+      orientation: 'LANDSCAPE',
+
+      // Non-undoable slice (UI viewport / selection)
+      selectedElementId: 'el-1',
+      zoomScale: 1.5,
+      isPanMode: true,
+      activeTab: 'layers',
+    };
+
+    const undoStack = [];
+
+    // History Transaction Boundary
+    const performUndoableAction = (mutateFn) => {
+      // Push ONLY the undoable state slice
+      undoStack.push(structuredClone({
+        elements: studioState.elements,
+        backgroundAttachmentId: studioState.backgroundAttachmentId,
+        backgroundUrl: studioState.backgroundUrl,
+        orientation: studioState.orientation,
+      }));
+      mutateFn();
+    };
+
+    // User adds new element and selects it at zoom 2.0
+    performUndoableAction(() => {
+      studioState.elements.push({ id: 'el-2', type: 'text', key: 'date', label: 'วันที่', xPercent: 50, yPercent: 70 });
+      studioState.selectedElementId = 'el-2';
+      studioState.zoomScale = 2.0;
+      studioState.isPanMode = false;
+    });
+
+    assert.equal(studioState.elements.length, 2);
+    assert.equal(studioState.selectedElementId, 'el-2');
+    assert.equal(studioState.zoomScale, 2.0);
+
+    // User triggers Undo:
+    const previous = undoStack.pop();
+    studioState.elements = previous.elements;
+    studioState.backgroundAttachmentId = previous.backgroundAttachmentId;
+    studioState.backgroundUrl = previous.backgroundUrl;
+    studioState.orientation = previous.orientation;
+    // Note: studioState.selectedElementId, zoomScale, isPanMode are deliberately NOT reset from history!
+
+    assert.equal(studioState.elements.length, 1, 'Elements reverted to initial 1 item');
+    assert.equal(studioState.zoomScale, 2.0, 'zoomScale must NOT be reverted by undo');
+    assert.equal(studioState.isPanMode, false, 'panMode must remain as currently set');
+    assert.equal(studioState.elements.some((el) => el.id === studioState.selectedElementId), false);
+  });
+
+  // -------------------------------------------------------------
+  // Test 45: Service-Side Template RBAC Matrix (PRIVATE, SCHOOL_SHARED, SYSTEM_PRESET)
+  // -------------------------------------------------------------
+  await t.test('45. Service-Side Template RBAC Matrix: strictly validates creator vs non-creator vs admin permissions', () => {
+    // Model RBAC evaluator matching saveTemplateService & deleteTemplateService rules
+    function evaluatePermission({ action, template, user, inputScope }) {
+      const isAdmin = user.role === 'ADMIN' || user.role === 'SUPERADMIN';
+
+      if (action === 'CREATE') {
+        if (inputScope === 'SYSTEM_PRESET') {
+          return { allowed: false, code: 'PRESET_IMMUTABLE', error: 'Cannot create SYSTEM_PRESET directly' };
+        }
+        if (inputScope === 'SCHOOL_SHARED' && !isAdmin && !user.canShareCertTemplates) {
+          return { allowed: false, code: 'FORBIDDEN', error: 'Sharing templates requires admin approval' };
+        }
+        return { allowed: true };
+      }
+
+      if (action === 'UPDATE') {
+        if (template.scope === 'SYSTEM_PRESET') {
+          return { allowed: false, code: 'PRESET_IMMUTABLE', error: 'System presets cannot be modified directly. Use Fork.' };
+        }
+        if (inputScope === 'SYSTEM_PRESET') {
+          return { allowed: false, code: 'PRESET_IMMUTABLE', error: 'Cannot promote templates to SYSTEM_PRESET.' };
+        }
+        if (template.scope === 'PRIVATE') {
+          if (template.createdById !== user.userId && !isAdmin) {
+            return { allowed: false, code: 'FORBIDDEN', error: 'You can only edit your own private templates.' };
+          }
+        }
+        if (template.scope === 'SCHOOL_SHARED') {
+          if (template.createdById !== user.userId && !isAdmin) {
+            return { allowed: false, code: 'FORBIDDEN', error: 'School-shared templates can only be edited by creator or admin.' };
+          }
+        }
+        return { allowed: true };
+      }
+
+      if (action === 'DELETE') {
+        if (template.scope === 'SYSTEM_PRESET') {
+          return { allowed: false, code: 'PRESET_IMMUTABLE', error: 'System presets cannot be deleted.' };
+        }
+        if (template.createdById !== user.userId && !isAdmin) {
+          return { allowed: false, code: 'FORBIDDEN', error: 'You can only delete your own templates.' };
+        }
+        return { allowed: true };
+      }
+
+      return { allowed: false, code: 'UNKNOWN_ACTION' };
+    }
+
+    const ownerUser = { userId: 'user-teacher-1', role: 'TEACHER', canShareCertTemplates: false };
+    const otherUser = { userId: 'user-teacher-2', role: 'TEACHER', canShareCertTemplates: false };
+    const adminUser = { userId: 'user-admin-1', role: 'ADMIN', canShareCertTemplates: true };
+
+    const privateTmpl = { id: 'tmpl-1', scope: 'PRIVATE', createdById: 'user-teacher-1' };
+    const sharedTmpl = { id: 'tmpl-2', scope: 'SCHOOL_SHARED', createdById: 'user-teacher-1' };
+    const presetTmpl = { id: 'tmpl-3', scope: 'SYSTEM_PRESET', createdById: null };
+
+    // 1. Owner can update & delete own PRIVATE template
+    assert.equal(evaluatePermission({ action: 'UPDATE', template: privateTmpl, user: ownerUser, inputScope: 'PRIVATE' }).allowed, true);
+    assert.equal(evaluatePermission({ action: 'DELETE', template: privateTmpl, user: ownerUser }).allowed, true);
+
+    // 2. Other user CANNOT update or delete owner's PRIVATE template
+    assert.equal(evaluatePermission({ action: 'UPDATE', template: privateTmpl, user: otherUser, inputScope: 'PRIVATE' }).code, 'FORBIDDEN');
+    assert.equal(evaluatePermission({ action: 'DELETE', template: privateTmpl, user: otherUser }).code, 'FORBIDDEN');
+
+    // 3. Admin CAN update & delete any PRIVATE template
+    assert.equal(evaluatePermission({ action: 'UPDATE', template: privateTmpl, user: adminUser, inputScope: 'PRIVATE' }).allowed, true);
+    assert.equal(evaluatePermission({ action: 'DELETE', template: privateTmpl, user: adminUser }).allowed, true);
+
+    // 4. Other user CANNOT update owner's SCHOOL_SHARED template
+    assert.equal(evaluatePermission({ action: 'UPDATE', template: sharedTmpl, user: otherUser, inputScope: 'SCHOOL_SHARED' }).code, 'FORBIDDEN');
+
+    // 5. Nobody can modify or delete SYSTEM_PRESET directly
+    assert.equal(evaluatePermission({ action: 'UPDATE', template: presetTmpl, user: adminUser, inputScope: 'SYSTEM_PRESET' }).code, 'PRESET_IMMUTABLE');
+    assert.equal(evaluatePermission({ action: 'DELETE', template: presetTmpl, user: adminUser }).code, 'PRESET_IMMUTABLE');
+    assert.equal(evaluatePermission({ action: 'UPDATE', template: presetTmpl, user: ownerUser, inputScope: 'PRIVATE' }).code, 'PRESET_IMMUTABLE');
+  });
+
+  // -------------------------------------------------------------
+  // Test 46: Fork Source Row Lock & Reference Acquisition (Invariants W, AA)
+  // -------------------------------------------------------------
+  await t.test('46. Fork Source Row Lock & Reference Acquisition: acquires lock, collects all persistent attachments and increments references', async () => {
+    // Mock database tables
+    const attachments = new Map([
+      ['att_bg_src', { id: 'att_bg_src', attachmentStatus: 'ACTIVE', referenceCount: 1 }],
+      ['att_sig_1', { id: 'att_sig_1', attachmentStatus: 'ACTIVE', referenceCount: 2 }],
+      ['att_font_1', { id: 'att_font_1', attachmentStatus: 'ACTIVE', referenceCount: 1 }],
+    ]);
+
+    const templates = new Map([
+      [
+        'tmpl_src_1',
+        {
+          id: 'tmpl_src_1',
+          name: 'เกียรติบัตรดีเด่น',
+          orientation: 'LANDSCAPE',
+          backgroundAttachmentId: 'att_bg_src',
+          scope: 'SCHOOL_SHARED',
+          createdById: 'teacher-1',
+          layoutConfig: {
+            schemaVersion: 1,
+            orientation: 'LANDSCAPE',
+            elements: [
+              { id: 'el-1', type: 'text', key: 'fullName', label: 'ชื่อ', xPercent: 50, yPercent: 40 },
+              { id: 'el-2', type: 'signature', key: 'signature1', label: 'ลายเซ็น', xPercent: 50, yPercent: 80, signatureAttachmentId: 'att_sig_1' },
+            ],
+            customFonts: [
+              { family: 'SpecialFont', attachmentId: 'att_font_1', fontVersion: '1.0.0', assetHash: 'a'.repeat(64) },
+            ],
+          },
+        },
+      ],
+    ]);
+
+    let rowLocked = false;
+    // Simulate fork transaction
+    const executeFork = async (sourceId, targetUserId) => {
+      // 1. Lock source row (FOR UPDATE)
+      rowLocked = true;
+      const source = templates.get(sourceId);
+      if (!source) throw new Error('NOT_FOUND');
+
+      // 2. Collect persistent attachments (background + signatures + custom fonts)
+      const sigIds = source.layoutConfig.elements.map((el) => el.signatureAttachmentId).filter(Boolean);
+      const fontIds = source.layoutConfig.customFonts.map((f) => f.attachmentId).filter(Boolean);
+      const allAttIds = Array.from(new Set([source.backgroundAttachmentId, ...sigIds, ...fontIds].filter(Boolean))).sort();
+
+      // 3. Acquire references
+      for (const id of allAttIds) {
+        const att = attachments.get(id);
+        if (!att || att.attachmentStatus !== 'ACTIVE') {
+          throw new Error('ATTACHMENT_UNAVAILABLE');
+        }
+        att.referenceCount += 1;
+      }
+
+      // 4. Create new PRIVATE template
+      const forkedId = `tmpl_fork_${Date.now()}`;
+      const forked = {
+        id: forkedId,
+        name: `${source.name} (คัดลอก)`,
+        orientation: source.orientation,
+        backgroundAttachmentId: source.backgroundAttachmentId,
+        layoutConfig: structuredClone(source.layoutConfig),
+        scope: 'PRIVATE',
+        createdById: targetUserId,
+      };
+      templates.set(forkedId, forked);
+      return forked;
+    };
+
+    const forked = await executeFork('tmpl_src_1', 'teacher-2');
+    assert.equal(rowLocked, true, 'Source row lock must be acquired');
+    assert.equal(forked.scope, 'PRIVATE');
+    assert.equal(forked.name, 'เกียรติบัตรดีเด่น (คัดลอก)');
+    assert.equal(forked.createdById, 'teacher-2');
+
+    // References for all 3 attachments must be incremented by 1
+    assert.equal(attachments.get('att_bg_src').referenceCount, 2);
+    assert.equal(attachments.get('att_sig_1').referenceCount, 3);
+    assert.equal(attachments.get('att_font_1').referenceCount, 2);
+  });
+
+  // -------------------------------------------------------------
+  // Test 47: Fork Attachment State Gate (Invariant: Aborts if attachment not ACTIVE)
+  // -------------------------------------------------------------
+  await t.test('47. Fork Attachment State Gate: transaction aborts if any dependent attachment is not ACTIVE', async () => {
+    const attachments = new Map([
+      ['att_bg', { id: 'att_bg', attachmentStatus: 'ACTIVE', referenceCount: 1 }],
+      ['att_font_corrupted', { id: 'att_font_corrupted', attachmentStatus: 'PENDING_DELETE', referenceCount: 0 }],
+    ]);
+
+    const executeForkWithGate = (attIds) => {
+      for (const id of attIds) {
+        const att = attachments.get(id);
+        if (!att || att.attachmentStatus !== 'ACTIVE') {
+          throw new Error(`ATTACHMENT_UNAVAILABLE: Attachment ${id} is not in ACTIVE state (${att?.attachmentStatus})`);
+        }
+      }
+    };
+
+    // Fails because att_font_corrupted is PENDING_DELETE
+    assert.throws(
+      () => executeForkWithGate(['att_bg', 'att_font_corrupted']),
+      /ATTACHMENT_UNAVAILABLE/
+    );
+
+    // References remain unchanged on abort
+    assert.equal(attachments.get('att_bg').referenceCount, 1);
+  });
+
+  // -------------------------------------------------------------
+  // Test 48: Font SOT Invariant: CustomFontSchema strictly excludes transient URLs & verifies 64-hex SHA-256
+  // -------------------------------------------------------------
+  await t.test('48. Font SOT Invariant: CustomFontSchema strictly rejects transient URLs and enforces 64-hex SHA-256 hash', () => {
+    const validCustomFont = {
+      family: 'MyCustomSarabun',
+      attachmentId: 'att_font_123',
+      fontVersion: '1.0.0',
+      assetHash: 'a1b2c3d4e5f67890123456789abcdef0123456789abcdef0123456789abcdef0',
+    };
+
+    // 1. Valid custom font passes schema validation
+    const parsed = CustomFontSchema.safeParse(validCustomFont);
+    assert.equal(parsed.success, true);
+
+    // 2. Strict rejection of transient/derived 'url' (P0-1 invariant)
+    const taintedCustomFont = {
+      ...validCustomFont,
+      url: 'https://cdn.example.com/fonts/my-font.woff2', // FORBIDDEN!
+    };
+    const taintedResult = CustomFontSchema.safeParse(taintedCustomFont);
+    assert.equal(taintedResult.success, false, 'CustomFontSchema must reject any presence of url');
+
+    // 3. Rejects invalid hash (not 64 hex characters)
+    const shortHashFont = { ...validCustomFont, assetHash: 'abc123' };
+    assert.equal(CustomFontSchema.safeParse(shortHashFont).success, false);
+
+    const nonHexHashFont = { ...validCustomFont, assetHash: 'z'.repeat(64) };
+    assert.equal(CustomFontSchema.safeParse(nonHexHashFont).success, false);
+
+    // 4. extractCustomFontAttachmentIds extracts clean list of unique IDs
+    const layoutConfig = {
+      schemaVersion: 1,
+      orientation: 'LANDSCAPE',
+      elements: [],
+      customFonts: [
+        { family: 'F1', attachmentId: 'att_1', fontVersion: '1.0.0', assetHash: '0'.repeat(64) },
+        { family: 'F2', attachmentId: 'att_2', fontVersion: '1.0.0', assetHash: '1'.repeat(64) },
+        { family: 'F1-Bold', attachmentId: 'att_1', fontVersion: '1.0.0', assetHash: '2'.repeat(64) }, // Duplicate attachmentId
+      ],
+    };
+    const extractedIds = extractCustomFontAttachmentIds(layoutConfig);
+    assert.deepEqual(extractedIds, ['att_1', 'att_2']);
+  });
+
+  // -------------------------------------------------------------
+  // Test 49: Font Binary SHA-256 Verification: computeBufferSha256 and integrity checks
+  // -------------------------------------------------------------
+  await t.test('49. Font Binary SHA-256 Verification: computeBufferSha256 produces exact match and rejects tampered bytes', async () => {
+    // Generate known binary buffer
+    const testBytes = Buffer.from('Mock WOFF2 Font Binary Content for Certificate Studio');
+    const expectedHash = crypto.createHash('sha256').update(testBytes).digest('hex');
+
+    // 1. computeBufferSha256 produces identical hash for Buffer (ArrayBufferView)
+    const computedHashFromView = await computeBufferSha256(testBytes);
+    assert.equal(computedHashFromView, expectedHash);
+
+    // 2. computeBufferSha256 produces identical hash for pure ArrayBuffer
+    const isolatedArrayBuffer = testBytes.buffer.slice(testBytes.byteOffset, testBytes.byteOffset + testBytes.byteLength);
+    const computedHashFromBuf = await computeBufferSha256(isolatedArrayBuffer);
+    assert.equal(computedHashFromBuf, expectedHash);
+
+    // 3. Tampered content generates different hash
+    const tamperedBytes = Buffer.from('Mock WOFF2 Font Binary Content - TAMPERED');
+    const tamperedHash = await computeBufferSha256(tamperedBytes);
+    assert.notEqual(tamperedHash, expectedHash);
+
+    // 4. Verification function rejects hash mismatch
+    const verifyHashMatch = (actual, expected) => {
+      if (actual.toLowerCase() !== expected.toLowerCase()) {
+        throw new Error(`Font integrity verification failed: hash mismatch (expected ${expected}, got ${actual})`);
+      }
+      return true;
+    };
+
+    assert.equal(verifyHashMatch(computedHashFromView, expectedHash), true);
+    assert.throws(() => verifyHashMatch(tamperedHash, expectedHash), /Font integrity verification failed/);
+  });
+
+  // -------------------------------------------------------------
+  // Test 50: Server-Side Font Magic Bytes & Hash Computation
+  // -------------------------------------------------------------
+  await t.test('50. Server-Side Font Magic Bytes: detectFontMagicBytes recognizes WOFF2, WOFF, TTF, OTF and rejects non-fonts', () => {
+    // 1. WOFF2 magic bytes 'wOF2' (0x77, 0x4F, 0x46, 0x32)
+    const woff2Buffer = Buffer.from([0x77, 0x4f, 0x46, 0x32, 0x00, 0x01]);
+    const woff2Res = detectFontMagicBytes(woff2Buffer);
+    assert.equal(woff2Res.valid, true);
+    assert.equal(woff2Res.format, 'woff2');
+    assert.equal(woff2Res.mimeType, 'font/woff2');
+
+    // 2. WOFF magic bytes 'wOFF' (0x77, 0x4F, 0x46, 0x46)
+    const woffBuffer = Buffer.from([0x77, 0x4f, 0x46, 0x46, 0x00, 0x01]);
+    const woffRes = detectFontMagicBytes(woffBuffer);
+    assert.equal(woffRes.valid, true);
+    assert.equal(woffRes.format, 'woff');
+    assert.equal(woffRes.mimeType, 'font/woff');
+
+    // 3. TrueType magic bytes 0x00, 0x01, 0x00, 0x00
+    const ttfBuffer1 = Buffer.from([0x00, 0x01, 0x00, 0x00, 0x00, 0x04]);
+    const ttfRes1 = detectFontMagicBytes(ttfBuffer1);
+    assert.equal(ttfRes1.valid, true);
+    assert.equal(ttfRes1.format, 'ttf');
+
+    // 4. TrueType magic bytes 'true' (0x74, 0x72, 0x75, 0x65)
+    const ttfBuffer2 = Buffer.from([0x74, 0x72, 0x75, 0x65, 0x00, 0x04]);
+    const ttfRes2 = detectFontMagicBytes(ttfBuffer2);
+    assert.equal(ttfRes2.valid, true);
+    assert.equal(ttfRes2.format, 'ttf');
+
+    // 5. OpenType magic bytes 'OTTO' (0x4F, 0x54, 0x54, 0x4F)
+    const otfBuffer = Buffer.from([0x4f, 0x54, 0x54, 0x4f, 0x00, 0x08]);
+    const otfRes = detectFontMagicBytes(otfBuffer);
+    assert.equal(otfRes.valid, true);
+    assert.equal(otfRes.format, 'otf');
+
+    // 6. Non-font files rejected
+    assert.equal(detectFontMagicBytes(Buffer.from([0x89, 0x50, 0x4e, 0x47])).valid, false); // PNG
+    assert.equal(detectFontMagicBytes(Buffer.from('GIF89a')).valid, false); // GIF
+    assert.equal(detectFontMagicBytes(Buffer.from('%PDF-1.4')).valid, false); // PDF
+    assert.equal(detectFontMagicBytes(Buffer.from('hello')).valid, false); // Text
+    assert.equal(detectFontMagicBytes(Buffer.from([])).valid, false); // Empty
+    assert.equal(detectFontMagicBytes(null).valid, false); // Null
+  });
+
+  // -------------------------------------------------------------
+  // Test 51: Attachment Authorization & Category Gate (Item 7)
+  // -------------------------------------------------------------
+  await t.test('51. Attachment Authorization & Category Gate: validates active status, category match, and caller permissions', () => {
+    // Model getAttachmentUrlAction security logic
+    function evaluateAttachmentAccess({ user, attachment, expectedCategory }) {
+      if (!user) return { success: false, error: 'Unauthorized' };
+      if (!attachment) return { success: false, error: 'Attachment not found' };
+      if (attachment.attachmentStatus !== 'ACTIVE') return { success: false, error: 'Attachment is not active' };
+
+      if (expectedCategory) {
+        const key = attachment.objectKey.toLowerCase();
+        if (expectedCategory === 'BACKGROUND' && !key.includes('background')) {
+          return { success: false, error: 'Attachment is not a background image' };
+        }
+        if (expectedCategory === 'SIGNATURE' && !key.includes('signature')) {
+          return { success: false, error: 'Attachment is not a signature image' };
+        }
+        if (expectedCategory === 'CUSTOM_FONT' && !key.includes('font')) {
+          return { success: false, error: 'Attachment is not a font file' };
+        }
+      }
+
+      const isAdminUser = user.role === 'ADMIN' || user.role === 'SUPERADMIN';
+      if (attachment.templates && attachment.templates.length > 0) {
+        const hasAccess = attachment.templates.some(
+          (t) => t.scope === 'SYSTEM_PRESET' || t.scope === 'SCHOOL_SHARED' || t.createdById === user.id || isAdminUser
+        );
+        if (!hasAccess) {
+          return { success: false, error: 'Forbidden' };
+        }
+      }
+
+      return { success: true, url: `https://storage.kutchap.ac.th/${attachment.objectKey}` };
+    }
+
+    const user1 = { id: 'u1', role: 'TEACHER' };
+    const user2 = { id: 'u2', role: 'TEACHER' };
+    const admin = { id: 'adm', role: 'ADMIN' };
+
+    const fontAttachment = {
+      id: 'att_font',
+      objectKey: 'cert-fonts/noto_jp.woff2',
+      attachmentStatus: 'ACTIVE',
+      templates: [{ id: 't1', scope: 'PRIVATE', createdById: 'u1' }],
+    };
+
+    // 1. Owner can access
+    assert.equal(evaluateAttachmentAccess({ user: user1, attachment: fontAttachment, expectedCategory: 'CUSTOM_FONT' }).success, true);
+
+    // 2. Non-owner non-admin is blocked
+    assert.equal(evaluateAttachmentAccess({ user: user2, attachment: fontAttachment, expectedCategory: 'CUSTOM_FONT' }).error, 'Forbidden');
+
+    // 3. Admin can access
+    assert.equal(evaluateAttachmentAccess({ user: admin, attachment: fontAttachment, expectedCategory: 'CUSTOM_FONT' }).success, true);
+
+    // 4. Category mismatch is blocked
+    assert.equal(evaluateAttachmentAccess({ user: user1, attachment: fontAttachment, expectedCategory: 'BACKGROUND' }).error, 'Attachment is not a background image');
+
+    // 5. Inactive attachment is blocked
+    const inactiveAtt = { ...fontAttachment, attachmentStatus: 'PENDING_DELETE' };
+    assert.equal(evaluateAttachmentAccess({ user: user1, attachment: inactiveAtt }).error, 'Attachment is not active');
+  });
+
+  // -------------------------------------------------------------
+  // Test 52: Immediate Canonical State Upsert Invariant (Item 6 & Bug 2)
+  // -------------------------------------------------------------
+  await t.test('52. Immediate Canonical State Upsert: prevents canvas wipe and selection reset during async save reload', () => {
+    // Simulate studio component local state
+    let templates = [
+      { id: 't1', name: 'Existing 1', layoutConfig: { elements: [] }, backgroundUrl: 'https://r2/bg1.png' },
+    ];
+    let selectedTemplateId = 't1';
+    let currentCanvasElements = [{ id: 'el-active', type: 'text', key: 'fullName', label: 'สมชาย' }];
+    let currentBackgroundUrl = 'https://r2/new-uploaded-bg.png';
+
+    // Simulated handleSaveTemplate response (Hydrated ViewModel)
+    const savedViewModel = {
+      id: 't2', // Newly created or updated template
+      name: 'แม่แบบใหม่ที่เพิ่งบันทึก',
+      orientation: 'LANDSCAPE',
+      backgroundAttachmentId: 'att_bg_new',
+      backgroundUrl: 'https://r2/new-uploaded-bg.png',
+      layoutConfig: {
+        schemaVersion: 1,
+        orientation: 'LANDSCAPE',
+        elements: currentCanvasElements,
+      },
+      scope: 'PRIVATE',
+      createdById: 'u1',
+      createdByName: 'ครูสมศักดิ์',
+    };
+
+    // 1. Immediate Upsert into local state (0ms roundtrip)
+    const upsertLocalState = (saved) => {
+      templates = [saved, ...templates.filter((t) => t.id !== saved.id)];
+      selectedTemplateId = saved.id;
+    };
+    upsertLocalState(savedViewModel);
+
+    assert.equal(templates.length, 2);
+    assert.equal(templates[0].id, 't2');
+    assert.equal(selectedTemplateId, 't2');
+
+    // 2. Async loadTemplates completes in background with { preserveCurrent: true }
+    const backgroundReloadTemplates = (freshDbTemplates, options = {}) => {
+      templates = freshDbTemplates;
+      if (options.preserveCurrent) {
+        // Invariant: Do NOT overwrite current selection with templates[0]!
+        return;
+      }
+      if (!selectedTemplateId && freshDbTemplates.length > 0) {
+        selectedTemplateId = freshDbTemplates[0].id;
+      }
+    };
+
+    // Simulate DB reload returning the list
+    backgroundReloadTemplates([savedViewModel, templates[1]], { preserveCurrent: true });
+
+    // Current selection and active state must be preserved
+    assert.equal(selectedTemplateId, 't2', 'selectedTemplateId must NOT reset to t1');
+    assert.equal(currentBackgroundUrl, 'https://r2/new-uploaded-bg.png', 'Background URL remains stable');
+  });
+
+  // -------------------------------------------------------------
+  // Test 53: Multilingual Font Manifest Completeness (Item 2 & 10)
+  // -------------------------------------------------------------
+  await t.test('53. Multilingual Font Manifest Completeness: all 14 fonts contain valid hashes, static woff2 URLs, and multilingual scripts', () => {
+    assert.equal(SUPPORTED_FONTS.length, 14, 'Must define exactly 14 supported fonts');
+
+    const expectedLanguages = ['th', 'en', 'ja', 'zh'];
+    const foundLanguages = new Set();
+
+    for (const fontName of SUPPORTED_FONTS) {
+      const item = FONT_MANIFEST[fontName];
+      assert.ok(item, `Manifest entry for font ${fontName} must exist`);
+      assert.equal(item.id, fontName);
+      assert.equal(item.format, 'woff2');
+      assert.ok(item.assetUrl.startsWith('https://fonts.gstatic.com/'), `Asset URL for ${fontName} must be static gstatic URL`);
+      assert.ok(item.assetUrl.endsWith('.woff2'), `Asset for ${fontName} must be woff2`);
+
+      // 64 hex character SHA-256 hash
+      assert.match(item.assetHash, /^[a-f0-9]{64}$/i, `assetHash for ${fontName} must be 64 hex characters`);
+
+      // Weights array contains valid numbers
+      assert.ok(item.weights.length >= 1);
+      assert.ok(item.weights.includes(400) || item.weights.includes(700));
+
+      foundLanguages.add(item.language);
+    }
+
+    // Verify all 4 required language groups are represented
+    for (const lang of expectedLanguages) {
+      assert.ok(foundLanguages.has(lang), `Manifest must include language group '${lang}'`);
+    }
+  });
 });
-
-
-

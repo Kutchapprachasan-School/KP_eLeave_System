@@ -17,6 +17,7 @@ const ALLOWED_PREFIXES = [
   "src/app/verify/cert/",
   "src/app/v/",
   "src/app/actions/document.ts",
+  "src/services/certificate/",
   "src/app/(app)/facility/",
   "src/app/supervision/",
   "src/app/(app)/academic/supervision/",

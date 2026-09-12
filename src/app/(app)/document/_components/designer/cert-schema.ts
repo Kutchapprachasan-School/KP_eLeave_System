@@ -181,6 +181,22 @@ export const CertificateElementSchema = z.object({
 export type CertificateElement = z.infer<typeof CertificateElementSchema>;
 
 /**
+ * Golden Invariant P0-1 & P1-F1: Custom Font SOT Schema.
+ * Strictly excludes transient/derived `url`.
+ * Requires family, attachmentId, fontVersion, and 64-hex SHA-256 assetHash.
+ */
+export const CustomFontSchema = z
+  .object({
+    family: z.string().min(1).max(100),
+    attachmentId: z.string().min(1),
+    fontVersion: z.string().min(1).default("1.0.0"),
+    assetHash: z.string().regex(/^[a-f0-9]{64}$/i, "assetHash must be 64 hex characters"),
+  })
+  .strict();
+
+export type CustomFont = z.infer<typeof CustomFontSchema>;
+
+/**
  * V1 Layout Configuration Schema with Senior Boundary Validation.
  */
 export const CertificateTemplateV1Schema = z
@@ -188,6 +204,7 @@ export const CertificateTemplateV1Schema = z
     schemaVersion: z.literal(1).default(1),
     orientation: z.enum(["LANDSCAPE", "PORTRAIT"]).default("LANDSCAPE"),
     elements: z.array(CertificateElementSchema),
+    customFonts: z.array(CustomFontSchema).optional().default([]),
   })
   .refine(
     (data) => {
@@ -217,6 +234,17 @@ export const CertificateTemplateV1Schema = z
   );
 
 export type CertificateTemplateV1 = z.infer<typeof CertificateTemplateV1Schema>;
+
+export function extractCustomFontAttachmentIds(layoutConfig: any): string[] {
+  if (!layoutConfig || !Array.isArray(layoutConfig.customFonts)) return [];
+  const ids: string[] = [];
+  for (const f of layoutConfig.customFonts) {
+    if (f && typeof f.attachmentId === "string" && f.attachmentId.trim() !== "") {
+      ids.push(f.attachmentId.trim());
+    }
+  }
+  return Array.from(new Set(ids));
+}
 
 /**
  * Senior Architecture Pattern: Signee Layout Strategy Presets

@@ -51,6 +51,7 @@ import {
   ELEMENT_PRESETS,
   SIGNEE_LAYOUT_PRESETS,
   type ElementPresetItem,
+  type CustomFont,
   FONT_MANIFEST,
   SUPPORTED_FONTS,
   type SupportedFont,
@@ -72,6 +73,9 @@ import {
   A4_DIMS,
 } from "./cert-pdf-engine";
 import {
+  loadFontWithIntegrity,
+} from "./font-loader";
+import {
   removeSignatureBackground,
 } from "./signature-processor";
 import {
@@ -81,7 +85,9 @@ import {
   deleteCertificateTemplateAction,
   uploadCertificateBackgroundAction,
   uploadCertificateSignatureAction,
+  uploadCertificateFontAction,
 } from "@/app/actions/document";
+import { useSession } from "@/lib/auth-client";
 
 
 interface CertDesignerStudioProps {
@@ -112,6 +118,16 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
   const [backgroundUrl, setBackgroundUrl] = useState<string>("");
   const [elements, setElements] = useState<CertificateElement[]>(DEFAULT_CERTIFICATE_ELEMENTS);
   const [selectedElementId, setSelectedElementId] = useState<string | null>("el_name");
+  const [customFonts, setCustomFonts] = useState<CustomFont[]>([]);
+  const [uploadingFont, setUploadingFont] = useState<boolean>(false);
+
+  const selectedTemplateIdRef = useRef<string>("");
+  useEffect(() => {
+    selectedTemplateIdRef.current = selectedTemplateId;
+  }, [selectedTemplateId]);
+
+  const { data: session } = useSession();
+  const currentUser = session?.user;
 
   // --- Canva-like Studio UI Panels & Tools ---
   const [activeLeftTab, setActiveLeftTab] = useState<"templates" | "elements" | "layers">("elements");
@@ -228,34 +244,92 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
     };
   }, [isFullscreen]);
 
-  // --- Command History (Undo / Redo) ---
-  const [undoStack, setUndoStack] = useState<CertificateElement[][]>([]);
-  const [redoStack, setRedoStack] = useState<CertificateElement[][]>([]);
+  // --- Command History (Undo / Redo) via Immutable Transaction Manager (Item 8) ---
+  interface HistorySnapshot {
+    elements: CertificateElement[];
+    backgroundAttachmentId: string;
+    backgroundUrl: string;
+    orientation: "LANDSCAPE" | "PORTRAIT";
+  }
 
-  const pushHistory = useCallback(
-    (newElements: CertificateElement[]) => {
-      setUndoStack((prev) => [...prev.slice(-29), elements]);
+  const [undoStack, setUndoStack] = useState<HistorySnapshot[]>([]);
+  const [redoStack, setRedoStack] = useState<HistorySnapshot[]>([]);
+  const activeTransactionRef = useRef<HistorySnapshot | null>(null);
+
+  const captureSnapshot = useCallback((): HistorySnapshot => {
+    return structuredClone({
+      elements,
+      backgroundAttachmentId,
+      backgroundUrl,
+      orientation,
+    });
+  }, [elements, backgroundAttachmentId, backgroundUrl, orientation]);
+
+  const beginHistoryTransaction = useCallback(() => {
+    if (!activeTransactionRef.current) {
+      activeTransactionRef.current = captureSnapshot();
+    }
+  }, [captureSnapshot]);
+
+  const commitHistoryTransaction = useCallback(() => {
+    if (activeTransactionRef.current) {
+      const snapshot = activeTransactionRef.current;
+      activeTransactionRef.current = null;
+      const current = captureSnapshot();
+      // Only push if undoable state actually changed
+      if (
+        JSON.stringify(snapshot.elements) !== JSON.stringify(current.elements) ||
+        snapshot.backgroundAttachmentId !== current.backgroundAttachmentId ||
+        snapshot.backgroundUrl !== current.backgroundUrl ||
+        snapshot.orientation !== current.orientation
+      ) {
+        setUndoStack((prev) => [...prev.slice(-29), snapshot]);
+        setRedoStack([]);
+      }
+    }
+  }, [captureSnapshot]);
+
+  const cancelHistoryTransaction = useCallback(() => {
+    activeTransactionRef.current = null;
+  }, []);
+
+  const performHistoryAction = useCallback(
+    (mutator: () => void) => {
+      const snapshot = captureSnapshot();
+      mutator();
+      setUndoStack((prev) => [...prev.slice(-29), snapshot]);
       setRedoStack([]);
-      setElements(newElements);
     },
-    [elements]
+    [captureSnapshot]
   );
 
   const handleUndo = useCallback(() => {
     if (undoStack.length === 0) return;
-    const previous = undoStack[undoStack.length - 1];
+    const target = undoStack[undoStack.length - 1];
+    const current = captureSnapshot();
+
     setUndoStack((prev) => prev.slice(0, prev.length - 1));
-    setRedoStack((prev) => [...prev, elements]);
-    setElements(previous);
-  }, [undoStack, elements]);
+    setRedoStack((prev) => [...prev.slice(-29), current]);
+
+    setElements(structuredClone(target.elements));
+    setBackgroundAttachmentId(target.backgroundAttachmentId);
+    setBackgroundUrl(target.backgroundUrl);
+    setOrientation(target.orientation);
+  }, [undoStack, captureSnapshot]);
 
   const handleRedo = useCallback(() => {
     if (redoStack.length === 0) return;
-    const next = redoStack[redoStack.length - 1];
+    const target = redoStack[redoStack.length - 1];
+    const current = captureSnapshot();
+
     setRedoStack((prev) => prev.slice(0, prev.length - 1));
-    setUndoStack((prev) => [...prev, elements]);
-    setElements(next);
-  }, [redoStack, elements]);
+    setUndoStack((prev) => [...prev.slice(-29), current]);
+
+    setElements(structuredClone(target.elements));
+    setBackgroundAttachmentId(target.backgroundAttachmentId);
+    setBackgroundUrl(target.backgroundUrl);
+    setOrientation(target.orientation);
+  }, [redoStack, captureSnapshot]);
 
   // Keyboard Shortcuts (Ctrl+Z, Ctrl+Y, Delete, Ctrl+D, Ctrl+\, Esc)
   useEffect(() => {
@@ -401,13 +475,19 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
     loadTemplates();
   }, []);
 
-  const loadTemplates = async () => {
+  const loadTemplates = async (opts?: { preferredTemplateId?: string; preserveCurrent?: boolean }) => {
     setLoading(true);
     try {
       const res = await getCertificateTemplatesAction();
       if (res.success && res.data) {
         setTemplates(res.data);
-        if (res.data.length > 0 && !selectedTemplateId) {
+        const targetId = opts?.preferredTemplateId || selectedTemplateIdRef.current;
+        if (targetId) {
+          const found = res.data.find((t: any) => t.id === targetId);
+          if (found && !opts?.preserveCurrent) {
+            applyTemplate(found);
+          }
+        } else if (res.data.length > 0 && !opts?.preserveCurrent) {
           applyTemplate(res.data[0]);
         }
       }
@@ -434,6 +514,7 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
     }
 
     setSelectedTemplateId(tmpl.id);
+    selectedTemplateIdRef.current = tmpl.id;
     setTemplateName(tmpl.name);
     setOrientation(tmpl.orientation);
     setScope(tmpl.scope);
@@ -441,6 +522,19 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
     setBackgroundAttachmentId(tmpl.backgroundAttachmentId);
     setBackgroundUrl(tmpl.backgroundUrl || "");
     activeBgImageRef.current = null;
+
+    // Hydrate and preload custom fonts if present
+    const tmplCustomFonts: CustomFont[] = tmpl.layoutConfig?.customFonts || [];
+    setCustomFonts(tmplCustomFonts);
+    for (const cf of tmplCustomFonts) {
+      if ((cf as any).runtimeUrl) {
+        loadFontWithIntegrity({
+          family: cf.family,
+          assetUrl: (cf as any).runtimeUrl,
+          assetHash: cf.assetHash,
+        }).catch((err) => console.warn(`Failed to preload custom font ${cf.family}:`, err));
+      }
+    }
 
     if (tmpl.layoutConfig && tmpl.layoutConfig.elements) {
       // Sanitize legacy elements that might have hardcoded "กจ. " in sampleText
@@ -453,6 +547,7 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
       setElements(sanitizedElements);
       setUndoStack([]);
       setRedoStack([]);
+      activeTransactionRef.current = null;
     }
   };
 
@@ -470,6 +565,7 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
     }
 
     setSelectedTemplateId("");
+    selectedTemplateIdRef.current = "";
     setTemplateName("แบบเกียรติบัตรใหม่");
     setOrientation("LANDSCAPE");
     setScope("PRIVATE");
@@ -478,9 +574,11 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
     setBackgroundUrl("");
     activeBgImageRef.current = null;
     setElements(DEFAULT_CERTIFICATE_ELEMENTS);
+    setCustomFonts([]);
     setSelectedElementId("el_name");
     setUndoStack([]);
     setRedoStack([]);
+    activeTransactionRef.current = null;
     setStatusMessage({ type: "success", text: "เริ่มต้นสร้างแบบเกียรติบัตรใหม่" });
   };
 
@@ -517,13 +615,14 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
 
   // Update a single property by element id
   const updateElementById = (id: string, partial: Partial<CertificateElement>) => {
-    const nextElements = elements.map((el) => {
-      if (el.id === id) {
-        return { ...el, ...partial };
-      }
-      return el;
-    });
-    pushHistory(nextElements);
+    setElements((prev) =>
+      prev.map((el) => {
+        if (el.id === id) {
+          return { ...el, ...partial };
+        }
+        return el;
+      })
+    );
   };
 
   // Update a single property on the active element
@@ -557,12 +656,16 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
       yPercent: preset.defaultElement.yPercent ?? Math.min(85, 30 + elements.length * 6),
     } as CertificateElement;
 
-    pushHistory([...elements, newElement]);
+    performHistoryAction(() => {
+      setElements((prev) => [...prev, newElement]);
+    });
     setSelectedElementId(newId);
   };
 
   const handleDeleteElement = (id: string) => {
-    pushHistory(elements.filter((el) => el.id !== id));
+    performHistoryAction(() => {
+      setElements((prev) => prev.filter((el) => el.id !== id));
+    });
     if (selectedElementId === id) {
       setSelectedElementId(null);
     }
@@ -590,7 +693,9 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
       yPercent: Math.min(95, target.yPercent + 3),
     };
 
-    pushHistory([...elements, clone]);
+    performHistoryAction(() => {
+      setElements((prev) => [...prev, clone]);
+    });
     setSelectedElementId(newId);
   };
 
@@ -695,7 +800,9 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
       setStatusMessage({ type: "success", text: "ปรับตำแหน่งเป็น: ผู้ลงนาม 2 ท่าน (คู่ ซ้าย 28% / ขวา 72%)" });
     }
 
-    pushHistory(newElements);
+    performHistoryAction(() => {
+      setElements(newElements);
+    });
   };
 
   // --- Signature Upload & Transparent Ink Processor ---
@@ -815,7 +922,9 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
     newArr[idx] = newArr[targetIdx];
     newArr[targetIdx] = temp;
 
-    pushHistory(newArr);
+    performHistoryAction(() => {
+      setElements(newArr);
+    });
   };
 
   // --- Zoom Controls ---
@@ -1151,6 +1260,7 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
       setSelectedElementId(closestId);
       isDraggingRef.current = true;
       dragElementIdRef.current = closestId;
+      beginHistoryTransaction();
 
       const targetEl = elements.find((el) => el.id === closestId);
       if (targetEl) {
@@ -1213,9 +1323,7 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
       isDraggingRef.current = false;
       dragElementIdRef.current = null;
       setActiveGuides({});
-      // Push history snapshot after drag complete
-      setUndoStack((prev) => [...prev.slice(-29), elements]);
-      setRedoStack([]);
+      commitHistoryTransaction();
     }
   };
 
@@ -1233,6 +1341,7 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
       schemaVersion: 1,
       orientation,
       elements,
+      customFonts,
     };
 
     try {
@@ -1247,10 +1356,25 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
       });
 
       if (res.success && res.data) {
-        setSelectedTemplateId(res.data.id);
-        setTemplateVersion(res.data.templateVersion);
+        const saved = res.data;
+        setSelectedTemplateId(saved.id);
+        selectedTemplateIdRef.current = saved.id;
+        setTemplateVersion(saved.templateVersion);
+        if (saved.backgroundUrl) {
+          setBackgroundUrl(saved.backgroundUrl);
+        }
+        // Immediate local state upsert (0ms roundtrip)
+        setTemplates((prev) => {
+          const idx = prev.findIndex((t) => t.id === saved.id);
+          if (idx >= 0) {
+            const copy = [...prev];
+            copy[idx] = saved;
+            return copy;
+          }
+          return [saved, ...prev];
+        });
         setStatusMessage({ type: "success", text: "บันทึกแบบเกียรติบัตรสำเร็จ" });
-        loadTemplates();
+        loadTemplates({ preferredTemplateId: saved.id, preserveCurrent: true });
       } else {
         setStatusMessage({ type: "error", text: res.error || "บันทึกไม่สำเร็จ" });
       }
@@ -1263,29 +1387,26 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
 
   const handleForkTemplate = async () => {
     if (!selectedTemplateId) return;
-    const forkedName = `${templateName} (ฉบับคัดลอก)`;
+    await handleForkTemplateById(selectedTemplateId, templateName);
+  };
 
+  const handleForkTemplateById = async (tmplId: string, tmplName: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
     setSaving(true);
     setStatusMessage(null);
 
     try {
-      const res = await forkCertificateTemplateAction({
-        sourceTemplateId: selectedTemplateId,
-        newName: forkedName,
-        targetScope: "PRIVATE",
-      });
-
+      const res = await forkCertificateTemplateAction(tmplId);
       if (res.success && res.data) {
-        setSelectedTemplateId(res.data.id);
-        setTemplateName(res.data.name);
-        setTemplateVersion(res.data.templateVersion);
-        setStatusMessage({ type: "success", text: "คัดลอกแบบเกียรติบัตรเรียบร้อย" });
-        loadTemplates();
+        const forked = res.data;
+        setTemplates((prev) => [forked, ...prev]);
+        applyTemplate(forked);
+        setStatusMessage({ type: "success", text: `คัดลอก "${tmplName}" เป็นแบบส่วนตัวสำเร็จ` });
       } else {
         setStatusMessage({ type: "error", text: res.error || "คัดลอกไม่สำเร็จ" });
       }
     } catch (err: any) {
-      setStatusMessage({ type: "error", text: err.message || "เกิดข้อผิดพลาด" });
+      setStatusMessage({ type: "error", text: err.message || "เกิดข้อผิดพลาดในการคัดลอก" });
     } finally {
       setSaving(false);
     }
@@ -1303,6 +1424,7 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
       if (res.success) {
         setStatusMessage({ type: "success", text: "ลบแบบเกียรติบัตรเรียบร้อย" });
         setSelectedTemplateId("");
+        selectedTemplateIdRef.current = "";
         loadTemplates();
       } else {
         setStatusMessage({ type: "error", text: res.error || "ลบไม่สำเร็จ" });
@@ -1311,6 +1433,61 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
       setStatusMessage({ type: "error", text: err.message || "เกิดข้อผิดพลาด" });
     } finally {
       setSaving(false);
+    }
+  };
+
+  // --- Custom Font Upload Handler (Item 5) ---
+  const handleFontUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+
+    setUploadingFont(true);
+    setStatusMessage({ type: "success", text: `กำลังตรวจสอบและอัปโหลดฟอนต์ "${file.name}"...` });
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("uploadSessionId", crypto.randomUUID());
+
+      const res = await uploadCertificateFontAction(formData);
+      if (res.success && res.data) {
+        const newFont: CustomFont = {
+          family: res.data.family,
+          attachmentId: res.data.attachmentId,
+          fontVersion: res.data.fontVersion || "1.0.0",
+          assetHash: res.data.assetHash,
+        };
+
+        if (res.data.url) {
+          try {
+            await loadFontWithIntegrity({
+              family: res.data.family,
+              assetUrl: res.data.url,
+              assetHash: res.data.assetHash,
+            });
+          } catch (loadErr) {
+            console.warn("Could not load uploaded font into browser document.fonts:", loadErr);
+          }
+        }
+
+        setCustomFonts((prev) => {
+          const filtered = prev.filter((f) => f.family !== newFont.family);
+          return [...filtered, newFont];
+        });
+
+        if (selectedElementId && selectedElement?.type === "text") {
+          updateSelectedElement({ fontFamily: res.data.family });
+        }
+
+        setStatusMessage({ type: "success", text: `อัปโหลดและติดตั้งฟอนต์ "${res.data.family}" สำเร็จ` });
+      } else {
+        setStatusMessage({ type: "error", text: res.error || "อัปโหลดฟอนต์ไม่สำเร็จ" });
+      }
+    } catch (err: any) {
+      setStatusMessage({ type: "error", text: err.message || "เกิดข้อผิดพลาดในการอัปโหลดฟอนต์" });
+    } finally {
+      setUploadingFont(false);
     }
   };
 
@@ -1866,6 +2043,10 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
                   <div className="space-y-2">
                     {templates.map((tmpl) => {
                       const isSelected = selectedTemplateId === tmpl.id;
+                      const canEdit =
+                        tmpl.createdById === currentUser?.id ||
+                        currentUser?.role === "ADMIN" ||
+                        currentUser?.role === "SUPERADMIN";
                       const scopeBadge =
                         tmpl.scope === "SYSTEM_PRESET"
                           ? { label: "ระบบ", color: "bg-blue-100 text-blue-700 dark:bg-blue-900/60 dark:text-blue-300" }
@@ -1892,31 +2073,44 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
                             </span>
                           </div>
 
+                          <div className="text-[10px] text-slate-400 mt-1">
+                            โดย {tmpl.createdByName || "ระบบ"}
+                          </div>
+
                           <div className="flex items-center justify-between text-[10px] text-slate-400 mt-2">
                             <span>
                               {tmpl.orientation === "LANDSCAPE" ? "แนวนอน" : "แนวตั้ง"} • {tmpl.layoutConfig?.elements?.length || 0} องค์ประกอบ
                             </span>
-                            {isSelected ? (
-                              <span className="font-bold text-indigo-600 dark:text-indigo-400 flex items-center gap-1">
-                                <CheckCircle2 className="w-3 h-3" />
-                                ใช้งานอยู่
-                              </span>
-                            ) : (
-                              <div className="flex items-center gap-1.5">
-                                {tmpl.scope !== "SYSTEM_PRESET" && (
-                                  <button
-                                    onClick={(e) => handleDeleteTemplateById(tmpl.id, tmpl.name, e)}
-                                    className="p-1 hover:bg-rose-100 dark:hover:bg-rose-950/60 rounded text-slate-400 hover:text-rose-600 transition opacity-0 group-hover:opacity-100"
-                                    title="ลบแบบนี้"
-                                  >
-                                    <Trash2 className="w-3 h-3" />
-                                  </button>
-                                )}
-                                <span className="group-hover:text-indigo-600 dark:group-hover:text-indigo-400 font-semibold transition">
+                            <div className="flex items-center gap-1">
+                              {/* Fork button */}
+                              <button
+                                onClick={(e) => handleForkTemplateById(tmpl.id, tmpl.name, e)}
+                                className="p-1 hover:bg-indigo-100 dark:hover:bg-indigo-950/60 rounded text-slate-400 hover:text-indigo-600 transition opacity-0 group-hover:opacity-100"
+                                title="คัดลอกเป็นแบบส่วนตัว (Fork)"
+                              >
+                                <Copy className="w-3 h-3" />
+                              </button>
+                              {/* Delete button (only creator or admin) */}
+                              {canEdit && tmpl.scope !== "SYSTEM_PRESET" && (
+                                <button
+                                  onClick={(e) => handleDeleteTemplateById(tmpl.id, tmpl.name, e)}
+                                  className="p-1 hover:bg-rose-100 dark:hover:bg-rose-950/60 rounded text-slate-400 hover:text-rose-600 transition opacity-0 group-hover:opacity-100"
+                                  title="ลบแบบนี้"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </button>
+                              )}
+                              {isSelected ? (
+                                <span className="font-bold text-indigo-600 dark:text-indigo-400 flex items-center gap-1 ml-1">
+                                  <CheckCircle2 className="w-3 h-3" />
+                                  ใช้งานอยู่
+                                </span>
+                              ) : (
+                                <span className="group-hover:text-indigo-600 dark:group-hover:text-indigo-400 font-semibold transition ml-1">
                                   เลือกใช้ →
                                 </span>
-                              </div>
-                            )}
+                              )}
+                            </div>
                           </div>
                         </div>
                       );
@@ -2316,25 +2510,70 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
                   <>
                     {/* Font Family Selector with Visual Previews */}
                     <div className="space-y-1.5">
-                      <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400">
-                        แบบอักษร (Font)
-                      </label>
+                      <div className="flex items-center justify-between">
+                        <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400">
+                          แบบอักษร (Font)
+                        </label>
+                        <label className="inline-flex items-center gap-1 text-[10px] font-bold text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 cursor-pointer">
+                          <Upload className="w-3 h-3" />
+                          <span>{uploadingFont ? "กำลังอัปโหลด..." : "อัปโหลดฟอนต์"}</span>
+                          <input
+                            type="file"
+                            accept=".woff2,.woff,.ttf,.otf"
+                            disabled={uploadingFont}
+                            onChange={handleFontUpload}
+                            className="hidden"
+                          />
+                        </label>
+                      </div>
                       <select
                         value={selectedElement.fontFamily}
                         onChange={(e) => updateSelectedElement({ fontFamily: e.target.value })}
                         className="w-full text-xs font-semibold bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-2 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                       >
-                        {SUPPORTED_FONTS.map((fId) => {
-                          const font = FONT_MANIFEST[fId];
-                          return (
-                            <option key={fId} value={font.family}>
-                              {font.name}
+                        <optgroup label="🇹🇭 ภาษาไทย (Thai)">
+                          {SUPPORTED_FONTS.filter((f) => FONT_MANIFEST[f].language === "th").map((fId) => (
+                            <option key={fId} value={FONT_MANIFEST[fId].family}>
+                              {FONT_MANIFEST[fId].name}
                             </option>
-                          );
-                        })}
+                          ))}
+                        </optgroup>
+                        <optgroup label="🇬🇧 อังกฤษ / สากล (English)">
+                          {SUPPORTED_FONTS.filter((f) => FONT_MANIFEST[f].language === "en").map((fId) => (
+                            <option key={fId} value={FONT_MANIFEST[fId].family}>
+                              {FONT_MANIFEST[fId].name}
+                            </option>
+                          ))}
+                        </optgroup>
+                        <optgroup label="🇯🇵 ญี่ปุ่น (Japanese)">
+                          {SUPPORTED_FONTS.filter((f) => FONT_MANIFEST[f].language === "ja").map((fId) => (
+                            <option key={fId} value={FONT_MANIFEST[fId].family}>
+                              {FONT_MANIFEST[fId].name}
+                            </option>
+                          ))}
+                        </optgroup>
+                        <optgroup label="🇨🇳 จีน (Chinese)">
+                          {SUPPORTED_FONTS.filter((f) => FONT_MANIFEST[f].language === "zh").map((fId) => (
+                            <option key={fId} value={FONT_MANIFEST[fId].family}>
+                              {FONT_MANIFEST[fId].name}
+                            </option>
+                          ))}
+                        </optgroup>
+                        {customFonts.length > 0 && (
+                          <optgroup label="✨ ฟอนต์ที่อัปโหลด (Custom Fonts)">
+                            {customFonts.map((cf) => (
+                              <option key={cf.family} value={cf.family}>
+                                {cf.family} (กำหนดเอง)
+                              </option>
+                            ))}
+                          </optgroup>
+                        )}
                       </select>
                       <p className="text-[10px] text-slate-400">
-                        {FONT_MANIFEST[selectedElement.fontFamily as SupportedFont]?.description || "ฟอนต์ภาษาไทย"}
+                        {FONT_MANIFEST[selectedElement.fontFamily as SupportedFont]?.description ||
+                          (customFonts.some((f) => f.family === selectedElement.fontFamily)
+                            ? "ฟอนต์กำหนดเองที่อัปโหลดเข้าสู่แม่แบบ"
+                            : "ฟอนต์มาตรฐาน")}
                       </p>
                     </div>
 

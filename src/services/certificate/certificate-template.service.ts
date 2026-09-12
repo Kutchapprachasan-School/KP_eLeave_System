@@ -1,12 +1,15 @@
 import { prisma } from "@/lib/db";
-import { getStorageProvider } from "@/services/storage";
+import { getStorageProviderByType } from "@/services/storage";
 import {
   lockAttachmentsInOrder,
   acquireAttachmentReference,
   releaseAttachmentReference,
   cleanupOrphanedAttachments,
 } from "@/services/storage/attachment-lifecycle.service";
-import { CertificateTemplateV1Schema } from "@/app/(app)/document/_components/designer/cert-schema";
+import {
+  CertificateTemplateV1Schema,
+  extractCustomFontAttachmentIds,
+} from "@/app/(app)/document/_components/designer/cert-schema";
 import type { TemplateOrientation, TemplateScope } from "@prisma/client";
 
 export interface SaveTemplateInput {
@@ -25,6 +28,28 @@ export interface UserContext {
   canShareCertTemplates?: boolean;
 }
 
+export interface CertificateTemplateViewModel {
+  id: string;
+  name: string;
+  schemaVersion: number;
+  templateVersion: number;
+  orientation: TemplateOrientation;
+  backgroundAttachmentId: string;
+  backgroundUrl: string;
+  layoutConfig: any;
+  scope: TemplateScope;
+  createdById: string;
+  createdByName: string;
+  createdAt: string;
+  updatedAt: string;
+  attachment: {
+    id: string;
+    originalFileName: string;
+    mimeType: string;
+    fileSize: number;
+  } | null;
+}
+
 function isAdmin(user: UserContext): boolean {
   return user.userRole === "ADMIN" || user.userRole === "SUPERADMIN";
 }
@@ -41,14 +66,128 @@ export function extractSignatureAttachmentIds(layoutConfig: any): string[] {
 }
 
 /**
+ * Hydrates a raw CertificateTemplate record into a fully enriched ViewModel.
+ * Dynamically resolves signed/public URLs for background, signatures, and custom fonts
+ * using each attachment's exact storage provider (deterministic, no cross-provider fallback).
+ */
+export async function hydrateTemplateViewModel(tmpl: any): Promise<CertificateTemplateViewModel> {
+  let backgroundUrl = "";
+  if (tmpl.backgroundAttachment?.objectKey) {
+    try {
+      const provider = getStorageProviderByType(tmpl.backgroundAttachment.storageProvider);
+      backgroundUrl = await provider.getUrl(tmpl.backgroundAttachment.objectKey);
+    } catch (err) {
+      console.warn(`[hydrateTemplateViewModel] Could not resolve background URL for ${tmpl.backgroundAttachment.objectKey}:`, err);
+    }
+  }
+
+  let layoutConfig = tmpl.layoutConfig as any;
+  if (layoutConfig) {
+    // 1. Hydrate signatures with runtime preview URLs
+    if (Array.isArray(layoutConfig.elements)) {
+      const sigAttIds = extractSignatureAttachmentIds(layoutConfig);
+      if (sigAttIds.length > 0) {
+        try {
+          const sigAttachments = await prisma.fileAttachment.findMany({
+            where: { id: { in: sigAttIds } },
+            select: { id: true, objectKey: true, storageProvider: true },
+          });
+          const sigUrlMap = new Map<string, string>();
+          for (const att of sigAttachments) {
+            try {
+              const provider = getStorageProviderByType(att.storageProvider);
+              const u = await provider.getUrl(att.objectKey);
+              sigUrlMap.set(att.id, u);
+            } catch (err) {
+              console.warn(`[hydrateTemplateViewModel] Could not resolve signature URL for ${att.objectKey}:`, err);
+            }
+          }
+          layoutConfig = {
+            ...layoutConfig,
+            elements: layoutConfig.elements.map((el: any) => {
+              if (el.type === "signature" && el.signatureAttachmentId && sigUrlMap.has(el.signatureAttachmentId)) {
+                return { ...el, previewUrl: sigUrlMap.get(el.signatureAttachmentId) };
+              }
+              return el;
+            }),
+          };
+        } catch (err) {
+          console.warn(`[hydrateTemplateViewModel] Error fetching signature attachments:`, err);
+        }
+      }
+    }
+
+    // 2. Hydrate custom fonts with runtime URLs (without persisting to DB)
+    if (Array.isArray(layoutConfig.customFonts)) {
+      const fontAttIds = extractCustomFontAttachmentIds(layoutConfig);
+      if (fontAttIds.length > 0) {
+        try {
+          const fontAttachments = await prisma.fileAttachment.findMany({
+            where: { id: { in: fontAttIds } },
+            select: { id: true, objectKey: true, storageProvider: true },
+          });
+          const fontUrlMap = new Map<string, string>();
+          for (const att of fontAttachments) {
+            try {
+              const provider = getStorageProviderByType(att.storageProvider);
+              const u = await provider.getUrl(att.objectKey);
+              fontUrlMap.set(att.id, u);
+            } catch (err) {
+              console.warn(`[hydrateTemplateViewModel] Could not resolve font URL for ${att.objectKey}:`, err);
+            }
+          }
+          layoutConfig = {
+            ...layoutConfig,
+            customFonts: layoutConfig.customFonts.map((cf: any) => ({
+              ...cf,
+              runtimeUrl: fontUrlMap.get(cf.attachmentId) || "",
+            })),
+          };
+        } catch (err) {
+          console.warn(`[hydrateTemplateViewModel] Error fetching font attachments:`, err);
+        }
+      }
+    }
+  }
+
+  return {
+    id: tmpl.id,
+    name: tmpl.name,
+    schemaVersion: tmpl.schemaVersion,
+    templateVersion: tmpl.templateVersion,
+    orientation: tmpl.orientation,
+    backgroundAttachmentId: tmpl.backgroundAttachmentId,
+    backgroundUrl,
+    layoutConfig,
+    scope: tmpl.scope,
+    createdById: tmpl.createdById,
+    createdByName: tmpl.createdBy?.name ?? "ระบบ",
+    createdAt: tmpl.createdAt instanceof Date ? tmpl.createdAt.toISOString() : tmpl.createdAt,
+    updatedAt: tmpl.updatedAt instanceof Date ? tmpl.updatedAt.toISOString() : tmpl.updatedAt,
+    attachment: tmpl.backgroundAttachment
+      ? {
+          id: tmpl.backgroundAttachment.id,
+          originalFileName: tmpl.backgroundAttachment.originalFileName,
+          mimeType: tmpl.backgroundAttachment.mimeType,
+          fileSize: Number(tmpl.backgroundAttachment.fileSize),
+        }
+      : null,
+  };
+}
+
+/**
  * Service Layer: Saves a certificate template (Create or Atomic CAS Update).
  * Enforces Invariants AA, AC, AD, Q, S, 4.
+ * Returns fully hydrated CertificateTemplateViewModel on success.
  */
 export async function saveTemplateService(
   input: SaveTemplateInput,
   user: UserContext
-): Promise<any> {
-  // Senior Patch 3: Validate layoutConfig at schema/service boundary
+): Promise<
+  | { success: true; data: CertificateTemplateViewModel }
+  | { success: false; error: string; code: string }
+> {
+  // Validate layoutConfig at schema/service boundary (Item 1: rejects transient url in customFonts)
   const parsedLayout = CertificateTemplateV1Schema.safeParse(input.layoutConfig);
   if (!parsedLayout.success) {
     return {
@@ -77,34 +216,46 @@ export async function saveTemplateService(
     }
 
     const sigIds = extractSignatureAttachmentIds(input.layoutConfig);
-    const created = await prisma.$transaction(async (tx) => {
-      // 1. Lock and verify all attachments are ACTIVE
-      await lockAttachmentsInOrder(tx, [input.backgroundAttachmentId, ...sigIds]);
-      const acquireResult = await acquireAttachmentReference(tx, input.backgroundAttachmentId);
-      if (!acquireResult.ok) {
-        throw new Error(acquireResult.error);
-      }
-      for (const sigId of sigIds) {
-        const acquireSig = await acquireAttachmentReference(tx, sigId);
-        if (!acquireSig.ok) {
-          throw new Error(`ATTACHMENT_UNAVAILABLE:${acquireSig.error}`);
+    const fontIds = extractCustomFontAttachmentIds(input.layoutConfig);
+    const allAttIds = Array.from(new Set([input.backgroundAttachmentId, ...sigIds, ...fontIds].filter(Boolean)));
+
+    try {
+      const created = await prisma.$transaction(async (tx) => {
+        // 1. Lock and verify all attachments are ACTIVE
+        await lockAttachmentsInOrder(tx, allAttIds);
+        for (const attId of allAttIds) {
+          const acquireResult = await acquireAttachmentReference(tx, attId);
+          if (!acquireResult.ok) {
+            throw new Error(`ATTACHMENT_UNAVAILABLE:${acquireResult.error}`);
+          }
         }
-      }
 
-      // 2. Insert CertificateTemplate
-      return tx.certificateTemplate.create({
-        data: {
-          name: input.name,
-          orientation: input.orientation,
-          backgroundAttachmentId: input.backgroundAttachmentId,
-          layoutConfig: input.layoutConfig,
-          scope: input.scope,
-          createdById: user.userId,
-        },
+        // 2. Insert CertificateTemplate
+        return tx.certificateTemplate.create({
+          data: {
+            name: input.name,
+            orientation: input.orientation,
+            backgroundAttachmentId: input.backgroundAttachmentId,
+            layoutConfig: input.layoutConfig,
+            scope: input.scope,
+            createdById: user.userId,
+          },
+          include: {
+            backgroundAttachment: true,
+            createdBy: { select: { id: true, name: true } },
+          },
+        });
       });
-    });
 
-    return { success: true, data: created };
+      const hydrated = await hydrateTemplateViewModel(created);
+      return { success: true, data: hydrated };
+    } catch (err: any) {
+      const msg = err?.message || String(err);
+      if (msg.startsWith("ATTACHMENT_UNAVAILABLE:")) {
+        return { success: false, error: msg.replace("ATTACHMENT_UNAVAILABLE:", ""), code: "ATTACHMENT_UNAVAILABLE" };
+      }
+      return { success: false, error: msg, code: "INTERNAL_ERROR" };
+    }
   }
 
   // Update path: Single-transaction CAS update
@@ -157,13 +308,19 @@ export async function saveTemplateService(
         }
       }
 
-      // 3. Invariant AA: Deterministic lock ordering on attachments (background + signatures)
+      // 3. Invariant AA: Deterministic lock ordering on attachments (background + signatures + fonts)
       const oldAttId = existing.backgroundAttachmentId;
       const newAttId = input.backgroundAttachmentId;
       const oldSigIds = extractSignatureAttachmentIds(existing.layoutConfig);
       const newSigIds = extractSignatureAttachmentIds(input.layoutConfig);
+      const oldFontIds = extractCustomFontAttachmentIds(existing.layoutConfig);
+      const newFontIds = extractCustomFontAttachmentIds(input.layoutConfig);
 
-      await lockAttachmentsInOrder(tx, [oldAttId, newAttId, ...oldSigIds, ...newSigIds]);
+      const allAttIdsToLock = Array.from(
+        new Set([oldAttId, newAttId, ...oldSigIds, ...newSigIds, ...oldFontIds, ...newFontIds].filter(Boolean))
+      );
+
+      await lockAttachmentsInOrder(tx, allAttIdsToLock);
 
       // If background attachment changed, verify new attachment is ACTIVE
       if (oldAttId !== newAttId) {
@@ -177,6 +334,16 @@ export async function saveTemplateService(
       for (const sId of newSigIds) {
         if (!oldSigIds.includes(sId)) {
           const acquire = await acquireAttachmentReference(tx, sId);
+          if (!acquire.ok) {
+            throw new Error(`ATTACHMENT_UNAVAILABLE:${acquire.error}`);
+          }
+        }
+      }
+
+      // Acquire newly added custom fonts
+      for (const fId of newFontIds) {
+        if (!oldFontIds.includes(fId)) {
+          const acquire = await acquireAttachmentReference(tx, fId);
           if (!acquire.ok) {
             throw new Error(`ATTACHMENT_UNAVAILABLE:${acquire.error}`);
           }
@@ -204,7 +371,7 @@ export async function saveTemplateService(
         throw new Error("CONFLICT:Template was modified by another session. Please reload.");
       }
 
-      // 5. Release references for removed background or signatures
+      // 5. Release references for removed background, signatures, or fonts
       let markedForDeletion = false;
       if (oldAttId !== newAttId) {
         const release = await releaseAttachmentReference(tx, oldAttId);
@@ -216,9 +383,19 @@ export async function saveTemplateService(
           if (release.markedForDeletion) markedForDeletion = true;
         }
       }
+      for (const fId of oldFontIds) {
+        if (!newFontIds.includes(fId)) {
+          const release = await releaseAttachmentReference(tx, fId);
+          if (release.markedForDeletion) markedForDeletion = true;
+        }
+      }
 
       const updatedTemplate = await tx.certificateTemplate.findUnique({
         where: { id: templateId },
+        include: {
+          backgroundAttachment: true,
+          createdBy: { select: { id: true, name: true } },
+        },
       });
 
       return { updatedTemplate, markedForDeletion };
@@ -231,7 +408,8 @@ export async function saveTemplateService(
       });
     }
 
-    return { success: true, data: result.updatedTemplate };
+    const hydrated = await hydrateTemplateViewModel(result.updatedTemplate);
+    return { success: true, data: hydrated };
   } catch (err: any) {
     const msg = err?.message || String(err);
     if (msg.startsWith("PRESET_IMMUTABLE:")) {
@@ -256,48 +434,47 @@ export async function saveTemplateService(
 
 /**
  * Service Layer: Forks an existing template to create an independent PRIVATE copy.
- * Enforces Invariants A, N, W (Lock-then-reread).
+ * Enforces Invariants A, N, W (Lock-then-reread, ordered attachment locking).
+ * Returns fully hydrated CertificateTemplateViewModel on success.
  */
 export async function forkTemplateService(
   templateId: string,
   user: UserContext
 ): Promise<
-  | { success: true; data: any }
+  | { success: true; data: CertificateTemplateViewModel }
   | { success: false; error: string; code: string }
 > {
   try {
     const forked = await prisma.$transaction(async (tx) => {
-      // 1. Initial read to find target attachment
-      const initial = await tx.certificateTemplate.findUnique({
-        where: { id: templateId },
-        select: { backgroundAttachmentId: true },
-      });
+      // 1. Invariant 3: Lock source template row first!
+      await tx.$queryRaw`SELECT id FROM "CertificateTemplate" WHERE id = ${templateId} FOR UPDATE;`;
 
-      if (!initial) {
-        throw new Error("NOT_FOUND:Template not found");
-      }
-
-      // 2. Lock attachment & verify ACTIVE (background + signatures)
-      const sigIds = extractSignatureAttachmentIds(initial.layoutConfig);
-      await lockAttachmentsInOrder(tx, [initial.backgroundAttachmentId, ...sigIds]);
-      const acquire = await acquireAttachmentReference(tx, initial.backgroundAttachmentId);
-      if (!acquire.ok) {
-        throw new Error(`ATTACHMENT_UNAVAILABLE:${acquire.error}`);
-      }
-      for (const sigId of sigIds) {
-        const acquireSig = await acquireAttachmentReference(tx, sigId);
-        if (!acquireSig.ok) {
-          throw new Error(`ATTACHMENT_UNAVAILABLE:${acquireSig.error}`);
-        }
-      }
-
-      // 3. Invariant W: Re-read source template after acquiring lock
+      // 2. Invariant W: Re-read source template after acquiring row lock
       const source = await tx.certificateTemplate.findUnique({
         where: { id: templateId },
       });
 
       if (!source) {
         throw new Error("NOT_FOUND:Source template was deleted");
+      }
+
+      // Check permissions: cannot fork another user's private template unless admin
+      if (source.scope === "PRIVATE" && source.createdById !== user.userId && !isAdmin(user)) {
+        throw new Error("FORBIDDEN:Cannot fork another user's private template");
+      }
+
+      // 3. Collect persistent attachments (background + signatures + custom fonts)
+      const sigIds = extractSignatureAttachmentIds(source.layoutConfig);
+      const fontIds = extractCustomFontAttachmentIds(source.layoutConfig);
+      const allAttIds = Array.from(new Set([source.backgroundAttachmentId, ...sigIds, ...fontIds].filter(Boolean)));
+
+      // Lock attachments in deterministic order & verify ACTIVE
+      await lockAttachmentsInOrder(tx, allAttIds);
+      for (const attId of allAttIds) {
+        const acquire = await acquireAttachmentReference(tx, attId);
+        if (!acquire.ok) {
+          throw new Error(`ATTACHMENT_UNAVAILABLE:${acquire.error}`);
+        }
       }
 
       // 4. Create new PRIVATE template
@@ -310,14 +487,22 @@ export async function forkTemplateService(
           scope: "PRIVATE",
           createdById: user.userId,
         },
+        include: {
+          backgroundAttachment: true,
+          createdBy: { select: { id: true, name: true } },
+        },
       });
     });
 
-    return { success: true, data: forked };
+    const hydrated = await hydrateTemplateViewModel(forked);
+    return { success: true, data: hydrated };
   } catch (err: any) {
     const msg = err?.message || String(err);
     if (msg.startsWith("NOT_FOUND:")) {
       return { success: false, error: msg.replace("NOT_FOUND:", ""), code: "NOT_FOUND" };
+    }
+    if (msg.startsWith("FORBIDDEN:")) {
+      return { success: false, error: msg.replace("FORBIDDEN:", ""), code: "FORBIDDEN" };
     }
     if (msg.startsWith("ATTACHMENT_UNAVAILABLE:")) {
       return { success: false, error: msg.replace("ATTACHMENT_UNAVAILABLE:", ""), code: "ATTACHMENT_UNAVAILABLE" };
@@ -355,9 +540,12 @@ export async function deleteTemplateService(
         throw new Error("FORBIDDEN:You can only delete your own templates.");
       }
 
-      // Lock attachment rows before deleting template
+      // Lock all attachment rows before deleting template
       const sigIds = extractSignatureAttachmentIds(template.layoutConfig);
-      await lockAttachmentsInOrder(tx, [template.backgroundAttachmentId, ...sigIds]);
+      const fontIds = extractCustomFontAttachmentIds(template.layoutConfig);
+      const allAttIds = Array.from(new Set([template.backgroundAttachmentId, ...sigIds, ...fontIds].filter(Boolean)));
+
+      await lockAttachmentsInOrder(tx, allAttIds);
 
       // Delete template row
       await tx.certificateTemplate.delete({
@@ -366,12 +554,9 @@ export async function deleteTemplateService(
 
       // Release attachment references
       let markedForDeletion = false;
-      const release = await releaseAttachmentReference(tx, template.backgroundAttachmentId);
-      if (release.markedForDeletion) markedForDeletion = true;
-
-      for (const sigId of sigIds) {
-        const relSig = await releaseAttachmentReference(tx, sigId);
-        if (relSig.markedForDeletion) markedForDeletion = true;
+      for (const attId of allAttIds) {
+        const release = await releaseAttachmentReference(tx, attId);
+        if (release.markedForDeletion) markedForDeletion = true;
       }
 
       return { markedForDeletion };
@@ -402,9 +587,9 @@ export async function deleteTemplateService(
 
 /**
  * Service Layer: Fetches accessible templates (SYSTEM_PRESET, SCHOOL_SHARED, or own PRIVATE).
- * Resolves storage URLs dynamically and serializes BigInt safely.
+ * Resolves storage URLs dynamically and serializes BigInt safely into CertificateTemplateViewModel.
  */
-export async function getTemplatesService(user: UserContext): Promise<any[]> {
+export async function getTemplatesService(user: UserContext): Promise<CertificateTemplateViewModel[]> {
   const templates = await prisma.certificateTemplate.findMany({
     where: {
       OR: [
@@ -437,76 +622,5 @@ export async function getTemplatesService(user: UserContext): Promise<any[]> {
     ],
   });
 
-  const storage = getStorageProvider();
-
-  return Promise.all(
-    templates.map(async (tmpl) => {
-      let backgroundUrl = "";
-      if (tmpl.backgroundAttachment?.objectKey) {
-        try {
-          backgroundUrl = await storage.getUrl(tmpl.backgroundAttachment.objectKey);
-        } catch (err) {
-          console.warn(`[getTemplatesService] Could not resolve URL for ${tmpl.backgroundAttachment.objectKey}:`, err);
-        }
-      }
-
-      let layoutConfig = tmpl.layoutConfig as any;
-      if (layoutConfig && Array.isArray(layoutConfig.elements)) {
-        const sigAttIds = extractSignatureAttachmentIds(layoutConfig);
-        if (sigAttIds.length > 0) {
-          try {
-            const sigAttachments = await prisma.fileAttachment.findMany({
-              where: { id: { in: sigAttIds } },
-              select: { id: true, objectKey: true },
-            });
-            const sigUrlMap = new Map<string, string>();
-            for (const att of sigAttachments) {
-              try {
-                const u = await storage.getUrl(att.objectKey);
-                sigUrlMap.set(att.id, u);
-              } catch (err) {
-                console.warn(`[getTemplatesService] Could not resolve signature URL for ${att.objectKey}:`, err);
-              }
-            }
-            layoutConfig = {
-              ...layoutConfig,
-              elements: layoutConfig.elements.map((el: any) => {
-                if (el.type === "signature" && el.signatureAttachmentId && sigUrlMap.has(el.signatureAttachmentId)) {
-                  return { ...el, previewUrl: sigUrlMap.get(el.signatureAttachmentId) };
-                }
-                return el;
-              }),
-            };
-          } catch (err) {
-            console.warn(`[getTemplatesService] Error fetching signature attachments:`, err);
-          }
-        }
-      }
-
-      return {
-        id: tmpl.id,
-        name: tmpl.name,
-        schemaVersion: tmpl.schemaVersion,
-        templateVersion: tmpl.templateVersion,
-        orientation: tmpl.orientation,
-        backgroundAttachmentId: tmpl.backgroundAttachmentId,
-        backgroundUrl,
-        layoutConfig,
-        scope: tmpl.scope,
-        createdById: tmpl.createdById,
-        createdByName: tmpl.createdBy?.name ?? "ระบบ",
-        createdAt: tmpl.createdAt.toISOString(),
-        updatedAt: tmpl.updatedAt.toISOString(),
-        attachment: tmpl.backgroundAttachment
-          ? {
-              id: tmpl.backgroundAttachment.id,
-              originalFileName: tmpl.backgroundAttachment.originalFileName,
-              mimeType: tmpl.backgroundAttachment.mimeType,
-              // Convert BigInt to Number for safe JSON boundary
-              fileSize: Number(tmpl.backgroundAttachment.fileSize),
-            }
-          : null,
-      };
-    })
-  );
+  return Promise.all(templates.map((tmpl) => hydrateTemplateViewModel(tmpl)));
 }
