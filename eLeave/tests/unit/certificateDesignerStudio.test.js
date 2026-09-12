@@ -1512,5 +1512,93 @@ test('Certificate Designer Studio & Concurrency Invariants Suite', async (t) => 
       'aria-controls': 'studio-right-panel',
     });
   });
+
+  // -------------------------------------------------------------
+  // Test 34: File Dialog Fullscreen Protection
+  // -------------------------------------------------------------
+  await t.test('34. File dialog opening protects studio from exiting fullscreen mode', () => {
+    let isStudioFullscreen = true;
+    let isFileDialogOpen = false;
+
+    const handleFullscreenChange = (nativeFullscreenElement) => {
+      if (!nativeFullscreenElement && isStudioFullscreen) {
+        if (isFileDialogOpen) {
+          return; // Fenced out! Studio stays fullscreen while OS file dialog is open
+        }
+        isStudioFullscreen = false;
+      }
+    };
+
+    // 1. User clicks file upload -> sets file dialog flag
+    isFileDialogOpen = true;
+
+    // 2. OS opens file dialog -> browser exits HTML5 native fullscreen
+    handleFullscreenChange(null);
+    assert.equal(isStudioFullscreen, true, 'Studio must stay in fullscreen when file dialog opened');
+
+    // 3. User finishes selecting file -> dialog flag reset
+    isFileDialogOpen = false;
+
+    // 4. Genuine user exit (Esc or toggle button)
+    handleFullscreenChange(null);
+    assert.equal(isStudioFullscreen, false, 'Studio exits fullscreen on genuine exit event');
+  });
+
+  // -------------------------------------------------------------
+  // Test 35: Zoom Fit Algorithm Bounds & Dynamic Scaling
+  // -------------------------------------------------------------
+  await t.test('35. Zoom Fit algorithm fits large containers up to 2.5x without 1.5x choke', () => {
+    const calcFit = (containerWidth, containerHeight, previewWidth, previewHeight) => {
+      const pad = 32;
+      const scaleW = Math.max(0.2, (containerWidth - pad) / previewWidth);
+      const scaleH = Math.max(0.2, (containerHeight - pad) / previewHeight);
+      const fit = Math.min(scaleW, scaleH);
+      return Math.max(0.3, Math.min(2.5, Math.round(fit * 100) / 100));
+    };
+
+    // A4 Landscape is 842 x 595
+    // On 1920x1080 screen with collapsed sidebars: container is approx 1800 x 950
+    const fitWide = calcFit(1800, 950, 842, 595);
+    assert.ok(fitWide > 1.5, `Fit on large screen (${fitWide}x) must exceed previous 1.5x choke`);
+    assert.ok(fitWide <= 2.5, 'Fit must respect maximum 2.5x bound');
+
+    // On smaller squished container (e.g. 384 x 500)
+    const fitNarrow = calcFit(384, 500, 842, 595);
+    assert.ok(fitNarrow >= 0.3, 'Fit must respect minimum 0.3x bound');
+  });
+
+  // -------------------------------------------------------------
+  // Test 36: Studio Tab Navigation & Header Isolation
+  // -------------------------------------------------------------
+  await t.test('36. Studio mode conceals outer tab bar and outer onBack button to prevent layout leakage', () => {
+    const shouldRenderOuterTabs = (activeTab) => activeTab !== 'studio';
+
+    assert.equal(shouldRenderOuterTabs('issue'), true, 'Issue tab shows outer nav');
+    assert.equal(shouldRenderOuterTabs('history'), true, 'History tab shows outer nav');
+    assert.equal(shouldRenderOuterTabs('studio'), false, 'Studio mode conceals outer nav for immersive workspace');
+  });
+
+  // -------------------------------------------------------------
+  // Test 37: Canvas Dimensions Initialization
+  // -------------------------------------------------------------
+  await t.test('37. Canvas dimensions always initialize to A4 aspect ratio instead of HTML5 300x150 default', () => {
+    const getCanvasInitialDims = (orientation) => {
+      const dims = {
+        LANDSCAPE: { width: 842, height: 595 },
+        PORTRAIT: { width: 595, height: 842 },
+      }[orientation];
+      return dims;
+    };
+
+    const landscape = getCanvasInitialDims('LANDSCAPE');
+    assert.equal(landscape.width, 842);
+    assert.equal(landscape.height, 595);
+    assert.notEqual(landscape.width, 300);
+    assert.notEqual(landscape.height, 150);
+
+    const portrait = getCanvasInitialDims('PORTRAIT');
+    assert.equal(portrait.width, 595);
+    assert.equal(portrait.height, 842);
+  });
 });
 

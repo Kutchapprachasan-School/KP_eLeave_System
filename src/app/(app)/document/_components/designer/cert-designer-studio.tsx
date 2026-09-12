@@ -184,12 +184,33 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
 
   useEffect(() => {
     const handleFullscreenChange = () => {
+      // If native fullscreen was released because the OS file picker opened, DO NOT exit studio fullscreen!
       if (!document.fullscreenElement && isFullscreen) {
+        if (isFileDialogOpenRef.current) {
+          return;
+        }
         setIsFullscreen(false);
       }
     };
+
+    const handleWindowFocus = () => {
+      if (isFileDialogOpenRef.current) {
+        setTimeout(() => {
+          isFileDialogOpenRef.current = false;
+          // Re-engage native fullscreen if we are in studio fullscreen
+          if (isFullscreen && !document.fullscreenElement && document.documentElement.requestFullscreen) {
+            document.documentElement.requestFullscreen().catch(() => {});
+          }
+        }, 300);
+      }
+    };
+
     document.addEventListener("fullscreenchange", handleFullscreenChange);
-    return () => document.removeEventListener("fullscreenchange", handleFullscreenChange);
+    window.addEventListener("focus", handleWindowFocus);
+    return () => {
+      document.removeEventListener("fullscreenchange", handleFullscreenChange);
+      window.removeEventListener("focus", handleWindowFocus);
+    };
   }, [isFullscreen]);
 
   // --- Command History (Undo / Redo) ---
@@ -312,7 +333,19 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
   const dragOffsetRef = useRef<{ dx: number; dy: number }>({ dx: 0, dy: 0 });
   const localPreviewUrlRef = useRef<string | null>(null);
   const activeBgImageRef = useRef<CanvasImageSource | null>(null);
+  const activeSignaturesRef = useRef<Record<string, CanvasImageSource>>({});
+  const isFileDialogOpenRef = useRef<boolean>(false);
   const rawSigFilesRef = useRef<Map<string, File | Blob>>(new Map());
+
+  const openFileDialog = useCallback(() => {
+    isFileDialogOpenRef.current = true;
+  }, []);
+
+  const closeFileDialog = useCallback(() => {
+    setTimeout(() => {
+      isFileDialogOpenRef.current = false;
+    }, 400);
+  }, []);
 
   // Active snap guides line positions
   const [activeGuides, setActiveGuides] = useState<{ x?: number; y?: number }>({});
@@ -713,16 +746,33 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
   const handleZoomIn = () => setZoomScale((z) => Math.min(2.0, Math.round((z + 0.1) * 10) / 10));
   const handleZoomOut = () => setZoomScale((z) => Math.max(0.4, Math.round((z - 0.1) * 10) / 10));
   const handleZoomReset = () => setZoomScale(1.0);
-  const handleZoomFit = () => {
+  const handleZoomFit = useCallback(() => {
     if (!containerRef.current) return;
     const rect = containerRef.current.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return;
     const dims = A4_DIMS[orientation];
-    const pad = 60;
-    const scaleW = (rect.width - pad) / dims.previewWidth;
-    const scaleH = (rect.height - pad) / dims.previewHeight;
+    const pad = 32;
+    const scaleW = Math.max(0.2, (rect.width - pad) / dims.previewWidth);
+    const scaleH = Math.max(0.2, (rect.height - pad) / dims.previewHeight);
     const fit = Math.min(scaleW, scaleH);
-    setZoomScale(Math.max(0.4, Math.min(1.5, Math.round(fit * 100) / 100)));
-  };
+    setZoomScale(Math.max(0.3, Math.min(2.5, Math.round(fit * 100) / 100)));
+  }, [orientation]);
+
+  // Auto-fit canvas to container on mount, orientation switch, fullscreen toggle, and panel collapse/expand
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      handleZoomFit();
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [isFullscreen, leftPanelOpen, rightPanelOpen, orientation, handleZoomFit]);
+
+  useEffect(() => {
+    const handleResize = () => {
+      handleZoomFit();
+    };
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, [handleZoomFit]);
 
   // --- Background Upload Handler with ObjectURL Lifecycle (Senior Invariant 1) ---
   const handleBackgroundUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -799,14 +849,30 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
       if (!canvas) return;
 
       const dims = A4_DIMS[orientation];
-      canvas.width = dims.previewWidth;
-      canvas.height = dims.previewHeight;
+      if (canvas.width !== dims.previewWidth) canvas.width = dims.previewWidth;
+      if (canvas.height !== dims.previewHeight) canvas.height = dims.previewHeight;
 
       const ctx = canvas.getContext("2d");
       if (!ctx) return;
 
-      // 1. Load background image if available
-      let bgImg: CanvasImageSource | null = null;
+      // ── Step 0: Immediate synchronous paint ──
+      // Always paint immediately with currently available cache / fallback card.
+      // This guarantees the canvas is NEVER blank/white on initial mount, portal switch, or drag!
+      const activeData = roster[previewIndex] || roster[0] || {};
+      const currentBg = activeBgImageRef.current;
+      drawCertificatePage({
+        ctx,
+        width: dims.previewWidth,
+        height: dims.previewHeight,
+        dpi: 72,
+        background: { mode: currentBg ? "IMAGE" : "FALLBACK", image: currentBg },
+        template: { schemaVersion: 1, orientation, elements },
+        data: activeData,
+        signatureImages: activeSignaturesRef.current,
+      });
+
+      // ── Step 1: Load background image if available & not yet cached ──
+      let bgImg: CanvasImageSource | null = currentBg;
       if (backgroundUrl) {
         try {
           const loaded = await loadCanvasImage(backgroundUrl);
@@ -825,21 +891,20 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
         bgImg = activeBgImageRef.current;
       }
 
-      // 2. Preload signature images for studio canvas preview
-      const signatureImages: Record<string, CanvasImageSource> = {};
+      // ── Step 2: Preload signature images for studio canvas preview ──
       for (const el of elements) {
         if (el.type === "signature" && !el.hidden) {
           const sigSrc = el.previewUrl;
-          if (sigSrc) {
+          if (sigSrc && !activeSignaturesRef.current[sigSrc]) {
             try {
               const loadedImg = await loadCanvasImage(sigSrc);
               if (el.signatureAttachmentId) {
-                signatureImages[el.signatureAttachmentId] = loadedImg;
+                activeSignaturesRef.current[el.signatureAttachmentId] = loadedImg;
               }
               if (el.id) {
-                signatureImages[el.id] = loadedImg;
+                activeSignaturesRef.current[el.id] = loadedImg;
               }
-              signatureImages[sigSrc] = loadedImg;
+              activeSignaturesRef.current[sigSrc] = loadedImg;
             } catch (err) {
               console.warn("Could not preload signature image for preview:", err);
             }
@@ -848,8 +913,7 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
       }
       if (cancelled) return;
 
-      // 3. Draw Active Certificate Elements using shared PDF engine
-      const activeData = roster[previewIndex] || roster[0] || {};
+      // ── Step 3: Draw Active Certificate Elements with all loaded assets ──
       drawCertificatePage({
         ctx,
         width: dims.previewWidth,
@@ -858,10 +922,10 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
         background: { mode: bgImg ? "IMAGE" : "FALLBACK", image: bgImg },
         template: { schemaVersion: 1, orientation, elements },
         data: activeData,
-        signatureImages,
+        signatureImages: activeSignaturesRef.current,
       });
 
-      // 4. Draw Active Snap Guides if dragging
+      // ── Step 4: Draw Active Snap Guides if dragging ──
       if (activeGuides.x !== undefined) {
         ctx.save();
         ctx.strokeStyle = "#38bdf8";
@@ -888,7 +952,7 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
         ctx.restore();
       }
 
-      // 5. Highlight Selected Element Bounding Box
+      // ── Step 5: Highlight Selected Element Bounding Box ──
       if (selectedElement && !selectedElement.hidden) {
         ctx.save();
         ctx.strokeStyle = "#4f46e5";
@@ -943,10 +1007,26 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
     };
 
     renderPreview();
+    const rafId = requestAnimationFrame(() => {
+      if (!cancelled) renderPreview();
+    });
+
     return () => {
       cancelled = true;
+      cancelAnimationFrame(rafId);
     };
-  }, [orientation, backgroundUrl, elements, roster, previewIndex, selectedElementId, selectedElement, activeGuides]);
+  }, [
+    orientation,
+    backgroundUrl,
+    elements,
+    roster,
+    previewIndex,
+    selectedElementId,
+    selectedElement,
+    activeGuides,
+    isFullscreen,
+    mounted,
+  ]);
 
   const drawPlaceholderBg = (ctx: CanvasRenderingContext2D, w: number, h: number) => {
     ctx.fillStyle = "#ffffff";
@@ -1564,11 +1644,18 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
                     <span>ภาพพื้นหลังเกียรติบัตร</span>
                     <span className="text-[10px] text-slate-400 font-normal">A4 (JPG/PNG)</span>
                   </div>
-                  <label className="flex flex-col items-center justify-center border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-indigo-500 rounded-xl p-3 cursor-pointer bg-slate-50 dark:bg-slate-800/40 hover:bg-indigo-50/30 transition group">
+                  <label
+                    onClick={openFileDialog}
+                    className="flex flex-col items-center justify-center border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-indigo-500 rounded-xl p-3 cursor-pointer bg-slate-50 dark:bg-slate-800/40 hover:bg-indigo-50/30 transition group"
+                  >
                     <input
                       type="file"
                       accept="image/jpeg,image/png,image/webp"
-                      onChange={handleBackgroundUpload}
+                      onClick={openFileDialog}
+                      onChange={(e) => {
+                        closeFileDialog();
+                        handleBackgroundUpload(e);
+                      }}
                       className="hidden"
                     />
                     {uploadingBg ? (
@@ -1690,13 +1777,20 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
                     <span className="text-[10px] text-slate-400">{roster.length} รายการ</span>
                   </div>
                   <div className="flex gap-2">
-                    <label className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-300 cursor-pointer transition">
+                    <label
+                      onClick={openFileDialog}
+                      className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-300 cursor-pointer transition"
+                    >
                       <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
                       <span>นำเข้า Excel</span>
                       <input
                         type="file"
                         accept=".xlsx,.xls,.csv"
-                        onChange={handleExcelImport}
+                        onClick={openFileDialog}
+                        onChange={(e) => {
+                          closeFileDialog();
+                          handleExcelImport(e);
+                        }}
                         className="hidden"
                       />
                     </label>
@@ -1847,6 +1941,12 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
           >
             <canvas
               ref={canvasRef}
+              width={A4_DIMS[orientation].previewWidth}
+              height={A4_DIMS[orientation].previewHeight}
+              style={{
+                width: `${A4_DIMS[orientation].previewWidth}px`,
+                height: `${A4_DIMS[orientation].previewHeight}px`,
+              }}
               onMouseDown={handleCanvasMouseDown}
               className="cursor-crosshair block"
             />
@@ -2215,11 +2315,16 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
                       <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400">
                         ไฟล์ภาพลายเซ็น
                       </label>
-                      <label className="flex flex-col items-center justify-center border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-blue-500 rounded-xl p-3 cursor-pointer bg-slate-50 dark:bg-slate-800/40 hover:bg-blue-50/30 transition group">
+                      <label
+                        onClick={openFileDialog}
+                        className="flex flex-col items-center justify-center border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-blue-500 rounded-xl p-3 cursor-pointer bg-slate-50 dark:bg-slate-800/40 hover:bg-blue-50/30 transition group"
+                      >
                         <input
                           type="file"
                           accept="image/png,image/jpeg,image/webp"
+                          onClick={openFileDialog}
                           onChange={async (e) => {
+                            closeFileDialog();
                             const file = e.target.files?.[0];
                             if (!file) return;
                             await handleSignatureUpload(selectedElement.id, file);

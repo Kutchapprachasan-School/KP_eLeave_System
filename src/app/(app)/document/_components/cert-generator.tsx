@@ -389,57 +389,59 @@ export default function CertGenerator({ onBack }: { onBack?: () => void }) {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
-      {/* Seamless Tab Navigation Bar (Cut out the redundant inner header card) */}
-      <div className="flex flex-wrap items-center justify-between gap-3 pb-1">
-        <div className="flex items-center bg-slate-100 dark:bg-slate-800/80 p-1 rounded-xl border border-slate-200/70 dark:border-slate-750">
-          <button
-            type="button"
-            onClick={() => { setActiveTab("issue"); setLastIssuedResult(null); }}
-            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-              activeTab === "issue"
-                ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs"
-                : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-            }`}
-          >
-            <Plus className="w-3.5 h-3.5" />
-            ขอเลขเกียรติบัตร
-          </button>
-          <button
-            type="button"
-            onClick={() => { setActiveTab("history"); fetchHistory(); }}
-            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-              activeTab === "history"
-                ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs"
-                : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-            }`}
-          >
-            <ClipboardList className="w-3.5 h-3.5" />
-            ประวัติการออกเลข ({historyList.length})
-          </button>
-          <button
-            type="button"
-            onClick={() => { setActiveTab("studio"); }}
-            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-              activeTab === "studio"
-                ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs"
-                : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-            }`}
-          >
-            <Palette className="w-3.5 h-3.5 text-amber-500" />
-            🎨 สตูดิโอออกแบบ & พิมพ์
-          </button>
-        </div>
+      {/* Seamless Tab Navigation Bar (Hidden in studio mode so studio gets 100% immersive canvas) */}
+      {activeTab !== "studio" && (
+        <div className="flex flex-wrap items-center justify-between gap-3 pb-1">
+          <div className="flex items-center bg-slate-100 dark:bg-slate-800/80 p-1 rounded-xl border border-slate-200/70 dark:border-slate-750">
+            <button
+              type="button"
+              onClick={() => { setActiveTab("issue"); setLastIssuedResult(null); }}
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                activeTab === "issue"
+                  ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs"
+                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+              }`}
+            >
+              <Plus className="w-3.5 h-3.5" />
+              ขอเลขเกียรติบัตร
+            </button>
+            <button
+              type="button"
+              onClick={() => { setActiveTab("history"); fetchHistory(); }}
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                activeTab === "history"
+                  ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs"
+                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+              }`}
+            >
+              <ClipboardList className="w-3.5 h-3.5" />
+              ประวัติการออกเลข ({historyList.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => { setActiveTab("studio"); }}
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                activeTab === "studio"
+                  ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs"
+                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+              }`}
+            >
+              <Palette className="w-3.5 h-3.5 text-amber-500" />
+              🎨 สตูดิโอออกแบบ & พิมพ์
+            </button>
+          </div>
 
-        {onBack && (
-          <button
-            onClick={onBack}
-            className="px-3.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-750 bg-white dark:bg-slate-800 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition flex items-center gap-1.5 cursor-pointer shadow-xs"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" />
-            ย้อนกลับ
-          </button>
-        )}
-      </div>
+          {onBack && (
+            <button
+              onClick={onBack}
+              className="px-3.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-750 bg-white dark:bg-slate-800 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition flex items-center gap-1.5 cursor-pointer shadow-xs"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              ย้อนกลับ
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Tab 1: Studio Issue Mode (Clean 2-Column Workspace matching outbound-form typography) */}
       {activeTab === "issue" && (

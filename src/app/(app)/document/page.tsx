@@ -204,7 +204,7 @@ function DocumentPageContent() {
   const canAccessCert = data.enableCertificate || isUserAdmin;
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto px-1">
+    <div className={`space-y-6 ${filters.view === "cert" ? "w-full max-w-none px-0" : "max-w-7xl mx-auto px-1"}`}>
       <PageHeader
         title={currentHeader.title}
         description={currentHeader.description}
