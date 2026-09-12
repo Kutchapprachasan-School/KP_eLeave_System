@@ -10,7 +10,7 @@ import { StatusPillBadge } from "@/components/shared-ui/school-ops/StatusPillBad
 
 function VerifyContent() {
   const searchParams = useSearchParams();
-  const token = searchParams.get("token");
+  const token = searchParams.get("token") || searchParams.get("t");
 
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<any | null>(null);

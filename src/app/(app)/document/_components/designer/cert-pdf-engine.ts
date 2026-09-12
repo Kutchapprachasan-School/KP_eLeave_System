@@ -9,7 +9,8 @@ import {
   SUPPORTED_FONTS,
 } from "./cert-schema.ts";
 import { drawQRCodeBadge } from "./qr-renderer.ts";
-export { ensureFontsLoaded, type LoadedFontSet } from "./font-loader.ts";
+import { ensureFontsLoaded, type LoadedFontSet } from "./font-loader.ts";
+export { ensureFontsLoaded, type LoadedFontSet };
 
 export const A4_DIMS = {
   LANDSCAPE: {
@@ -99,6 +100,11 @@ export function isValidDrawableImage(src: any): src is CanvasImageSource {
   return false;
 }
 
+export interface CertificateRenderBackground {
+  mode?: "IMAGE" | "FALLBACK" | "NONE";
+  image?: CanvasImageSource | null;
+}
+
 /**
  * Draws a single certificate onto the provided canvas context.
  */
@@ -107,6 +113,7 @@ export function drawCertificatePage({
   width,
   height,
   dpi,
+  background,
   backgroundImage,
   template,
   data,
@@ -117,23 +124,39 @@ export function drawCertificatePage({
   width: number;
   height: number;
   dpi: number;
+  background?: CertificateRenderBackground;
   backgroundImage?: CanvasImageSource | null;
   template: CertificateTemplateV1;
   data: Record<string, string>;
   qrImages?: Record<string, HTMLImageElement | HTMLCanvasElement>;
   signatureImages?: Record<string, CanvasImageSource>;
 }): void {
-  // 1. Draw background image stretched across full page if provided and valid
-  if (isValidDrawableImage(backgroundImage)) {
-    try {
-      ctx.drawImage(backgroundImage, 0, 0, width, height);
-    } catch (err) {
-      console.warn("Could not draw background image, falling back to clean certificate card:", err);
+  // 1. Determine background rendering mode (polymorphic context)
+  let bgMode: "IMAGE" | "FALLBACK" | "NONE";
+  if (background?.mode) {
+    bgMode = background.mode;
+  } else if (backgroundImage) {
+    bgMode = "IMAGE";
+  } else {
+    bgMode = "FALLBACK";
+  }
+  const bgImg = background?.image || backgroundImage;
+
+  if (bgMode === "IMAGE") {
+    if (isValidDrawableImage(bgImg)) {
+      try {
+        ctx.drawImage(bgImg, 0, 0, width, height);
+      } catch (err) {
+        console.warn("Could not draw background image, falling back to clean certificate card:", err);
+        drawCleanCertificateBorder(ctx, width, height, dpi);
+      }
+    } else {
       drawCleanCertificateBorder(ctx, width, height, dpi);
     }
-  } else {
+  } else if (bgMode === "FALLBACK") {
     drawCleanCertificateBorder(ctx, width, height, dpi);
   }
+  // If bgMode === "NONE", background drawing is skipped entirely (caller handles it or transparent)
 
   // 2. Render each placeholder element
   for (const el of template.elements) {
@@ -172,9 +195,32 @@ export function drawCertificatePage({
       const x = (el.xPercent / 100) * width;
       const y = (el.yPercent / 100) * height;
 
-      // Thai-safe grapheme truncation to prevent text overflowing bounds
-      const safeText = truncateThaiGrapheme(displayText, 100);
-      ctx.fillText(safeText, x, y);
+      // Dynamic multiline typography with dynamic width measurement and Thai word fitting
+      const lines = displayText.split(/\r?\n/);
+      const lineHeightPx = fontSizePx * 1.35;
+      const totalBlockHeight = (lines.length - 1) * lineHeightPx;
+      const startY = y - totalBlockHeight / 2;
+
+      // Dynamic max line width threshold based on element semantics
+      const isSignee = el.key.startsWith("signee");
+      const maxLineWidthPx = isSignee ? width * 0.44 : width * 0.90;
+
+      lines.forEach((line, idx) => {
+        let safeLine = line.trim();
+        if (typeof ctx.measureText === "function") {
+          if (ctx.measureText(safeLine).width > maxLineWidthPx) {
+            safeLine = truncateThaiGrapheme(safeLine, 80);
+            while (safeLine.length > 5 && ctx.measureText(safeLine + "...").width > maxLineWidthPx) {
+              safeLine = safeLine.slice(0, -1);
+            }
+            safeLine = safeLine + "...";
+          }
+        } else {
+          safeLine = truncateThaiGrapheme(safeLine, 100);
+        }
+        ctx.fillText(safeLine, x, startY + idx * lineHeightPx);
+      });
+
       ctx.restore();
     } else if (el.type === "qrcode") {
       const rawUrl = data[el.key] || el.sampleText || "https://eleave.kutchap.ac.th/verify/cert?token=SAMPLE";
@@ -194,6 +240,7 @@ export function drawCertificatePage({
       const centerX = (el.xPercent / 100) * width;
       const centerY = (el.yPercent / 100) * height;
 
+      // Lookup signature image primarily by attachmentId, fallback to previewUrl for studio
       const sigImg =
         (el.signatureAttachmentId && signatureImages[el.signatureAttachmentId]) ||
         (el.previewUrl && signatureImages[el.previewUrl]);
@@ -315,18 +362,23 @@ export async function generateCertificatePdfBatch({
   const printHeight = dims.printHeight;
   const dpi = 300;
 
-  // 3b. Preload signature images keyed by attachmentId or previewUrl (Senior Patch 1 & 2)
+  // 3b. Preload signature images keyed primarily by signatureAttachmentId (Senior Verdict 4.5)
   const signatureImages: Record<string, HTMLImageElement> = {};
   for (const el of template.elements) {
     if (el.type === "signature") {
-      const idKey = el.signatureAttachmentId || el.previewUrl;
       const urlToLoad = el.previewUrl;
-      if (idKey && urlToLoad && !signatureImages[idKey]) {
+      if (urlToLoad) {
         try {
           const sigImg = await loadCanvasImage(urlToLoad);
-          signatureImages[idKey] = sigImg;
+          if (el.signatureAttachmentId) {
+            signatureImages[el.signatureAttachmentId] = sigImg;
+          }
+          if (el.id) {
+            signatureImages[el.id] = sigImg;
+          }
+          signatureImages[urlToLoad] = sigImg;
         } catch (err) {
-          console.warn(`Failed to preload signature image for ${idKey}:`, err);
+          console.warn(`Failed to preload signature image for ${el.signatureAttachmentId || el.id}:`, err);
         }
       }
     }
@@ -372,7 +424,7 @@ export async function generateCertificatePdfBatch({
       width: printWidth,
       height: printHeight,
       dpi,
-      backgroundImage: bgImage,
+      background: { mode: bgImage ? "IMAGE" : "FALLBACK", image: bgImage },
       template,
       data: row,
       qrImages,

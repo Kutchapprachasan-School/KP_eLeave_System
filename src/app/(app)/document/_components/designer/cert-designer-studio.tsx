@@ -182,8 +182,8 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
         department: initialBatch.organization || "",
         date: initialBatch.issuedDate || "",
         qrCode: item.verifyToken
-          ? `${typeof window !== "undefined" ? window.location.origin : "https://eleave.kutchap.ac.th"}/verify/cert?token=${item.verifyToken}`
-          : "https://eleave.kutchap.ac.th/verify/cert?token=SAMPLE",
+          ? `${typeof window !== "undefined" ? window.location.origin : "https://eleave.kutchap.ac.th"}/v/${item.verifyToken}`
+          : "https://eleave.kutchap.ac.th/v/SAMPLE",
       }));
     }
     return [
@@ -194,7 +194,7 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
         activityName: "สัปดาห์วิทยาศาสตร์ ประจำปีการศึกษา ๒๕๖๙",
         department: "โรงเรียนกุดจับประชาสรรค์",
         date: "๑๑ กันยายน พ.ศ. ๒๕๖๙",
-        qrCode: "https://eleave.kutchap.ac.th/verify/cert?token=SAMPLE",
+        qrCode: "https://eleave.kutchap.ac.th/v/SAMPLE",
       },
     ];
   });
@@ -246,8 +246,8 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
           department: initialBatch.organization || "",
           date: initialBatch.issuedDate || "",
           qrCode: item.verifyToken
-            ? `${typeof window !== "undefined" ? window.location.origin : "https://eleave.kutchap.ac.th"}/verify/cert?token=${item.verifyToken}`
-            : "https://eleave.kutchap.ac.th/verify/cert?token=SAMPLE",
+            ? `${typeof window !== "undefined" ? window.location.origin : "https://eleave.kutchap.ac.th"}/v/${item.verifyToken}`
+            : "https://eleave.kutchap.ac.th/v/SAMPLE",
         }))
       );
       setPreviewIndex(0);
@@ -677,22 +677,18 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
       const ctx = canvas.getContext("2d");
       if (!ctx) return;
 
-      // 1. Draw Background or placeholder
+      // 1. Load background image if available
+      let bgImg: CanvasImageSource | null = null;
       if (backgroundUrl) {
         try {
-          const bgImg = await loadCanvasImage(backgroundUrl);
+          const loaded = await loadCanvasImage(backgroundUrl);
           if (cancelled) return;
-          if (isValidDrawableImage(bgImg)) {
-            ctx.drawImage(bgImg, 0, 0, dims.previewWidth, dims.previewHeight);
-          } else {
-            drawPlaceholderBg(ctx, dims.previewWidth, dims.previewHeight);
+          if (isValidDrawableImage(loaded)) {
+            bgImg = loaded;
           }
         } catch (err) {
           console.warn("Background load error in preview:", err);
-          drawPlaceholderBg(ctx, dims.previewWidth, dims.previewHeight);
         }
-      } else {
-        drawPlaceholderBg(ctx, dims.previewWidth, dims.previewHeight);
       }
 
       // 2. Preload signature images for studio canvas preview
@@ -705,6 +701,9 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
               const loadedImg = await loadCanvasImage(sigSrc);
               if (el.signatureAttachmentId) {
                 signatureImages[el.signatureAttachmentId] = loadedImg;
+              }
+              if (el.id) {
+                signatureImages[el.id] = loadedImg;
               }
               signatureImages[sigSrc] = loadedImg;
             } catch (err) {
@@ -722,7 +721,7 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
         width: dims.previewWidth,
         height: dims.previewHeight,
         dpi: 72,
-        backgroundImage: null, // Background is already drawn above directly on canvas
+        background: { mode: bgImg ? "IMAGE" : "FALLBACK", image: bgImg },
         template: { schemaVersion: 1, orientation, elements },
         data: activeData,
         signatureImages,
@@ -1049,8 +1048,8 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
             row["QR"] ||
             row["qrCode"] ||
             (item?.verifyToken
-              ? `${origin}/verify/cert?token=${item.verifyToken}`
-              : `${origin}/verify/cert?token=SAMPLE`)
+              ? `${origin}/v/${item.verifyToken}`
+              : `${origin}/v/SAMPLE`)
           ).trim();
 
           return {
@@ -1832,14 +1831,35 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
                         />
                       </div>
                       <div className="space-y-1">
-                        <label className="text-[10px] font-bold text-slate-500">ข้อความที่แสดง / ตัวอย่าง (Text / Sample)</label>
-                        <input
-                          type="text"
+                        <div className="flex items-center justify-between">
+                          <label className="text-[10px] font-bold text-slate-500">
+                            ข้อความที่แสดง / ตัวอย่าง (Text / Sample)
+                          </label>
+                          <span className="text-[9px] text-slate-400">กด Enter ขึ้นบรรทัดใหม่ได้</span>
+                        </div>
+                        <textarea
+                          rows={3}
                           value={selectedElement.sampleText || ""}
                           onChange={(e) => updateSelectedElement({ sampleText: e.target.value })}
-                          className="w-full text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
-                          placeholder="ระบุข้อความที่จะแสดงบนเกียรติบัตร"
+                          className="w-full text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1.5 focus:ring-1 focus:ring-indigo-500 focus:outline-none resize-y"
+                          placeholder="ระบุข้อความที่จะแสดงบนเกียรติบัตร (รองรับหลายบรรทัด เช่น ชื่อ-สกุล และตำแหน่ง)"
                         />
+                        {selectedElement.key.startsWith("signee") && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const curr = selectedElement.sampleText || "";
+                              if (!curr.includes("\n")) {
+                                updateSelectedElement({ sampleText: `${curr}\nผู้อำนวยการโรงเรียนกุดจับประชาสรรค์` });
+                              } else {
+                                updateSelectedElement({ sampleText: `${curr}\nสังกัดสำนักงานเขตพื้นที่การศึกษามัธยมศึกษาอุดรธานี` });
+                              }
+                            }}
+                            className="inline-flex items-center gap-1 text-[10px] font-medium text-indigo-600 dark:text-indigo-400 hover:underline"
+                          >
+                            + เพิ่มบรรทัดตำแหน่ง / หน่วยงาน
+                          </button>
+                        )}
                       </div>
                       <div className="grid grid-cols-2 gap-2">
                         <div className="space-y-1">

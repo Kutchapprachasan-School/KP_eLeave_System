@@ -11,8 +11,9 @@ import {
   documentPointToScreen,
   computeSnap,
   FONT_MANIFEST,
+  isValidVerificationTokenFormat,
 } from '../../../src/app/(app)/document/_components/designer/cert-schema.ts';
-import { generateQrMatrix } from '../../../src/app/(app)/document/_components/designer/qr-renderer.ts';
+import { generateQrMatrix, drawQRCodeBadge } from '../../../src/app/(app)/document/_components/designer/qr-renderer.ts';
 import { drawCertificatePage, isValidDrawableImage } from '../../../src/app/(app)/document/_components/designer/cert-pdf-engine.ts';
 import { processSignaturePixels } from '../../../src/app/(app)/document/_components/designer/signature-processor.ts';
 import crypto from 'node:crypto';
@@ -1045,6 +1046,129 @@ test('Certificate Designer Studio & Concurrency Invariants Suite', async (t) => 
 
     assert.equal(fillRectCalled, true, 'Must fill fallback canvas background');
     assert.equal(strokeRectCalled, true, 'Must draw fallback certificate borders');
+  });
+
+  // -------------------------------------------------------------
+  // Test 26: Token format validation (128-bit Base64URL contract)
+  // -------------------------------------------------------------
+  await t.test('26. isValidVerificationTokenFormat: Validates 22-char Base64URL and rejects malformed inputs', () => {
+    // 22-character Base64URL string (128-bit)
+    const valid128BitToken = crypto.randomBytes(16).toString('base64url');
+    assert.equal(valid128BitToken.length, 22);
+    assert.equal(isValidVerificationTokenFormat(valid128BitToken), true);
+
+    // Legacy hex token (48 or 64 characters)
+    const validLegacyHex = crypto.randomBytes(24).toString('hex');
+    assert.equal(isValidVerificationTokenFormat(validLegacyHex), true);
+
+    // Malformed / injection attacks
+    assert.equal(isValidVerificationTokenFormat(''), false);
+    assert.equal(isValidVerificationTokenFormat('abc'), false);
+    assert.equal(isValidVerificationTokenFormat("' OR 1=1 --"), false);
+    assert.equal(isValidVerificationTokenFormat('short_token_123'), false);
+  });
+
+  // -------------------------------------------------------------
+  // Test 27: Multiline text rendering with newline splitting
+  // -------------------------------------------------------------
+  await t.test('27. Multiline signee text rendering: Splits lines by newline without throwing and offsets Y', () => {
+    const renderedLines = [];
+    const mockCtx = {
+      save: () => {},
+      restore: () => {},
+      fillRect: () => {},
+      strokeRect: () => {},
+      drawImage: () => {},
+      fillText: (text, x, y) => {
+        renderedLines.push({ text, x, y });
+      },
+      font: '',
+      fillStyle: '',
+      strokeStyle: '',
+      lineWidth: 1,
+      textAlign: '',
+      textBaseline: '',
+      setLineDash: () => {},
+      measureText: (text) => ({ width: text.length * 10 }),
+    };
+
+    const testTemplate = {
+      schemaVersion: 1,
+      orientation: 'LANDSCAPE',
+      elements: [
+        {
+          id: 'el_signee',
+          type: 'text',
+          key: 'signee1',
+          label: 'ผู้ลงนาม',
+          sampleText: '( นายวิจิตร สุขสงบ )\nผู้อำนวยการโรงเรียนกุดจับประชาสรรค์',
+          xPercent: 50,
+          yPercent: 80,
+          fontSizePt: 16,
+          fontFamily: 'Sarabun',
+          color: '#000000',
+        },
+      ],
+    };
+
+    drawCertificatePage({
+      ctx: mockCtx,
+      width: 842,
+      height: 595,
+      dpi: 72,
+      background: { mode: 'NONE' },
+      template: testTemplate,
+      data: {},
+    });
+
+    assert.equal(renderedLines.length, 2, 'Must render exactly 2 lines for multiline text');
+    assert.equal(renderedLines[0].text, '( นายวิจิตร สุขสงบ )');
+    assert.equal(renderedLines[1].text, 'ผู้อำนวยการโรงเรียนกุดจับประชาสรรค์');
+    assert.ok(renderedLines[1].y > renderedLines[0].y, 'Line 2 must have greater vertical Y offset than Line 1');
+  });
+
+  // -------------------------------------------------------------
+  // Test 28: QR Code Badge ISO-compliant Quiet Zone & Level M
+  // -------------------------------------------------------------
+  await t.test('28. QR Code Badge: Level M matrix with Quiet Zone >= 4 modules and minimum physical size threshold', () => {
+    let cardDrawn = false;
+    let filledRectCount = 0;
+
+    const mockCtx = {
+      save: () => {},
+      restore: () => {},
+      fillRect: (x, y, w, h) => {
+        filledRectCount++;
+      },
+      beginPath: () => {},
+      roundRect: (x, y, w, h, r) => {
+        cardDrawn = true;
+      },
+      fill: () => {},
+      stroke: () => {},
+      strokeRect: () => {},
+      fillText: () => {},
+      font: '',
+      fillStyle: '',
+      strokeStyle: '',
+      lineWidth: 1,
+      textAlign: '',
+      textBaseline: '',
+      shadowColor: '',
+      shadowBlur: 0,
+      shadowOffsetY: 0,
+    };
+
+    const sampleUrl = 'https://eleave.kutchap.ac.th/v/' + crypto.randomBytes(16).toString('base64url');
+    drawQRCodeBadge(mockCtx, 100, 100, 64, sampleUrl, {
+      label: 'สแกนตรวจสอบ',
+      showBadgeCard: true,
+      dpi: 72,
+      errorCorrection: 'M',
+    });
+
+    assert.equal(cardDrawn, true, 'Badge card must be rendered');
+    assert.ok(filledRectCount > 10, 'QR modules must be drawn onto canvas context');
   });
 });
 

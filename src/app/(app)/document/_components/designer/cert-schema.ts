@@ -599,3 +599,18 @@ export const DEFAULT_CERTIFICATE_ELEMENTS: CertificateElement[] = [
     sampleText: "https://eleave.kutchap.ac.th/verify",
   },
 ];
+
+/**
+ * Validates verification token string format before executing any DB query.
+ * Contract:
+ *  - 22-char Base64URL (Standard 128-bit): /^[A-Za-z0-9_-]{22}$/
+ *  - Legacy 48/64 hex characters: /^[a-fA-F0-9]{48,64}$/
+ */
+export function isValidVerificationTokenFormat(token: string): boolean {
+  if (!token || typeof token !== "string") return false;
+  const trimmed = token.trim();
+  const isBase64Url128 = /^[A-Za-z0-9_-]{22}$/.test(trimmed);
+  const isLegacyHex = /^[a-fA-F0-9]{48,64}$/.test(trimmed);
+  return isBase64Url128 || isLegacyHex;
+}
+

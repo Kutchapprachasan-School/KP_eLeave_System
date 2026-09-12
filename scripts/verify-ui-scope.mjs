@@ -13,7 +13,10 @@ import path from "node:path";
 const ALLOWED_PREFIXES = [
   "src/components/shared-ui/school-ops/",
   "src/app/(app)/document/",
+  "src/features/document/",
   "src/app/verify/cert/",
+  "src/app/v/",
+  "src/app/actions/document.ts",
   "src/app/(app)/facility/",
   "src/app/supervision/",
   "src/app/(app)/academic/supervision/",
