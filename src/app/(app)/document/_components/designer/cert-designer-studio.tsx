@@ -147,16 +147,29 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
     }
   }, []);
 
-  // Lock body scroll while in fullscreen portal to prevent background page scrolling (Senior Invariant 4)
+  // Lock body scroll and neutralize CSS body zoom while in fullscreen portal
+  // (globals.css sets `body { zoom: 0.9; }` which shrinks the viewport to 90vw x 90vh unless neutralized)
   useEffect(() => {
     if (isFullscreen) {
       const originalOverflow = document.body.style.overflow;
+      const originalZoom = document.body.style.zoom;
       document.body.style.overflow = "hidden";
+      document.body.style.zoom = "1";
       return () => {
         document.body.style.overflow = originalOverflow;
+        document.body.style.zoom = originalZoom;
       };
     }
   }, [isFullscreen]);
+
+  // Clean up native fullscreen if component unmounts while in fullscreen
+  useEffect(() => {
+    return () => {
+      if (typeof document !== "undefined" && document.fullscreenElement && document.exitFullscreen) {
+        document.exitFullscreen().catch(() => {});
+      }
+    };
+  }, []);
 
   // HTML5 Fullscreen API synchronization with try/catch fallback (Senior Invariant 3)
   const handleToggleFullscreen = useCallback(async () => {
@@ -760,10 +773,16 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
 
   // Auto-fit canvas to container on mount, orientation switch, fullscreen toggle, and panel collapse/expand
   useEffect(() => {
-    const timer = setTimeout(() => {
+    const timer1 = setTimeout(() => {
       handleZoomFit();
     }, 150);
-    return () => clearTimeout(timer);
+    const timer2 = setTimeout(() => {
+      handleZoomFit();
+    }, 400);
+    return () => {
+      clearTimeout(timer1);
+      clearTimeout(timer2);
+    };
   }, [isFullscreen, leftPanelOpen, rightPanelOpen, orientation, handleZoomFit]);
 
   useEffect(() => {
@@ -1346,9 +1365,29 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
 
   const studioLayout = (
     <div
+      style={
+        isFullscreen
+          ? {
+              position: "fixed",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              width: "100vw",
+              height: "100vh",
+              maxWidth: "100vw",
+              maxHeight: "100vh",
+              zIndex: 999999,
+              margin: 0,
+              padding: 0,
+              borderRadius: 0,
+              zoom: 1,
+            }
+          : undefined
+      }
       className={`flex flex-col bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-slate-100 ${
         isFullscreen
-          ? "fixed inset-0 z-[99999] w-screen h-screen m-0 p-0 overflow-hidden"
+          ? "fixed inset-0 z-[999999] w-screen h-screen m-0 p-0 overflow-hidden rounded-none border-0"
           : "h-[calc(100vh-4rem)] min-h-[700px] rounded-2xl shadow-xl overflow-hidden border border-slate-200 dark:border-slate-800"
       }`}
     >
@@ -1360,7 +1399,12 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
         <div className="flex items-center gap-2 sm:gap-3">
           {onClose && (
             <button
-              onClick={onClose}
+              onClick={async () => {
+                if (isFullscreen) {
+                  await handleToggleFullscreen();
+                }
+                onClose();
+              }}
               className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-600 dark:text-slate-400 transition"
               title="ย้อนกลับ"
             >

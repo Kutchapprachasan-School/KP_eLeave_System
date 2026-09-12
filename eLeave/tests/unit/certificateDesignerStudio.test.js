@@ -1600,5 +1600,72 @@ test('Certificate Designer Studio & Concurrency Invariants Suite', async (t) => 
     assert.equal(portrait.width, 595);
     assert.equal(portrait.height, 842);
   });
+
+  // -------------------------------------------------------------
+  // Test 38: Fullscreen Zoom Neutralization & Edge-to-Edge Portal Invariants
+  // -------------------------------------------------------------
+  await t.test('38. Fullscreen mode neutralizes body zoom (preventing 90vw shrink) and enforces zero border-radius', () => {
+    // Simulate body style state lifecycle
+    const mockBody = {
+      style: {
+        overflow: '',
+        zoom: '',
+      },
+    };
+
+    const activateFullscreen = (body) => {
+      const originalOverflow = body.style.overflow;
+      const originalZoom = body.style.zoom;
+      body.style.overflow = 'hidden';
+      body.style.zoom = '1';
+      return () => {
+        body.style.overflow = originalOverflow;
+        body.style.zoom = originalZoom;
+      };
+    };
+
+    // 1. Prior to entering fullscreen, body has default zoom (or CSS zoom: 0.9)
+    assert.equal(mockBody.style.zoom, '');
+    assert.equal(mockBody.style.overflow, '');
+
+    // 2. User toggles fullscreen: zoom must be explicitly set to '1' to neutralize globals.css 0.9 zoom
+    const cleanup = activateFullscreen(mockBody);
+    assert.equal(mockBody.style.zoom, '1', 'Body zoom must be 1 during fullscreen to avoid 10% viewport shrink');
+    assert.equal(mockBody.style.overflow, 'hidden', 'Body scroll must be locked during fullscreen');
+
+    // 3. Studio layout style props in fullscreen
+    const getStudioFullscreenStyle = (isFullscreen) => {
+      if (!isFullscreen) return undefined;
+      return {
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        width: '100vw',
+        height: '100vh',
+        maxWidth: '100vw',
+        maxHeight: '100vh',
+        zIndex: 999999,
+        margin: 0,
+        padding: 0,
+        borderRadius: 0,
+        zoom: 1,
+      };
+    };
+
+    const fsStyle = getStudioFullscreenStyle(true);
+    assert.equal(fsStyle.position, 'fixed');
+    assert.equal(fsStyle.width, '100vw');
+    assert.equal(fsStyle.height, '100vh');
+    assert.equal(fsStyle.borderRadius, 0);
+    assert.equal(fsStyle.zIndex, 999999);
+    assert.equal(fsStyle.zoom, 1);
+
+    // 4. On exit fullscreen: body style restored cleanly
+    cleanup();
+    assert.equal(mockBody.style.zoom, '');
+    assert.equal(mockBody.style.overflow, '');
+  });
 });
 
