@@ -21,6 +21,7 @@ import { formatDocFullDate } from "@/lib/date-format";
 import { useSession } from "@/lib/auth-client";
 import { QRCodeSVG } from "qrcode.react";
 import { CertDesignerStudio } from "./designer/cert-designer-studio";
+import { StatusPillBadge } from "@/components/shared-ui/school-ops/StatusPillBadge";
 
 interface CertificateRoleItem {
   roleTitle: string;
@@ -420,11 +421,11 @@ export default function CertGenerator({ onBack }: { onBack?: () => void }) {
             onClick={() => { setActiveTab("studio"); }}
             className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
               activeTab === "studio"
-                ? "bg-white dark:bg-slate-900 text-purple-600 dark:text-purple-400 shadow-xs"
+                ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs"
                 : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
             }`}
           >
-            <Palette className="w-3.5 h-3.5 text-purple-500" />
+            <Palette className="w-3.5 h-3.5 text-amber-500" />
             🎨 สตูดิโอออกแบบ & พิมพ์
           </button>
         </div>
@@ -852,13 +853,11 @@ export default function CertGenerator({ onBack }: { onBack?: () => void }) {
                           {item.requester || "-"}
                         </td>
                         <td className="py-3 px-2 text-center whitespace-nowrap">
-                          <span className={`px-2.5 py-0.5 rounded-lg text-xs font-extrabold border ${
-                            isCancelled 
-                              ? "bg-rose-50 border-rose-200 text-rose-600 dark:bg-rose-950/70 dark:border-rose-900 dark:text-rose-400 line-through" 
-                              : "bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-950/70 dark:border-emerald-900 dark:text-emerald-300"
-                          }`}>
-                            {isCancelled ? "ยกเลิก" : "ออกเลขแล้ว"}
-                          </span>
+                          <StatusPillBadge
+                            status={isCancelled ? "CANCELLED" : "APPROVED"}
+                            label={isCancelled ? "ยกเลิก" : "ออกเลขแล้ว"}
+                            size="sm"
+                          />
                         </td>
                         <td className="py-3 px-2 text-center whitespace-nowrap">
                           <div className="flex items-center justify-center gap-1">
@@ -1005,10 +1004,12 @@ export default function CertGenerator({ onBack }: { onBack?: () => void }) {
                     <div className="font-semibold text-slate-800 dark:text-slate-200 mt-0.5">{formatDocFullDate(selectedBatchDetail.date || selectedBatchDetail.createdAt)}</div>
                   </div>
                   <div>
-                    <div className="font-bold text-slate-500">สถานะ:</div>
-                    <div className={`font-bold mt-0.5 ${selectedBatchDetail.status === "CANCELLED" ? "text-rose-600 line-through" : "text-emerald-600"}`}>
-                      {selectedBatchDetail.status === "CANCELLED" ? "✕ ยกเลิกแล้ว" : "✓ ออกเลขเรียบร้อย"}
-                    </div>
+                    <div className="font-bold text-slate-500 mb-1">สถานะ:</div>
+                    <StatusPillBadge
+                      status={selectedBatchDetail.status === "CANCELLED" ? "CANCELLED" : "APPROVED"}
+                      label={selectedBatchDetail.status === "CANCELLED" ? "ยกเลิกแล้ว" : "ออกเลขเรียบร้อย"}
+                      size="sm"
+                    />
                   </div>
                 </div>
 

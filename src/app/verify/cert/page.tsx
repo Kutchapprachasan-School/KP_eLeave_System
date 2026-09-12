@@ -6,6 +6,7 @@ import { Award, CheckCircle2, XCircle, ShieldCheck, Calendar, Building2, UserChe
 import Link from "next/link";
 import { verifyCertificatePublic } from "@/app/actions/document";
 import { formatDocFullDate } from "@/lib/date-format";
+import { StatusPillBadge } from "@/components/shared-ui/school-ops/StatusPillBadge";
 
 function VerifyContent() {
   const searchParams = useSearchParams();
@@ -125,11 +126,10 @@ function VerifyContent() {
               </div>
             </div>
             <div className="text-right">
-              <span className={`px-2.5 py-1 rounded-lg text-xs font-bold ${isValid ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400" : "bg-rose-50 text-rose-700 dark:bg-rose-950/50 dark:text-rose-400 line-through"}`}>
-                {isValid ? "ปกติ / สมบูรณ์" : "ยกเลิก"}
-              </span>
+              <StatusPillBadge status={data.status} />
             </div>
           </div>
+
 
           {/* Metadata Grid */}
           <div className="space-y-3.5 text-xs">
@@ -219,7 +219,7 @@ function VerifyContent() {
                   target="_blank"
                   rel="noopener noreferrer"
                   download={`เกียรติบัตร_${data.certificateNumber}.pdf`}
-                  className="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md transition group"
+                  className="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-bold text-xs shadow-md shadow-indigo-600/20 transition group"
                 >
                   <Download className="w-4 h-4 group-hover:translate-y-0.5 transition" />
                   <span>ดาวน์โหลดไฟล์เกียรติบัตรต้นฉบับ (PDF)</span>
@@ -227,7 +227,7 @@ function VerifyContent() {
               ) : (
                 <button
                   onClick={() => window.print()}
-                  className="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md transition"
+                  className="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-bold text-xs shadow-md shadow-indigo-600/20 transition"
                 >
                   <Printer className="w-4 h-4" />
                   <span>พิมพ์หรือบันทึกเป็น PDF (Print)</span>
@@ -235,7 +235,7 @@ function VerifyContent() {
               )}
               <button
                 onClick={() => window.print()}
-                className="flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-xs transition"
+                className="flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-xs transition cursor-pointer"
               >
                 <Printer className="w-4 h-4" />
                 <span>พิมพ์ใบรับรอง</span>
