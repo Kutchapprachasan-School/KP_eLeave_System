@@ -39,6 +39,8 @@ import {
   ArrowDown,
   RefreshCw,
   PenTool,
+  FolderOpen,
+  LayoutTemplate,
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import {
@@ -112,7 +114,7 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
   const [selectedElementId, setSelectedElementId] = useState<string | null>("el_name");
 
   // --- Canva-like Studio UI Panels & Tools ---
-  const [activeLeftTab, setActiveLeftTab] = useState<"elements" | "layers">("elements");
+  const [activeLeftTab, setActiveLeftTab] = useState<"templates" | "elements" | "layers">("elements");
   const [zoomScale, setZoomScale] = useState<number>(1.0);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [leftPanelOpen, setLeftPanelOpen] = useState<boolean>(true);
@@ -451,6 +453,60 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
       setElements(sanitizedElements);
       setUndoStack([]);
       setRedoStack([]);
+    }
+  };
+
+  // Start designing a new template from scratch
+  const handleNewTemplate = () => {
+    if (localPreviewUrlRef.current) {
+      URL.revokeObjectURL(localPreviewUrlRef.current);
+      localPreviewUrlRef.current = null;
+    }
+    if (backgroundUrl) {
+      evictImageCache(backgroundUrl);
+    }
+    if (backgroundAttachmentId) {
+      evictImageCache(backgroundAttachmentId);
+    }
+
+    setSelectedTemplateId("");
+    setTemplateName("แบบเกียรติบัตรใหม่");
+    setOrientation("LANDSCAPE");
+    setScope("PRIVATE");
+    setTemplateVersion(1);
+    setBackgroundAttachmentId("");
+    setBackgroundUrl("");
+    activeBgImageRef.current = null;
+    setElements(DEFAULT_CERTIFICATE_ELEMENTS);
+    setSelectedElementId("el_name");
+    setUndoStack([]);
+    setRedoStack([]);
+    setStatusMessage({ type: "success", text: "เริ่มต้นสร้างแบบเกียรติบัตรใหม่" });
+  };
+
+  // Delete a specific template from the templates list
+  const handleDeleteTemplateById = async (tmplId: string, tmplName: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!confirm(`คุณแน่ใจหรือไม่ว่าต้องการลบแบบเกียรติบัตร "${tmplName}"?`)) return;
+
+    setSaving(true);
+    setStatusMessage(null);
+
+    try {
+      const res = await deleteCertificateTemplateAction(tmplId);
+      if (res.success) {
+        setStatusMessage({ type: "success", text: `ลบแบบ "${tmplName}" เรียบร้อยแล้ว` });
+        if (selectedTemplateId === tmplId) {
+          handleNewTemplate();
+        }
+        loadTemplates();
+      } else {
+        setStatusMessage({ type: "error", text: res.error || "ลบไม่สำเร็จ" });
+      }
+    } catch (err: any) {
+      setStatusMessage({ type: "error", text: err.message || "เกิดข้อผิดพลาดในการลบ" });
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -1660,32 +1716,142 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
           {/* Panel Tab Navigation */}
           <div className="flex border-b border-slate-200 dark:border-slate-800 text-xs font-bold">
             <button
+              onClick={() => setActiveLeftTab("templates")}
+              className={`flex-1 py-3 flex items-center justify-center gap-1 border-b-2 transition ${
+                activeLeftTab === "templates"
+                  ? "border-indigo-600 text-indigo-600 dark:text-indigo-400 bg-indigo-50/40 dark:bg-indigo-950/20"
+                  : "border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900"
+              }`}
+            >
+              <FolderOpen className="w-3.5 h-3.5" />
+              <span>แม่แบบ</span>
+              {templates.length > 0 && (
+                <span className="px-1.5 py-0.2 rounded-full bg-slate-100 dark:bg-slate-800 text-[10px] text-slate-600 dark:text-slate-300">
+                  {templates.length}
+                </span>
+              )}
+            </button>
+            <button
               onClick={() => setActiveLeftTab("elements")}
-              className={`flex-1 py-3 flex items-center justify-center gap-1.5 border-b-2 transition ${
+              className={`flex-1 py-3 flex items-center justify-center gap-1 border-b-2 transition ${
                 activeLeftTab === "elements"
                   ? "border-indigo-600 text-indigo-600 dark:text-indigo-400 bg-indigo-50/40 dark:bg-indigo-950/20"
                   : "border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900"
               }`}
             >
-              <Plus className="w-4 h-4" />
-              องค์ประกอบ
+              <Plus className="w-3.5 h-3.5" />
+              <span>องค์ประกอบ</span>
             </button>
             <button
               onClick={() => setActiveLeftTab("layers")}
-              className={`flex-1 py-3 flex items-center justify-center gap-1.5 border-b-2 transition ${
+              className={`flex-1 py-3 flex items-center justify-center gap-1 border-b-2 transition ${
                 activeLeftTab === "layers"
                   ? "border-indigo-600 text-indigo-600 dark:text-indigo-400 bg-indigo-50/40 dark:bg-indigo-950/20"
                   : "border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900"
               }`}
             >
-              <Layers className="w-4 h-4" />
-              เลเยอร์ ({elements.length})
+              <Layers className="w-3.5 h-3.5" />
+              <span>เลเยอร์ ({elements.length})</span>
             </button>
           </div>
 
           {/* Tab Content */}
           <div className="flex-1 overflow-y-auto p-4 space-y-5">
-            {activeLeftTab === "elements" ? (
+            {activeLeftTab === "templates" ? (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                    แบบเกียรติบัตรทั้งหมด
+                  </div>
+                  <button
+                    onClick={handleNewTemplate}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/50 hover:bg-indigo-100 rounded-lg transition"
+                    title="เริ่มสร้างแบบใหม่"
+                  >
+                    <Plus className="w-3 h-3" />
+                    <span>สร้างใหม่</span>
+                  </button>
+                </div>
+
+                {loading ? (
+                  <div className="flex flex-col items-center justify-center py-8 text-slate-400 text-xs gap-2">
+                    <Loader2 className="w-5 h-5 animate-spin text-indigo-600" />
+                    <span>กำลังโหลดแบบเกียรติบัตร...</span>
+                  </div>
+                ) : templates.length === 0 ? (
+                  <div className="text-center py-8 text-slate-400 dark:text-slate-500 text-xs space-y-2">
+                    <LayoutTemplate className="w-8 h-8 mx-auto opacity-30" />
+                    <p>ยังไม่มีแบบเกียรติบัตรที่บันทึกไว้</p>
+                    <button
+                      onClick={handleNewTemplate}
+                      className="px-3 py-1.5 rounded-lg bg-indigo-600 text-white font-bold text-xs"
+                    >
+                      สร้างแบบใหม่
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {templates.map((tmpl) => {
+                      const isSelected = selectedTemplateId === tmpl.id;
+                      const scopeBadge =
+                        tmpl.scope === "SYSTEM_PRESET"
+                          ? { label: "ระบบ", color: "bg-blue-100 text-blue-700 dark:bg-blue-900/60 dark:text-blue-300" }
+                          : tmpl.scope === "SCHOOL_SHARED"
+                          ? { label: "แชร์โรงเรียน", color: "bg-amber-100 text-amber-700 dark:bg-amber-900/60 dark:text-amber-300" }
+                          : { label: "ส่วนตัว", color: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300" };
+
+                      return (
+                        <div
+                          key={tmpl.id}
+                          onClick={() => applyTemplate(tmpl)}
+                          className={`p-3 rounded-xl border text-left cursor-pointer transition relative group ${
+                            isSelected
+                              ? "border-indigo-500 bg-indigo-50/40 dark:bg-indigo-950/40 shadow-xs ring-1 ring-indigo-500"
+                              : "border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-white dark:bg-slate-900/60 hover:shadow-xs"
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="font-bold text-xs text-slate-800 dark:text-slate-100 truncate flex-1 group-hover:text-indigo-600 transition">
+                              {tmpl.name}
+                            </div>
+                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${scopeBadge.color} shrink-0`}>
+                              {scopeBadge.label}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center justify-between text-[10px] text-slate-400 mt-2">
+                            <span>
+                              {tmpl.orientation === "LANDSCAPE" ? "แนวนอน" : "แนวตั้ง"} • {tmpl.layoutConfig?.elements?.length || 0} องค์ประกอบ
+                            </span>
+                            {isSelected ? (
+                              <span className="font-bold text-indigo-600 dark:text-indigo-400 flex items-center gap-1">
+                                <CheckCircle2 className="w-3 h-3" />
+                                ใช้งานอยู่
+                              </span>
+                            ) : (
+                              <div className="flex items-center gap-1.5">
+                                {tmpl.scope !== "SYSTEM_PRESET" && (
+                                  <button
+                                    onClick={(e) => handleDeleteTemplateById(tmpl.id, tmpl.name, e)}
+                                    className="p-1 hover:bg-rose-100 dark:hover:bg-rose-950/60 rounded text-slate-400 hover:text-rose-600 transition opacity-0 group-hover:opacity-100"
+                                    title="ลบแบบนี้"
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                  </button>
+                                )}
+                                <span className="group-hover:text-indigo-600 dark:group-hover:text-indigo-400 font-semibold transition">
+                                  เลือกใช้ →
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            ) : activeLeftTab === "elements" ? (
               <>
                 {/* Background Upload Section */}
                 <div className="space-y-2">
@@ -2633,11 +2799,35 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
         <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-30 flex items-center gap-1.5 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md px-3 py-2 rounded-2xl shadow-2xl border border-slate-200/80 dark:border-slate-800">
           <button
             onClick={() => {
-              setLeftPanelOpen((p) => !p);
-              setRightPanelOpen(false);
+              if (leftPanelOpen && activeLeftTab === "templates") {
+                setLeftPanelOpen(false);
+              } else {
+                setActiveLeftTab("templates");
+                setLeftPanelOpen(true);
+                setRightPanelOpen(false);
+              }
             }}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition ${
-              leftPanelOpen
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold transition ${
+              leftPanelOpen && activeLeftTab === "templates"
+                ? "bg-indigo-600 text-white shadow-xs"
+                : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200"
+            }`}
+          >
+            <FolderOpen className="w-3.5 h-3.5" />
+            <span>แม่แบบ</span>
+          </button>
+          <button
+            onClick={() => {
+              if (leftPanelOpen && activeLeftTab === "elements") {
+                setLeftPanelOpen(false);
+              } else {
+                setActiveLeftTab("elements");
+                setLeftPanelOpen(true);
+                setRightPanelOpen(false);
+              }
+            }}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold transition ${
+              leftPanelOpen && activeLeftTab === "elements"
                 ? "bg-indigo-600 text-white shadow-xs"
                 : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200"
             }`}
