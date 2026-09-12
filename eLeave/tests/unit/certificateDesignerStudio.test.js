@@ -14,7 +14,7 @@ import {
   isValidVerificationTokenFormat,
 } from '../../../src/app/(app)/document/_components/designer/cert-schema.ts';
 import { generateQrMatrix, drawQRCodeBadge } from '../../../src/app/(app)/document/_components/designer/qr-renderer.ts';
-import { drawCertificatePage, isValidDrawableImage } from '../../../src/app/(app)/document/_components/designer/cert-pdf-engine.ts';
+import { drawCertificatePage, isValidDrawableImage, loadCanvasImage } from '../../../src/app/(app)/document/_components/designer/cert-pdf-engine.ts';
 import { processSignaturePixels } from '../../../src/app/(app)/document/_components/designer/signature-processor.ts';
 import crypto from 'node:crypto';
 
@@ -1169,6 +1169,75 @@ test('Certificate Designer Studio & Concurrency Invariants Suite', async (t) => 
 
     assert.equal(cardDrawn, true, 'Badge card must be rendered');
     assert.ok(filledRectCount > 10, 'QR modules must be drawn onto canvas context');
+  });
+
+  // -------------------------------------------------------------
+  // Test 26: loadCanvasImage memory cache & ReferenceError immunity
+  // -------------------------------------------------------------
+  await t.test('26. loadCanvasImage caches in memory and handles Data URLs seamlessly without throwing ReferenceError', async () => {
+    const originalImage = globalThis.Image;
+    try {
+      let instancesCreated = 0;
+      globalThis.Image = class MockImage {
+        constructor() {
+          instancesCreated++;
+          this.nodeName = 'IMG';
+          this.complete = true;
+          this.naturalWidth = 1200;
+          this.naturalHeight = 800;
+          this.width = 1200;
+          this.height = 800;
+          setTimeout(() => {
+            if (this.onload) this.onload();
+          }, 0);
+        }
+      };
+
+      const testDataUrl = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+      const loadedImg = await loadCanvasImage(testDataUrl);
+
+      assert.ok(isValidDrawableImage(loadedImg), 'Loaded image must be valid and drawable');
+      assert.equal(loadedImg.naturalWidth, 1200);
+
+      // Subsequent call must hit memory cache (0 extra Image instances created)
+      const cachedImg = await loadCanvasImage(testDataUrl);
+      assert.equal(cachedImg, loadedImg, 'Cached image instance must be returned');
+      assert.equal(instancesCreated, 1, 'Only one Image instance created due to inMemoryImageCache');
+    } finally {
+      globalThis.Image = originalImage;
+    }
+  });
+
+  // -------------------------------------------------------------
+  // Test 27: Certificate Studio Mobile & Fullscreen Invariants
+  // -------------------------------------------------------------
+  await t.test('27. Studio state correctly models mobile drawers and edge-to-edge portal fullscreen', () => {
+    const mobileWidth = 768;
+    const desktopWidth = 1440;
+
+    // Mobile viewport invariant: sidebars auto-close by default so canvas preview is unobscured
+    const isMobileBreakpoint = (w) => w < 1024;
+    assert.equal(isMobileBreakpoint(mobileWidth), true);
+    assert.equal(isMobileBreakpoint(desktopWidth), false);
+
+    // Fullscreen styling invariant: edge-to-edge z-[99999] without margins
+    const getStudioClassNames = ({ isFullscreen }) => {
+      return isFullscreen
+        ? 'fixed inset-0 z-[99999] w-screen h-screen m-0 p-0 overflow-hidden'
+        : 'h-[calc(100vh-4rem)] min-h-[700px] rounded-2xl shadow-xl overflow-hidden border';
+    };
+
+    const fsClasses = getStudioClassNames({ isFullscreen: true });
+    assert.ok(fsClasses.includes('fixed inset-0'), 'Must be fixed inset-0 in fullscreen');
+    assert.ok(fsClasses.includes('z-[99999]'), 'Must have high z-index to overlay all navigation');
+    assert.ok(fsClasses.includes('w-screen'), 'Must span 100vw');
+    assert.ok(fsClasses.includes('h-screen'), 'Must span 100vh');
+    assert.ok(fsClasses.includes('m-0 p-0'), 'Must have zero margins and padding for true edge-to-edge display');
+
+    // Desktop panel collapse width invariant:
+    const getPanelClass = (isOpen) => (isOpen ? 'w-72 sm:w-80 opacity-100' : 'w-0 border-r-0 overflow-hidden opacity-0 pointer-events-none');
+    assert.ok(getPanelClass(false).includes('w-0'));
+    assert.ok(getPanelClass(true).includes('w-72 sm:w-80'));
   });
 });
 

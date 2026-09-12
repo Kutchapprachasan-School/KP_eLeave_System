@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { createPortal } from "react-dom";
 import {
   Upload,
   Download,
@@ -113,6 +114,53 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
   const [activeLeftTab, setActiveLeftTab] = useState<"elements" | "layers">("elements");
   const [zoomScale, setZoomScale] = useState<number>(1.0);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+  const [leftPanelOpen, setLeftPanelOpen] = useState<boolean>(true);
+  const [rightPanelOpen, setRightPanelOpen] = useState<boolean>(true);
+  const [isMobile, setIsMobile] = useState<boolean>(false);
+  const [mounted, setMounted] = useState<boolean>(false);
+
+  // Responsive device check & mobile panel defaults
+  useEffect(() => {
+    setMounted(true);
+    const checkViewport = () => {
+      const mobile = window.innerWidth < 1024;
+      setIsMobile(mobile);
+      if (mobile) {
+        // Automatically close sidebars on mobile so preview canvas is front-and-center
+        setLeftPanelOpen(false);
+        setRightPanelOpen(false);
+      }
+    };
+    checkViewport();
+    window.addEventListener("resize", checkViewport);
+    return () => window.removeEventListener("resize", checkViewport);
+  }, []);
+
+  // HTML5 Fullscreen API synchronization
+  const handleToggleFullscreen = useCallback(() => {
+    if (!isFullscreen) {
+      setIsFullscreen(true);
+      const elem = document.documentElement;
+      if (elem.requestFullscreen) {
+        elem.requestFullscreen().catch(() => {});
+      }
+    } else {
+      setIsFullscreen(false);
+      if (document.fullscreenElement && document.exitFullscreen) {
+        document.exitFullscreen().catch(() => {});
+      }
+    }
+  }, [isFullscreen]);
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      if (!document.fullscreenElement && isFullscreen) {
+        setIsFullscreen(false);
+      }
+    };
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    return () => document.removeEventListener("fullscreenchange", handleFullscreenChange);
+  }, [isFullscreen]);
 
   // --- Command History (Undo / Redo) ---
   const [undoStack, setUndoStack] = useState<CertificateElement[][]>([]);
@@ -143,7 +191,7 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
     setElements(next);
   }, [redoStack, elements]);
 
-  // Keyboard Shortcuts (Ctrl+Z, Ctrl+Y, Delete, Ctrl+D)
+  // Keyboard Shortcuts (Ctrl+Z, Ctrl+Y, Delete, Ctrl+D, Ctrl+\, Esc)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const isMac = navigator.platform.toUpperCase().indexOf("MAC") >= 0;
@@ -164,12 +212,17 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
       } else if (mod && e.key.toLowerCase() === "d" && selectedElementId) {
         e.preventDefault();
         handleDuplicateElement(selectedElementId);
+      } else if (mod && e.key === "\\") {
+        e.preventDefault();
+        setLeftPanelOpen((prev) => !prev);
+      } else if (e.key === "Escape" && isFullscreen) {
+        handleToggleFullscreen();
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [handleUndo, handleRedo, selectedElementId]);
+  }, [handleUndo, handleRedo, selectedElementId, isFullscreen, handleToggleFullscreen]);
 
   // --- Roster State ---
   const [roster, setRoster] = useState<Array<Record<string, string>>>(() => {
@@ -625,26 +678,33 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
     // Reset input value so selecting the same file again triggers onChange
     e.target.value = "";
 
-    // 1. Instant 0ms Local Preview
-    if (localPreviewUrlRef.current) {
-      URL.revokeObjectURL(localPreviewUrlRef.current);
-    }
-    const localUrl = URL.createObjectURL(file);
-    localPreviewUrlRef.current = localUrl;
-    setBackgroundUrl(localUrl);
-    setStatusMessage(null);
+    // 1. Instant 0ms Local Preview via Data URL (100% immune to CORS, revoking, or network latency)
+    let localDataUrl = "";
+    try {
+      localDataUrl = await fileToDataUrl(file);
+      setBackgroundUrl(localDataUrl);
+      setStatusMessage(null);
 
-    // Auto-detect image aspect ratio to adjust orientation immediately
-    const img = new Image();
-    img.src = localUrl;
-    img.onload = () => {
-      activeBgImageRef.current = img;
-      if (img.width < img.height && orientation === "LANDSCAPE") {
-        setOrientation("PORTRAIT");
-      } else if (img.width > img.height && orientation === "PORTRAIT") {
-        setOrientation("LANDSCAPE");
+      // Auto-detect image aspect ratio to adjust orientation immediately
+      const img = new Image();
+      img.onload = () => {
+        activeBgImageRef.current = img;
+        if (img.width < img.height && orientation === "LANDSCAPE") {
+          setOrientation("PORTRAIT");
+        } else if (img.width > img.height && orientation === "PORTRAIT") {
+          setOrientation("LANDSCAPE");
+        }
+      };
+      img.src = localDataUrl;
+    } catch (readErr) {
+      console.warn("FileReader data URL failed, fallback to ObjectURL:", readErr);
+      if (localPreviewUrlRef.current) {
+        URL.revokeObjectURL(localPreviewUrlRef.current);
       }
-    };
+      localDataUrl = URL.createObjectURL(file);
+      localPreviewUrlRef.current = localDataUrl;
+      setBackgroundUrl(localDataUrl);
+    }
 
     // 2. Commit to Cloud Storage with R2 -> Supabase resilient fallback
     setUploadingBg(true);
@@ -656,17 +716,11 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
       const res = await uploadCertificateBackgroundAction(formData);
       if (res.success && res.data) {
         setBackgroundAttachmentId(res.data.attachmentId);
+        // Pre-warm the cache with cloud URL for persistence, while retaining crisp local preview
         if (res.data.url) {
-          try {
-            const preloaded = await loadCanvasImage(res.data.url);
-            activeBgImageRef.current = preloaded;
-            setBackgroundUrl(res.data.url);
-          } catch {
-            // Keep local preview URL for rendering, while cloud attachmentId is committed
-            setBackgroundUrl(localUrl);
-          }
+          loadCanvasImage(res.data.url).catch(() => {});
         }
-        setStatusMessage({ type: "success", text: "อัปโหลดภาพพื้นหลังไปยังคลาวด์สำเร็จ" });
+        setStatusMessage({ type: "success", text: "อัปโหลดภาพพื้นหลังสำเร็จ" });
       } else {
         setStatusMessage({ type: "error", text: res.error || "อัปโหลดคลาวด์ไม่สำเร็จ (ใช้งานพรีวิวภาพปัจจุบันได้)" });
       }
@@ -1151,18 +1205,20 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
     }
   };
 
-  return (
+  const studioLayout = (
     <div
       className={`flex flex-col bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-slate-100 ${
-        isFullscreen ? "fixed inset-0 z-50 h-screen w-screen" : "h-[calc(100vh-4rem)] min-h-[700px] rounded-2xl shadow-xl overflow-hidden border border-slate-200 dark:border-slate-800"
+        isFullscreen
+          ? "fixed inset-0 z-[99999] w-screen h-screen m-0 p-0 overflow-hidden"
+          : "h-[calc(100vh-4rem)] min-h-[700px] rounded-2xl shadow-xl overflow-hidden border border-slate-200 dark:border-slate-800"
       }`}
     >
       {/* ─────────────────────────────────────────────────────────────────────────────
           1. TOP NAVIGATION BAR (Canva-style)
       ───────────────────────────────────────────────────────────────────────────── */}
-      <header className="h-14 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-4 flex items-center justify-between gap-3 shrink-0 select-none">
-        {/* Left: Brand & Template Switcher */}
-        <div className="flex items-center gap-3">
+      <header className="h-14 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-3 sm:px-4 flex items-center justify-between gap-2 sm:gap-3 shrink-0 select-none">
+        {/* Left: Brand & Template Switcher + Left Panel Toggle */}
+        <div className="flex items-center gap-2 sm:gap-3">
           {onClose && (
             <button
               onClick={onClose}
@@ -1172,15 +1228,29 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
               <ChevronLeft className="w-5 h-5" />
             </button>
           )}
+
+          {/* Left Panel Toggle (Elements & Layers) */}
+          <button
+            onClick={() => setLeftPanelOpen((p) => !p)}
+            className={`p-2 rounded-lg transition ${
+              leftPanelOpen
+                ? "bg-indigo-50 dark:bg-indigo-950/70 text-indigo-600 dark:text-indigo-400"
+                : "hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400"
+            }`}
+            title={leftPanelOpen ? "พับแถบเครื่องมือซ้าย (Ctrl+\\)" : "เปิดแถบเครื่องมือซ้าย (Ctrl+\\)"}
+          >
+            <Layers className="w-4 h-4" />
+          </button>
+
           <div className="flex items-center gap-2">
-            <span className="text-xs font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 px-2.5 py-1 rounded-md border border-indigo-200/60 dark:border-indigo-800/40">
+            <span className="text-xs font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 px-2.5 py-1 rounded-md border border-indigo-200/60 dark:border-indigo-800/40 hidden sm:inline-block">
               Studio v5.1
             </span>
             <input
               type="text"
               value={templateName}
               onChange={(e) => setTemplateName(e.target.value)}
-              className="font-bold text-sm bg-transparent hover:bg-slate-100 dark:hover:bg-slate-800/60 focus:bg-white dark:focus:bg-slate-800 px-2 py-1 rounded border border-transparent focus:border-indigo-500 focus:outline-none transition w-48 sm:w-64"
+              className="font-bold text-sm bg-transparent hover:bg-slate-100 dark:hover:bg-slate-800/60 focus:bg-white dark:focus:bg-slate-800 px-2 py-1 rounded border border-transparent focus:border-indigo-500 focus:outline-none transition w-32 sm:w-52 md:w-64 truncate"
               placeholder="ชื่อแบบเกียรติบัตร"
             />
           </div>
@@ -1189,7 +1259,7 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
         {/* Center: Undo / Redo & Zoom Controls */}
         <div className="flex items-center gap-1 sm:gap-2">
           {/* Undo / Redo */}
-          <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg">
+          <div className="hidden sm:flex items-center bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg">
             <button
               onClick={handleUndo}
               disabled={undoStack.length === 0}
@@ -1221,7 +1291,7 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
             </button>
             <button
               onClick={handleZoomReset}
-              className="px-2 py-1 hover:bg-white dark:hover:bg-slate-700 rounded text-slate-700 dark:text-slate-300 transition min-w-[52px] text-center"
+              className="px-2 py-1 hover:bg-white dark:hover:bg-slate-700 rounded text-slate-700 dark:text-slate-300 transition min-w-[48px] text-center"
               title="คลิกเพื่อรีเซ็ต 100%"
             >
               {Math.round(zoomScale * 100)}%
@@ -1244,16 +1314,20 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
 
           {/* Fullscreen Toggle */}
           <button
-            onClick={() => setIsFullscreen(!isFullscreen)}
-            className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-600 dark:text-slate-400 transition"
-            title={isFullscreen ? "ออกจากเต็มจอ" : "เต็มหน้าจอ (Fullscreen)"}
+            onClick={handleToggleFullscreen}
+            className={`p-2 rounded-lg transition ${
+              isFullscreen
+                ? "bg-indigo-600 text-white shadow-xs"
+                : "hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400"
+            }`}
+            title={isFullscreen ? "ออกจากเต็มจอ (Esc)" : "เต็มหน้าจอ (Fullscreen)"}
           >
             {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
           </button>
         </div>
 
-        {/* Right: Roster Preview Switcher & Actions */}
-        <div className="flex items-center gap-2">
+        {/* Right: Roster Preview Switcher, Right Panel Toggle & Actions */}
+        <div className="flex items-center gap-1.5 sm:gap-2">
           {/* Recipient Switcher */}
           {roster.length > 0 && (
             <div className="hidden md:flex items-center bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-lg text-xs text-slate-600 dark:text-slate-300 gap-1.5">
@@ -1277,6 +1351,19 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
             </div>
           )}
 
+          {/* Right Panel Toggle (Properties Inspector) */}
+          <button
+            onClick={() => setRightPanelOpen((p) => !p)}
+            className={`p-2 rounded-lg transition ${
+              rightPanelOpen
+                ? "bg-indigo-50 dark:bg-indigo-950/70 text-indigo-600 dark:text-indigo-400"
+                : "hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400"
+            }`}
+            title={rightPanelOpen ? "พับแถบปรับแต่งขวา" : "เปิดแถบปรับแต่งขวา"}
+          >
+            <Sliders className="w-4 h-4" />
+          </button>
+
           {/* Save Button */}
           <button
             onClick={handleSaveTemplate}
@@ -1290,10 +1377,10 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
           {/* Export PDF Button */}
           <button
             onClick={() => setExportModalOpen(true)}
-            className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-xs font-bold text-white shadow-sm transition"
+            className="inline-flex items-center gap-1.5 px-3.5 sm:px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-xs font-bold text-white shadow-sm transition"
           >
             <Download className="w-3.5 h-3.5" />
-            <span>ส่งออก PDF</span>
+            <span className="hidden xs:inline">ส่งออก PDF</span>
             <span className="ml-0.5 px-1.5 py-0.2 rounded-full bg-indigo-800 text-[10px]">
               {roster.length}
             </span>
@@ -1327,9 +1414,42 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
       {/* ─────────────────────────────────────────────────────────────────────────────
           2. MAIN STUDIO WORKSPACE (3-PANEL LAYOUT)
       ───────────────────────────────────────────────────────────────────────────── */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* ─── LEFT PANEL: ELEMENTS & LAYERS (Canva style) ─── */}
-        <aside className="w-72 sm:w-80 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col shrink-0">
+      <div className="flex-1 flex overflow-hidden relative">
+        {/* ─── LEFT PANEL (Desktop collapsible / Mobile slide-over drawer) ─── */}
+        {isMobile && leftPanelOpen && (
+          <div
+            onClick={() => setLeftPanelOpen(false)}
+            className="fixed inset-0 z-40 bg-black/50 backdrop-blur-xs animate-in fade-in duration-150"
+          />
+        )}
+
+        <aside
+          className={`bg-white dark:bg-slate-900 flex flex-col shrink-0 transition-all duration-300 ease-in-out ${
+            isMobile
+              ? `fixed inset-y-0 left-0 z-50 w-80 max-w-[85vw] shadow-2xl ${
+                  leftPanelOpen ? "translate-x-0" : "-translate-x-full pointer-events-none"
+                }`
+              : `border-r border-slate-200 dark:border-slate-800 ${
+                  leftPanelOpen ? "w-72 sm:w-80 opacity-100" : "w-0 border-r-0 overflow-hidden opacity-0 pointer-events-none"
+                }`
+          }`}
+        >
+          {/* Mobile Drawer Close Header */}
+          {isMobile && (
+            <div className="h-12 border-b border-slate-200 dark:border-slate-800 px-4 flex items-center justify-between shrink-0">
+              <span className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                <Layers className="w-4 h-4 text-indigo-600" />
+                เครื่องมือและองค์ประกอบ
+              </span>
+              <button
+                onClick={() => setLeftPanelOpen(false)}
+                className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+
           {/* Panel Tab Navigation */}
           <div className="flex border-b border-slate-200 dark:border-slate-800 text-xs font-bold">
             <button
@@ -1610,11 +1730,34 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
         {/* ─── CENTER: CERTIFICATE CANVAS VIEWPORT ─── */}
         <main
           ref={containerRef}
-          className="flex-1 bg-slate-200/70 dark:bg-slate-950/90 overflow-auto flex items-center justify-center p-6 relative select-none"
+          className="flex-1 bg-slate-200/70 dark:bg-slate-950/90 overflow-auto flex items-center justify-center p-3 sm:p-6 relative select-none"
           onMouseMove={handleCanvasMouseMove}
           onMouseUp={handleCanvasMouseUp}
           onMouseLeave={handleCanvasMouseUp}
         >
+          {/* Desktop Floating Pills when Panels are Collapsed */}
+          {!isMobile && !leftPanelOpen && (
+            <button
+              onClick={() => setLeftPanelOpen(true)}
+              className="absolute left-3 top-3 z-20 flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-white/95 dark:bg-slate-900/95 shadow-md border border-slate-200/80 dark:border-slate-800 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-white dark:hover:bg-slate-800 hover:text-indigo-600 transition"
+              title="เปิดแถบองค์ประกอบ (Ctrl+\)"
+            >
+              <Layers className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+              <span>องค์ประกอบ</span>
+            </button>
+          )}
+
+          {!isMobile && !rightPanelOpen && (
+            <button
+              onClick={() => setRightPanelOpen(true)}
+              className="absolute right-3 top-3 z-20 flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-white/95 dark:bg-slate-900/95 shadow-md border border-slate-200/80 dark:border-slate-800 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-white dark:hover:bg-slate-800 hover:text-indigo-600 transition"
+              title="เปิดแถบปรับแต่ง"
+            >
+              <Sliders className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+              <span>ปรับแต่ง</span>
+            </button>
+          )}
+
           {/* Scaled Canvas Container */}
           <div
             style={{
@@ -1632,15 +1775,32 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
           </div>
         </main>
 
-        {/* ─── RIGHT PANEL: PROPERTIES INSPECTOR (Canva style) ─── */}
-        <aside className="w-72 sm:w-80 bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 flex flex-col shrink-0">
-          <div className="h-12 border-b border-slate-200 dark:border-slate-800 px-4 flex items-center justify-between">
+        {/* ─── RIGHT PANEL (Desktop collapsible / Mobile slide-over drawer) ─── */}
+        {isMobile && rightPanelOpen && (
+          <div
+            onClick={() => setRightPanelOpen(false)}
+            className="fixed inset-0 z-40 bg-black/50 backdrop-blur-xs animate-in fade-in duration-150"
+          />
+        )}
+
+        <aside
+          className={`bg-white dark:bg-slate-900 flex flex-col shrink-0 transition-all duration-300 ease-in-out ${
+            isMobile
+              ? `fixed inset-y-0 right-0 z-50 w-80 max-w-[85vw] shadow-2xl ${
+                  rightPanelOpen ? "translate-x-0" : "translate-x-full pointer-events-none"
+                }`
+              : `border-l border-slate-200 dark:border-slate-800 ${
+                  rightPanelOpen ? "w-72 sm:w-80 opacity-100" : "w-0 border-l-0 overflow-hidden opacity-0 pointer-events-none"
+                }`
+          }`}
+        >
+          <div className="h-12 border-b border-slate-200 dark:border-slate-800 px-4 flex items-center justify-between shrink-0">
             <span className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
               <Sliders className="w-3.5 h-3.5 text-indigo-500" />
               {selectedElement ? selectedElement.label : "การตั้งค่าแบบ"}
             </span>
-            {selectedElement && (
-              <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1">
+              {selectedElement && (
                 <button
                   onClick={() => handleDuplicateElement(selectedElement.id)}
                   className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded text-slate-500"
@@ -1648,6 +1808,8 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
                 >
                   <Copy className="w-3.5 h-3.5" />
                 </button>
+              )}
+              {selectedElement && (
                 <button
                   onClick={() => handleDeleteElement(selectedElement.id)}
                   className="p-1 hover:bg-rose-50 dark:hover:bg-rose-950/50 rounded text-rose-500"
@@ -1655,8 +1817,17 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
-              </div>
-            )}
+              )}
+              {isMobile && (
+                <button
+                  onClick={() => setRightPanelOpen(false)}
+                  className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 ml-1"
+                  title="ปิดแถบปรับแต่ง"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="flex-1 overflow-y-auto p-4 space-y-4">
@@ -2212,6 +2383,47 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
         </aside>
       </div>
 
+      {/* ─── 4. MOBILE FLOATING ACTION BAR ─── */}
+      {isMobile && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-30 flex items-center gap-1.5 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md px-3 py-2 rounded-2xl shadow-2xl border border-slate-200/80 dark:border-slate-800">
+          <button
+            onClick={() => {
+              setLeftPanelOpen((p) => !p);
+              setRightPanelOpen(false);
+            }}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition ${
+              leftPanelOpen
+                ? "bg-indigo-600 text-white shadow-xs"
+                : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200"
+            }`}
+          >
+            <Layers className="w-3.5 h-3.5" />
+            <span>องค์ประกอบ</span>
+          </button>
+          <button
+            onClick={() => {
+              setRightPanelOpen((p) => !p);
+              setLeftPanelOpen(false);
+            }}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition ${
+              rightPanelOpen
+                ? "bg-indigo-600 text-white shadow-xs"
+                : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200"
+            }`}
+          >
+            <Sliders className="w-3.5 h-3.5" />
+            <span>ปรับแต่ง</span>
+          </button>
+          <button
+            onClick={handleZoomFit}
+            className="px-2.5 py-1.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 text-xs font-bold transition"
+            title="พอดีหน้าจอ"
+          >
+            Fit
+          </button>
+        </div>
+      )}
+
       {/* ─────────────────────────────────────────────────────────────────────────────
           3. BATCH EXPORT PDF MODAL
       ───────────────────────────────────────────────────────────────────────────── */}
@@ -2339,4 +2551,11 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
       )}
     </div>
   );
+
+  // Mount directly to document.body via React Portal when fullscreen to escape any ancestor container constraints
+  if (isFullscreen && mounted && typeof document !== "undefined") {
+    return createPortal(studioLayout, document.body);
+  }
+
+  return studioLayout;
 }

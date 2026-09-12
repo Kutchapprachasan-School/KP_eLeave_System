@@ -27,7 +27,6 @@ export const A4_DIMS = {
   },
 } as const;
 
-/**
 const inMemoryImageCache = new Map<string, HTMLImageElement>();
 
 /**
