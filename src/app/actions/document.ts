@@ -11,7 +11,14 @@ import {
   uploadCertificateSignature,
   uploadCertificateFont,
 } from "@/features/document/application/services/certificate-upload.service";
-import { getStorageProviderByType } from "@/services/storage";
+import { getStorageProvider, getStorageProviderByType, uploadWithResilientFallback } from "@/services/storage";
+import {
+  saveTemplateService,
+  forkTemplateService,
+  deleteTemplateService,
+  getTemplatesService,
+  type SaveTemplateInput,
+} from "@/services/certificate/certificate-template.service";
 import { verifyCertificateByToken } from "@/features/document/application/services/certificate-verification.service";
 
 // Helper to check user session
@@ -1257,14 +1264,6 @@ export async function verifyCertificatePublic(verifyToken: string): Promise<Acti
 // Certificate Mail-Merge Studio & Template Management Server Actions
 // ============================================================================
 
-import {
-  saveTemplateService,
-  forkTemplateService,
-  deleteTemplateService,
-  getTemplatesService,
-  type SaveTemplateInput,
-} from "@/services/certificate/certificate-template.service";
-import { getStorageProvider, getStorageProviderByType, uploadWithResilientFallback } from "@/services/storage";
 
 export async function getCertificateTemplatesAction(): Promise<ActionResponse<any[]>> {
   try {
