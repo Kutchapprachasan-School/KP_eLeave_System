@@ -44,22 +44,47 @@ function normalizePath(p) {
 }
 
 function getChangedFiles(baseRef = "HEAD") {
+  const collected = new Set();
   try {
-    const output = execSync(`git diff --name-only ${baseRef}`, { encoding: "utf8" });
-    const untracked = execSync(`git status --porcelain -u`, { encoding: "utf8" });
-    
-    const diffFiles = output.split("\n").map(normalizePath).filter(Boolean);
-    const untrackedFiles = untracked
-      .split("\n")
-      .map((line) => line.trim())
-      .filter((line) => line.startsWith("??"))
-      .map((line) => normalizePath(line.substring(3).trim()));
+    // 1. git status --porcelain -u (captures untracked ??, unstaged M, staged A/M/R/D)
+    const statusOutput = execSync("git status --porcelain -u", { encoding: "utf8" });
+    for (const rawLine of statusOutput.split("\n")) {
+      const line = rawLine.trim();
+      if (!line) continue;
+      // Format is: XY path or XY path1 -> path2
+      const pathPart = line.slice(2).trim();
+      const finalPath = pathPart.includes("->") ? pathPart.split("->").pop().trim() : pathPart;
+      const cleanPath = finalPath.replace(/^"|"$/g, "");
+      if (cleanPath) collected.add(normalizePath(cleanPath));
+    }
 
-    return [...new Set([...diffFiles, ...untrackedFiles])];
+    // 2. git diff --name-only (unstaged tracked files)
+    const unstaged = execSync("git diff --name-only", { encoding: "utf8" });
+    for (const file of unstaged.split("\n").map(normalizePath).filter(Boolean)) {
+      collected.add(file);
+    }
+
+    // 3. git diff --cached --name-only (staged tracked files)
+    const staged = execSync("git diff --cached --name-only", { encoding: "utf8" });
+    for (const file of staged.split("\n").map(normalizePath).filter(Boolean)) {
+      collected.add(file);
+    }
+
+    // 4. git diff against baseRef if baseRef is given and not empty
+    if (baseRef) {
+      try {
+        const baseDiff = execSync(`git diff --name-only ${baseRef}`, { encoding: "utf8" });
+        for (const file of baseDiff.split("\n").map(normalizePath).filter(Boolean)) {
+          collected.add(file);
+        }
+      } catch {
+        // BaseRef might not exist in shallow clones
+      }
+    }
   } catch (err) {
-    console.warn("⚠️ Git diff warning:", err.message);
-    return [];
+    console.warn("⚠️ Git inspection warning:", err.message);
   }
+  return [...collected];
 }
 
 function verifyScope(files) {

@@ -8,6 +8,7 @@ import {
   STATUS_THAI_LABELS,
   resolveStatusTone,
   resolveStatusLabel,
+  _resetWarnedStatuses,
   TONE_CLASSES,
   TONE_DOT_CLASSES,
   SUBSYSTEM_ACCENTS,
@@ -67,6 +68,29 @@ test('Design System Tokens - resolveStatusTone safely falls back to neutral on u
   assert.equal(resolveStatusTone(''), 'neutral');
   assert.equal(resolveStatusTone('   '), 'neutral');
   assert.equal(resolveStatusTone('TOTALLY_UNKNOWN_STATUS_XYZ'), 'neutral');
+});
+
+test('Design System Tokens - resolveStatusTone deduplicates console.warn for unknown statuses', () => {
+  _resetWarnedStatuses();
+  const originalWarn = console.warn;
+  let warnCount = 0;
+  console.warn = () => { warnCount++; };
+
+  try {
+    // Repeated calls with same unknown status
+    resolveStatusTone('UNKNOWN_REPEATED_STATE');
+    resolveStatusTone('UNKNOWN_REPEATED_STATE');
+    resolveStatusTone('unknown_repeated_state');
+
+    assert.equal(warnCount, 1, 'Should log warning only once for the same unknown status');
+
+    // Call with a different unknown status
+    resolveStatusTone('ANOTHER_UNKNOWN_STATE');
+    assert.equal(warnCount, 2, 'Should log warning once for a new unknown status');
+  } finally {
+    console.warn = originalWarn;
+    _resetWarnedStatuses();
+  }
 });
 
 test('Design System Tokens - resolveStatusLabel provides Thai translations and fallbacks', () => {

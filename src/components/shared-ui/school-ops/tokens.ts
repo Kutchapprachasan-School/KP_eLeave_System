@@ -93,10 +93,20 @@ export const STATUS_THAI_LABELS: Record<string, string> = {
   FAILED: "ไม่ผ่าน",
 };
 
+// In-memory set to deduplicate warnings in development
+const warnedStatuses = new Set<string>();
+
+/**
+ * Resets the set of warned statuses (primarily used for unit testing).
+ */
+export function _resetWarnedStatuses(): void {
+  warnedStatuses.clear();
+}
+
 /**
  * Resolves any status string to its semantic tone.
- * If status is unrecognized, issues a console warning in non-production environments
- * and safely falls back to "neutral".
+ * If status is unrecognized, issues a deduplicated console warning in non-production environments
+ * (warns at most once per status value) and safely falls back to "neutral".
  */
 export function resolveStatusTone(status?: string | null): SemanticTone {
   if (!status || typeof status !== "string") return "neutral";
@@ -104,7 +114,10 @@ export function resolveStatusTone(status?: string | null): SemanticTone {
   const tone = STATUS_TO_TONE_MAP[normalized];
   if (!tone) {
     if (typeof process !== "undefined" && process.env?.NODE_ENV !== "production") {
-      console.warn(`[StatusPillBadge] Unregistered status: "${status}". Falling back to "neutral".`);
+      if (!warnedStatuses.has(normalized)) {
+        warnedStatuses.add(normalized);
+        console.warn(`[StatusPillBadge] Unregistered status: "${status}". Falling back to "neutral".`);
+      }
     }
     return "neutral";
   }
