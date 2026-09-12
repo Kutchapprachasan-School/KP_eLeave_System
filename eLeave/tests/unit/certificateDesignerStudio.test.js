@@ -1754,6 +1754,90 @@ test('Certificate Designer Studio & Concurrency Invariants Suite', async (t) => 
     const sanitized = legacySample.replace(/^กจ\.\s*/, '');
     assert.equal(sanitized, '001/2569');
   });
+
+  // -------------------------------------------------------------
+  // Test 41: Public verification token format supports SAMPLE preview tokens and CUIDs
+  // -------------------------------------------------------------
+  await t.test('41. isValidVerificationTokenFormat accepts SAMPLE preview tokens and CUIDs for draft designer testing', () => {
+    // 1. SAMPLE format is accepted (case-insensitive)
+    assert.equal(isValidVerificationTokenFormat('SAMPLE'), true);
+    assert.equal(isValidVerificationTokenFormat('sample'), true);
+    assert.equal(isValidVerificationTokenFormat('  SAMPLE  '), true);
+
+    // 2. CUIDs are accepted (25-char alphanumeric starting with 'c')
+    const sampleCuid = 'clx1234567890123456789012';
+    assert.equal(isValidVerificationTokenFormat(sampleCuid), true);
+
+    // 3. 22-char Base64URL and 48-64 hex strings are accepted
+    const valid128Bit = crypto.randomBytes(16).toString('base64url');
+    assert.equal(isValidVerificationTokenFormat(valid128Bit), true);
+
+    // 4. Invalid/malformed tokens are safely rejected
+    assert.equal(isValidVerificationTokenFormat('invalid!'), false);
+    assert.equal(isValidVerificationTokenFormat('12345'), false);
+    assert.equal(isValidVerificationTokenFormat(''), false);
+    assert.equal(isValidVerificationTokenFormat(null), false);
+    assert.equal(isValidVerificationTokenFormat(undefined), false);
+  });
+
+  // -------------------------------------------------------------
+  // Test 42: Excel column mapper handles system-exported headers & QR token extraction
+  // -------------------------------------------------------------
+  await t.test('42. Excel importer correctly parses exported column headers and extracts verification tokens', () => {
+    // Helper function mirroring handleExcelImport logic
+    const getField = (r, candidates) => {
+      for (const key of candidates) {
+        if (r[key] !== undefined && r[key] !== null && String(r[key]).trim() !== '') {
+          return String(r[key]).trim();
+        }
+      }
+      const rowKeys = Object.keys(r);
+      for (const cand of candidates) {
+        const candLower = cand.toLowerCase();
+        const foundKey = rowKeys.find((k) => k.toLowerCase().includes(candLower) || candLower.includes(k.toLowerCase()));
+        if (foundKey && r[foundKey] !== undefined && r[foundKey] !== null && String(r[foundKey]).trim() !== '') {
+          return String(r[foundKey]).trim();
+        }
+      }
+      return '';
+    };
+
+    // Row as exported by handleExportMailMergeXlsx in cert-generator.tsx
+    const exportedRow = {
+      'ลำดับ': 1,
+      'เลขที่เกียรติบัตร': '005/2569',
+      'บทบาท': 'รางวัลชนะเลิศ อันดับ ๑',
+      'ชื่อ-นามสกุลผู้รับ (พิมพ์ชื่อที่นี่)': 'เด็กหญิงสมหญิง รักเรียน',
+      'โรงเรียน / หน่วยงาน': 'โรงเรียนกุดจับประชาสรรค์',
+      'วันที่ออกเกียรติบัตร': '๑๑ กันยายน พ.ศ. ๒๕๖๙',
+      'ชื่อกิจกรรม / โครงการ': 'การแข่งขันวิทยาศาสตร์ ประจำปี ๒๕๖๙',
+      'ลิงก์ตรวจสอบ QR Code': 'http://localhost:3000/verify/cert?token=xyz1234567890123456789',
+    };
+
+    const certNumber = getField(exportedRow, ['เลขที่เกียรติบัตร', 'เลขที่', 'certNumber']);
+    assert.equal(certNumber, '005/2569');
+
+    const role = getField(exportedRow, ['บทบาท/รางวัล', 'บทบาท', 'รางวัล', 'role']);
+    assert.equal(role, 'รางวัลชนะเลิศ อันดับ ๑');
+
+    const fullName = getField(exportedRow, ['ชื่อ-นามสกุลผู้รับ (พิมพ์ชื่อที่นี่)', 'ชื่อ-นามสกุล', 'name']);
+    assert.equal(fullName, 'เด็กหญิงสมหญิง รักเรียน');
+
+    const activityName = getField(exportedRow, ['ชื่อกิจกรรม / โครงการ', 'ชื่อกิจกรรม', 'activityName']);
+    assert.equal(activityName, 'การแข่งขันวิทยาศาสตร์ ประจำปี ๒๕๖๙');
+
+    const department = getField(exportedRow, ['โรงเรียน / หน่วยงาน', 'หน่วยงาน', 'organization']);
+    assert.equal(department, 'โรงเรียนกุดจับประชาสรรค์');
+
+    const rawQr = getField(exportedRow, ['ลิงก์ตรวจสอบ QR Code', 'ลิงก์ตรวจสอบ', 'qrCode']);
+    const tokenMatch = rawQr.match(/token=([A-Za-z0-9_-]+)/) || rawQr.match(/\/v\/([A-Za-z0-9_-]+)/);
+    assert.ok(tokenMatch);
+    assert.equal(tokenMatch[1], 'xyz1234567890123456789');
+
+    const reconstructedQr = `https://eleave.kutchap.ac.th/v/${tokenMatch[1]}`;
+    assert.equal(reconstructedQr, 'https://eleave.kutchap.ac.th/v/xyz1234567890123456789');
+  });
 });
+
 
 

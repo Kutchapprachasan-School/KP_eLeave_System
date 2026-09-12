@@ -11,8 +11,11 @@ export function middleware(request: NextRequest) {
   const isApiRoute = request.nextUrl.pathname.startsWith("/api");
   const isUploadRoute = request.nextUrl.pathname.startsWith("/uploads");
   const isManualRoute = request.nextUrl.pathname.startsWith("/manual");
+  const isVerifyRoute =
+    request.nextUrl.pathname.startsWith("/verify") ||
+    request.nextUrl.pathname.startsWith("/v/");
 
-  if (isApiRoute || isUploadRoute || isManualRoute) {
+  if (isApiRoute || isUploadRoute || isManualRoute || isVerifyRoute) {
     return NextResponse.next();
   }
 

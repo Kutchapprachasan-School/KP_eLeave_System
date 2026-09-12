@@ -609,8 +609,10 @@ export const DEFAULT_CERTIFICATE_ELEMENTS: CertificateElement[] = [
 export function isValidVerificationTokenFormat(token: string): boolean {
   if (!token || typeof token !== "string") return false;
   const trimmed = token.trim();
+  if (trimmed.toUpperCase() === "SAMPLE") return true;
   const isBase64Url128 = /^[A-Za-z0-9_-]{22}$/.test(trimmed);
   const isLegacyHex = /^[a-fA-F0-9]{48,64}$/.test(trimmed);
-  return isBase64Url128 || isLegacyHex;
+  const isCuid = /^c[a-z0-9]{20,32}$/i.test(trimmed);
+  return isBase64Url128 || isLegacyHex || isCuid;
 }
 

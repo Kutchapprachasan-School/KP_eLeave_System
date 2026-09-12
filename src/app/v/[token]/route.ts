@@ -11,13 +11,12 @@ export async function GET(
 ) {
   const { token } = await context.params;
 
-  if (!token || !isValidVerificationTokenFormat(token)) {
-    const url = new URL("/verify/cert", request.url);
-    url.searchParams.set("error", "INVALID_TOKEN");
-    return NextResponse.redirect(url, 307);
-  }
-
   const destination = new URL("/verify/cert", request.url);
-  destination.searchParams.set("token", token);
+  if (token) {
+    destination.searchParams.set("token", token);
+  }
+  if (!token || !isValidVerificationTokenFormat(token)) {
+    destination.searchParams.set("error", "INVALID_TOKEN");
+  }
   return NextResponse.redirect(destination, 307);
 }

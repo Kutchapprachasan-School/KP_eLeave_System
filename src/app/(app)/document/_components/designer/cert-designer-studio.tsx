@@ -1334,25 +1334,98 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
         }
 
         const origin = typeof window !== "undefined" ? window.location.origin : "https://eleave.kutchap.ac.th";
+
+        // Robust column matcher supporting system exports, standard names, and variations
+        const getField = (r: Record<string, any>, candidates: string[]) => {
+          for (const key of candidates) {
+            if (r[key] !== undefined && r[key] !== null && String(r[key]).trim() !== "") {
+              return String(r[key]).trim();
+            }
+          }
+          const rowKeys = Object.keys(r);
+          for (const cand of candidates) {
+            const candLower = cand.toLowerCase();
+            const foundKey = rowKeys.find((k) => k.toLowerCase().includes(candLower) || candLower.includes(k.toLowerCase()));
+            if (foundKey && r[foundKey] !== undefined && r[foundKey] !== null && String(r[foundKey]).trim() !== "") {
+              return String(r[foundKey]).trim();
+            }
+          }
+          return "";
+        };
+
         const mapped = data.map((row, idx) => {
           const item = initialBatch?.items?.[idx];
-          const certNumber = String(row["เลขที่เกียรติบัตร"] || row["certNumber"] || item?.certificateNumber || "").trim();
-          const role = String(row["บทบาท/รางวัล"] || row["รางวัล"] || row["role"] || item?.roleTitle || "").trim();
-          const qrCode = String(
-            row["QR"] ||
-            row["qrCode"] ||
-            (item?.verifyToken
-              ? `${origin}/v/${item.verifyToken}`
-              : `${origin}/v/SAMPLE`)
-          ).trim();
+          const certNumber =
+            getField(row, ["เลขที่เกียรติบัตร", "เลขที่", "certNumber", "certificateNumber"]) ||
+            item?.certificateNumber ||
+            "";
+          const role =
+            getField(row, ["บทบาท/รางวัล", "บทบาท", "รางวัล", "หน้าที่", "role", "roleTitle"]) ||
+            item?.roleTitle ||
+            "";
+          const fullName =
+            getField(row, [
+              "ชื่อ-นามสกุลผู้รับ (พิมพ์ชื่อที่นี่)",
+              "ชื่อ-นามสกุลผู้รับ",
+              "ชื่อ-นามสกุล",
+              "ชื่อผู้รับ",
+              "ชื่อ",
+              "fullName",
+              "name",
+              "recipientName",
+            ]) ||
+            item?.recipientName ||
+            "";
+          const activityName =
+            getField(row, ["ชื่อกิจกรรม / โครงการ", "ชื่อกิจกรรม", "กิจกรรม", "โครงการ", "activityName", "activityTitle"]) ||
+            initialBatch?.activityTitle ||
+            "";
+          const department =
+            getField(row, ["โรงเรียน / หน่วยงาน", "โรงเรียน/หน่วยงาน", "โรงเรียน", "หน่วยงาน", "organization", "department"]) ||
+            initialBatch?.organization ||
+            "";
+          const date =
+            getField(row, ["วันที่ออกเกียรติบัตร", "วันที่ออก", "วันที่", "date", "issuedDate"]) ||
+            initialBatch?.issuedDate ||
+            "";
+
+          // Process QR code: supports full verification URL, /v/ link, or raw token
+          let qrCode = "";
+          const rawQr = getField(row, [
+            "ลิงก์ตรวจสอบ QR Code",
+            "ลิงก์ตรวจสอบ",
+            "ลิงก์ QR Code",
+            "QR Code",
+            "QR",
+            "qrCode",
+            "verifyToken",
+            "token",
+          ]);
+
+          if (rawQr) {
+            const tokenMatch = rawQr.match(/token=([A-Za-z0-9_-]+)/) || rawQr.match(/\/v\/([A-Za-z0-9_-]+)/);
+            if (tokenMatch && tokenMatch[1]) {
+              qrCode = `${origin}/v/${tokenMatch[1]}`;
+            } else if (rawQr.startsWith("http://") || rawQr.startsWith("https://")) {
+              qrCode = rawQr;
+            } else if (isValidVerificationTokenFormat(rawQr)) {
+              qrCode = `${origin}/v/${rawQr}`;
+            } else {
+              qrCode = rawQr;
+            }
+          } else if (item?.verifyToken) {
+            qrCode = `${origin}/v/${item.verifyToken}`;
+          } else {
+            qrCode = `${origin}/v/SAMPLE`;
+          }
 
           return {
-            fullName: String(row["ชื่อ-นามสกุล"] || row["ชื่อผู้รับ"] || row["fullName"] || row["name"] || item?.recipientName || "").trim(),
+            fullName,
             certNumber,
             role,
-            activityName: String(row["ชื่อกิจกรรม"] || row["activityName"] || initialBatch?.activityTitle || "").trim(),
-            department: String(row["หน่วยงาน"] || row["department"] || initialBatch?.organization || "").trim(),
-            date: String(row["วันที่"] || row["date"] || initialBatch?.issuedDate || "").trim(),
+            activityName,
+            department,
+            date,
             qrCode,
           };
         });

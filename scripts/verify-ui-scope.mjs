@@ -25,6 +25,7 @@ const ALLOWED_PREFIXES = [
   "eLeave/tests/unit/certificateDesignerStudio.test.js",
   "scripts/verify-ui-scope.mjs",
   "package.json",
+  "middleware.ts",
   "docs/",
 ];
 

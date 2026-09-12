@@ -80,6 +80,28 @@ export async function verifyCertificateByToken(
     };
   }
 
+  // Graceful sample preview certificate verification (for designer studio draft testing)
+  if (rawToken.toUpperCase() === "SAMPLE") {
+    return {
+      success: true,
+      data: {
+        state: "VALID",
+        certificateNumber: "001/2569",
+        seqNo: 1,
+        year: 2569,
+        roleTitle: "รางวัลชนะเลิศ การแข่งขันโครงงานวิทยาศาสตร์",
+        recipientName: "นายสมศักดิ์ รักเรียน (ตัวอย่างเกียรติบัตร)",
+        status: "VALID",
+        activityTitle: "สัปดาห์วิทยาศาสตร์ ประจำปีการศึกษา ๒๕๖๙",
+        organization: "โรงเรียนกุดจับประชาสรรค์",
+        issuedDate: new Date(),
+        signeeName: "นายวิจิตร สุขสงบ",
+        signeePosition: "ผู้อำนวยการโรงเรียนกุดจับประชาสรรค์",
+        downloadPdfUrl: null,
+      },
+    };
+  }
+
   // 3. Compute SHA-256 hash for exact indexed lookup
   const tokenHash = crypto.createHash("sha256").update(rawToken).digest("hex");
 
