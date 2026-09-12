@@ -27,24 +27,47 @@ export const A4_DIMS = {
 } as const;
 
 /**
+const inMemoryImageCache = new Map<string, HTMLImageElement>();
+
+/**
  * Invariant R & H: Cloud Storage CORS Image Loader
- * Sets crossOrigin = "anonymous".
- * Fails transparently with bucket policy instructions if CORS fails.
+ * Sets crossOrigin = "anonymous" for http/https, leaves unset for blob:/data:.
+ * Caches loaded images to prevent redundant loads.
  */
 export async function loadCanvasImage(url: string): Promise<HTMLImageElement> {
+  if (!url) {
+    throw new Error("Image URL is required.");
+  }
+
+  if (inMemoryImageCache.has(url)) {
+    const cached = inMemoryImageCache.get(url)!;
+    if (isValidDrawableImage(cached)) {
+      return cached;
+    }
+  }
+
   return new Promise((resolve, reject) => {
-    if (!url) {
-      return reject(new Error("Background image URL is required."));
+    const img = new Image();
+
+    // Critical fix: Only set crossOrigin for remote http/https URLs.
+    // Setting crossOrigin = "anonymous" on blob: or data: URLs causes browsers to reject image loading!
+    if (url.startsWith("http://") || url.startsWith("https://")) {
+      img.crossOrigin = "anonymous";
     }
 
-    const img = new Image();
-    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      if (isValidDrawableImage(img)) {
+        inMemoryImageCache.set(url, img);
+        resolve(img);
+      } else {
+        reject(new Error(`Image loaded but dimensions are invalid (${url.slice(0, 50)})`));
+      }
+    };
 
-    img.onload = () => resolve(img);
     img.onerror = () => {
       reject(
         new Error(
-          `Failed to load image from "${url}". Please ensure Cloudflare R2 / Supabase bucket CORS allows origin "${typeof window !== "undefined" ? window.location.origin : "*"}" with AllowedHeaders: ["*"] and AllowedMethods: ["GET", "HEAD"].`
+          `Failed to load image from "${url.slice(0, 80)}". Please ensure Cloudflare R2 / Supabase bucket CORS allows origin "${typeof window !== "undefined" ? window.location.origin : "*"}" with AllowedHeaders: ["*"] and AllowedMethods: ["GET", "HEAD"].`
         )
       );
     };
@@ -105,8 +128,11 @@ export function drawCertificatePage({
     try {
       ctx.drawImage(backgroundImage, 0, 0, width, height);
     } catch (err) {
-      console.warn("Could not draw background image:", err);
+      console.warn("Could not draw background image, falling back to clean certificate card:", err);
+      drawCleanCertificateBorder(ctx, width, height, dpi);
     }
+  } else {
+    drawCleanCertificateBorder(ctx, width, height, dpi);
   }
 
   // 2. Render each placeholder element
@@ -173,20 +199,24 @@ export function drawCertificatePage({
         (el.previewUrl && signatureImages[el.previewUrl]);
 
       if (sigImg && isValidDrawableImage(sigImg)) {
-        const naturalW = (sigImg as any).naturalWidth || (sigImg as any).width || 200;
-        const naturalH = (sigImg as any).naturalHeight || (sigImg as any).height || 80;
-        const aspect = naturalW / naturalH;
-        const targetHeight = targetWidth / aspect;
+        try {
+          const naturalW = (sigImg as any).naturalWidth || (sigImg as any).width || 200;
+          const naturalH = (sigImg as any).naturalHeight || (sigImg as any).height || 80;
+          const aspect = naturalW / naturalH;
+          const targetHeight = targetWidth / aspect;
 
-        ctx.save();
-        ctx.drawImage(
-          sigImg,
-          centerX - targetWidth / 2,
-          centerY - targetHeight / 2,
-          targetWidth,
-          targetHeight
-        );
-        ctx.restore();
+          ctx.save();
+          ctx.drawImage(
+            sigImg,
+            centerX - targetWidth / 2,
+            centerY - targetHeight / 2,
+            targetWidth,
+            targetHeight
+          );
+          ctx.restore();
+        } catch (sigErr) {
+          console.warn("Could not draw signature image:", sigErr);
+        }
       } else {
         // Fallback placeholder box in studio preview
         const targetHeight = targetWidth / (el.aspectRatio || 2.5);
@@ -212,9 +242,36 @@ export function drawCertificatePage({
   }
 }
 
+/**
+ * Draws an elegant double gold/navy certificate card when no background image is uploaded.
+ */
+function drawCleanCertificateBorder(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  dpi: number
+): void {
+  if (typeof ctx.fillRect === "function") {
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, width, height);
+  }
+
+  const pad = (dpi / 72) * 16;
+  if (typeof ctx.strokeRect === "function") {
+    ctx.strokeStyle = "#d4af37"; // Elegant subtle gold certificate border
+    ctx.lineWidth = Math.max(2, Math.round((dpi / 72) * 2));
+    ctx.strokeRect(pad, pad, width - pad * 2, height - pad * 2);
+
+    const innerPad = pad + (dpi / 72) * 6;
+    ctx.strokeStyle = "#e2e8f0"; // Clean slate inner border
+    ctx.lineWidth = Math.max(1, Math.round((dpi / 72) * 1));
+    ctx.strokeRect(innerPad, innerPad, width - innerPad * 2, height - innerPad * 2);
+  }
+}
+
 export interface BatchExportOptions {
   template: CertificateTemplateV1;
-  backgroundUrl: string;
+  backgroundUrl?: string;
   roster: Array<Record<string, string>>;
   qrImages?: Record<string, HTMLImageElement | HTMLCanvasElement>;
   signal?: AbortSignal;
@@ -241,8 +298,15 @@ export async function generateCertificatePdfBatch({
   // 1. Ensure fonts loaded & shaped
   await ensureFontsLoaded();
 
-  // 2. Load background image with CORS
-  const bgImage = await loadCanvasImage(backgroundUrl);
+  // 2. Load background image with CORS and graceful fallback
+  let bgImage: HTMLImageElement | null = null;
+  if (backgroundUrl) {
+    try {
+      bgImage = await loadCanvasImage(backgroundUrl);
+    } catch (bgErr) {
+      console.warn("Background image loading failed, falling back to clean canvas:", bgErr);
+    }
+  }
 
   // 3. Dynamic orientation dimensions (Invariant E)
   const orientation = template.orientation === "PORTRAIT" ? "PORTRAIT" : "LANDSCAPE";
@@ -251,7 +315,7 @@ export async function generateCertificatePdfBatch({
   const printHeight = dims.printHeight;
   const dpi = 300;
 
-  // 3b. Preload signature images keyed by attachmentId (Senior Patch 1 & 2)
+  // 3b. Preload signature images keyed by attachmentId or previewUrl (Senior Patch 1 & 2)
   const signatureImages: Record<string, HTMLImageElement> = {};
   for (const el of template.elements) {
     if (el.type === "signature") {
@@ -316,7 +380,15 @@ export async function generateCertificatePdfBatch({
     });
 
     // Encode to high-quality JPEG
-    const imgData = canvas.toDataURL("image/jpeg", 0.95);
+    let imgData: string;
+    try {
+      imgData = canvas.toDataURL("image/jpeg", 0.95);
+    } catch (taintErr: any) {
+      ctx.clearRect(0, 0, printWidth, printHeight);
+      throw new Error(
+        `ไม่สามารถสร้างหน้าเกียรติบัตรได้เนื่องจากรูปภาพที่ใช้ติดข้อจำกัด CORS ของเบราว์เซอร์ (${taintErr.message})`
+      );
+    }
 
     if (i > 0) {
       doc.addPage("a4", pdfOrientation);

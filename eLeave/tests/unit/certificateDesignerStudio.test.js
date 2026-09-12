@@ -14,6 +14,7 @@ import {
 } from '../../../src/app/(app)/document/_components/designer/cert-schema.ts';
 import { generateQrMatrix } from '../../../src/app/(app)/document/_components/designer/qr-renderer.ts';
 import { drawCertificatePage, isValidDrawableImage } from '../../../src/app/(app)/document/_components/designer/cert-pdf-engine.ts';
+import { processSignaturePixels } from '../../../src/app/(app)/document/_components/designer/signature-processor.ts';
 import crypto from 'node:crypto';
 
 test('Certificate Designer Studio & Concurrency Invariants Suite', async (t) => {
@@ -909,6 +910,141 @@ test('Certificate Designer Studio & Concurrency Invariants Suite', async (t) => 
     // Scaling ratio must match page width scaling (3508 / 842 ≈ 4.166)
     const scaleRatio = printWidth / screenWidth;
     assert.ok(Math.abs(scaleRatio - (3508 / 842)) < 0.05, 'Signature width scales proportionally with DPI');
+  });
+
+  // -------------------------------------------------------------
+  // Test 23: Signature Background Removal & Ink Extraction
+  // -------------------------------------------------------------
+  await t.test('23. processSignaturePixels extracts transparent ink and calculates tight bounding box', () => {
+    // Create a 4x4 RGBA pixel grid:
+    // Row 0: All paper (white: 245, 245, 245, 255)
+    // Row 1: Paper, Ink (blue pen: 15, 20, 110, 255), Ink (black pen: 10, 10, 10, 255), Paper
+    // Row 2: Paper, Ink (blue pen: 15, 20, 110, 255), Paper, Paper
+    // Row 3: All paper (white: 245, 245, 245, 255)
+    const width = 4;
+    const height = 4;
+    const pixels = new Uint8ClampedArray(width * height * 4);
+
+    // Fill all with paper
+    for (let i = 0; i < pixels.length; i += 4) {
+      pixels[i] = 245;     // R
+      pixels[i + 1] = 245; // G
+      pixels[i + 2] = 245; // B
+      pixels[i + 3] = 255; // A
+    }
+
+    // Set ink at (1, 1), (2, 1), and (1, 2)
+    const setInk = (x, y, r, g, b) => {
+      const idx = (y * width + x) * 4;
+      pixels[idx] = r;
+      pixels[idx + 1] = g;
+      pixels[idx + 2] = b;
+      pixels[idx + 3] = 255;
+    };
+
+    setInk(1, 1, 15, 20, 110); // Blue pen
+    setInk(2, 1, 10, 10, 10);  // Black pen
+    setInk(1, 2, 15, 20, 110); // Blue pen
+
+    const result = processSignaturePixels({ data: pixels, width, height }, {
+      threshold: 215,
+      smoothness: 25,
+      darkenInk: true,
+    });
+
+    // Verify paper pixels became completely transparent (alpha = 0)
+    const paperPixelAlpha = pixels[(0 * width + 0) * 4 + 3];
+    assert.equal(paperPixelAlpha, 0, 'Paper pixel must be completely transparent');
+
+    // Verify ink pixels remain opaque (alpha > 200)
+    const inkPixel1Alpha = pixels[(1 * width + 1) * 4 + 3];
+    assert.ok(inkPixel1Alpha > 200, 'Ink pixel must remain opaque');
+
+    const inkPixel2Alpha = pixels[(1 * width + 2) * 4 + 3];
+    assert.ok(inkPixel2Alpha > 200, 'Ink pixel must remain opaque');
+
+    // Verify bounding box tightly encloses the ink (x: 1..2, y: 1..2)
+    assert.equal(result.boundingBox.minX, 1);
+    assert.equal(result.boundingBox.maxX, 2);
+    assert.equal(result.boundingBox.minY, 1);
+    assert.equal(result.boundingBox.maxY, 2);
+    assert.equal(result.boundingBox.cropWidth, 2);
+    assert.equal(result.boundingBox.cropHeight, 2);
+  });
+
+  // -------------------------------------------------------------
+  // Test 24: Scheme-sensitive CORS URL handling
+  // -------------------------------------------------------------
+  await t.test('24. Scheme-sensitive CORS handling prevents blob:/data: security rejection', () => {
+    const isRemoteUrl = (url) => url.startsWith('http://') || url.startsWith('https://');
+
+    // Local schemes must NOT trigger anonymous CORS
+    assert.equal(isRemoteUrl('blob:http://localhost:3001/uuid-1234'), false);
+    assert.equal(isRemoteUrl('data:image/png;base64,iVBORw0KGgoAAAANSUhEUg=='), false);
+
+    // Remote schemes must trigger anonymous CORS
+    assert.equal(isRemoteUrl('https://r2.kutchap.ac.th/cert/bg.png'), true);
+    assert.equal(isRemoteUrl('http://storage.example.com/sig.png'), true);
+  });
+
+  // -------------------------------------------------------------
+  // Test 25: Resilient fallback when background image is absent or invalid
+  // -------------------------------------------------------------
+  await t.test('25. drawCertificatePage renders fallback clean certificate card without crashing', () => {
+    let strokeRectCalled = false;
+    let fillRectCalled = false;
+
+    const mockCtx = {
+      save: () => {},
+      restore: () => {},
+      fillRect: () => { fillRectCalled = true; },
+      strokeRect: () => { strokeRectCalled = true; },
+      drawImage: () => { throw new Error('Simulated drawImage error'); },
+      fillText: () => {},
+      font: '',
+      fillStyle: '',
+      strokeStyle: '',
+      lineWidth: 1,
+      textAlign: '',
+      textBaseline: '',
+      setLineDash: () => {},
+    };
+
+    const testTemplate = {
+      schemaVersion: 1,
+      orientation: 'LANDSCAPE',
+      elements: [
+        {
+          id: 'el_name',
+          type: 'text',
+          key: 'fullName',
+          label: 'ชื่อ-นามสกุล',
+          xPercent: 50,
+          yPercent: 45,
+          fontSizePt: 24,
+          fontFamily: 'Sarabun',
+          fontWeight: 'bold',
+          color: '#1e293b',
+          textAlign: 'center',
+        },
+      ],
+    };
+
+    // Calling drawCertificatePage with null or invalid background must NOT throw
+    assert.doesNotThrow(() => {
+      drawCertificatePage({
+        ctx: mockCtx,
+        width: 842,
+        height: 595,
+        dpi: 72,
+        backgroundImage: null, // No background image
+        template: testTemplate,
+        data: { fullName: 'นายสมศักดิ์ รักเรียน' },
+      });
+    });
+
+    assert.equal(fillRectCalled, true, 'Must fill fallback canvas background');
+    assert.equal(strokeRectCalled, true, 'Must draw fallback certificate borders');
   });
 });
 

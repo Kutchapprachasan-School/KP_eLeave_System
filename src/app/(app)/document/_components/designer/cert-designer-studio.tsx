@@ -61,10 +61,15 @@ import {
 import {
   ensureFontsLoaded,
   loadCanvasImage,
+  isValidDrawableImage,
   drawCertificatePage,
   generateCertificatePdfBatch,
   A4_DIMS,
 } from "./cert-pdf-engine";
+import {
+  removeSignatureBackground,
+  fileToDataUrl,
+} from "./signature-processor";
 import {
   getCertificateTemplatesAction,
   saveCertificateTemplateAction,
@@ -215,6 +220,7 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
   const dragElementIdRef = useRef<string | null>(null);
   const dragOffsetRef = useRef<{ dx: number; dy: number }>({ dx: 0, dy: 0 });
   const localPreviewUrlRef = useRef<string | null>(null);
+  const rawSigFilesRef = useRef<Map<string, File | Blob>>(new Map());
 
   // Active snap guides line positions
   const [activeGuides, setActiveGuides] = useState<{ x?: number; y?: number }>({});
@@ -227,6 +233,26 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
       }
     };
   }, []);
+
+  // Sync roster when initialBatch changes
+  useEffect(() => {
+    if (initialBatch && initialBatch.items && initialBatch.items.length > 0) {
+      setRoster(
+        initialBatch.items.map((item) => ({
+          fullName: item.recipientName || "",
+          certNumber: item.certificateNumber || "",
+          role: item.roleTitle || "",
+          activityName: initialBatch.activityTitle || "",
+          department: initialBatch.organization || "",
+          date: initialBatch.issuedDate || "",
+          qrCode: item.verifyToken
+            ? `${typeof window !== "undefined" ? window.location.origin : "https://eleave.kutchap.ac.th"}/verify/cert?token=${item.verifyToken}`
+            : "https://eleave.kutchap.ac.th/verify/cert?token=SAMPLE",
+        }))
+      );
+      setPreviewIndex(0);
+    }
+  }, [initialBatch]);
 
   // Load available templates on mount
   useEffect(() => {
@@ -454,41 +480,106 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
     pushHistory(newElements);
   };
 
-  // --- Signature Upload Handler with 0ms Instant Preview & Aspect Ratio ---
+  // --- Signature Upload & Transparent Ink Processor ---
   const handleSignatureUpload = async (elementId: string, file: File) => {
     if (!file) return;
 
-    // 1. Instant 0ms Local Preview & detect natural aspect ratio
-    const localUrl = URL.createObjectURL(file);
-    const img = new Image();
-    img.src = localUrl;
-    img.onload = () => {
-      const aspect = (img.naturalWidth || img.width) / (img.naturalHeight || img.height || 1);
-      updateElementById(elementId, {
-        previewUrl: localUrl,
-        aspectRatio: Math.round(aspect * 100) / 100,
-      });
-    };
+    rawSigFilesRef.current.set(elementId, file);
 
-    // 2. Commit to Cloud Storage with R2 -> Supabase resilient fallback
+    const targetEl = elements.find((el) => el.id === elementId);
+    const shouldRemoveBg = targetEl?.signatureRemoveBg !== false;
+    const threshold = targetEl?.signatureThreshold || 215;
+
+    await executeSignatureProcessingAndUpload(elementId, file, shouldRemoveBg, threshold);
+  };
+
+  const reprocessSignature = async (elementId: string, customThreshold?: number, removeBg?: boolean) => {
+    const rawFile = rawSigFilesRef.current.get(elementId);
+    const targetEl = elements.find((el) => el.id === elementId);
+    if (!targetEl) return;
+
+    const source = rawFile || targetEl.previewUrl;
+    if (!source) {
+      setStatusMessage({ type: "error", text: "ไม่พบไฟล์ภาพลายเซ็นต้นฉบับสำหรับการประมวลผล กรุณาเลือกไฟล์ใหม่" });
+      return;
+    }
+
+    const shouldRemoveBg = removeBg !== undefined ? removeBg : (targetEl.signatureRemoveBg !== false);
+    const threshold = customThreshold !== undefined ? customThreshold : (targetEl.signatureThreshold || 215);
+
+    await executeSignatureProcessingAndUpload(elementId, source, shouldRemoveBg, threshold);
+  };
+
+  const executeSignatureProcessingAndUpload = async (
+    elementId: string,
+    source: File | Blob | string,
+    removeBg: boolean,
+    threshold: number
+  ) => {
     setUploadingSigId(elementId);
     try {
+      let uploadFile: File;
+      let previewUrl = "";
+      let aspectRatio = 2.5;
+
+      if (removeBg) {
+        setStatusMessage({ type: "success", text: "กำลังตัดพื้นหลังกระดาษให้เป็นหมึกโปร่งใสอัตโนมัติ..." });
+        const processed = await removeSignatureBackground(source, {
+          threshold,
+          autoCrop: true,
+          darkenInk: true,
+        });
+        previewUrl = processed.dataUrl;
+        aspectRatio = processed.aspectRatio;
+        const fileName = (typeof source === "object" && "name" in source && (source as any).name)
+          ? (source as any).name.replace(/\.[^.]+$/, ".png")
+          : `signature_${Date.now()}.png`;
+        uploadFile = new File([processed.blob], fileName, { type: "image/png" });
+      } else {
+        if (typeof source === "string") {
+          previewUrl = source;
+          const blob = await fetch(source).then((r) => r.blob());
+          uploadFile = new File([blob], `signature_${Date.now()}.png`, { type: blob.type || "image/png" });
+        } else {
+          previewUrl = URL.createObjectURL(source);
+          uploadFile = source instanceof File ? source : new File([source], `signature_${Date.now()}.png`, { type: "image/png" });
+        }
+      }
+
+      // 1. Instant 0ms Preview Update
+      updateElementById(elementId, {
+        previewUrl,
+        aspectRatio,
+        signatureRemoveBg: removeBg,
+        signatureThreshold: threshold,
+      });
+
+      // 2. Commit to Cloud Storage with R2 -> Supabase resilient fallback
       const formData = new FormData();
-      formData.append("file", file);
+      formData.append("file", uploadFile);
       formData.append("uploadSessionId", crypto.randomUUID());
 
       const res = await uploadCertificateSignatureAction(formData);
       if (res.success && res.data) {
         updateElementById(elementId, {
           signatureAttachmentId: res.data.attachmentId,
-          previewUrl: res.data.url,
+          previewUrl: previewUrl || res.data.url,
+          signatureRemoveBg: removeBg,
+          signatureThreshold: threshold,
         });
-        setStatusMessage({ type: "success", text: "อัปโหลดภาพลายเซ็นสำเร็จ" });
+        setStatusMessage({
+          type: "success",
+          text: removeBg ? "ตัดพื้นหลังโปร่งใสและอัปโหลดลายเซ็นสำเร็จ" : "อัปโหลดภาพลายเซ็นสำเร็จ",
+        });
       } else {
-        setStatusMessage({ type: "error", text: res.error || "อัปโหลดภาพลายเซ็นไม่สำเร็จ" });
+        setStatusMessage({
+          type: "error",
+          text: res.error || "อัปโหลดภาพลายเซ็นไม่สำเร็จ (ใช้งานภาพที่แสดงผลปัจจุบันได้)",
+        });
       }
     } catch (err: any) {
-      setStatusMessage({ type: "error", text: err.message || "เกิดข้อผิดพลาดในการอัปโหลดลายเซ็น" });
+      console.error("Signature processing error:", err);
+      setStatusMessage({ type: "error", text: err.message || "เกิดข้อผิดพลาดในการประมวลผลลายเซ็น" });
     } finally {
       setUploadingSigId(null);
     }
@@ -591,7 +682,11 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
         try {
           const bgImg = await loadCanvasImage(backgroundUrl);
           if (cancelled) return;
-          ctx.drawImage(bgImg, 0, 0, dims.previewWidth, dims.previewHeight);
+          if (isValidDrawableImage(bgImg)) {
+            ctx.drawImage(bgImg, 0, 0, dims.previewWidth, dims.previewHeight);
+          } else {
+            drawPlaceholderBg(ctx, dims.previewWidth, dims.previewHeight);
+          }
         } catch (err) {
           console.warn("Background load error in preview:", err);
           drawPlaceholderBg(ctx, dims.previewWidth, dims.previewHeight);
@@ -946,15 +1041,28 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
         }
 
         const origin = typeof window !== "undefined" ? window.location.origin : "https://eleave.kutchap.ac.th";
-        const mapped = data.map((row) => ({
-          fullName: String(row["ชื่อ-นามสกุล"] || row["ชื่อผู้รับ"] || row["fullName"] || row["name"] || "").trim(),
-          certNumber: String(row["เลขที่เกียรติบัตร"] || row["certNumber"] || "").trim(),
-          role: String(row["บทบาท/รางวัล"] || row["รางวัล"] || row["role"] || "").trim(),
-          activityName: String(row["ชื่อกิจกรรม"] || row["activityName"] || "").trim(),
-          department: String(row["หน่วยงาน"] || row["department"] || "").trim(),
-          date: String(row["วันที่"] || row["date"] || "").trim(),
-          qrCode: String(row["QR"] || row["qrCode"] || `${origin}/verify/cert?token=SAMPLE`).trim(),
-        }));
+        const mapped = data.map((row, idx) => {
+          const item = initialBatch?.items?.[idx];
+          const certNumber = String(row["เลขที่เกียรติบัตร"] || row["certNumber"] || item?.certificateNumber || "").trim();
+          const role = String(row["บทบาท/รางวัล"] || row["รางวัล"] || row["role"] || item?.roleTitle || "").trim();
+          const qrCode = String(
+            row["QR"] ||
+            row["qrCode"] ||
+            (item?.verifyToken
+              ? `${origin}/verify/cert?token=${item.verifyToken}`
+              : `${origin}/verify/cert?token=SAMPLE`)
+          ).trim();
+
+          return {
+            fullName: String(row["ชื่อ-นามสกุล"] || row["ชื่อผู้รับ"] || row["fullName"] || row["name"] || item?.recipientName || "").trim(),
+            certNumber,
+            role,
+            activityName: String(row["ชื่อกิจกรรม"] || row["activityName"] || initialBatch?.activityTitle || "").trim(),
+            department: String(row["หน่วยงาน"] || row["department"] || initialBatch?.organization || "").trim(),
+            date: String(row["วันที่"] || row["date"] || initialBatch?.issuedDate || "").trim(),
+            qrCode,
+          };
+        });
 
         setRoster(mapped);
         setPreviewIndex(0);
@@ -968,10 +1076,6 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
 
   // --- High-Fidelity PDF Batch Export ---
   const handleStartExport = async () => {
-    if (!backgroundUrl) {
-      setStatusMessage({ type: "error", text: "กรุณาอัปโหลดภาพพื้นหลังก่อนส่งออก PDF" });
-      return;
-    }
 
     const exportRoster =
       exportRangeMode === "RANGE"
@@ -1796,10 +1900,10 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
                     <div className="p-3 bg-blue-50 dark:bg-blue-950/40 rounded-xl border border-blue-200 dark:border-blue-800/50 space-y-1.5">
                       <div className="text-xs font-bold text-blue-900 dark:text-blue-200 flex items-center gap-1.5">
                         <PenTool className="w-4 h-4 text-blue-600" />
-                        <span>ภาพลายเซ็นดิจิทัล / สแกน (PNG โปร่งใส)</span>
+                        <span>ภาพลายเซ็น (ตัดพื้นหลังกระดาษอัตโนมัติ)</span>
                       </div>
                       <p className="text-[11px] text-blue-700 dark:text-blue-300 leading-relaxed">
-                        แนะนำให้อัปโหลดไฟล์ภาพลายเซ็นที่มีพื้นหลังโปร่งใส (Transparent PNG) ระบบจะรักษาอัตราส่วนภาพจริง (Aspect Ratio) โดยอัตโนมัติ
+                        รองรับทั้งภาพถ่ายลายเซ็นบนกระดาษ (JPG/PNG) โดยระบบจะสกัดเฉพาะลายเส้นหมึกให้โปร่งใส และรักษาอัตราส่วนภาพจริงโดยอัตโนมัติ
                       </p>
                     </div>
 
@@ -1822,11 +1926,12 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
                         {uploadingSigId === selectedElement.id ? (
                           <div className="flex items-center gap-2 py-1 text-xs text-blue-600 font-bold">
                             <Loader2 className="w-4 h-4 animate-spin" />
-                            <span>กำลังอัปโหลดคลาวด์...</span>
+                            <span>กำลังตัดพื้นหลัง & อัปโหลด...</span>
                           </div>
                         ) : selectedElement.previewUrl ? (
                           <div className="space-y-2 w-full flex flex-col items-center">
-                            <div className="p-2 bg-white/80 dark:bg-slate-900/80 rounded-lg border border-slate-200 dark:border-slate-700">
+                            {/* Checkerboard Pattern for transparent ink verification */}
+                            <div className="p-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-[linear-gradient(45deg,#e2e8f0_25%,transparent_25%),linear-gradient(-45deg,#e2e8f0_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#e2e8f0_75%),linear-gradient(-45deg,transparent_75%,#e2e8f0_75%)] bg-[size:10px_10px] dark:bg-[linear-gradient(45deg,#1e293b_25%,transparent_25%),linear-gradient(-45deg,#1e293b_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#1e293b_75%),linear-gradient(-45deg,transparent_75%,#1e293b_75%)] w-full flex items-center justify-center min-h-[60px]">
                               <img
                                 src={selectedElement.previewUrl}
                                 alt="Signature preview"
@@ -1834,17 +1939,84 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
                               />
                             </div>
                             <span className="text-[11px] text-blue-600 font-semibold group-hover:underline">
-                              คลิกเพื่อเปลี่ยนรูปภาพ
+                              คลิกเพื่อเปลี่ยนรูปภาพใหม่
                             </span>
                           </div>
                         ) : (
                           <div className="flex items-center gap-2 py-1 text-xs text-slate-600 dark:text-slate-400 group-hover:text-blue-600 font-semibold">
                             <Upload className="w-4 h-4" />
-                            <span>อัปโหลดลายเซ็น (PNG/JPG)</span>
+                            <span>อัปโหลดลายเซ็น (PNG/JPG กระดาษ)</span>
                           </div>
                         )}
                       </label>
                     </div>
+
+                    {/* Automatic Background Removal Controls */}
+                    {selectedElement.previewUrl && (
+                      <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2.5">
+                        <div className="flex items-center justify-between">
+                          <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5 cursor-pointer">
+                            <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                            <span>ตัดพื้นหลังกระดาษ (Transparent)</span>
+                          </label>
+                          <input
+                            type="checkbox"
+                            checked={selectedElement.signatureRemoveBg !== false}
+                            onChange={(e) => {
+                              const checked = e.target.checked;
+                              updateSelectedElement({ signatureRemoveBg: checked });
+                              reprocessSignature(selectedElement.id, selectedElement.signatureThreshold || 215, checked);
+                            }}
+                            className="h-4 w-4 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
+                          />
+                        </div>
+
+                        {selectedElement.signatureRemoveBg !== false && (
+                          <div className="space-y-1.5 pt-1 border-t border-slate-200 dark:border-slate-700">
+                            <div className="flex justify-between items-center text-[11px]">
+                              <span className="text-slate-600 dark:text-slate-400 font-medium">ความไวในการตัดพื้นหลัง</span>
+                              <span className="font-bold text-blue-600">
+                                {selectedElement.signatureThreshold || 215}
+                              </span>
+                            </div>
+                            <input
+                              type="range"
+                              min="150"
+                              max="245"
+                              step="1"
+                              value={selectedElement.signatureThreshold || 215}
+                              onChange={(e) => {
+                                const val = Number(e.target.value);
+                                updateSelectedElement({ signatureThreshold: val });
+                              }}
+                              onMouseUp={(e) => {
+                                const val = Number((e.target as HTMLInputElement).value);
+                                reprocessSignature(selectedElement.id, val, true);
+                              }}
+                              onTouchEnd={(e) => {
+                                const val = Number((e.target as HTMLInputElement).value);
+                                reprocessSignature(selectedElement.id, val, true);
+                              }}
+                              className="w-full accent-blue-600 cursor-pointer"
+                            />
+                            <div className="flex justify-between text-[10px] text-slate-400">
+                              <span>หมึกเข้ม/กระดาษสว่าง</span>
+                              <span>กระดาษมีเงา/สลัว</span>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => reprocessSignature(selectedElement.id, selectedElement.signatureThreshold || 215, true)}
+                              disabled={uploadingSigId === selectedElement.id}
+                              className="w-full mt-1.5 py-1 px-2 rounded-lg bg-blue-100 hover:bg-blue-200 dark:bg-blue-900/40 dark:hover:bg-blue-900/60 text-blue-700 dark:text-blue-300 text-[11px] font-bold transition flex items-center justify-center gap-1 cursor-pointer"
+                            >
+                              <RefreshCw className={`w-3 h-3 ${uploadingSigId === selectedElement.id ? "animate-spin" : ""}`} />
+                              <span>ประมวลผลตัดพื้นหลังใหม่</span>
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
 
                     {/* Width Slider (% of page width) */}
                     <div className="space-y-1.5">

@@ -19,6 +19,7 @@ const ALLOWED_PREFIXES = [
   "src/app/(app)/academic/supervision/",
   "src/app/(app)/budget/",
   "eLeave/tests/unit/schoolOpsDesignSystem.test.js",
+  "eLeave/tests/unit/certificateDesignerStudio.test.js",
   "scripts/verify-ui-scope.mjs",
   "package.json",
   "docs/",

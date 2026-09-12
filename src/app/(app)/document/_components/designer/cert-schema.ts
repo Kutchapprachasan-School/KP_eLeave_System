@@ -174,6 +174,8 @@ export const CertificateElementSchema = z.object({
   imageWidthPercent: z.number().min(3).max(50).default(14),
   aspectRatio: z.number().positive().optional(),
   previewUrl: z.string().optional(), // Client-side instant preview URL
+  signatureRemoveBg: z.boolean().optional().default(true),
+  signatureThreshold: z.number().min(100).max(255).optional().default(215),
 });
 
 export type CertificateElement = z.infer<typeof CertificateElementSchema>;
