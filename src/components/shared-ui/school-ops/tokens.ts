@@ -32,6 +32,7 @@ export const STATUS_TO_TONE_MAP: Record<string, SemanticTone> = {
   PENDING_HEAD: "warning",
   PENDING_DIRECTOR: "warning",
   REVIEW: "warning",
+  PARTIAL: "warning",
 
   // Success / Approved / Completed / Active
   APPROVED: "success",
@@ -41,6 +42,7 @@ export const STATUS_TO_TONE_MAP: Record<string, SemanticTone> = {
   VALID: "success",
   AVAILABLE: "success",
   DONE: "success",
+  RECEIVED: "success",
 
   // Danger / Terminated / Maintenance / Rejected
   REJECTED: "danger",
@@ -70,6 +72,7 @@ export const STATUS_THAI_LABELS: Record<string, string> = {
   PENDING_HEAD: "รอหัวหน้าฝ่ายตรวจสอบ",
   PENDING_DIRECTOR: "รอผู้อำนวยการอนุมัติ",
   REVIEW: "กำลังตรวจสอบ",
+  PARTIAL: "โอนเข้าบางส่วน",
 
   APPROVED: "อนุมัติแล้ว",
   COMPLETED: "เสร็จสิ้นสมบูรณ์",
@@ -78,6 +81,7 @@ export const STATUS_THAI_LABELS: Record<string, string> = {
   VALID: "รับรองความถูกต้องแล้ว",
   AVAILABLE: "พร้อมให้บริการ",
   DONE: "เสร็จสิ้น",
+  RECEIVED: "โอนเข้าครบแล้ว",
 
   REJECTED: "ไม่อนุมัติ / ปฏิเสธ",
   CANCELLED: "ยกเลิกแล้ว",

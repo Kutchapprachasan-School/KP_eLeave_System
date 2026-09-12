@@ -52,6 +52,15 @@ import {
   cloneProjectsFromFiscalYearAction,
   closeFiscalYearAction,
 } from "@/app/actions/project-budget";
+import {
+  SubsystemHeader,
+  ExecutiveStatCard,
+  StatusPillBadge,
+  UnifiedModal,
+  UnifiedModalHeader,
+  UnifiedModalBody,
+  UnifiedModalFooter,
+} from "@/components/shared-ui/school-ops";
 
 const DEPARTMENTS = [
   "ฝ่ายบริหารงานวิชาการ",
@@ -729,122 +738,105 @@ function BudgetAffairsContent() {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 p-4 md:p-8 space-y-6 text-slate-900 dark:text-slate-100">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-6">
-        <div>
-          <div className="flex items-center gap-2 text-xs font-semibold text-emerald-600 dark:text-emerald-400 mb-1">
-            <Link href="/dashboard" className="hover:underline">หน้าหลัก</Link>
-            <span>/</span>
-            <span>ฝ่ายบริหารงานงบประมาณ</span>
-          </div>
-          <h1 className="text-2xl md:text-3xl font-black tracking-tight text-slate-900 dark:text-white flex items-center gap-3">
-            <div className="p-2.5 rounded-2xl bg-emerald-600 text-white shadow-lg shadow-emerald-600/20">
-              <Wallet className="w-7 h-7" />
+      {/* 🟢 Subsystem Header */}
+      <SubsystemHeader
+        subsystem="budget"
+        badgeText="ฝ่ายบริหารงานงบประมาณ & แผนงาน"
+        title="ระบบบริหารงานงบประมาณ & แผนงานโครงการ"
+        subtitle="โรงเรียนกุดจับประชาสรรค์ — บัญชีคุม 4 งวดเงิน (70%/30%) แผนปฏิบัติการ และระบบเบิกจ่าย"
+        icon={Wallet}
+        action={
+          <div className="flex flex-wrap items-center gap-2.5">
+            {/* Year Selector */}
+            <div className="flex items-center gap-2 bg-white dark:bg-slate-900 px-3 py-2 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+              <Calendar className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+              <select
+                value={selectedFyId}
+                onChange={handleYearChange}
+                className="text-xs font-bold bg-transparent border-none outline-none text-slate-800 dark:text-slate-200 cursor-pointer"
+              >
+                {fiscalYears.map((fy) => (
+                  <option key={fy.id} value={fy.id} className="dark:bg-slate-900">
+                    {fy.title} {fy.status === "CLOSED" ? "(ปิดรอบแล้ว)" : ""}
+                  </option>
+                ))}
+              </select>
             </div>
-            ระบบบริหารงานงบประมาณ & แผนงานโครงการ
-          </h1>
-          <p className="text-xs md:text-sm text-slate-500 dark:text-slate-400 mt-1">
-            โรงเรียนกุดจับประชาสรรค์ — บัญชีคุม 4 งวดเงิน (70%/30%) แผนปฏิบัติการ และระบบเบิกจ่าย
-          </p>
-        </div>
 
-        <div className="flex flex-wrap items-center gap-2.5">
-          {/* Year Selector */}
-          <div className="flex items-center gap-2 bg-white dark:bg-slate-900 px-3 py-2 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
-            <Calendar className="w-4 h-4 text-emerald-600" />
-            <select
-              value={selectedFyId}
-              onChange={handleYearChange}
-              className="text-xs font-bold bg-transparent border-none outline-none text-slate-800 dark:text-slate-200 cursor-pointer"
+            {/* Fiscal Year Status Badge */}
+            <StatusPillBadge
+              status={dashboardData?.fiscalYear?.status === "CLOSED" ? "CLOSED" : "ACTIVE"}
+              size="md"
+              customLabel={dashboardData?.fiscalYear?.status === "CLOSED" ? "ปิดรอบบัญชีแล้ว" : "เปิดใช้งาน"}
+            />
+
+            {/* Close Fiscal Year Button */}
+            {dashboardData?.fiscalYear?.status !== "CLOSED" && (
+              <button
+                onClick={() => setShowCloseFyModal(true)}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-900/60 font-bold text-xs border border-rose-200 dark:border-rose-900 transition active:scale-95 cursor-pointer shadow-sm"
+                title="ปิดรอบปีงบประมาณและตรึงข้อมูลเป็นประวัติ"
+              >
+                <Lock className="w-3.5 h-3.5" />
+                <span>ปิดรอบปีงบ</span>
+              </button>
+            )}
+
+            <button
+              onClick={() => refreshDashboard()}
+              disabled={isPending}
+              className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 transition shadow-sm cursor-pointer"
+              title="รีเฟรชข้อมูล"
             >
-              {fiscalYears.map((fy) => (
-                <option key={fy.id} value={fy.id} className="dark:bg-slate-900">
-                  {fy.title} {fy.status === "CLOSED" ? "(ปิดรอบแล้ว)" : ""}
-                </option>
-              ))}
-            </select>
+              <RefreshCw className={`w-4 h-4 text-slate-600 dark:text-slate-300 ${isPending ? "animate-spin" : ""}`} />
+            </button>
+
+            {/* Clone Projects from Previous Fiscal Year */}
+            {dashboardData?.fiscalYear?.status !== "CLOSED" && (
+              <button
+                onClick={openCloneModal}
+                className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/80 font-bold text-xs border border-indigo-200 dark:border-indigo-800 transition active:scale-95 cursor-pointer shadow-sm"
+                title="คัดลอกโครงการและกิจกรรมจากปีก่อนหน้า"
+              >
+                <Copy className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                <span>คัดลอกโครงการจากปีก่อน</span>
+              </button>
+            )}
+
+            {/* Direct Expense Disbursement */}
+            {dashboardData?.fiscalYear?.status !== "CLOSED" && (
+              <button
+                onClick={() => openExpenseModal()}
+                className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold text-xs border border-slate-300 dark:border-slate-700 transition active:scale-95 cursor-pointer shadow-sm"
+                title="บันทึกการเบิกจ่ายงบประมาณ"
+              >
+                <Receipt className="w-4 h-4 text-amber-500" />
+                <span>บันทึกเบิกจ่าย</span>
+              </button>
+            )}
+
+            {/* Create Project - Primary action unified to Indigo */}
+            {dashboardData?.fiscalYear?.status !== "CLOSED" && (
+              <button
+                onClick={() => setShowProjectModal(true)}
+                className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md shadow-indigo-600/20 transition active:scale-95 cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                <span>สร้างโครงการใหม่</span>
+              </button>
+            )}
           </div>
-
-          {/* Fiscal Year Status Badge */}
-          {dashboardData?.fiscalYear?.status === "CLOSED" ? (
-            <span className="px-3 py-2 rounded-2xl bg-slate-200/80 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-extrabold text-xs border border-slate-300 dark:border-slate-700 flex items-center gap-1.5 shadow-sm">
-              <Lock className="w-3.5 h-3.5 text-slate-500" />
-              ปิดรอบบัญชีแล้ว
-            </span>
-          ) : (
-            <span className="px-3 py-2 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 font-extrabold text-xs border border-emerald-200 dark:border-emerald-800 flex items-center gap-1.5 shadow-sm">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-              เปิดใช้งาน
-            </span>
-          )}
-
-          {/* Close Fiscal Year Button */}
-          {dashboardData?.fiscalYear?.status !== "CLOSED" && (
-            <button
-              onClick={() => setShowCloseFyModal(true)}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-2xl bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-900/60 font-bold text-xs border border-rose-200 dark:border-rose-900 transition active:scale-95 cursor-pointer shadow-sm"
-              title="ปิดรอบปีงบประมาณและตรึงข้อมูลเป็นประวัติ"
-            >
-              <Lock className="w-3.5 h-3.5" />
-              ปิดรอบปีงบ
-            </button>
-          )}
-
-          <button
-            onClick={() => refreshDashboard()}
-            disabled={isPending}
-            className="p-2.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 transition shadow-sm cursor-pointer"
-            title="รีเฟรชข้อมูล"
-          >
-            <RefreshCw className={`w-4 h-4 text-slate-600 dark:text-slate-300 ${isPending ? "animate-spin" : ""}`} />
-          </button>
-
-          {/* Clone Projects from Previous Fiscal Year */}
-          {dashboardData?.fiscalYear?.status !== "CLOSED" && (
-            <button
-              onClick={openCloneModal}
-              className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/80 font-bold text-xs border border-indigo-200 dark:border-indigo-800 transition active:scale-95 cursor-pointer shadow-sm"
-              title="คัดลอกโครงการและกิจกรรมจากปีก่อนหน้า"
-            >
-              <Copy className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-              คัดลอกโครงการจากปีก่อน
-            </button>
-          )}
-
-          {/* Direct Expense Disbursement */}
-          {dashboardData?.fiscalYear?.status !== "CLOSED" && (
-            <button
-              onClick={() => openExpenseModal()}
-              className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-2xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs shadow-md shadow-amber-500/20 transition active:scale-95 cursor-pointer"
-              title="บันทึกการเบิกจ่ายงบประมาณ"
-            >
-              <Receipt className="w-4 h-4" />
-              บันทึกเบิกจ่าย
-            </button>
-          )}
-
-          {/* Create Project */}
-          {dashboardData?.fiscalYear?.status !== "CLOSED" && (
-            <button
-              onClick={() => setShowProjectModal(true)}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md shadow-emerald-600/20 transition active:scale-95 cursor-pointer"
-            >
-              <Plus className="w-4 h-4" />
-              สร้างโครงการใหม่
-            </button>
-          )}
-        </div>
-
-      </div>
+        }
+      />
 
       {/* Sub-Pages Tab Navigation (Synchronized with Sidebar) */}
       <div className="flex flex-wrap items-center gap-2 p-1.5 bg-slate-200/70 dark:bg-slate-900 rounded-2xl border border-slate-300/60 dark:border-slate-800">
         <button
           onClick={() => setViewTab("overview")}
-          className={`flex-1 min-w-[180px] flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs transition-all cursor-pointer ${
+          className={`flex-1 min-w-[180px] flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs transition-all cursor-pointer ${
             currentView === "overview"
-              ? "bg-white dark:bg-slate-800 text-emerald-700 dark:text-emerald-300 shadow-sm border border-slate-200/80 dark:border-slate-700"
-              : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+              ? "bg-indigo-600 text-white font-bold shadow-xs"
+              : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white font-medium"
           }`}
         >
           <Wallet className="w-4 h-4" />
@@ -853,30 +845,34 @@ function BudgetAffairsContent() {
 
         <button
           onClick={() => setViewTab("projects")}
-          className={`flex-1 min-w-[180px] flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs transition-all cursor-pointer ${
+          className={`flex-1 min-w-[180px] flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs transition-all cursor-pointer ${
             currentView === "projects"
-              ? "bg-white dark:bg-slate-800 text-emerald-700 dark:text-emerald-300 shadow-sm border border-slate-200/80 dark:border-slate-700"
-              : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+              ? "bg-indigo-600 text-white font-bold shadow-xs"
+              : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white font-medium"
           }`}
         >
           <FileText className="w-4 h-4" />
           <span>จัดสรรงบโครงการ & แผนงาน</span>
-          <span className="px-2 py-0.5 rounded-full text-[10px] bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-black">
+          <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+            currentView === "projects" ? "bg-white/20 text-white" : "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
+          }`}>
             {dashboardData?.projects?.length || 0}
           </span>
         </button>
 
         <button
           onClick={() => setViewTab("reports")}
-          className={`flex-1 min-w-[180px] flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs transition-all cursor-pointer ${
+          className={`flex-1 min-w-[180px] flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs transition-all cursor-pointer ${
             currentView === "reports"
-              ? "bg-white dark:bg-slate-800 text-emerald-700 dark:text-emerald-300 shadow-sm border border-slate-200/80 dark:border-slate-700"
-              : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+              ? "bg-indigo-600 text-white font-bold shadow-xs"
+              : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white font-medium"
           }`}
         >
           <FileSpreadsheet className="w-4 h-4" />
           <span>รายงานและการเบิกจ่าย</span>
-          <span className="px-2 py-0.5 rounded-full text-[10px] bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-black">
+          <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+            currentView === "reports" ? "bg-white/20 text-white" : "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
+          }`}>
             {allExpensesList.length}
           </span>
         </button>
@@ -914,71 +910,59 @@ function BudgetAffairsContent() {
         <div className="space-y-8 animate-in fade-in">
           {/* Grand Metric Overview Cards */}
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-            <div className="bg-white dark:bg-slate-900 rounded-3xl p-5 border border-slate-200 dark:border-slate-800 shadow-sm space-y-1">
-              <div className="flex items-center justify-between text-slate-400">
-                <span className="text-[11px] font-semibold">งบประมาณตามแผน</span>
-                <FileText className="w-4 h-4 text-blue-500" />
-              </div>
-              <p className="text-lg md:text-xl font-black text-slate-900 dark:text-white">
-                ฿{formatBaht(dashboardData?.metrics?.totalPlanned)}
-              </p>
-              <p className="text-[10px] text-slate-400 font-medium">รวมทั้งปีงบประมาณ</p>
-            </div>
+            <ExecutiveStatCard
+              label="งบประมาณตามแผน"
+              value={`฿${formatBaht(dashboardData?.metrics?.totalPlanned)}`}
+              unit=""
+              subtitle="รวมทั้งปีงบประมาณ"
+              icon={FileText}
+              tone="neutral"
+            />
 
-            <div className="bg-white dark:bg-slate-900 rounded-3xl p-5 border border-slate-200 dark:border-slate-800 shadow-sm space-y-1">
-              <div className="flex items-center justify-between text-slate-400">
-                <span className="text-[11px] font-semibold">เงินโอนเข้าบัญชีจริง</span>
-                <DollarSign className="w-4 h-4 text-emerald-500" />
-              </div>
-              <p className="text-lg md:text-xl font-black text-emerald-600 dark:text-emerald-400">
-                ฿{formatBaht(dashboardData?.metrics?.totalReceived)}
-              </p>
-              <p className="text-[10px] text-slate-400 font-medium">จาก สพฐ. / ต้นสังกัด</p>
-            </div>
+            <ExecutiveStatCard
+              label="เงินโอนเข้าบัญชีจริง"
+              value={`฿${formatBaht(dashboardData?.metrics?.totalReceived)}`}
+              unit=""
+              subtitle="จาก สพฐ. / ต้นสังกัด"
+              icon={DollarSign}
+              tone="success"
+            />
 
-            <div className="bg-white dark:bg-slate-900 rounded-3xl p-5 border border-slate-200 dark:border-slate-800 shadow-sm space-y-1">
-              <div className="flex items-center justify-between text-slate-400">
-                <span className="text-[11px] font-semibold">จัดสรรให้โครงการ</span>
-                <Layers className="w-4 h-4 text-purple-500" />
-              </div>
-              <p className="text-lg md:text-xl font-black text-purple-600 dark:text-purple-400">
-                ฿{formatBaht(dashboardData?.metrics?.totalAllocatedToProjects)}
-              </p>
-              <p className="text-[10px] text-slate-400 font-medium">ทุกโครงการรวมกัน</p>
-            </div>
+            <ExecutiveStatCard
+              label="จัดสรรให้โครงการ"
+              value={`฿${formatBaht(dashboardData?.metrics?.totalAllocatedToProjects)}`}
+              unit=""
+              subtitle="ทุกโครงการรวมกัน"
+              icon={Layers}
+              tone="indigo"
+            />
 
-            <div className="bg-white dark:bg-slate-900 rounded-3xl p-5 border border-slate-200 dark:border-slate-800 shadow-sm space-y-1">
-              <div className="flex items-center justify-between text-slate-400">
-                <span className="text-[11px] font-semibold">เบิกจ่ายจริงสุทธิ</span>
-                <Receipt className="w-4 h-4 text-rose-500" />
-              </div>
-              <p className="text-lg md:text-xl font-black text-rose-600 dark:text-rose-400">
-                ฿{formatBaht(dashboardData?.metrics?.totalSpent)}
-              </p>
-              <p className="text-[10px] text-slate-400 font-medium">หักยอดคืนเงินแล้ว</p>
-            </div>
+            <ExecutiveStatCard
+              label="เบิกจ่ายจริงสุทธิ"
+              value={`฿${formatBaht(dashboardData?.metrics?.totalSpent)}`}
+              unit=""
+              subtitle="หักยอดคืนเงินแล้ว"
+              icon={Receipt}
+              tone="danger"
+            />
 
-            <div className="bg-gradient-to-br from-emerald-600 to-teal-700 rounded-3xl p-5 text-white shadow-lg shadow-emerald-600/20 space-y-1">
-              <div className="flex items-center justify-between text-emerald-200">
-                <span className="text-[11px] font-semibold">สภาพคล่องในคลัง</span>
-                <Wallet className="w-4 h-4" />
-              </div>
-              <p className="text-lg md:text-xl font-black">
-                ฿{formatBaht(dashboardData?.metrics?.netLiquidity)}
-              </p>
-              <p className="text-[10px] text-emerald-100 font-medium">เงินเข้าลบเงินจ่ายจริง</p>
-            </div>
+            <ExecutiveStatCard
+              label="สภาพคล่องในคลัง"
+              value={`฿${formatBaht(dashboardData?.metrics?.netLiquidity)}`}
+              unit=""
+              subtitle="เงินเข้าลบเงินจ่ายจริง"
+              icon={Wallet}
+              tone="success"
+            />
 
-            <div className="bg-white dark:bg-slate-900 rounded-3xl p-5 border border-slate-200 dark:border-slate-800 shadow-sm space-y-1">
-              <div className="flex items-center justify-between text-slate-400">
-                <span className="text-[11px] font-semibold">เงินรับเข้ายังไม่จัดสรร</span>
-                <PieChart className="w-4 h-4 text-amber-500" />
-              </div>
-              <p className="text-lg md:text-xl font-black text-amber-600 dark:text-amber-400">
-                ฿{formatBaht(dashboardData?.metrics?.remainingUnallocatedInflow)}
-              </p>
-              <p className="text-[10px] text-slate-400 font-medium">พร้อมตั้งโครงการใหม่</p>
-            </div>
+            <ExecutiveStatCard
+              label="เงินรับเข้ายังไม่จัดสรร"
+              value={`฿${formatBaht(dashboardData?.metrics?.remainingUnallocatedInflow)}`}
+              unit=""
+              subtitle="พร้อมตั้งโครงการใหม่"
+              icon={PieChart}
+              tone="warning"
+            />
           </div>
 
           {/* 4 Tranche Inflow Monitor */}
@@ -1017,17 +1001,7 @@ function BudgetAffairsContent() {
                         <span className="px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 text-[10px] font-bold text-slate-600 dark:text-slate-300">
                           งวดที่ {tranche.trancheNo}
                         </span>
-                        <span
-                          className={`px-2.5 py-1 rounded-xl text-[10px] font-bold ${
-                            tranche.status === "RECEIVED"
-                              ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
-                              : tranche.status === "PARTIAL"
-                              ? "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300"
-                              : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400"
-                          }`}
-                        >
-                          {tranche.status === "RECEIVED" ? "โอนเข้าครบแล้ว" : tranche.status === "PARTIAL" ? "โอนเข้าบางส่วน" : "รอยืนยันเงินเข้า"}
-                        </span>
+                        <StatusPillBadge status={tranche.status} />
                       </div>
 
                       <h3 className="font-extrabold text-sm text-slate-900 dark:text-white">{tranche.name}</h3>
@@ -1127,7 +1101,7 @@ function BudgetAffairsContent() {
 
               <button
                 onClick={() => setShowProjectModal(true)}
-                className="flex items-center gap-1.5 px-3.5 py-2 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm transition cursor-pointer"
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-sm shadow-indigo-600/20 transition cursor-pointer"
               >
                 <Plus className="w-3.5 h-3.5" />
                 สร้างโครงการ
@@ -1148,7 +1122,7 @@ function BudgetAffairsContent() {
                 </p>
                 <button
                   onClick={() => setShowProjectModal(true)}
-                  className="px-4 py-2 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs inline-flex items-center gap-2 cursor-pointer"
+                  className="px-4 py-2 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs inline-flex items-center gap-2 shadow-sm shadow-indigo-600/20 transition cursor-pointer"
                 >
                   <Plus className="w-4 h-4" /> สร้างโครงการใหม่
                 </button>
@@ -1239,7 +1213,7 @@ function BudgetAffairsContent() {
                         <div className="flex items-center gap-2">
                           <button
                             onClick={() => openActivityModal(project)}
-                            className="px-3.5 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm flex items-center gap-1.5 transition active:scale-95 cursor-pointer"
+                            className="px-3.5 py-2.5 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-sm shadow-indigo-600/20 flex items-center gap-1.5 transition active:scale-95 cursor-pointer"
                           >
                             <Plus className="w-3.5 h-3.5" /> เพิ่มกิจกรรม
                           </button>
@@ -1464,17 +1438,7 @@ function BudgetAffairsContent() {
                           ฿{formatBaht(exp.amount)}
                         </td>
                         <td className="p-3.5 text-center whitespace-nowrap">
-                          <span
-                            className={`px-2.5 py-1 rounded-xl text-[10px] font-bold ${
-                              exp.status === "APPROVED"
-                                ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
-                                : exp.status === "REVERSED"
-                                ? "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300"
-                                : "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300"
-                            }`}
-                          >
-                            {exp.status === "APPROVED" ? "อนุมัติแล้ว" : exp.status === "REVERSED" ? "ยกเลิกแล้ว" : "รอยืนยัน"}
-                          </span>
+                          <StatusPillBadge status={exp.status} />
                         </td>
                         <td className="p-3.5 text-center whitespace-nowrap">
                           {exp.status === "APPROVED" && (
@@ -1505,112 +1469,118 @@ function BudgetAffairsContent() {
       {/* ======================================================== */}
 
       {/* 1. Confirm Deposit Modal */}
-      {showDepositModal && selectedTrancheForDeposit && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 md:p-8 max-w-md w-full border border-slate-200 dark:border-slate-800 shadow-2xl space-y-5">
-            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
-              <h3 className="font-extrabold text-base text-slate-900 dark:text-white flex items-center gap-2">
-                <DollarSign className="w-5 h-5 text-emerald-600" />
-                ยืนยันเงินโอนเข้าบัญชีจริง
-              </h3>
-              <button onClick={() => setShowDepositModal(false)} className="p-1 text-slate-400 hover:text-slate-600 cursor-pointer">
-                <X className="w-5 h-5" />
+      <UnifiedModal
+        isOpen={Boolean(showDepositModal && selectedTrancheForDeposit)}
+        onClose={() => setShowDepositModal(false)}
+        size="md"
+      >
+        {selectedTrancheForDeposit && (
+          <form onSubmit={handleConfirmDeposit}>
+            <UnifiedModalHeader
+              title="ยืนยันเงินโอนเข้าบัญชีจริง"
+              subtitle={`${selectedTrancheForDeposit.name} (แผนจัดสรร ฿${formatBaht(selectedTrancheForDeposit.plannedAmount)})`}
+              icon={DollarSign}
+              iconClass="bg-emerald-50 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400"
+              onClose={() => setShowDepositModal(false)}
+            />
+
+            <UnifiedModalBody>
+              <div className="space-y-4 text-xs">
+                <div>
+                  <label className="font-bold text-slate-700 dark:text-slate-300">งวดเงินเป้าหมาย</label>
+                  <input
+                    type="text"
+                    disabled
+                    value={`${selectedTrancheForDeposit.name} (แผนจัดสรร ฿${formatBaht(selectedTrancheForDeposit.plannedAmount)})`}
+                    className="w-full mt-1 p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-semibold"
+                  />
+                </div>
+
+                <div>
+                  <label className="font-bold text-slate-700 dark:text-slate-300">จำนวนเงินที่โอนเข้าจริง (บาท) *</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    required
+                    placeholder="เช่น 420000"
+                    value={depositForm.amount}
+                    onChange={(e) => setDepositForm({ ...depositForm, amount: e.target.value })}
+                    className="w-full mt-1 p-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-bold"
+                  />
+                </div>
+
+                <div>
+                  <label className="font-bold text-slate-700 dark:text-slate-300">วันที่เงินเข้าบัญชี *</label>
+                  <input
+                    type="date"
+                    required
+                    value={depositForm.receivedDate}
+                    onChange={(e) => setDepositForm({ ...depositForm, receivedDate: e.target.value })}
+                    className="w-full mt-1 p-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="font-bold text-slate-700 dark:text-slate-300">เลขที่หนังสือ / หนังสือแจ้งจัดสรร</label>
+                  <input
+                    type="text"
+                    placeholder="เช่น ศธ 0400/1234"
+                    value={depositForm.documentRef}
+                    onChange={(e) => setDepositForm({ ...depositForm, documentRef: e.target.value })}
+                    className="w-full mt-1 p-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="font-bold text-slate-700 dark:text-slate-300">บันทึกเพิ่มเติม</label>
+                  <textarea
+                    rows={2}
+                    placeholder="บันทึกช่วยจำ..."
+                    value={depositForm.notes}
+                    onChange={(e) => setDepositForm({ ...depositForm, notes: e.target.value })}
+                    className="w-full mt-1 p-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white"
+                  />
+                </div>
+              </div>
+            </UnifiedModalBody>
+
+            <UnifiedModalFooter>
+              <button
+                type="button"
+                onClick={() => setShowDepositModal(false)}
+                className="px-4 py-2 rounded-xl text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold cursor-pointer"
+              >
+                ยกเลิก
               </button>
-            </div>
-
-            <form onSubmit={handleConfirmDeposit} className="space-y-4 text-xs">
-              <div>
-                <label className="font-bold text-slate-700 dark:text-slate-300">งวดเงินเป้าหมาย</label>
-                <input
-                  type="text"
-                  disabled
-                  value={`${selectedTrancheForDeposit.name} (แผนจัดสรร ฿${formatBaht(selectedTrancheForDeposit.plannedAmount)})`}
-                  className="w-full mt-1 p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-semibold"
-                />
-              </div>
-
-              <div>
-                <label className="font-bold text-slate-700 dark:text-slate-300">จำนวนเงินที่โอนเข้าจริง (บาท) *</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  required
-                  placeholder="เช่น 420000"
-                  value={depositForm.amount}
-                  onChange={(e) => setDepositForm({ ...depositForm, amount: e.target.value })}
-                  className="w-full mt-1 p-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-bold"
-                />
-              </div>
-
-              <div>
-                <label className="font-bold text-slate-700 dark:text-slate-300">วันที่เงินเข้าบัญชี *</label>
-                <input
-                  type="date"
-                  required
-                  value={depositForm.receivedDate}
-                  onChange={(e) => setDepositForm({ ...depositForm, receivedDate: e.target.value })}
-                  className="w-full mt-1 p-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white"
-                />
-              </div>
-
-              <div>
-                <label className="font-bold text-slate-700 dark:text-slate-300">เลขที่หนังสือ / หนังสือแจ้งจัดสรร</label>
-                <input
-                  type="text"
-                  placeholder="เช่น ศธ 0400/1234"
-                  value={depositForm.documentRef}
-                  onChange={(e) => setDepositForm({ ...depositForm, documentRef: e.target.value })}
-                  className="w-full mt-1 p-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white"
-                />
-              </div>
-
-              <div>
-                <label className="font-bold text-slate-700 dark:text-slate-300">บันทึกเพิ่มเติม</label>
-                <textarea
-                  rows={2}
-                  placeholder="บันทึกช่วยจำ..."
-                  value={depositForm.notes}
-                  onChange={(e) => setDepositForm({ ...depositForm, notes: e.target.value })}
-                  className="w-full mt-1 p-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white"
-                />
-              </div>
-
-              <div className="flex gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowDepositModal(false)}
-                  className="w-1/2 py-2.5 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold cursor-pointer"
-                >
-                  ยกเลิก
-                </button>
-                <button
-                  type="submit"
-                  disabled={isPending}
-                  className="w-1/2 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-md shadow-emerald-600/20 cursor-pointer"
-                >
-                  {isPending ? "กำลังบันทึก..." : "ยืนยันเงินเข้า"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+              <button
+                type="submit"
+                disabled={isPending}
+                className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md shadow-indigo-600/20 transition cursor-pointer disabled:opacity-50"
+              >
+                {isPending ? "กำลังบันทึก..." : "ยืนยันเงินเข้า"}
+              </button>
+            </UnifiedModalFooter>
+          </form>
+        )}
+      </UnifiedModal>
 
       {/* 2. Create Project Modal */}
-      {showProjectModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 md:p-8 max-w-lg w-full border border-slate-200 dark:border-slate-800 shadow-2xl space-y-5">
-            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
-              <h3 className="font-extrabold text-base text-slate-900 dark:text-white flex items-center gap-2">
-                <Plus className="w-5 h-5 text-emerald-600" />
-                สร้างแผนงานโครงการใหม่
-              </h3>
-              <button onClick={() => setShowProjectModal(false)} className="p-1 text-slate-400 hover:text-slate-600 cursor-pointer">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+      <UnifiedModal
+        isOpen={showProjectModal}
+        onClose={() => setShowProjectModal(false)}
+        size="lg"
+      >
+        <form onSubmit={handleCreateProject}>
+          <UnifiedModalHeader
+            title="สร้างแผนงานโครงการใหม่"
+            subtitle="กำหนดรหัสโครงการ วงเงิน และผู้รับผิดชอบ"
+            icon={Plus}
+            iconClass="bg-indigo-50 text-indigo-600 dark:bg-indigo-950/60 dark:text-indigo-400"
+            onClose={() => setShowProjectModal(false)}
+          />
 
-            <form onSubmit={handleCreateProject} className="space-y-4 text-xs">
+          <UnifiedModalBody>
+            <div className="space-y-4 text-xs">
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="font-bold text-slate-700 dark:text-slate-300">รหัสโครงการ *</label>
@@ -1698,185 +1668,181 @@ function BudgetAffairsContent() {
                   className="w-full mt-1 p-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white"
                 />
               </div>
+            </div>
+          </UnifiedModalBody>
 
-              <div className="flex gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowProjectModal(false)}
-                  className="w-1/2 py-2.5 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold cursor-pointer"
-                >
-                  ยกเลิก
-                </button>
-                <button
-                  type="submit"
-                  disabled={isPending}
-                  className="w-1/2 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-md shadow-emerald-600/20 cursor-pointer"
-                >
-                  {isPending ? "กำลังบันทึก..." : "สร้างโครงการ"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+          <UnifiedModalFooter>
+            <button
+              type="button"
+              onClick={() => setShowProjectModal(false)}
+              className="px-4 py-2 rounded-xl text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold cursor-pointer"
+            >
+              ยกเลิก
+            </button>
+            <button
+              type="submit"
+              disabled={isPending}
+              className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md shadow-indigo-600/20 transition cursor-pointer disabled:opacity-50"
+            >
+              {isPending ? "กำลังบันทึก..." : "สร้างโครงการ"}
+            </button>
+          </UnifiedModalFooter>
+        </form>
+      </UnifiedModal>
 
       {/* 3. Create Activity Modal */}
-      {showActivityModal && selectedProjectForActivity && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 md:p-8 max-w-lg w-full border border-slate-200 dark:border-slate-800 shadow-2xl space-y-5">
-            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
-              <div>
-                <h3 className="font-extrabold text-base text-slate-900 dark:text-white flex items-center gap-2">
-                  <Plus className="w-5 h-5 text-emerald-600" />
-                  เพิ่มกิจกรรมย่อย
-                </h3>
-                <p className="text-[11px] text-slate-400">โครงการ: {selectedProjectForActivity.name}</p>
-              </div>
-              <button onClick={() => setShowActivityModal(false)} className="p-1 text-slate-400 hover:text-slate-600 cursor-pointer">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+      <UnifiedModal
+        isOpen={Boolean(showActivityModal && selectedProjectForActivity)}
+        onClose={() => setShowActivityModal(false)}
+        size="lg"
+      >
+        {selectedProjectForActivity && (
+          <form onSubmit={handleCreateActivity}>
+            <UnifiedModalHeader
+              title="เพิ่มกิจกรรมย่อย"
+              subtitle={`โครงการ: ${selectedProjectForActivity.name}`}
+              icon={Plus}
+              iconClass="bg-indigo-50 text-indigo-600 dark:bg-indigo-950/60 dark:text-indigo-400"
+              onClose={() => setShowActivityModal(false)}
+            />
 
-            <form onSubmit={handleCreateActivity} className="space-y-4 text-xs">
-              <div className="grid grid-cols-4 gap-3">
-                <div className="col-span-1">
-                  <label className="font-bold text-slate-700 dark:text-slate-300">ลำดับที่</label>
-                  <input
-                    type="number"
-                    required
-                    value={activityForm.activityNo}
-                    onChange={(e) => setActivityForm({ ...activityForm, activityNo: parseInt(e.target.value) || 1 })}
-                    className="w-full mt-1 p-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-bold"
-                  />
-                </div>
-                <div className="col-span-3">
-                  <label className="font-bold text-slate-700 dark:text-slate-300">ชื่อกิจกรรม *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="เช่น กิจกรรมอบรมเชิงปฏิบัติการ AI ครู"
-                    value={activityForm.name}
-                    onChange={(e) => setActivityForm({ ...activityForm, name: e.target.value })}
-                    className="w-full mt-1 p-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-bold"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="font-bold text-slate-700 dark:text-slate-300">ผู้รับผิดชอบกิจกรรม</label>
-                  <select
-                    value={activityForm.responsibleUserId}
-                    onChange={(e) => setActivityForm({ ...activityForm, responsibleUserId: e.target.value })}
-                    className="w-full mt-1 p-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white cursor-pointer"
-                  >
-                    {users.map((u) => (
-                      <option key={u.id} value={u.id}>{u.name}</option>
-                    ))}
-                  </select>
+            <UnifiedModalBody>
+              <div className="space-y-4 text-xs">
+                <div className="grid grid-cols-4 gap-3">
+                  <div className="col-span-1">
+                    <label className="font-bold text-slate-700 dark:text-slate-300">ลำดับที่</label>
+                    <input
+                      type="number"
+                      required
+                      value={activityForm.activityNo}
+                      onChange={(e) => setActivityForm({ ...activityForm, activityNo: parseInt(e.target.value) || 1 })}
+                      className="w-full mt-1 p-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-bold"
+                    />
+                  </div>
+                  <div className="col-span-3">
+                    <label className="font-bold text-slate-700 dark:text-slate-300">ชื่อกิจกรรม *</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="เช่น กิจกรรมอบรมเชิงปฏิบัติการ AI ครู"
+                      value={activityForm.name}
+                      onChange={(e) => setActivityForm({ ...activityForm, name: e.target.value })}
+                      className="w-full mt-1 p-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-bold"
+                    />
+                  </div>
                 </div>
 
-                <div>
-                  <label className="font-bold text-slate-700 dark:text-slate-300">งบประมาณกิจกรรม (บาท) *</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    required
-                    placeholder="เช่น 20000"
-                    value={activityForm.allocatedAmount}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setActivityForm((prev) => {
-                        const updated = { ...prev, allocatedAmount: val };
-                        // If only 1 tranche has value, sync it
-                        if (prev.trancheAllocations.length > 0) {
-                          const nonZeros = prev.trancheAllocations.filter((t) => parseFloat(t.allocatedAmount) > 0);
-                          if (nonZeros.length <= 1) {
-                            updated.trancheAllocations = prev.trancheAllocations.map((t, idx) => ({
-                              ...t,
-                              allocatedAmount: idx === 0 ? val : "",
-                            }));
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="font-bold text-slate-700 dark:text-slate-300">ผู้รับผิดชอบกิจกรรม</label>
+                    <select
+                      value={activityForm.responsibleUserId}
+                      onChange={(e) => setActivityForm({ ...activityForm, responsibleUserId: e.target.value })}
+                      className="w-full mt-1 p-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white cursor-pointer"
+                    >
+                      {users.map((u) => (
+                        <option key={u.id} value={u.id}>{u.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="font-bold text-slate-700 dark:text-slate-300">งบประมาณกิจกรรม (บาท) *</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      required
+                      placeholder="เช่น 20000"
+                      value={activityForm.allocatedAmount}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setActivityForm((prev) => {
+                          const updated = { ...prev, allocatedAmount: val };
+                          if (prev.trancheAllocations.length > 0) {
+                            const nonZeros = prev.trancheAllocations.filter((t) => parseFloat(t.allocatedAmount) > 0);
+                            if (nonZeros.length <= 1) {
+                              updated.trancheAllocations = prev.trancheAllocations.map((t, idx) => ({
+                                ...t,
+                                allocatedAmount: idx === 0 ? val : "",
+                              }));
+                            }
                           }
-                        }
-                        return updated;
-                      });
-                    }}
-                    className="w-full mt-1 p-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-bold text-emerald-600"
-                  />
-                </div>
-              </div>
-
-              {/* Tranche Allocation Split */}
-              <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-800">
-                <div className="flex items-center justify-between">
-                  <label className="font-bold text-slate-700 dark:text-slate-300">จัดสรรลงงวดเงิน (70% / 30%) *</label>
-                  <span className="text-[10px] text-slate-400">ระบุยอดเงินที่ใช้ในแต่ละงวด</span>
+                          return updated;
+                        });
+                      }}
+                      className="w-full mt-1 p-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-bold text-emerald-600"
+                    />
+                  </div>
                 </div>
 
-                <div className="space-y-2">
-                  {activityForm.trancheAllocations.map((t, idx) => (
-                    <div key={t.budgetTrancheId} className="flex items-center gap-2">
-                      <span className="text-xs text-slate-600 dark:text-slate-400 w-1/2 truncate font-medium">
-                        {t.name || `งวดที่ ${idx + 1}`}
-                      </span>
-                      <input
-                        type="number"
-                        step="0.01"
-                        placeholder="0.00"
-                        value={t.allocatedAmount}
-                        onChange={(e) => {
-                          const updated = [...activityForm.trancheAllocations];
-                          updated[idx].allocatedAmount = e.target.value;
-                          setActivityForm({ ...activityForm, trancheAllocations: updated });
-                        }}
-                        className="w-1/2 p-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white text-right font-semibold"
-                      />
-                    </div>
-                  ))}
+                {/* Tranche Allocation Split */}
+                <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                  <div className="flex items-center justify-between">
+                    <label className="font-bold text-slate-700 dark:text-slate-300">จัดสรรลงงวดเงิน (70% / 30%) *</label>
+                    <span className="text-[10px] text-slate-400">ระบุยอดเงินที่ใช้ในแต่ละงวด</span>
+                  </div>
+
+                  <div className="space-y-2">
+                    {activityForm.trancheAllocations.map((t, idx) => (
+                      <div key={t.budgetTrancheId} className="flex items-center gap-2">
+                        <span className="text-xs text-slate-600 dark:text-slate-400 w-1/2 truncate font-medium">
+                          {t.name || `งวดที่ ${idx + 1}`}
+                        </span>
+                        <input
+                          type="number"
+                          step="0.01"
+                          placeholder="0.00"
+                          value={t.allocatedAmount}
+                          onChange={(e) => {
+                            const updated = [...activityForm.trancheAllocations];
+                            updated[idx].allocatedAmount = e.target.value;
+                            setActivityForm({ ...activityForm, trancheAllocations: updated });
+                          }}
+                          className="w-1/2 p-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white text-right font-semibold"
+                        />
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
+            </UnifiedModalBody>
 
-              <div className="flex gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowActivityModal(false)}
-                  className="w-1/2 py-2.5 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold cursor-pointer"
-                >
-                  ยกเลิก
-                </button>
-                <button
-                  type="submit"
-                  disabled={isPending}
-                  className="w-1/2 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-md shadow-emerald-600/20 cursor-pointer"
-                >
-                  {isPending ? "กำลังบันทึก..." : "เพิ่มกิจกรรม"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+            <UnifiedModalFooter>
+              <button
+                type="button"
+                onClick={() => setShowActivityModal(false)}
+                className="px-4 py-2 rounded-xl text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold cursor-pointer"
+              >
+                ยกเลิก
+              </button>
+              <button
+                type="submit"
+                disabled={isPending}
+                className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md shadow-indigo-600/20 transition cursor-pointer disabled:opacity-50"
+              >
+                {isPending ? "กำลังบันทึก..." : "เพิ่มกิจกรรม"}
+              </button>
+            </UnifiedModalFooter>
+          </form>
+        )}
+      </UnifiedModal>
 
       {/* 4. Record Expense Modal (Simplified Project & Activity Selector + Smart Tranche Allocation) */}
-      {showExpenseModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 md:p-8 max-w-md w-full border border-slate-200 dark:border-slate-800 shadow-2xl space-y-5">
-            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
-              <div>
-                <h3 className="font-extrabold text-base text-slate-900 dark:text-white flex items-center gap-2">
-                  <Receipt className="w-5 h-5 text-amber-500" />
-                  บันทึกรายการเบิกจ่ายเงิน
-                </h3>
-                <p className="text-[11px] text-slate-400">
-                  {dashboardData?.fiscalYear?.title} • ตัดจ่ายงบประมาณโครงการและกิจกรรม
-                </p>
-              </div>
-              <button onClick={() => setShowExpenseModal(false)} className="p-1 text-slate-400 hover:text-slate-600 cursor-pointer">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+      <UnifiedModal
+        isOpen={showExpenseModal}
+        onClose={() => setShowExpenseModal(false)}
+        size="md"
+      >
+        {showExpenseModal && (
+          <form onSubmit={handleRecordExpense}>
+            <UnifiedModalHeader
+              title="บันทึกรายการเบิกจ่ายเงิน"
+              subtitle={`${dashboardData?.fiscalYear?.title} • ตัดจ่ายงบประมาณโครงการและกิจกรรม`}
+              icon={Receipt}
+              onClose={() => setShowExpenseModal(false)}
+            />
 
-            <form onSubmit={handleRecordExpense} className="space-y-4 text-xs">
+            <UnifiedModalBody className="space-y-4 text-xs">
               {/* Project Selection */}
               <div>
                 <label className="font-bold text-slate-700 dark:text-slate-300">โครงการเป้าหมาย *</label>
@@ -2064,51 +2030,44 @@ function BudgetAffairsContent() {
                   />
                 </div>
               </div>
+            </UnifiedModalBody>
 
-              <div className="flex gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowExpenseModal(false)}
-                  className="w-1/2 py-2.5 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold cursor-pointer"
-                >
-                  ยกเลิก
-                </button>
-                <button
-                  type="submit"
-                  disabled={isPending}
-                  className="w-1/2 py-2.5 rounded-2xl bg-amber-500 hover:bg-amber-600 text-white font-bold shadow-md shadow-amber-500/20 cursor-pointer"
-                >
-                  {isPending ? "กำลังบันทึก..." : "บันทึกการเบิกจ่าย"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+            <UnifiedModalFooter>
+              <button
+                type="button"
+                onClick={() => setShowExpenseModal(false)}
+                className="px-4 py-2 rounded-xl text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold cursor-pointer"
+              >
+                ยกเลิก
+              </button>
+              <button
+                type="submit"
+                disabled={isPending}
+                className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md shadow-indigo-600/20 transition cursor-pointer disabled:opacity-50"
+              >
+                {isPending ? "กำลังบันทึก..." : "บันทึกการเบิกจ่าย"}
+              </button>
+            </UnifiedModalFooter>
+          </form>
+        )}
+      </UnifiedModal>
 
       {/* 5. Batch Project Clone Modal */}
-      {showCloneModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 md:p-8 max-w-2xl w-full border border-slate-200 dark:border-slate-800 shadow-2xl space-y-5 max-h-[90vh] flex flex-col">
-            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
-              <div>
-                <h3 className="font-extrabold text-base text-slate-900 dark:text-white flex items-center gap-2">
-                  <Copy className="w-5 h-5 text-indigo-600" />
-                  คัดลอกโครงการและกิจกรรมจากปีก่อนหน้า
-                </h3>
-                <p className="text-[11px] text-slate-400">
-                  โคลนโครงสร้างโครงการ กิจกรรม และการจัดสรรงวดเงินมายัง {dashboardData?.fiscalYear?.title}
-                </p>
-              </div>
-              <button
-                onClick={() => setShowCloneModal(false)}
-                className="p-1 text-slate-400 hover:text-slate-600 cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+      <UnifiedModal
+        isOpen={showCloneModal}
+        onClose={() => setShowCloneModal(false)}
+        size="2xl"
+      >
+        {showCloneModal && (
+          <form onSubmit={handleCloneProjects} className="flex flex-col max-h-[85vh]">
+            <UnifiedModalHeader
+              title="คัดลอกโครงการและกิจกรรมจากปีก่อนหน้า"
+              subtitle={`โคลนโครงสร้างโครงการ กิจกรรม และการจัดสรรงวดเงินมายัง ${dashboardData?.fiscalYear?.title}`}
+              icon={Copy}
+              onClose={() => setShowCloneModal(false)}
+            />
 
-            <form onSubmit={handleCloneProjects} className="space-y-4 text-xs flex-1 flex flex-col overflow-hidden">
+            <UnifiedModalBody className="space-y-4 text-xs overflow-y-auto">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div>
                   <label className="font-bold text-slate-700 dark:text-slate-300">คัดลอกจากปีงบประมาณ *</label>
@@ -2182,7 +2141,7 @@ function BudgetAffairsContent() {
                   </div>
                 </div>
 
-                <div className="flex-1 overflow-y-auto border border-slate-200 dark:border-slate-700 rounded-2xl divide-y divide-slate-100 dark:divide-slate-800 p-1">
+                <div className="max-h-60 overflow-y-auto border border-slate-200 dark:border-slate-700 rounded-2xl divide-y divide-slate-100 dark:divide-slate-800 p-1">
                   {loadingSourceProjects ? (
                     <div className="p-8 text-center text-slate-400">กำลังโหลดรายการโครงการ...</div>
                   ) : cloneSourceProjects.length === 0 ? (
@@ -2230,49 +2189,45 @@ function BudgetAffairsContent() {
                   )}
                 </div>
               </div>
+            </UnifiedModalBody>
 
-              <div className="flex gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
-                <button
-                  type="button"
-                  onClick={() => setShowCloneModal(false)}
-                  className="w-1/3 py-2.5 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold cursor-pointer"
-                >
-                  ยกเลิก
-                </button>
-                <button
-                  type="submit"
-                  disabled={isPending || selectedProjectIdsForClone.length === 0}
-                  className="w-2/3 py-2.5 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold shadow-md shadow-indigo-600/20 cursor-pointer disabled:opacity-50"
-                >
-                  {isPending ? "กำลังคัดลอก..." : `คัดลอก ${selectedProjectIdsForClone.length} โครงการ`}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+            <UnifiedModalFooter>
+              <button
+                type="button"
+                onClick={() => setShowCloneModal(false)}
+                className="px-4 py-2 rounded-xl text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold cursor-pointer"
+              >
+                ยกเลิก
+              </button>
+              <button
+                type="submit"
+                disabled={isPending || selectedProjectIdsForClone.length === 0}
+                className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md shadow-indigo-600/20 transition cursor-pointer disabled:opacity-50"
+              >
+                {isPending ? "กำลังคัดลอก..." : `คัดลอก ${selectedProjectIdsForClone.length} โครงการ`}
+              </button>
+            </UnifiedModalFooter>
+          </form>
+        )}
+      </UnifiedModal>
 
       {/* 6. Close Fiscal Year Confirmation Modal */}
-      {showCloseFyModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 md:p-8 max-w-md w-full border border-slate-200 dark:border-slate-800 shadow-2xl space-y-5">
-            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
-              <div>
-                <h3 className="font-extrabold text-base text-rose-600 flex items-center gap-2">
-                  <Lock className="w-5 h-5" />
-                  ยืนยันการปิดรอบปีงบประมาณ
-                </h3>
-                <p className="text-[11px] text-slate-400">{dashboardData?.fiscalYear?.title}</p>
-              </div>
-              <button
-                onClick={() => setShowCloseFyModal(false)}
-                className="p-1 text-slate-400 hover:text-slate-600 cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+      {/* 6. Close Fiscal Year Confirmation Modal */}
+      <UnifiedModal
+        isOpen={showCloseFyModal}
+        onClose={() => setShowCloseFyModal(false)}
+        size="md"
+      >
+        {showCloseFyModal && (
+          <div>
+            <UnifiedModalHeader
+              title="ยืนยันการปิดรอบปีงบประมาณ"
+              subtitle={dashboardData?.fiscalYear?.title}
+              icon={Lock}
+              onClose={() => setShowCloseFyModal(false)}
+            />
 
-            <div className="space-y-3 text-xs">
+            <UnifiedModalBody className="space-y-3 text-xs">
               <div className="p-3.5 bg-rose-50 dark:bg-rose-950/40 rounded-2xl border border-rose-200 dark:border-rose-900 text-rose-800 dark:text-rose-300 space-y-1.5">
                 <p className="font-bold flex items-center gap-1.5">
                   <AlertTriangle className="w-4 h-4 flex-shrink-0" />
@@ -2301,13 +2256,13 @@ function BudgetAffairsContent() {
                   <span className="text-emerald-700 dark:text-emerald-400">฿{formatBaht(dashboardData?.metrics?.netLiquidity)}</span>
                 </div>
               </div>
-            </div>
+            </UnifiedModalBody>
 
-            <div className="flex gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+            <UnifiedModalFooter>
               <button
                 type="button"
                 onClick={() => setShowCloseFyModal(false)}
-                className="w-1/2 py-2.5 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold cursor-pointer"
+                className="px-4 py-2 rounded-xl text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold cursor-pointer"
               >
                 ยกเลิก
               </button>
@@ -2315,31 +2270,31 @@ function BudgetAffairsContent() {
                 type="button"
                 onClick={handleCloseFiscalYear}
                 disabled={isPending}
-                className="w-1/2 py-2.5 rounded-2xl bg-rose-600 hover:bg-rose-700 text-white font-bold shadow-md shadow-rose-600/20 cursor-pointer disabled:opacity-50"
+                className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-md shadow-rose-600/20 transition cursor-pointer disabled:opacity-50"
               >
                 {isPending ? "กำลังปิดรอบ..." : "ยืนยันปิดรอบปีงบ"}
               </button>
-            </div>
+            </UnifiedModalFooter>
           </div>
-        </div>
-      )}
+        )}
+      </UnifiedModal>
 
+      {/* 7. Reverse Expense Modal */}
+      <UnifiedModal
+        isOpen={Boolean(showReverseModal && selectedExpenseForReversal)}
+        onClose={() => setShowReverseModal(false)}
+        size="md"
+      >
+        {showReverseModal && selectedExpenseForReversal && (
+          <form onSubmit={handleReverseExpense}>
+            <UnifiedModalHeader
+              title="ขอยกเลิกรายการเบิกจ่าย"
+              subtitle={selectedExpenseForReversal?.projectName}
+              icon={RotateCcw}
+              onClose={() => setShowReverseModal(false)}
+            />
 
-      {/* 5. Reverse Expense Modal */}
-      {showReverseModal && selectedExpenseForReversal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 md:p-8 max-w-md w-full border border-slate-200 dark:border-slate-800 shadow-2xl space-y-5">
-            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
-              <h3 className="font-extrabold text-base text-slate-900 dark:text-white flex items-center gap-2 text-rose-600">
-                <RotateCcw className="w-5 h-5" />
-                ขอยกเลิกรายการเบิกจ่าย
-              </h3>
-              <button onClick={() => setShowReverseModal(false)} className="p-1 text-slate-400 hover:text-slate-600 cursor-pointer">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleReverseExpense} className="space-y-4 text-xs">
+            <UnifiedModalBody className="space-y-4 text-xs">
               <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-2xl space-y-1">
                 <p className="font-bold text-slate-800 dark:text-slate-200">{selectedExpenseForReversal.title}</p>
                 <p className="text-slate-500">
@@ -2361,64 +2316,72 @@ function BudgetAffairsContent() {
                   className="w-full mt-1 p-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white"
                 />
               </div>
+            </UnifiedModalBody>
 
-              <div className="flex gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowReverseModal(false)}
-                  className="w-1/2 py-2.5 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold cursor-pointer"
-                >
-                  ปิด
-                </button>
-                <button
-                  type="submit"
-                  disabled={isPending}
-                  className="w-1/2 py-2.5 rounded-2xl bg-rose-600 hover:bg-rose-700 text-white font-bold shadow-md shadow-rose-600/20 cursor-pointer"
-                >
-                  {isPending ? "กำลังดำเนินการ..." : "ยืนยันยกเลิกและคืนยอด"}
-                </button>
+            <UnifiedModalFooter>
+              <button
+                type="button"
+                onClick={() => setShowReverseModal(false)}
+                className="px-4 py-2 rounded-xl text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold cursor-pointer"
+              >
+                ปิด
+              </button>
+              <button
+                type="submit"
+                disabled={isPending}
+                className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-md shadow-rose-600/20 transition cursor-pointer"
+              >
+                {isPending ? "กำลังดำเนินการ..." : "ยืนยันยกเลิกและคืนยอด"}
+              </button>
+            </UnifiedModalFooter>
+          </form>
+        )}
+      </UnifiedModal>
+
+      {/* 8. Attach Link Modal */}
+      <UnifiedModal
+        isOpen={Boolean(showAttachModal && selectedProjectForAttach)}
+        onClose={() => setShowAttachModal(false)}
+        size="md"
+      >
+        {showAttachModal && selectedProjectForAttach && (
+          <div>
+            <UnifiedModalHeader
+              title="แนบลิงก์เอกสารโครงการ"
+              subtitle={selectedProjectForAttach.name}
+              icon={Paperclip}
+              onClose={() => setShowAttachModal(false)}
+            />
+
+            <UnifiedModalBody className="space-y-4 text-xs">
+              <div>
+                <label className="font-bold text-slate-700 dark:text-slate-300">ชื่อเอกสาร</label>
+                <input
+                  type="text"
+                  placeholder="เช่น เล่มโครงการฉบับอนุมัติ"
+                  value={attachForm.originalFileName}
+                  onChange={(e) => setAttachForm({ ...attachForm, originalFileName: e.target.value })}
+                  className="w-full mt-1 p-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white"
+                />
               </div>
-            </form>
-          </div>
-        </div>
-      )}
 
-      {/* 6. Attach Link Modal */}
-      {showAttachModal && selectedProjectForAttach && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 max-w-md w-full border border-slate-200 dark:border-slate-800 shadow-2xl space-y-4 text-xs">
-            <h3 className="font-extrabold text-sm text-slate-900 dark:text-white flex items-center gap-2">
-              <Paperclip className="w-4 h-4 text-emerald-600" />
-              แนบลิงก์เอกสารโครงการ
-            </h3>
+              <div>
+                <label className="font-bold text-slate-700 dark:text-slate-300">URL ลิงก์ (Google Drive / Cloud)</label>
+                <input
+                  type="url"
+                  placeholder="https://drive.google.com/..."
+                  value={attachForm.objectKey}
+                  onChange={(e) => setAttachForm({ ...attachForm, objectKey: e.target.value })}
+                  className="w-full mt-1 p-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white"
+                />
+              </div>
+            </UnifiedModalBody>
 
-            <div>
-              <label className="font-bold text-slate-700 dark:text-slate-300">ชื่อเอกสาร</label>
-              <input
-                type="text"
-                placeholder="เช่น เล่มโครงการฉบับอนุมัติ"
-                value={attachForm.originalFileName}
-                onChange={(e) => setAttachForm({ ...attachForm, originalFileName: e.target.value })}
-                className="w-full mt-1 p-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white"
-              />
-            </div>
-
-            <div>
-              <label className="font-bold text-slate-700 dark:text-slate-300">URL ลิงก์ (Google Drive / Cloud)</label>
-              <input
-                type="url"
-                placeholder="https://drive.google.com/..."
-                value={attachForm.objectKey}
-                onChange={(e) => setAttachForm({ ...attachForm, objectKey: e.target.value })}
-                className="w-full mt-1 p-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white"
-              />
-            </div>
-
-            <div className="flex gap-2 pt-2">
+            <UnifiedModalFooter>
               <button
                 type="button"
                 onClick={() => setShowAttachModal(false)}
-                className="w-1/2 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 font-bold cursor-pointer"
+                className="px-4 py-2 rounded-xl text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold cursor-pointer"
               >
                 ยกเลิก
               </button>
@@ -2435,14 +2398,14 @@ function BudgetAffairsContent() {
                   setShowAttachModal(false);
                   await refreshDashboard();
                 }}
-                className="w-1/2 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold cursor-pointer"
+                className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md shadow-indigo-600/20 transition cursor-pointer"
               >
                 บันทึกลิงก์
               </button>
-            </div>
+            </UnifiedModalFooter>
           </div>
-        </div>
-      )}
+        )}
+      </UnifiedModal>
     </div>
   );
 }

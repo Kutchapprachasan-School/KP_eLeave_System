@@ -30,6 +30,7 @@ test('Design System Tokens - resolveStatusTone maps all canonical statuses corre
   assert.equal(resolveStatusTone('WAITING_TEACHER_ACK'), 'warning');
   assert.equal(resolveStatusTone('WAITING_DIRECTOR_SIGN'), 'warning');
   assert.equal(resolveStatusTone('SUBMITTED'), 'warning');
+  assert.equal(resolveStatusTone('PARTIAL'), 'warning');
 
   // Success / Approved / Completed
   assert.equal(resolveStatusTone('APPROVED'), 'success');
@@ -39,6 +40,7 @@ test('Design System Tokens - resolveStatusTone maps all canonical statuses corre
   assert.equal(resolveStatusTone('VALID'), 'success');
   assert.equal(resolveStatusTone('AVAILABLE'), 'success');
   assert.equal(resolveStatusTone('DONE'), 'success');
+  assert.equal(resolveStatusTone('RECEIVED'), 'success');
 
   // Danger / Terminated
   assert.equal(resolveStatusTone('REJECTED'), 'danger');
