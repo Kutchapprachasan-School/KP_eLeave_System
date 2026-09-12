@@ -314,7 +314,7 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
     return [
       {
         fullName: "นายสมศักดิ์ รักเรียน",
-        certNumber: "กจ. 001/2569",
+        certNumber: "001/2569",
         role: "รางวัลชนะเลิศ การแข่งขันโครงงานวิทยาศาสตร์",
         activityName: "สัปดาห์วิทยาศาสตร์ ประจำปีการศึกษา ๒๕๖๙",
         department: "โรงเรียนกุดจับประชาสรรค์",
@@ -441,7 +441,14 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
     activeBgImageRef.current = null;
 
     if (tmpl.layoutConfig && tmpl.layoutConfig.elements) {
-      setElements(tmpl.layoutConfig.elements);
+      // Sanitize legacy elements that might have hardcoded "กจ. " in sampleText
+      const sanitizedElements = tmpl.layoutConfig.elements.map((el: CertificateElement) => {
+        if (el.key === "certNumber" && el.sampleText && el.sampleText.startsWith("กจ. ")) {
+          return { ...el, sampleText: el.sampleText.replace(/^กจ\.\s*/, "") };
+        }
+        return el;
+      });
+      setElements(sanitizedElements);
       setUndoStack([]);
       setRedoStack([]);
     }
@@ -1839,7 +1846,7 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
                     <button
                       onClick={() => {
                         const sampleRows = [
-                          { "ชื่อ-นามสกุล": "นายสมศักดิ์ รักเรียน", "เลขที่เกียรติบัตร": "กจ. 001/2569", "บทบาท/รางวัล": "รางวัลชนะเลิศ", "ชื่อกิจกรรม": "สัปดาห์วิทยาศาสตร์", "หน่วยงาน": "โรงเรียนกุดจับประชาสรรค์", "วันที่": "๑๑ กันยายน พ.ศ. ๒๕๖๙" },
+                          { "ชื่อ-นามสกุล": "นายสมศักดิ์ รักเรียน", "เลขที่เกียรติบัตร": "001/2569", "บทบาท/รางวัล": "รางวัลชนะเลิศ", "ชื่อกิจกรรม": "สัปดาห์วิทยาศาสตร์", "หน่วยงาน": "โรงเรียนกุดจับประชาสรรค์", "วันที่": "๑๑ กันยายน พ.ศ. ๒๕๖๙" },
                         ];
                         const ws = XLSX.utils.json_to_sheet(sanitizeForExport(sampleRows));
                         const wb = XLSX.utils.book_new();

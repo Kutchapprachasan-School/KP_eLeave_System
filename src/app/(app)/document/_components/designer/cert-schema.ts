@@ -285,7 +285,7 @@ export const ELEMENT_PRESETS: ElementPresetItem[] = [
       color: "#64748b",
       textAlign: "right",
       prefix: "เลขที่ ",
-      sampleText: "กจ. 001/2569",
+      sampleText: "001/2569",
     },
   },
   {
@@ -525,7 +525,7 @@ export const DEFAULT_CERTIFICATE_ELEMENTS: CertificateElement[] = [
     color: "#64748b",
     textAlign: "center",
     prefix: "เลขที่ ",
-    sampleText: "กจ. 001/2569",
+    sampleText: "001/2569",
   },
   {
     id: "el_name",

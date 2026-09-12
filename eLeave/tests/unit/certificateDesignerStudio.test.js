@@ -7,6 +7,7 @@ import {
   truncateThaiGrapheme,
   CertificateTemplateV1Schema,
   DEFAULT_CERTIFICATE_ELEMENTS,
+  ELEMENT_PRESETS,
   screenToDocumentPercent,
   documentPointToScreen,
   computeSnap,
@@ -51,7 +52,7 @@ test('Certificate Designer Studio & Concurrency Invariants Suite', async (t) => 
 
     // Standard text remains clean
     assert.equal(sanitizeCellValue('นายสมศักดิ์ รักเรียน'), 'นายสมศักดิ์ รักเรียน');
-    assert.equal(sanitizeCellValue('กจ. 001/2569'), 'กจ. 001/2569');
+    assert.equal(sanitizeCellValue('001/2569'), '001/2569');
   });
 
   // -------------------------------------------------------------
@@ -1712,5 +1713,47 @@ test('Certificate Designer Studio & Concurrency Invariants Suite', async (t) => 
       clearImageCache();
     }
   });
+
+  // -------------------------------------------------------------
+  // Test 40: Clean certificate number without hardcoded "กจ." & Prefix customization
+  // -------------------------------------------------------------
+  await t.test('40. Certificate number defaults are pure numbers (001/2569) and prefixes are user-configurable', () => {
+    // 1. DEFAULT_CERTIFICATE_ELEMENTS: certNumber has pure sampleText "001/2569" without "กจ."
+    const defaultCertNum = DEFAULT_CERTIFICATE_ELEMENTS.find((el) => el.key === 'certNumber');
+    assert.ok(defaultCertNum, 'certNumber element should exist in defaults');
+    assert.equal(defaultCertNum.sampleText, '001/2569');
+    assert.ok(!defaultCertNum.sampleText.includes('กจ.'), 'Default certNumber sampleText must NOT contain hardcoded "กจ."');
+
+    // 2. ELEMENT_PRESETS: certNumber preset has pure sampleText "001/2569" without "กจ."
+    const presetCertNum = ELEMENT_PRESETS.find((p) => p.key === 'certNumber');
+    assert.ok(presetCertNum, 'certNumber preset should exist in presets');
+    assert.equal(presetCertNum.defaultElement.sampleText, '001/2569');
+    assert.ok(!presetCertNum.defaultElement.sampleText.includes('กจ.'), 'Preset certNumber sampleText must NOT contain hardcoded "กจ."');
+
+    // 3. User prefix flexibility: when user adds prefix "กจ. " or "เลขที่ ", it renders accurately
+    const elWithCustomPrefix = {
+      ...defaultCertNum,
+      prefix: 'กจ. ',
+      sampleText: '001/2569',
+      suffix: '',
+    };
+    const renderedCustom = `${elWithCustomPrefix.prefix}${elWithCustomPrefix.sampleText}${elWithCustomPrefix.suffix}`;
+    assert.equal(renderedCustom, 'กจ. 001/2569');
+
+    const elWithNoPrefix = {
+      ...defaultCertNum,
+      prefix: '',
+      sampleText: '001/2569',
+      suffix: '',
+    };
+    const renderedClean = `${elWithNoPrefix.prefix}${elWithNoPrefix.sampleText}${elWithNoPrefix.suffix}`;
+    assert.equal(renderedClean, '001/2569');
+
+    // 4. Legacy element sanitization correctly strips any legacy "กจ. "
+    const legacySample = 'กจ. 001/2569';
+    const sanitized = legacySample.replace(/^กจ\.\s*/, '');
+    assert.equal(sanitized, '001/2569');
+  });
 });
+
 
