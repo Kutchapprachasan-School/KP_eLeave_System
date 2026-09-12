@@ -690,11 +690,6 @@ export default function UnifiedFacilityPortalPage() {
             </>
           )}
         </div>
-                จัดการทรัพยากร (CRUD)
-              </button>
-            </>
-          )}
-        </div>
 
         {/* Search */}
         <div className="relative min-w-[220px]">
