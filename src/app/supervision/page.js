@@ -4,6 +4,31 @@ export const dynamic = 'force-dynamic';
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { getSystemSettings } from "@/app/actions/settings";
+import {
+  BookOpen,
+  Plus,
+  ClipboardList,
+  CheckCircle2,
+  Clock,
+  Video,
+  Star,
+  Calendar,
+  Search,
+  ExternalLink,
+  Users,
+  Check,
+  PenTool,
+} from "lucide-react";
+import {
+  SubsystemHeader,
+  ExecutiveStatCard,
+  StatusPillBadge,
+  UnifiedModal,
+  UnifiedModalHeader,
+  UnifiedModalBody,
+  UnifiedModalFooter,
+  MatrixShell,
+} from "@/components/shared-ui/school-ops";
 
 // Mock Initial Supervision Dataset
 const initialSessions = [
@@ -282,97 +307,96 @@ export default function AcademicSupervisionApp() {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 p-4 md:p-8 space-y-6 text-slate-900 dark:text-slate-100">
-      {/* 🟢 Top Minimal Page Header (Matching App Theme) */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2 border-b border-slate-200 dark:border-slate-800">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
-            📖 นิเทศการสอนออนไลน์ (Instructional Supervision)
-          </h1>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-            ปฏิทินนิเทศและแบบประเมินการจัดการเรียนรู้รายสัปดาห์
-          </p>
-        </div>
+      {/* 🟢 Subsystem Header */}
+      <SubsystemHeader
+        subsystem="supervision"
+        badgeText="งานวิชาการและนิเทศการสอน"
+        title="นิเทศการสอนออนไลน์ (Instructional Supervision)"
+        subtitle="ปฏิทินนิเทศและแบบประเมินการจัดการเรียนรู้รายสัปดาห์ (วPA)"
+        icon={BookOpen}
+        action={
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Role Switcher */}
+            <div className="flex items-center gap-2 bg-white dark:bg-slate-900 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs">
+              <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">มุมมองบทบาท:</span>
+              <select 
+                value={userRole} 
+                onChange={(e) => setUserRole(e.target.value)}
+                className="bg-transparent text-xs font-bold text-indigo-600 dark:text-indigo-400 focus:outline-none cursor-pointer"
+              >
+                <option value="SUPERVISOR">ผู้นิเทศ (Supervisor)</option>
+                <option value="TEACHER">ครูผู้รับการนิเทศ (Teacher)</option>
+                <option value="DIRECTOR">ผู้อำนวยการ (Director)</option>
+              </select>
+            </div>
 
-        <div className="flex flex-wrap items-center gap-3">
-          {/* Role Switcher */}
-          <div className="flex items-center gap-2 bg-white dark:bg-slate-900 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs">
-            <span className="text-xs font-semibold text-slate-500">มุมมองบทบาท:</span>
-            <select 
-              value={userRole} 
-              onChange={(e) => setUserRole(e.target.value)}
-              className="bg-transparent text-xs font-bold text-purple-600 dark:text-purple-400 focus:outline-none cursor-pointer"
+            <button 
+              onClick={() => setShowScheduleModal(true)}
+              className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md shadow-indigo-600/20 transition cursor-pointer"
             >
-              <option value="SUPERVISOR">👨‍🏫 ผู้นิเทศ (Supervisor)</option>
-              <option value="TEACHER">👩‍🏫 ครูผู้รับการนิเทศ (Teacher)</option>
-              <option value="DIRECTOR">👑 ผู้อำนวยการ (Director)</option>
-            </select>
+              <Plus className="w-4 h-4" />
+              <span>ส่งนัดหมายนิเทศใหม่</span>
+            </button>
           </div>
-
-          <button 
-            onClick={() => setShowScheduleModal(true)}
-            className="bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-md flex items-center gap-1.5 transition"
-          >
-            <span>+</span> ส่งนัดหมายนิเทศใหม่
-          </button>
-        </div>
-      </div>
+        }
+      />
 
       {/* 1. Subsystem KPI Executive Cards */}
-      <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm space-y-1">
-          <div className="flex items-center justify-between text-xs text-slate-500 font-semibold">
-            <span>นิเทศทั้งหมด</span>
-            <span>📋</span>
-          </div>
-          <div className="text-2xl font-black text-slate-900 dark:text-white">{metrics.total} <span className="text-xs font-normal text-slate-400">คาบ</span></div>
-          <div className="text-[11px] text-purple-600 font-semibold">เป้าหมายขั้นต่ำ: {settingsMinPerTerm} ครั้ง/คน/เทอม</div>
-        </div>
+      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        <ExecutiveStatCard
+          label="นิเทศทั้งหมด"
+          value={metrics.total}
+          unit="คาบ"
+          subtitle={`เป้าหมายขั้นต่ำ: ${settingsMinPerTerm} ครั้ง/คน/เทอม`}
+          icon={ClipboardList}
+          tone="neutral"
+        />
 
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm space-y-1">
-          <div className="flex items-center justify-between text-xs text-slate-500 font-semibold">
-            <span>เสร็จสิ้นสมบูรณ์</span>
-            <span>✅</span>
-          </div>
-          <div className="text-2xl font-black text-emerald-600">{metrics.completed} <span className="text-xs font-normal text-slate-400">คาบ</span></div>
-          <div className="text-[11px] text-emerald-500 font-medium">ผอ. ลงนามรับทราบแล้ว</div>
-        </div>
+        <ExecutiveStatCard
+          label="เสร็จสิ้นสมบูรณ์"
+          value={metrics.completed}
+          unit="คาบ"
+          subtitle="ผอ. ลงนามรับทราบแล้ว"
+          icon={CheckCircle2}
+          tone="success"
+        />
 
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm space-y-1">
-          <div className="flex items-center justify-between text-xs text-slate-500 font-semibold">
-            <span>รอครูรับทราบผล</span>
-            <span>⏳</span>
-          </div>
-          <div className="text-2xl font-black text-amber-600">{metrics.pendingAck} <span className="text-xs font-normal text-slate-400">คาบ</span></div>
-          <div className="text-[11px] text-amber-500 font-medium">รอสะท้อนคิด (Reflection)</div>
-        </div>
+        <ExecutiveStatCard
+          label="รอครูรับทราบผล"
+          value={metrics.pendingAck}
+          unit="คาบ"
+          subtitle="รอสะท้อนคิด (Reflection)"
+          icon={Clock}
+          tone="warning"
+        />
 
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm space-y-1">
-          <div className="flex items-center justify-between text-xs text-slate-500 font-semibold">
-            <span>นิเทศออนไลน์ (คลิป)</span>
-            <span>🎥</span>
-          </div>
-          <div className="text-2xl font-black text-cyan-600">{metrics.onlineCount} <span className="text-xs font-normal text-slate-400">คาบ</span></div>
-          <div className="text-[11px] text-cyan-500 font-medium">คลิปวิดีโอ YouTube/Drive</div>
-        </div>
+        <ExecutiveStatCard
+          label="นิเทศออนไลน์ (คลิป)"
+          value={metrics.onlineCount}
+          unit="คาบ"
+          subtitle="คลิปวิดีโอ YouTube/Drive"
+          icon={Video}
+          tone="info"
+        />
 
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm space-y-1">
-          <div className="flex items-center justify-between text-xs text-slate-500 font-semibold">
-            <span>คะแนนเฉลี่ยการสอน</span>
-            <span>⭐</span>
-          </div>
-          <div className="text-2xl font-black text-purple-600 dark:text-purple-400">{metrics.avgScore} <span className="text-xs font-normal text-slate-400">/ 5.00</span></div>
-          <div className="text-[11px] text-indigo-500 font-medium">เกณฑ์คุณภาพดีเยี่ยม</div>
-        </div>
+        <ExecutiveStatCard
+          label="คะแนนเฉลี่ยการสอน"
+          value={metrics.avgScore}
+          unit="/ 5.00"
+          subtitle="เกณฑ์คุณภาพดีเยี่ยม"
+          icon={Star}
+          tone="indigo"
+        />
       </section>
 
       {/* 2. Control Toolbar & Filtering */}
       <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 flex flex-col md:flex-row items-center justify-between gap-4 shadow-sm">
-        <div className="flex items-center gap-3 w-full md:w-auto">
+        <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
           {/* Department Filter */}
           <select 
             value={departmentFilter} 
             onChange={(e) => setDepartmentFilter(e.target.value)}
-            className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs rounded-xl px-3 py-2 font-semibold focus:ring-2 focus:ring-purple-500 border-none"
+            className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs rounded-xl px-3 py-2 font-semibold focus:ring-2 focus:ring-indigo-500 border border-slate-200 dark:border-slate-700 cursor-pointer"
           >
             <option value="ALL">ทุกกลุ่มสาระการเรียนรู้</option>
             <option value="วิทยาศาสตร์และเทคโนโลยี">วิทยาศาสตร์และเทคโนโลยี</option>
@@ -381,44 +405,42 @@ export default function AcademicSupervisionApp() {
           </select>
 
           {/* Search Input */}
-          <div className="relative flex-1 md:w-64">
+          <div className="relative flex-1 md:w-72">
             <input 
               type="text" 
               placeholder="ค้นหาชื่อครู, รหัสวิชา..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs rounded-xl pl-9 pr-3 py-2 border-none focus:ring-2 focus:ring-purple-500"
+              className="w-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs rounded-xl pl-9 pr-3 py-2 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
-            <span className="absolute left-3 top-2 text-xs text-slate-400">🔍</span>
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
           </div>
+        </div>
+
+        <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+          <Users className="w-3.5 h-3.5" />
+          <span>แสดง {filteredSessions.length} จากทั้งหมด {sessions.length} คาบ</span>
         </div>
       </section>
 
       {/* 3. Weekly Supervision Matrix Timetable */}
-      <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-xl">
-        <div className="flex items-center justify-between mb-6 pb-4 border-b border-slate-200 dark:border-slate-800">
-          <div>
-            <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-              🗓️ ตารางนิเทศรายสัปดาห์ (Weekly Supervision Timetable)
-            </h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-              คลิกที่ช่องคาบเรียนเพื่อเปิดแบบประเมินผลการสอน
-            </p>
-          </div>
-          <div className="text-xs font-bold text-purple-600 bg-purple-50 dark:bg-purple-950/40 px-3 py-1.5 rounded-xl border border-purple-200">
+      <MatrixShell
+        title="ตารางนิเทศรายสัปดาห์ (Weekly Supervision Timetable)"
+        subtitle="คลิกที่ช่องคาบเรียนเพื่อเปิดแบบประเมินผลการสอนและดูรายละเอียด"
+        headerAction={
+          <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 px-3 py-1.5 rounded-xl border border-indigo-200 dark:border-indigo-800">
             สัปดาห์ที่ 6 (ภาคเรียนที่ 1/2569)
-          </div>
-        </div>
-
-        {/* Timetable Grid */}
+          </span>
+        }
+      >
         <div className="overflow-x-auto">
           <div className="min-w-[960px] grid grid-cols-9 gap-3">
             {/* Header Row */}
-            <div className="bg-slate-100 dark:bg-slate-800 rounded-xl p-3 text-center text-xs font-bold text-slate-500">
+            <div className="bg-slate-100 dark:bg-slate-800 rounded-xl p-3 text-center text-xs font-bold text-slate-500 dark:text-slate-400">
               วัน \ คาบ
             </div>
             {periodsList.map(p => (
-              <div key={p} className="bg-slate-100 dark:bg-slate-800 rounded-xl p-3 text-center text-xs font-bold text-purple-600 dark:text-purple-400">
+              <div key={p} className="bg-slate-100 dark:bg-slate-800 rounded-xl p-3 text-center text-xs font-bold text-indigo-600 dark:text-indigo-400">
                 คาบ {p}
               </div>
             ))}
@@ -427,7 +449,7 @@ export default function AcademicSupervisionApp() {
             {daysList.map(dayObj => (
               <React.Fragment key={dayObj.key}>
                 {/* Day Label */}
-                <div className={`${dayObj.color} border rounded-xl p-3 flex items-center justify-center text-xs font-bold`}>
+                <div className={`${dayObj.color} border rounded-xl p-3 flex items-center justify-center text-xs font-bold text-center`}>
                   {dayObj.label}
                 </div>
 
@@ -443,16 +465,17 @@ export default function AcademicSupervisionApp() {
                       onClick={() => slotData && handleOpenModal(slotData)}
                       className={`min-h-[105px] rounded-xl p-3 border transition-all duration-200 flex flex-col justify-between cursor-pointer ${
                         slotData 
-                          ? 'bg-purple-50/50 dark:bg-purple-950/30 border-purple-200 dark:border-purple-800 hover:border-purple-500 hover:shadow-md' 
-                          : 'bg-slate-50 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800 border-dashed hover:bg-slate-100'
+                          ? 'bg-indigo-50/40 dark:bg-indigo-950/30 border-indigo-200 dark:border-indigo-800 hover:border-indigo-500 hover:shadow-md' 
+                          : 'bg-slate-50/60 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800 border-dashed hover:bg-slate-100 dark:hover:bg-slate-800/50'
                       }`}
                     >
                       {slotData ? (
                         <>
                           <div>
                             <div className="flex items-center justify-between gap-1">
-                              <span className="text-xs font-extrabold text-purple-700 dark:text-purple-300 truncate">
-                                {slotData.supervision_type === 'ONLINE' ? '🎥 ' : ''}{slotData.subject_code}
+                              <span className="text-xs font-extrabold text-indigo-700 dark:text-indigo-300 truncate flex items-center gap-1">
+                                {slotData.supervision_type === 'ONLINE' && <Video className="w-3 h-3 text-cyan-600 inline shrink-0" />}
+                                {slotData.subject_code}
                               </span>
                               <span className="text-[10px] text-slate-500 font-medium">{slotData.class_level}</span>
                             </div>
@@ -462,22 +485,20 @@ export default function AcademicSupervisionApp() {
                             <div className="text-[10px] text-slate-400">{slotData.room_number}</div>
                           </div>
 
-                          <div className="mt-2 pt-1 border-t border-slate-200 dark:border-slate-800">
-                            {slotData.status === 'COMPLETED' && (
-                              <span className="inline-block text-[9px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
-                                ✓ ประเมินเรียบร้อย ({slotData.evaluation?.total_score}/25)
-                              </span>
-                            )}
-                            {slotData.status === 'WAITING_TEACHER_ACK' && (
-                              <span className="inline-block text-[9px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">
-                                ⏳ รอครูรับทราบผล
-                              </span>
-                            )}
-                            {slotData.status === 'SCHEDULED' && (
-                              <span className="inline-block text-[9px] font-bold px-2 py-0.5 rounded-full bg-slate-200 text-slate-700">
-                                📅 รอนิเทศ
-                              </span>
-                            )}
+                          <div className="mt-2 pt-1 border-t border-slate-200 dark:border-slate-800 flex items-center">
+                            <StatusPillBadge
+                              status={slotData.status}
+                              size="sm"
+                              customLabel={
+                                slotData.status === 'COMPLETED'
+                                  ? `✓ เรียบร้อย (${slotData.evaluation?.total_score}/25)`
+                                  : slotData.status === 'WAITING_TEACHER_ACK'
+                                  ? 'รอครูรับทราบ'
+                                  : slotData.status === 'WAITING_DIRECTOR_SIGN'
+                                  ? 'รอ ผอ. ลงนาม'
+                                  : 'รอนิเทศ'
+                              }
+                            />
                           </div>
                         </>
                       ) : (
@@ -492,209 +513,244 @@ export default function AcademicSupervisionApp() {
             ))}
           </div>
         </div>
-      </section>
+      </MatrixShell>
 
       {/* 4. Evaluation Modal Dialog */}
-      {selectedSession && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 md:p-8 max-w-2xl w-full border border-slate-200 dark:border-slate-800 shadow-2xl space-y-6 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-4">
-              <div>
-                <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                  <span>📖</span> แบบประเมินนิเทศการสอนออนไลน์ ({selectedSession.session_id})
-                </h3>
-                <p className="text-xs text-slate-500 mt-1">
-                  {selectedSession.teacher_name} | {selectedSession.subject_name} ({selectedSession.subject_code}) {selectedSession.class_level}
-                </p>
-              </div>
-              <button 
-                onClick={() => setSelectedSession(null)}
-                className="text-slate-400 hover:text-slate-600 text-lg font-bold"
-              >
-                ✕
-              </button>
-            </div>
+      <UnifiedModal
+        isOpen={Boolean(selectedSession)}
+        onClose={() => setSelectedSession(null)}
+        size="lg"
+      >
+        {selectedSession && (
+          <div>
+            <UnifiedModalHeader
+              title={`แบบประเมินนิเทศการสอนออนไลน์ (${selectedSession.session_id})`}
+              subtitle={`${selectedSession.teacher_name} | ${selectedSession.subject_name} (${selectedSession.subject_code}) ${selectedSession.class_level}`}
+              icon={BookOpen}
+              iconClass="bg-indigo-50 text-indigo-600 dark:bg-indigo-950/60 dark:text-indigo-400"
+              onClose={() => setSelectedSession(null)}
+            />
 
-            {/* Session Details Box */}
-            <div className="bg-slate-50 dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 text-xs space-y-2">
-              <div className="grid grid-cols-2 gap-2">
-                <div><strong className="text-slate-500">รูปแบบนิเทศ:</strong> {selectedSession.supervision_type === 'ONLINE' ? '🎥 ออนไลน์ (คลิปวิดีโอ)' : '🏫 ออนไซต์ (เข้าชั้นเรียน)'}</div>
-                <div><strong className="text-slate-500">ผู้นิเทศ:</strong> {selectedSession.supervisor_name}</div>
-                <div><strong className="text-slate-500">ห้องเรียน:</strong> {selectedSession.room_number}</div>
-                <div><strong className="text-slate-500">สถานะ:</strong> <span className="font-bold text-purple-600">{selectedSession.status}</span></div>
-              </div>
-
-              {selectedSession.video_link && (
-                <div className="pt-2 border-t border-slate-200 dark:border-slate-700">
-                  <a 
-                    href={selectedSession.video_link} 
-                    target="_blank" 
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-1 text-purple-600 font-bold hover:underline"
-                  >
-                    ▶️ ดูวิดีโอบันทึกการสอน (คลิกที่นี่)
-                  </a>
-                </div>
-              )}
-            </div>
-
-            {/* Form Actions for Supervisor / Teacher / Director */}
-            {userRole === 'SUPERVISOR' && selectedSession.status === 'SCHEDULED' && (
-              <form onSubmit={handleSubmitEvaluation} className="space-y-4 text-xs">
-                <div className="font-bold text-slate-900 dark:text-white">ให้คะแนนการประเมิน 5 ด้าน (1 - 5 ดาว):</div>
-                <div className="space-y-2">
-                  {Object.entries({
-                    c1: '1. การเตรียมการสอนและแผนการจัดการเรียนรู้',
-                    c2: '2. เทคนิคและวิธีการจัดการเรียนรู้',
-                    c3: '3. การใช้สื่อและเทคโนโลยีนวัตกรรม',
-                    c4: '4. การวัดและประเมินผลการเรียนรู้',
-                    c5: '5. บรรยากาศและการจัดชั้นเรียน'
-                  }).map(([key, label]) => (
-                    <div key={key} className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-1.5">
-                      <span>{label}</span>
-                      <select 
-                        value={rubricScores[key]} 
-                        onChange={e => setRubricScores({ ...rubricScores, [key]: Number(e.target.value) })}
-                        className="bg-slate-100 dark:bg-slate-800 font-bold px-2 py-1 rounded-lg text-purple-600"
-                      >
-                        {[5, 4, 3, 2, 1].map(n => <option key={n} value={n}>{n} ดาว</option>)}
-                      </select>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="space-y-1">
-                  <label className="font-bold">จุดเด่นที่ควรชื่นชม:</label>
-                  <textarea 
-                    rows={2} 
-                    value={strengthsText} 
-                    onChange={e => setStrengthsText(e.target.value)}
-                    placeholder="กรอกจุดเด่น..."
-                    className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-transparent"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="font-bold">ข้อเสนอแนะในการพัฒนา:</label>
-                  <textarea 
-                    rows={2} 
-                    value={improvementText} 
-                    onChange={e => setImprovementText(e.target.value)}
-                    placeholder="กรอกข้อเสนอแนะ..."
-                    className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-transparent"
-                  />
-                </div>
-
-                <div className="flex justify-end gap-3 pt-2">
-                  <button 
-                    type="submit"
-                    className="px-5 py-2.5 bg-purple-600 text-white font-bold rounded-xl shadow-md hover:bg-purple-700"
-                  >
-                    บันทึกผลการนิเทศ & ส่งให้ครูรับทราบ
-                  </button>
-                </div>
-              </form>
-            )}
-
-            {/* Read-Only Evaluation View for Completed / Pending */}
-            {selectedSession.evaluation && (
+            <UnifiedModalBody>
               <div className="space-y-4 text-xs">
-                <div className="p-4 rounded-2xl bg-purple-50 dark:bg-purple-950/40 border border-purple-200 text-purple-900 dark:text-purple-300 flex justify-between items-center">
-                  <span className="font-bold">คะแนนรวมการประเมิน:</span>
-                  <span className="text-lg font-black">{selectedSession.evaluation.total_score} / 25 ({selectedSession.evaluation.percentage}%)</span>
-                </div>
-
-                <div className="space-y-1">
-                  <strong className="text-slate-500 block">จุดเด่นที่ควรชื่นชม:</strong>
-                  <p className="bg-slate-50 dark:bg-slate-800 p-3 rounded-xl">{selectedSession.evaluation.strengths}</p>
-                </div>
-
-                <div className="space-y-1">
-                  <strong className="text-slate-500 block">ข้อเสนอแนะในการพัฒนา:</strong>
-                  <p className="bg-slate-50 dark:bg-slate-800 p-3 rounded-xl">{selectedSession.evaluation.improvement_points}</p>
-                </div>
-
-                {/* Teacher Acknowledge Step */}
-                {userRole === 'TEACHER' && selectedSession.status === 'WAITING_TEACHER_ACK' && (
-                  <div className="space-y-3 pt-3 border-t border-slate-200 dark:border-slate-800">
-                    <label className="font-bold text-slate-900 dark:text-white block">ข้อความสะท้อนคิดของครู (Teacher Reflection):</label>
-                    <textarea 
-                      rows={2} 
-                      value={reflectionText} 
-                      onChange={e => setReflectionText(e.target.value)}
-                      placeholder="กรอกข้อความสะท้อนคิดเพื่อปรับใช้ในการสอนครั้งถัดไป..."
-                      className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-transparent"
-                    />
-                    <button 
-                      onClick={handleTeacherAck}
-                      className="px-5 py-2.5 bg-emerald-600 text-white font-bold rounded-xl shadow-md hover:bg-emerald-700"
-                    >
-                      ✓ กดรับทราบผลการนิเทศ
-                    </button>
+                {/* Session Details Box */}
+                <div className="bg-slate-50 dark:bg-slate-800/60 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-2">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <strong className="text-slate-500 dark:text-slate-400">รูปแบบนิเทศ: </strong>
+                      <span>{selectedSession.supervision_type === 'ONLINE' ? 'ออนไลน์ (คลิปวิดีโอ)' : 'ออนไซต์ (เข้าชั้นเรียน)'}</span>
+                    </div>
+                    <div>
+                      <strong className="text-slate-500 dark:text-slate-400">ผู้นิเทศ: </strong>
+                      <span>{selectedSession.supervisor_name}</span>
+                    </div>
+                    <div>
+                      <strong className="text-slate-500 dark:text-slate-400">ห้องเรียน: </strong>
+                      <span>{selectedSession.room_number}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <strong className="text-slate-500 dark:text-slate-400">สถานะ: </strong>
+                      <StatusPillBadge status={selectedSession.status} size="sm" />
+                    </div>
                   </div>
+
+                  {selectedSession.video_link && (
+                    <div className="pt-2 border-t border-slate-200 dark:border-slate-700">
+                      <a 
+                        href={selectedSession.video_link} 
+                        target="_blank" 
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1.5 text-indigo-600 dark:text-indigo-400 font-bold hover:underline"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" />
+                        <span>เปิดดูวิดีโอบันทึกการสอน (YouTube / Google Drive)</span>
+                      </a>
+                    </div>
+                  )}
+                </div>
+
+                {/* Form Actions for Supervisor / Teacher / Director */}
+                {userRole === 'SUPERVISOR' && selectedSession.status === 'SCHEDULED' && (
+                  <form onSubmit={handleSubmitEvaluation} className="space-y-4">
+                    <div className="font-bold text-slate-900 dark:text-white">ให้คะแนนการประเมิน 5 ด้าน (1 - 5 ดาว):</div>
+                    <div className="space-y-2">
+                      {Object.entries({
+                        c1: '1. การเตรียมการสอนและแผนการจัดการเรียนรู้',
+                        c2: '2. เทคนิคและวิธีการจัดการเรียนรู้',
+                        c3: '3. การใช้สื่อและเทคโนโลยีนวัตกรรม',
+                        c4: '4. การวัดและประเมินผลการเรียนรู้',
+                        c5: '5. บรรยากาศและการจัดชั้นเรียน'
+                      }).map(([key, label]) => (
+                        <div key={key} className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-1.5">
+                          <span>{label}</span>
+                          <select 
+                            value={rubricScores[key]} 
+                            onChange={e => setRubricScores({ ...rubricScores, [key]: Number(e.target.value) })}
+                            className="bg-slate-100 dark:bg-slate-800 font-bold px-2 py-1 rounded-lg text-indigo-600 dark:text-indigo-400 border border-slate-200 dark:border-slate-700"
+                          >
+                            {[5, 4, 3, 2, 1].map(n => <option key={n} value={n}>{n} ดาว</option>)}
+                          </select>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="font-bold text-slate-700 dark:text-slate-300">จุดเด่นที่ควรชื่นชม:</label>
+                      <textarea 
+                        rows={2} 
+                        value={strengthsText} 
+                        onChange={e => setStrengthsText(e.target.value)}
+                        placeholder="กรอกจุดเด่น..."
+                        className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-transparent text-xs"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="font-bold text-slate-700 dark:text-slate-300">ข้อเสนอแนะในการพัฒนา:</label>
+                      <textarea 
+                        rows={2} 
+                        value={improvementText} 
+                        onChange={e => setImprovementText(e.target.value)}
+                        placeholder="กรอกข้อเสนอแนะ..."
+                        className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-transparent text-xs"
+                      />
+                    </div>
+
+                    <div className="flex justify-end gap-2 pt-2">
+                      <button 
+                        type="submit"
+                        className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-md shadow-indigo-600/20 transition cursor-pointer"
+                      >
+                        บันทึกผลการนิเทศ & ส่งให้ครูรับทราบ
+                      </button>
+                    </div>
+                  </form>
                 )}
 
-                {/* Director Approval Step */}
-                {userRole === 'DIRECTOR' && selectedSession.status === 'WAITING_DIRECTOR_SIGN' && (
-                  <div className="space-y-3 pt-3 border-t border-slate-200 dark:border-slate-800">
-                    <label className="font-bold text-slate-900 dark:text-white block">ข้อเสนอแนะจากผู้อำนวยการ:</label>
-                    <textarea 
-                      rows={2} 
-                      value={directorCommentText} 
-                      onChange={e => setDirectorCommentText(e.target.value)}
-                      placeholder="กรอกข้อเสนอแนะจากผู้อำนวยการ..."
-                      className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-transparent"
-                    />
-                    <button 
-                      onClick={handleDirectorSign}
-                      className="px-5 py-2.5 bg-indigo-600 text-white font-bold rounded-xl shadow-md hover:bg-indigo-700"
-                    >
-                      ✒️ ผู้อำนวยการลงนามอนุมัติรับทราบผล
-                    </button>
+                {/* Read-Only Evaluation View for Completed / Pending */}
+                {selectedSession.evaluation && (
+                  <div className="space-y-4">
+                    <div className="p-4 rounded-2xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 text-indigo-900 dark:text-indigo-300 flex justify-between items-center">
+                      <span className="font-bold">คะแนนรวมการประเมิน:</span>
+                      <span className="text-lg font-black">{selectedSession.evaluation.total_score} / 25 ({selectedSession.evaluation.percentage}%)</span>
+                    </div>
+
+                    <div className="space-y-1">
+                      <strong className="text-slate-500 dark:text-slate-400 block">จุดเด่นที่ควรชื่นชม:</strong>
+                      <p className="bg-slate-50 dark:bg-slate-800/60 p-3 rounded-xl border border-slate-200 dark:border-slate-700">{selectedSession.evaluation.strengths}</p>
+                    </div>
+
+                    <div className="space-y-1">
+                      <strong className="text-slate-500 dark:text-slate-400 block">ข้อเสนอแนะในการพัฒนา:</strong>
+                      <p className="bg-slate-50 dark:bg-slate-800/60 p-3 rounded-xl border border-slate-200 dark:border-slate-700">{selectedSession.evaluation.improvement_points}</p>
+                    </div>
+
+                    {/* Teacher Acknowledge Step */}
+                    {userRole === 'TEACHER' && selectedSession.status === 'WAITING_TEACHER_ACK' && (
+                      <div className="space-y-3 pt-3 border-t border-slate-200 dark:border-slate-800">
+                        <label className="font-bold text-slate-900 dark:text-white block">ข้อความสะท้อนคิดของครู (Teacher Reflection):</label>
+                        <textarea 
+                          rows={2} 
+                          value={reflectionText} 
+                          onChange={e => setReflectionText(e.target.value)}
+                          placeholder="กรอกข้อความสะท้อนคิดเพื่อปรับใช้ในการสอนครั้งถัดไป..."
+                          className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-transparent text-xs"
+                        />
+                        <button 
+                          onClick={handleTeacherAck}
+                          className="inline-flex items-center gap-1.5 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-md shadow-indigo-600/20 transition cursor-pointer"
+                        >
+                          <Check className="w-4 h-4" />
+                          <span>กดรับทราบผลการนิเทศ</span>
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Director Approval Step */}
+                    {userRole === 'DIRECTOR' && selectedSession.status === 'WAITING_DIRECTOR_SIGN' && (
+                      <div className="space-y-3 pt-3 border-t border-slate-200 dark:border-slate-800">
+                        <label className="font-bold text-slate-900 dark:text-white block">ข้อเสนอแนะจากผู้อำนวยการ:</label>
+                        <textarea 
+                          rows={2} 
+                          value={directorCommentText} 
+                          onChange={e => setDirectorCommentText(e.target.value)}
+                          placeholder="กรอกข้อเสนอแนะจากผู้อำนวยการ..."
+                          className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-transparent text-xs"
+                        />
+                        <button 
+                          onClick={handleDirectorSign}
+                          className="inline-flex items-center gap-1.5 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-md shadow-indigo-600/20 transition cursor-pointer"
+                        >
+                          <PenTool className="w-4 h-4" />
+                          <span>ผู้อำนวยการลงนามอนุมัติรับทราบผล</span>
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
-            )}
+            </UnifiedModalBody>
+
+            <UnifiedModalFooter>
+              <button 
+                type="button" 
+                onClick={() => setSelectedSession(null)}
+                className="px-4 py-2 rounded-xl text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold cursor-pointer"
+              >
+                ปิด
+              </button>
+            </UnifiedModalFooter>
           </div>
-        </div>
-      )}
+        )}
+      </UnifiedModal>
 
       {/* 5. Schedule Modal */}
-      {showScheduleModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 max-w-md w-full border border-slate-200 dark:border-slate-800 shadow-2xl space-y-4 text-xs">
-            <h3 className="text-base font-bold text-slate-900 dark:text-white">📅 ส่งนัดหมายนิเทศการสอนใหม่</h3>
-            <form onSubmit={handleCreateSlot} className="space-y-3">
+      <UnifiedModal
+        isOpen={showScheduleModal}
+        onClose={() => setShowScheduleModal(false)}
+        size="md"
+      >
+        <form onSubmit={handleCreateSlot}>
+          <UnifiedModalHeader
+            title="ส่งนัดหมายนิเทศการสอนใหม่"
+            subtitle="กำหนดครูผู้รับการนิเทศ รายวิชา วัน และคาบเวลา"
+            icon={Calendar}
+            iconClass="bg-indigo-50 text-indigo-600 dark:bg-indigo-950/60 dark:text-indigo-400"
+            onClose={() => setShowScheduleModal(false)}
+          />
+
+          <UnifiedModalBody>
+            <div className="space-y-3 text-xs">
               <div>
-                <label className="font-semibold block mb-1">ชื่อครูผู้รับการนิเทศ:</label>
+                <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">ชื่อครูผู้รับการนิเทศ:</label>
                 <input 
                   type="text" 
                   required
                   value={newSlotForm.teacher_name}
                   onChange={e => setNewSlotForm({ ...newSlotForm, teacher_name: e.target.value })}
-                  className="w-full p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-transparent"
+                  className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-transparent"
                 />
               </div>
 
               <div>
-                <label className="font-semibold block mb-1">รหัสวิชา / ชื่อวิชา:</label>
+                <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">รหัสวิชา / ชื่อวิชา:</label>
                 <input 
                   type="text" 
                   required
                   placeholder="เช่น ว23101 วิทยาศาสตร์ 5"
                   value={newSlotForm.subject_code}
                   onChange={e => setNewSlotForm({ ...newSlotForm, subject_code: e.target.value })}
-                  className="w-full p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-transparent"
+                  className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-transparent"
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="font-semibold block mb-1">วัน:</label>
+                  <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">วัน:</label>
                   <select 
                     value={newSlotForm.day_of_week}
                     onChange={e => setNewSlotForm({ ...newSlotForm, day_of_week: e.target.value })}
-                    className="w-full p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-transparent font-bold"
+                    className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-bold"
                   >
                     <option value="MONDAY">วันจันทร์</option>
                     <option value="TUESDAY">วันอังคาร</option>
@@ -704,36 +760,36 @@ export default function AcademicSupervisionApp() {
                   </select>
                 </div>
                 <div>
-                  <label className="font-semibold block mb-1">คาบเรียน:</label>
+                  <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">คาบเรียน:</label>
                   <select 
                     value={newSlotForm.period_number}
                     onChange={e => setNewSlotForm({ ...newSlotForm, period_number: Number(e.target.value) })}
-                    className="w-full p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-transparent font-bold"
+                    className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-bold"
                   >
                     {[1, 2, 3, 4, 5, 6, 7, 8].map(p => <option key={p} value={p}>คาบที่ {p}</option>)}
                   </select>
                 </div>
               </div>
+            </div>
+          </UnifiedModalBody>
 
-              <div className="flex justify-end gap-2 pt-2">
-                <button 
-                  type="button" 
-                  onClick={() => setShowScheduleModal(false)}
-                  className="px-4 py-2 border border-slate-300 dark:border-slate-700 rounded-xl"
-                >
-                  ยกเลิก
-                </button>
-                <button 
-                  type="submit"
-                  className="px-4 py-2 bg-purple-600 text-white font-bold rounded-xl"
-                >
-                  สร้างนัดหมาย
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+          <UnifiedModalFooter>
+            <button 
+              type="button" 
+              onClick={() => setShowScheduleModal(false)}
+              className="px-4 py-2 rounded-xl text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold cursor-pointer"
+            >
+              ยกเลิก
+            </button>
+            <button 
+              type="submit"
+              className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md shadow-indigo-600/20 transition cursor-pointer"
+            >
+              สร้างนัดหมาย
+            </button>
+          </UnifiedModalFooter>
+        </form>
+      </UnifiedModal>
     </div>
   );
 }
