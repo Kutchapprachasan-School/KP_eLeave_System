@@ -35,6 +35,17 @@ import {
 } from "lucide-react";
 import { useToast } from "@/components/toast-provider";
 import Link from "next/link";
+import {
+  SubsystemHeader,
+  StatusPillBadge,
+  UnifiedModal,
+  UnifiedModalHeader,
+  UnifiedModalBody,
+  UnifiedModalFooter,
+  MatrixShell,
+  MatrixHeaderCell,
+  PRIMARY_ACTION_BUTTON_CLASSES,
+} from "@/components/shared-ui/school-ops";
 import { 
   getFacilityResourcesAction, 
   getFacilityReservationsAction, 
@@ -564,81 +575,57 @@ export default function UnifiedFacilityPortalPage() {
     <div className="min-h-screen bg-slate-50/60 dark:bg-slate-950 p-3 md:p-6 lg:p-8 space-y-6 text-slate-900 dark:text-slate-100 max-w-7xl mx-auto font-sans">
       
       {/* TOP HEADER & TWO-PILLARS SWITCHER */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-5 md:p-6 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-5">
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-              ระบบบริหารทรัพยากรสถานศึกษา
-            </span>
-            <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300 font-bold">
-              v7.3 Teacher-Centric
-            </span>
-            {userRoleInfo?.role && (
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 font-mono">
-                {userRoleInfo.role}
-              </span>
-            )}
-          </div>
-          <h1 className="text-xl md:text-2xl font-bold tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
-            {moduleMode === "MEETING_ROOM" ? (
-              <>
-                <Building className="w-6 h-6 text-emerald-600" />
-                <span>ระบบจองห้องประชุมและอาคารสถานที่</span>
-              </>
-            ) : (
-              <>
-                <Bus className="w-6 h-6 text-amber-600" />
-                <span>ระบบจองรถโรงเรียนและยานพาหนะ</span>
-              </>
-            )}
-          </h1>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-            เช็คคิวว่างทันใจ จองง่ายใน 1 นาที และติดตามสถานะแบบเรียลไทม์
-          </p>
-        </div>
+      <SubsystemHeader
+        title={
+          moduleMode === "MEETING_ROOM"
+            ? "ระบบจองห้องประชุมและอาคารสถานที่"
+            : "ระบบจองรถโรงเรียนและยานพาหนะ"
+        }
+        subtitle="เช็คคิวว่างทันใจ จองง่ายใน 1 นาที และติดตามสถานะแบบเรียลไทม์"
+        categoryTitle="ระบบบริหารทรัพยากรสถานศึกษา"
+        subsystem={moduleMode === "MEETING_ROOM" ? "facility_room" : "facility_vehicle"}
+        versionBadge="v7.3 Teacher-Centric"
+        roleBadge={userRoleInfo?.role}
+        icon={moduleMode === "MEETING_ROOM" ? Building : Bus}
+        actions={
+          <>
+            {/* Two-Pillars Segmented Toggle (Option A Approved) */}
+            <div className="inline-flex p-1.5 bg-slate-100 dark:bg-slate-800/90 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-2xs">
+              <button
+                onClick={() => setModuleMode("MEETING_ROOM")}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
+                  moduleMode === "MEETING_ROOM"
+                    ? "bg-white dark:bg-slate-900 text-teal-700 dark:text-teal-400 shadow-xs"
+                    : "text-slate-500 dark:text-slate-400 hover:text-slate-800"
+                }`}
+              >
+                <Building className="w-4 h-4" />
+                ห้องประชุม
+              </button>
+              <button
+                onClick={() => setModuleMode("VEHICLE")}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
+                  moduleMode === "VEHICLE"
+                    ? "bg-white dark:bg-slate-900 text-amber-700 dark:text-amber-400 shadow-xs"
+                    : "text-slate-500 dark:text-slate-400 hover:text-slate-800"
+                }`}
+              >
+                <Car className="w-4 h-4" />
+                รถโรงเรียน
+              </button>
+            </div>
 
-        {/* Top Controls: 2-Pillars Pill Toggle + Quick Booking Button */}
-        <div className="flex flex-wrap items-center gap-3">
-          {/* Two-Pillars Segmented Toggle (Option A Approved) */}
-          <div className="inline-flex p-1.5 bg-slate-100 dark:bg-slate-800/90 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-2xs">
+            {/* Primary Action Button: Standardized to Unified Indigo */}
             <button
-              onClick={() => setModuleMode("MEETING_ROOM")}
-              className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 ${
-                moduleMode === "MEETING_ROOM"
-                  ? "bg-white dark:bg-slate-900 text-emerald-700 dark:text-emerald-400 shadow-xs"
-                  : "text-slate-500 dark:text-slate-400 hover:text-slate-800"
-              }`}
+              onClick={handleOpenGeneralBooking}
+              className={PRIMARY_ACTION_BUTTON_CLASSES}
             >
-              <Building className="w-4 h-4" />
-              ห้องประชุม
+              <Plus className="w-4 h-4" />
+              + ยื่นคำขอจอง
             </button>
-            <button
-              onClick={() => setModuleMode("VEHICLE")}
-              className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 ${
-                moduleMode === "VEHICLE"
-                  ? "bg-white dark:bg-slate-900 text-amber-700 dark:text-amber-400 shadow-xs"
-                  : "text-slate-500 dark:text-slate-400 hover:text-slate-800"
-              }`}
-            >
-              <Car className="w-4 h-4" />
-              รถโรงเรียน
-            </button>
-          </div>
-
-          {/* Primary Action Button: + ยื่นคำขอจอง */}
-          <button
-            onClick={handleOpenGeneralBooking}
-            className={`px-5 py-2.5 rounded-2xl text-white font-bold text-xs shadow-md transition flex items-center gap-2 ${
-              moduleMode === "MEETING_ROOM"
-                ? "bg-emerald-700 hover:bg-emerald-800 shadow-emerald-700/20"
-                : "bg-amber-700 hover:bg-amber-800 shadow-amber-700/20"
-            }`}
-          >
-            <Plus className="w-4 h-4" />
-            + ยื่นคำขอจอง
-          </button>
-        </div>
-      </div>
+          </>
+        }
+      />
 
       {/* ROLE-ADAPTIVE NAVIGATION BAR */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200/80 dark:border-slate-800 pb-3">
@@ -646,11 +633,9 @@ export default function UnifiedFacilityPortalPage() {
           {/* Tab 1: Schedule Matrix (Always available) */}
           <button
             onClick={() => setActiveTab("SCHEDULE")}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap ${
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
               activeTab === "SCHEDULE"
-                ? moduleMode === "MEETING_ROOM" 
-                  ? "bg-emerald-700 text-white shadow-xs" 
-                  : "bg-amber-700 text-white shadow-xs"
+                ? "bg-indigo-600 text-white shadow-xs"
                 : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60"
             }`}
           >
@@ -661,11 +646,9 @@ export default function UnifiedFacilityPortalPage() {
           {/* Tab 2: My Bookings (Always available) */}
           <button
             onClick={() => setActiveTab("MY_BOOKINGS")}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap ${
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
               activeTab === "MY_BOOKINGS"
-                ? moduleMode === "MEETING_ROOM" 
-                  ? "bg-emerald-700 text-white shadow-xs" 
-                  : "bg-amber-700 text-white shadow-xs"
+                ? "bg-indigo-600 text-white shadow-xs"
                 : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60"
             }`}
           >
@@ -678,9 +661,9 @@ export default function UnifiedFacilityPortalPage() {
             <>
               <button
                 onClick={() => setActiveTab("APPROVALS")}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap ${
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
                   activeTab === "APPROVALS"
-                    ? "bg-indigo-700 text-white shadow-xs"
+                    ? "bg-indigo-600 text-white shadow-xs"
                     : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60"
                 }`}
               >
@@ -695,13 +678,18 @@ export default function UnifiedFacilityPortalPage() {
 
               <button
                 onClick={() => setActiveTab("CRUD")}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap ${
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
                   activeTab === "CRUD"
-                    ? "bg-slate-800 text-white shadow-xs dark:bg-slate-700"
+                    ? "bg-indigo-600 text-white shadow-xs"
                     : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60"
                 }`}
               >
                 <Settings className="w-4 h-4" />
+                จัดการทรัพยากร (CRUD)
+              </button>
+            </>
+          )}
+        </div>
                 จัดการทรัพยากร (CRUD)
               </button>
             </>
@@ -799,9 +787,8 @@ export default function UnifiedFacilityPortalPage() {
               ไม่พบรายการทรัพยากรในระบบ
             </div>
           ) : (
-            <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-xs overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full border-collapse text-xs">
+            <MatrixShell>
+              <table className="w-full border-collapse text-xs">
                   <thead>
                     <tr className="bg-slate-50/90 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-700">
                       <th className="p-3 w-24 text-center font-mono text-slate-500 border-r border-slate-200 dark:border-slate-700">
@@ -930,8 +917,7 @@ export default function UnifiedFacilityPortalPage() {
                     })}
                   </tbody>
                 </table>
-              </div>
-            </div>
+            </MatrixShell>
           )}
         </div>
       )}
@@ -985,21 +971,18 @@ export default function UnifiedFacilityPortalPage() {
                       </span>
 
                       {/* Status Badge */}
-                      <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full ${
-                        res.status === "APPROVED" ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300" :
-                        res.status === "PENDING" && res.currentStep === 1 ? "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300" :
-                        res.status === "PENDING" && res.currentStep === 2 ? "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300" :
-                        res.status === "CANCELLED" ? "bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-400" :
-                        res.status === "IN_USE" ? "bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300" :
-                        "bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300"
-                      }`}>
-                        {res.status === "APPROVED" ? "✓ ได้รับการอนุมัติแล้ว" :
-                         res.status === "PENDING" && res.currentStep === 1 ? "⏳ รอหัวหน้างานจัดสรร (Step 1/2)" :
-                         res.status === "PENDING" && res.currentStep === 2 ? "⏳ รอ ผอ.อนุมัติขั้นสุดท้าย (Step 2/2)" :
-                         res.status === "CANCELLED" ? "ยกเลิกแล้ว" :
-                         res.status === "IN_USE" ? "กำลังใช้งาน" :
-                         res.status === "COMPLETED" ? "เสร็จสิ้นภารกิจ" : "ไม่อนุมัติ"}
-                      </span>
+                      <StatusPillBadge
+                        status={res.status}
+                        label={
+                          res.status === "APPROVED" ? "ได้รับการอนุมัติแล้ว" :
+                          res.status === "PENDING" && res.currentStep === 1 ? "รอหัวหน้างานจัดสรร (Step 1/2)" :
+                          res.status === "PENDING" && res.currentStep === 2 ? "รอ ผอ.อนุมัติขั้นสุดท้าย (Step 2/2)" :
+                          res.status === "CANCELLED" ? "ยกเลิกแล้ว" :
+                          res.status === "IN_USE" ? "กำลังใช้งาน" :
+                          res.status === "COMPLETED" ? "เสร็จสิ้นภารกิจ" : undefined
+                        }
+                        size="sm"
+                      />
                     </div>
 
                     <h3 className="text-sm font-bold text-slate-900 dark:text-white">
@@ -1279,16 +1262,10 @@ export default function UnifiedFacilityPortalPage() {
                           {res.capacity ? `${res.capacity} ที่นั่ง` : "-"}
                         </td>
                         <td className="p-3 text-center">
-                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                            res.status === "AVAILABLE" ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300" :
-                            res.status === "UNDER_MAINTENANCE" ? "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300" :
-                            res.status === "RETIRED" ? "bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-400" :
-                            "bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300"
-                          }`}>
-                            {res.status === "AVAILABLE" ? "พร้อมให้บริการ" :
-                             res.status === "UNDER_MAINTENANCE" ? "ซ่อมบำรุง" :
-                             res.status === "RETIRED" ? "ปลดระวาง" : res.status}
-                          </span>
+                          <StatusPillBadge
+                            status={res.status}
+                            size="sm"
+                          />
                         </td>
                         <td className="p-3 text-center">
                           <div className="inline-flex items-center gap-1.5">
@@ -1328,26 +1305,20 @@ export default function UnifiedFacilityPortalPage() {
       {/* ========================================================= */}
       {/* MODAL 1: QUICK BOOKING MODAL (STREAMLINED FOR TEACHERS)   */}
       {/* ========================================================= */}
-      {isBookingModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6 shadow-2xl border border-slate-200 dark:border-slate-800 space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
-              <div>
-                <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                  <Plus className="w-5 h-5 text-emerald-600" />
-                  ยื่นคำขอจอง{moduleMode === "MEETING_ROOM" ? "ห้องประชุมและอาคาร" : "รถโรงเรียนและยานพาหนะ"}
-                </h3>
-                <span className="text-xs text-slate-500">กรอกข้อมูลจำเป็นเพื่อส่งพิจารณาอนุมัติ</span>
-              </div>
-              <button
-                onClick={() => setIsBookingModalOpen(false)}
-                className="p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSubmittingBooking} className="space-y-4 text-xs">
+      <UnifiedModal
+        isOpen={isBookingModalOpen}
+        onClose={() => setIsBookingModalOpen(false)}
+        size="xl"
+      >
+        <UnifiedModalHeader
+          title={`ยื่นคำขอจอง${moduleMode === "MEETING_ROOM" ? "ห้องประชุมและอาคาร" : "รถโรงเรียนและยานพาหนะ"}`}
+          subtitle="กรอกข้อมูลจำเป็นเพื่อส่งพิจารณาอนุมัติ"
+          icon={moduleMode === "MEETING_ROOM" ? Building : Bus}
+          iconClass={moduleMode === "MEETING_ROOM" ? "bg-teal-50 text-teal-600 dark:bg-teal-950/60 dark:text-teal-400" : "bg-amber-50 text-amber-600 dark:bg-amber-950/60 dark:text-amber-400"}
+          onClose={() => setIsBookingModalOpen(false)}
+        />
+        <form onSubmit={handleSubmittingBooking}>
+          <UnifiedModalBody className="space-y-4 text-xs">
               {/* Resource Pick */}
               <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700">
                 <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
@@ -1536,381 +1507,392 @@ export default function UnifiedFacilityPortalPage() {
                 )}
               </div>
 
-              <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setIsBookingModalOpen(false)}
-                  className="px-4 py-2 rounded-xl text-slate-600 dark:text-slate-400 hover:bg-slate-100 text-xs font-semibold"
-                >
-                  ยกเลิก
-                </button>
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className={`px-5 py-2 rounded-xl text-white font-bold text-xs shadow-md transition ${
-                    moduleMode === "MEETING_ROOM" ? "bg-emerald-700 hover:bg-emerald-800" : "bg-amber-700 hover:bg-amber-800"
-                  }`}
-                >
-                  {submitting ? "กำลังส่งคำขอ..." : "ยืนยันการขอจอง"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+          </UnifiedModalBody>
+          <UnifiedModalFooter>
+            <button
+              type="button"
+              onClick={() => setIsBookingModalOpen(false)}
+              className="px-4 py-2 rounded-xl text-slate-600 dark:text-slate-400 hover:bg-slate-100 text-xs font-semibold cursor-pointer"
+            >
+              ยกเลิก
+            </button>
+            <button
+              type="submit"
+              disabled={submitting}
+              className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md shadow-indigo-600/20 transition cursor-pointer disabled:opacity-50"
+            >
+              {submitting ? "กำลังส่งคำขอ..." : "ยืนยันการขอจอง"}
+            </button>
+          </UnifiedModalFooter>
+        </form>
+      </UnifiedModal>
 
       {/* ========================================================= */}
       {/* MODAL 2: DIRECTOR APPROVAL DIALOG (REPLACES PROMPT)       */}
       {/* ========================================================= */}
-      {directorApprovalTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-800 space-y-4 text-xs">
-            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
-              <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                <Check className="w-5 h-5 text-emerald-600" />
-                ผู้อำนวยการอนุมัติคำขอ (Step 2)
-              </h3>
-              <button onClick={() => setDirectorApprovalTarget(null)} className="p-1 text-slate-400">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+      <UnifiedModal
+        isOpen={Boolean(directorApprovalTarget)}
+        onClose={() => setDirectorApprovalTarget(null)}
+        size="md"
+      >
+        <UnifiedModalHeader
+          title="ผู้อำนวยการอนุมัติคำขอ (Step 2)"
+          subtitle={`รหัสการจอง: ${directorApprovalTarget?.bookingNumber || "-"}`}
+          icon={Check}
+          iconClass="bg-emerald-50 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400"
+          onClose={() => setDirectorApprovalTarget(null)}
+        />
+        <UnifiedModalBody>
+          {directorApprovalTarget && (
+            <>
+              <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-2xl space-y-1 text-xs border border-slate-200 dark:border-slate-700">
+                <div><strong>รหัสการจอง:</strong> {directorApprovalTarget.bookingNumber}</div>
+                <div><strong>ภารกิจ:</strong> {directorApprovalTarget.title}</div>
+                <div><strong>ผู้ขอ:</strong> {directorApprovalTarget.reservedByUser?.name}</div>
+              </div>
 
-            <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-xl space-y-1">
-              <div><strong>รหัสการจอง:</strong> {directorApprovalTarget.bookingNumber}</div>
-              <div><strong>ภารกิจ:</strong> {directorApprovalTarget.title}</div>
-              <div><strong>ผู้ขอ:</strong> {directorApprovalTarget.reservedByUser?.name}</div>
-            </div>
-
-            <div>
-              <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
-                ข้อคิดเห็นการอนุมัติ (ไม่บังคับ)
-              </label>
-              <textarea
-                rows={2}
-                value={directorComment}
-                onChange={(e) => setDirectorComment(e.target.value)}
-                className="w-full p-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl"
-              />
-            </div>
-
-            <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setDirectorApprovalTarget(null)}
-                className="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 font-semibold"
-              >
-                ปิด
-              </button>
-              <button
-                type="button"
-                disabled={submitting}
-                onClick={handleDirectorApproveSubmit}
-                className="px-5 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold shadow-md"
-              >
-                {submitting ? "กำลังบันทึก..." : "ยืนยันการอนุมัติ"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+              <div>
+                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1 text-xs">
+                  ข้อคิดเห็นการอนุมัติ (ไม่บังคับ)
+                </label>
+                <textarea
+                  rows={2}
+                  value={directorComment}
+                  onChange={(e) => setDirectorComment(e.target.value)}
+                  className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs"
+                />
+              </div>
+            </>
+          )}
+        </UnifiedModalBody>
+        <UnifiedModalFooter>
+          <button
+            type="button"
+            onClick={() => setDirectorApprovalTarget(null)}
+            className="px-4 py-2 rounded-xl text-slate-600 dark:text-slate-400 hover:bg-slate-100 text-xs font-semibold cursor-pointer"
+          >
+            ปิด
+          </button>
+          <button
+            type="button"
+            disabled={submitting}
+            onClick={handleDirectorApproveSubmit}
+            className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md shadow-indigo-600/20 transition cursor-pointer disabled:opacity-50"
+          >
+            {submitting ? "กำลังบันทึก..." : "ยืนยันการอนุมัติ"}
+          </button>
+        </UnifiedModalFooter>
+      </UnifiedModal>
 
       {/* ========================================================= */}
       {/* MODAL 3: REJECTION DIALOG (REPLACES PROMPT)               */}
       {/* ========================================================= */}
-      {rejectingTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-800 space-y-4 text-xs">
-            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
-              <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                <AlertCircle className="w-5 h-5 text-rose-600" />
-                ระบุเหตุผลการไม่อนุมัติ / ปฏิเสธคำขอ
-              </h3>
-              <button onClick={() => setRejectingTarget(null)} className="p-1 text-slate-400">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+      <UnifiedModal
+        isOpen={Boolean(rejectingTarget)}
+        onClose={() => setRejectingTarget(null)}
+        size="md"
+      >
+        <UnifiedModalHeader
+          title="ระบุเหตุผลการไม่อนุมัติ / ปฏิเสธคำขอ"
+          subtitle={`รหัสการจอง: ${rejectingTarget?.bookingNumber || "-"}`}
+          icon={AlertCircle}
+          iconClass="bg-rose-50 text-rose-600 dark:bg-rose-950/60 dark:text-rose-400"
+          onClose={() => setRejectingTarget(null)}
+        />
+        <UnifiedModalBody>
+          {rejectingTarget && (
+            <>
+              <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-2xl space-y-1 text-xs border border-slate-200 dark:border-slate-700">
+                <div><strong>รหัสการจอง:</strong> {rejectingTarget.bookingNumber}</div>
+                <div><strong>ภารกิจ:</strong> {rejectingTarget.title}</div>
+              </div>
 
-            <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-xl space-y-1">
-              <div><strong>รหัสการจอง:</strong> {rejectingTarget.bookingNumber}</div>
-              <div><strong>ภารกิจ:</strong> {rejectingTarget.title}</div>
-            </div>
-
-            <div>
-              <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
-                เหตุผลในการไม่อนุมัติ *
-              </label>
-              <textarea
-                rows={3}
-                required
-                placeholder="เช่น ติดภารกิจราชการเร่งด่วนของโรงเรียน..."
-                value={rejectionReason}
-                onChange={(e) => setRejectionReason(e.target.value)}
-                className="w-full p-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl"
-              />
-            </div>
-
-            <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setRejectingTarget(null)}
-                className="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 font-semibold"
-              >
-                ปิด
-              </button>
-              <button
-                type="button"
-                disabled={submitting}
-                onClick={handleRejectSubmit}
-                className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold shadow-md"
-              >
-                {submitting ? "กำลังบันทึก..." : "ยืนยันการปฏิเสธ"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+              <div>
+                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1 text-xs">
+                  เหตุผลในการไม่อนุมัติ *
+                </label>
+                <textarea
+                  rows={3}
+                  required
+                  placeholder="เช่น ติดภารกิจราชการเร่งด่วนของโรงเรียน..."
+                  value={rejectionReason}
+                  onChange={(e) => setRejectionReason(e.target.value)}
+                  className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs"
+                />
+              </div>
+            </>
+          )}
+        </UnifiedModalBody>
+        <UnifiedModalFooter>
+          <button
+            type="button"
+            onClick={() => setRejectingTarget(null)}
+            className="px-4 py-2 rounded-xl text-slate-600 dark:text-slate-400 hover:bg-slate-100 text-xs font-semibold cursor-pointer"
+          >
+            ปิด
+          </button>
+          <button
+            type="button"
+            disabled={submitting}
+            onClick={handleRejectSubmit}
+            className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-md shadow-rose-600/20 transition cursor-pointer disabled:opacity-50"
+          >
+            {submitting ? "กำลังบันทึก..." : "ยืนยันการปฏิเสธ"}
+          </button>
+        </UnifiedModalFooter>
+      </UnifiedModal>
 
       {/* ========================================================= */}
       {/* MODAL 4: CANCEL CONFIRMATION DIALOG (REPLACES CONFIRM)    */}
       {/* ========================================================= */}
-      {cancelTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-800 space-y-4 text-xs text-center">
-            <AlertCircle className="w-10 h-10 text-rose-500 mx-auto" />
-            <div>
-              <h3 className="text-base font-bold text-slate-900 dark:text-white">ยืนยันการยกเลิกคำขอ</h3>
-              <p className="text-slate-500 mt-1">
-                ท่านต้องการยกเลิกคำขอจอง "{cancelTarget.title}" ({cancelTarget.bookingNumber}) ใช่หรือไม่?
-              </p>
-            </div>
-
-            <div className="pt-2 flex justify-center gap-2">
-              <button
-                type="button"
-                onClick={() => setCancelTarget(null)}
-                className="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 font-semibold"
-              >
-                ปิด
-              </button>
-              <button
-                type="button"
-                disabled={submitting}
-                onClick={handleCancelSubmit}
-                className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold shadow-md"
-              >
-                {submitting ? "กำลังยกเลิก..." : "ยืนยันการยกเลิก"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <UnifiedModal
+        isOpen={Boolean(cancelTarget)}
+        onClose={() => setCancelTarget(null)}
+        size="sm"
+      >
+        <UnifiedModalHeader
+          title="ยืนยันการยกเลิกคำขอ"
+          subtitle={`รหัสการจอง: ${cancelTarget?.bookingNumber || "-"}`}
+          icon={AlertCircle}
+          iconClass="bg-rose-50 text-rose-600 dark:bg-rose-950/60 dark:text-rose-400"
+          onClose={() => setCancelTarget(null)}
+        />
+        <UnifiedModalBody>
+          {cancelTarget && (
+            <p className="text-slate-600 dark:text-slate-300 text-xs text-center py-2">
+              ท่านต้องการยกเลิกคำขอจอง &ldquo;{cancelTarget.title}&rdquo; ({cancelTarget.bookingNumber}) ใช่หรือไม่?
+            </p>
+          )}
+        </UnifiedModalBody>
+        <UnifiedModalFooter>
+          <button
+            type="button"
+            onClick={() => setCancelTarget(null)}
+            className="px-4 py-2 rounded-xl text-slate-600 dark:text-slate-400 hover:bg-slate-100 text-xs font-semibold cursor-pointer"
+          >
+            ปิด
+          </button>
+          <button
+            type="button"
+            disabled={submitting}
+            onClick={handleCancelSubmit}
+            className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-md shadow-rose-600/20 transition cursor-pointer disabled:opacity-50"
+          >
+            {submitting ? "กำลังยกเลิก..." : "ยืนยันการยกเลิก"}
+          </button>
+        </UnifiedModalFooter>
+      </UnifiedModal>
 
       {/* ========================================================= */}
       {/* MODAL 5: STEP 1 HEAD REVIEW & DRIVER ASSIGNMENT           */}
       {/* ========================================================= */}
-      {reviewingReservation && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-800 space-y-4 text-xs">
-            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
-              <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                <UserCheck className="w-5 h-5 text-amber-700" />
-                จัดสรรและตรวจสอบคำขอ (Step 1 Review)
-              </h3>
-              <button onClick={() => setReviewingReservation(null)} className="p-1 text-slate-400">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+      <UnifiedModal
+        isOpen={Boolean(reviewingReservation)}
+        onClose={() => setReviewingReservation(null)}
+        size="md"
+      >
+        <UnifiedModalHeader
+          title="จัดสรรและตรวจสอบคำขอ (Step 1 Review)"
+          subtitle={`รหัสการจอง: ${reviewingReservation?.bookingNumber || "-"}`}
+          icon={UserCheck}
+          iconClass="bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-400"
+          onClose={() => setReviewingReservation(null)}
+        />
+        <UnifiedModalBody>
+          {reviewingReservation && (
+            <div className="space-y-4 text-xs">
+              <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-2xl space-y-1 border border-slate-200 dark:border-slate-700">
+                <div><strong>รหัสการจอง:</strong> {reviewingReservation.bookingNumber}</div>
+                <div><strong>ภารกิจ:</strong> {reviewingReservation.title}</div>
+                <div><strong>ทรัพยากร:</strong> {reviewingReservation.resource?.name}</div>
+              </div>
 
-            <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-xl space-y-1">
-              <div><strong>รหัสการจอง:</strong> {reviewingReservation.bookingNumber}</div>
-              <div><strong>ภารกิจ:</strong> {reviewingReservation.title}</div>
-              <div><strong>ทรัพยากร:</strong> {reviewingReservation.resource?.name}</div>
-            </div>
+              {moduleMode === "VEHICLE" && (
+                <div>
+                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    มอบหมายพนักงานขับรถ
+                  </label>
+                  <select
+                    value={reviewDriverId}
+                    onChange={(e) => setReviewDriverId(e.target.value)}
+                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-medium"
+                  >
+                    <option value="">-- เลือกพนักงานขับรถ --</option>
+                    {drivers.map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.user?.name} (ใบอนุญาต: {d.licenseNumber})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
-            {moduleMode === "VEHICLE" && (
               <div>
                 <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  มอบหมายพนักงานขับรถ
+                  ความเห็นหัวหน้างาน / บันทึกการตรวจสอบ
                 </label>
-                <select
-                  value={reviewDriverId}
-                  onChange={(e) => setReviewDriverId(e.target.value)}
-                  className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl font-medium"
-                >
-                  <option value="">-- เลือกพนักงานขับรถ --</option>
-                  {drivers.map((d) => (
-                    <option key={d.id} value={d.id}>
-                      {d.user?.name} (ใบอนุญาต: {d.licenseNumber})
-                    </option>
-                  ))}
-                </select>
+                <textarea
+                  rows={2}
+                  placeholder="ระบุข้อคิดเห็นในการตรวจสอบสภาพสถานที่/ยานพาหนะ..."
+                  value={reviewComment}
+                  onChange={(e) => setReviewComment(e.target.value)}
+                  className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl"
+                />
               </div>
-            )}
-
-            <div>
-              <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
-                ความเห็นหัวหน้างาน / บันทึกการตรวจสอบ
-              </label>
-              <textarea
-                rows={2}
-                placeholder="ระบุข้อคิดเห็นในการตรวจสอบสภาพสถานที่/ยานพาหนะ..."
-                value={reviewComment}
-                onChange={(e) => setReviewComment(e.target.value)}
-                className="w-full p-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl"
-              />
             </div>
-
-            <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setReviewingReservation(null)}
-                className="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100"
-              >
-                ปิด
-              </button>
-              <button
-                type="button"
-                disabled={submitting}
-                onClick={handleHeadReviewSubmit}
-                className="px-5 py-2 rounded-xl bg-amber-700 hover:bg-amber-800 text-white font-bold shadow-md"
-              >
-                {submitting ? "กำลังบันทึก..." : "ยืนยันผลการจัดสรรและส่งต่อ ผอ."}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+          )}
+        </UnifiedModalBody>
+        <UnifiedModalFooter>
+          <button
+            type="button"
+            onClick={() => setReviewingReservation(null)}
+            className="px-4 py-2 rounded-xl text-slate-600 dark:text-slate-400 hover:bg-slate-100 text-xs font-semibold cursor-pointer"
+          >
+            ปิด
+          </button>
+          <button
+            type="button"
+            disabled={submitting}
+            onClick={handleHeadReviewSubmit}
+            className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md shadow-indigo-600/20 transition cursor-pointer disabled:opacity-50"
+          >
+            {submitting ? "กำลังบันทึก..." : "ยืนยันผลการจัดสรรและส่งต่อ ผอ."}
+          </button>
+        </UnifiedModalFooter>
+      </UnifiedModal>
 
       {/* ========================================================= */}
       {/* MODAL 6: EDIT RESOURCE                                    */}
       {/* ========================================================= */}
-      {editingResource && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-6 shadow-2xl border border-slate-200 dark:border-slate-800 space-y-4 text-xs">
-            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
-              <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                <Edit2 className="w-5 h-5 text-indigo-600" />
-                แก้ไขข้อมูลทรัพยากร: {editingResource.name}
-              </h3>
-              <button onClick={() => setEditingResource(null)} className="p-1 text-slate-400">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+      <UnifiedModal
+        isOpen={Boolean(editingResource)}
+        onClose={() => setEditingResource(null)}
+        size="lg"
+      >
+        <form onSubmit={handleSaveEdit}>
+          <UnifiedModalHeader
+            title={`แก้ไขข้อมูลทรัพยากร: ${editingResource?.name || ""}`}
+            subtitle={editingResource?.code || ""}
+            icon={Edit2}
+            iconClass="bg-indigo-50 text-indigo-600 dark:bg-indigo-950/60 dark:text-indigo-400"
+            onClose={() => setEditingResource(null)}
+          />
+          <UnifiedModalBody>
+            {editingResource && (
+              <div className="space-y-3 text-xs">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">รหัสกำกับ</label>
+                    <input
+                      type="text"
+                      required
+                      value={editForm.code}
+                      onChange={(e) => setEditForm({ ...editForm, code: e.target.value })}
+                      className="w-full p-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">สถานะ</label>
+                    <select
+                      value={editForm.status}
+                      onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
+                      className="w-full p-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl"
+                    >
+                      <option value="AVAILABLE">พร้อมให้บริการ (AVAILABLE)</option>
+                      <option value="UNDER_MAINTENANCE">ซ่อมบำรุง (UNDER_MAINTENANCE)</option>
+                      <option value="OUT_OF_SERVICE">ไม่พร้อมใช้งาน (OUT_OF_SERVICE)</option>
+                      <option value="RETIRED">ปลดระวาง (RETIRED)</option>
+                    </select>
+                  </div>
+                </div>
 
-            <form onSubmit={handleSaveEdit} className="space-y-3">
-              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">รหัสกำกับ</label>
+                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">ชื่อทรัพยากร</label>
                   <input
                     type="text"
                     required
-                    value={editForm.code}
-                    onChange={(e) => setEditForm({ ...editForm, code: e.target.value })}
-                    className="w-full p-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl font-mono"
+                    value={editForm.name}
+                    onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                    className="w-full p-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl"
                   />
                 </div>
-                <div>
-                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">สถานะ</label>
-                  <select
-                    value={editForm.status}
-                    onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
-                    className="w-full p-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl"
-                  >
-                    <option value="AVAILABLE">พร้อมให้บริการ (AVAILABLE)</option>
-                    <option value="UNDER_MAINTENANCE">ซ่อมบำรุง (UNDER_MAINTENANCE)</option>
-                    <option value="OUT_OF_SERVICE">ไม่พร้อมใช้งาน (OUT_OF_SERVICE)</option>
-                    <option value="RETIRED">ปลดระวาง (RETIRED)</option>
-                  </select>
-                </div>
-              </div>
 
-              <div>
-                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">ชื่อทรัพยากร</label>
-                <input
-                  type="text"
-                  required
-                  value={editForm.name}
-                  onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                  className="w-full p-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">ความจุ (คน/ที่นั่ง)</label>
-                  <input
-                    type="number"
-                    value={editForm.capacity}
-                    onChange={(e) => setEditForm({ ...editForm, capacity: Number(e.target.value) })}
-                    className="w-full p-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl"
-                  />
-                </div>
-                <div>
-                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">สถานที่ตั้ง / ชั้น</label>
-                  <input
-                    type="text"
-                    value={editForm.location}
-                    onChange={(e) => setEditForm({ ...editForm, location: e.target.value })}
-                    className="w-full p-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl"
-                  />
-                </div>
-              </div>
-
-              {editingResource.type === "VEHICLE" && (
-                <div className="p-3 bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 rounded-xl space-y-2">
-                  <span className="font-bold text-amber-800 dark:text-amber-300">ข้อมูลยานพาหนะ</span>
-                  <div className="grid grid-cols-3 gap-2">
-                    <div>
-                      <label className="block text-slate-600 mb-0.5">ทะเบียนรถ</label>
-                      <input
-                        type="text"
-                        value={editForm.licensePlate}
-                        onChange={(e) => setEditForm({ ...editForm, licensePlate: e.target.value })}
-                        className="w-full p-1.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-slate-600 mb-0.5">ยี่ห้อ</label>
-                      <input
-                        type="text"
-                        value={editForm.brand}
-                        onChange={(e) => setEditForm({ ...editForm, brand: e.target.value })}
-                        className="w-full p-1.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-slate-600 mb-0.5">รุ่น</label>
-                      <input
-                        type="text"
-                        value={editForm.model}
-                        onChange={(e) => setEditForm({ ...editForm, model: e.target.value })}
-                        className="w-full p-1.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs"
-                      />
-                    </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">ความจุ (คน/ที่นั่ง)</label>
+                    <input
+                      type="number"
+                      value={editForm.capacity}
+                      onChange={(e) => setEditForm({ ...editForm, capacity: Number(e.target.value) })}
+                      className="w-full p-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">สถานที่ตั้ง / ชั้น</label>
+                    <input
+                      type="text"
+                      value={editForm.location}
+                      onChange={(e) => setEditForm({ ...editForm, location: e.target.value })}
+                      className="w-full p-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl"
+                    />
                   </div>
                 </div>
-              )}
 
-              <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setEditingResource(null)}
-                  className="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 font-semibold"
-                >
-                  ยกเลิก
-                </button>
-                <button
-                  type="submit"
-                  disabled={savingEdit}
-                  className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold shadow-md"
-                >
-                  {savingEdit ? "กำลังบันทึก..." : "บันทึกการเปลี่ยนแปลง"}
-                </button>
+                {editingResource.type === "VEHICLE" && (
+                  <div className="p-3 bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 rounded-xl space-y-2">
+                    <span className="font-bold text-amber-800 dark:text-amber-300">ข้อมูลยานพาหนะ</span>
+                    <div className="grid grid-cols-3 gap-2">
+                      <div>
+                        <label className="block text-slate-600 dark:text-slate-400 mb-0.5">ทะเบียนรถ</label>
+                        <input
+                          type="text"
+                          value={editForm.licensePlate}
+                          onChange={(e) => setEditForm({ ...editForm, licensePlate: e.target.value })}
+                          className="w-full p-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-slate-600 dark:text-slate-400 mb-0.5">ยี่ห้อ</label>
+                        <input
+                          type="text"
+                          value={editForm.brand}
+                          onChange={(e) => setEditForm({ ...editForm, brand: e.target.value })}
+                          className="w-full p-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-slate-600 dark:text-slate-400 mb-0.5">รุ่น</label>
+                        <input
+                          type="text"
+                          value={editForm.model}
+                          onChange={(e) => setEditForm({ ...editForm, model: e.target.value })}
+                          className="w-full p-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
-            </form>
-          </div>
-        </div>
-      )}
+            )}
+          </UnifiedModalBody>
+          <UnifiedModalFooter>
+            <button
+              type="button"
+              onClick={() => setEditingResource(null)}
+              className="px-4 py-2 rounded-xl text-slate-600 dark:text-slate-400 hover:bg-slate-100 text-xs font-semibold cursor-pointer"
+            >
+              ยกเลิก
+            </button>
+            <button
+              type="submit"
+              disabled={savingEdit}
+              className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md shadow-indigo-600/20 transition cursor-pointer disabled:opacity-50"
+            >
+              {savingEdit ? "กำลังบันทึก..." : "บันทึกการเปลี่ยนแปลง"}
+            </button>
+          </UnifiedModalFooter>
+        </form>
+      </UnifiedModal>
     </div>
   );
 }
