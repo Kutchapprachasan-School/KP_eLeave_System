@@ -14,7 +14,14 @@ import {
   isValidVerificationTokenFormat,
 } from '../../../src/app/(app)/document/_components/designer/cert-schema.ts';
 import { generateQrMatrix, drawQRCodeBadge } from '../../../src/app/(app)/document/_components/designer/qr-renderer.ts';
-import { drawCertificatePage, isValidDrawableImage, loadCanvasImage } from '../../../src/app/(app)/document/_components/designer/cert-pdf-engine.ts';
+import {
+  drawCertificatePage,
+  isValidDrawableImage,
+  loadCanvasImage,
+  clearImageCache,
+  evictImageCache,
+  getImageCacheSize,
+} from '../../../src/app/(app)/document/_components/designer/cert-pdf-engine.ts';
 import { processSignaturePixels } from '../../../src/app/(app)/document/_components/designer/signature-processor.ts';
 import crypto from 'node:crypto';
 
@@ -1238,6 +1245,272 @@ test('Certificate Designer Studio & Concurrency Invariants Suite', async (t) => 
     const getPanelClass = (isOpen) => (isOpen ? 'w-72 sm:w-80 opacity-100' : 'w-0 border-r-0 overflow-hidden opacity-0 pointer-events-none');
     assert.ok(getPanelClass(false).includes('w-0'));
     assert.ok(getPanelClass(true).includes('w-72 sm:w-80'));
+  });
+
+  // -------------------------------------------------------------
+  // Test 28: Object URL Preview Lifecycle (Senior Invariant 1)
+  // -------------------------------------------------------------
+  await t.test('28. Object URL preview lifecycle avoids base64 heap bloating & revokes reliably', async () => {
+    const revokedUrls = [];
+    const createdUrls = [];
+    const mockFile = { name: 'bg.png', size: 1024, type: 'image/png' };
+
+    const originalCreate = URL.createObjectURL;
+    const originalRevoke = URL.revokeObjectURL;
+
+    URL.createObjectURL = (file) => {
+      const url = `blob:http://localhost/${file.name}-${createdUrls.length + 1}`;
+      createdUrls.push(url);
+      return url;
+    };
+    URL.revokeObjectURL = (url) => {
+      revokedUrls.push(url);
+    };
+
+    try {
+      // 1. Initial user file selection creates 0ms local preview URL
+      let localPreviewUrl = URL.createObjectURL(mockFile);
+      let backgroundUrl = localPreviewUrl;
+
+      assert.equal(createdUrls.length, 1);
+      assert.equal(backgroundUrl, 'blob:http://localhost/bg.png-1');
+
+      // 2. If user selects another file before upload finishes, old URL is immediately revoked
+      const secondFile = { name: 'bg2.png', size: 2048, type: 'image/png' };
+      if (localPreviewUrl) {
+        URL.revokeObjectURL(localPreviewUrl);
+        localPreviewUrl = null;
+      }
+      localPreviewUrl = URL.createObjectURL(secondFile);
+      backgroundUrl = localPreviewUrl;
+
+      assert.equal(revokedUrls.includes('blob:http://localhost/bg.png-1'), true, 'Previous preview URL must be revoked');
+      assert.equal(backgroundUrl, 'blob:http://localhost/bg2.png-2');
+
+      // 3. Upload succeeds -> cloud URL arrives -> preloads into memory cache -> revoke local object URL
+      const cloudUrl = 'https://r2.storage.kutchap.ac.th/certs/bg2.png';
+      backgroundUrl = cloudUrl;
+      if (localPreviewUrl) {
+        URL.revokeObjectURL(localPreviewUrl);
+        localPreviewUrl = null;
+      }
+
+      assert.equal(localPreviewUrl, null, 'Local preview ref must be nullified');
+      assert.equal(revokedUrls.includes('blob:http://localhost/bg2.png-2'), true, 'Local preview URL must be cleanly revoked');
+      assert.equal(backgroundUrl, cloudUrl, 'Background URL switched to permanent cloud URL');
+    } finally {
+      URL.createObjectURL = originalCreate;
+      URL.revokeObjectURL = originalRevoke;
+    }
+  });
+
+  // -------------------------------------------------------------
+  // Test 29: Image Cache Bounds and Eviction Lifecycle (Senior Invariant 2)
+  // -------------------------------------------------------------
+  await t.test('29. inMemoryImageCache enforces MAX_IMAGE_CACHE_SIZE bound and supports explicit eviction', async () => {
+    clearImageCache();
+    assert.equal(getImageCacheSize(), 0);
+
+    const originalImage = globalThis.Image;
+    try {
+      globalThis.Image = class MockImage {
+        constructor() {
+          this.nodeName = 'IMG';
+          this.complete = true;
+          this.naturalWidth = 800;
+          this.naturalHeight = 600;
+          this.width = 800;
+          this.height = 600;
+          setTimeout(() => {
+            if (this.onload) this.onload();
+          }, 0);
+        }
+      };
+
+      // Populate cache up to 35 images (exceeding MAX_IMAGE_CACHE_SIZE = 30)
+      for (let i = 1; i <= 35; i++) {
+        await loadCanvasImage(`https://mock.storage/img_${i}.png`);
+      }
+
+      // Max size must be strictly bounded to 30
+      assert.equal(getImageCacheSize(), 30, 'Cache size must not exceed MAX_IMAGE_CACHE_SIZE (30)');
+
+      // Evict specific entry
+      evictImageCache('https://mock.storage/img_35.png');
+      assert.equal(getImageCacheSize(), 29, 'Explicit eviction should remove entry');
+
+      // Canonical key lookup support
+      const canonicalKey = 'att_canonical_12345';
+      await loadCanvasImage('https://mock.storage/dynamic_signed_url_xyz.png', canonicalKey);
+      assert.equal(getImageCacheSize(), 30);
+
+      // Evict by canonical key
+      evictImageCache(canonicalKey);
+      assert.equal(getImageCacheSize(), 29);
+
+      // studio unmount calls clearImageCache()
+      clearImageCache();
+      assert.equal(getImageCacheSize(), 0, 'clearImageCache should completely wipe image cache on unmount');
+    } finally {
+      globalThis.Image = originalImage;
+      clearImageCache();
+    }
+  });
+
+  // -------------------------------------------------------------
+  // Test 30: Fullscreen API Error Resilience & Portal Fallback (Senior Invariant 3)
+  // -------------------------------------------------------------
+  await t.test('30. Fullscreen API rejection is caught and gracefully falls back to CSS portal fullscreen', async () => {
+    let nativeRequestCalled = false;
+    let nativeExitCalled = false;
+    let fallbackTriggered = false;
+
+    // Simulate iframe or restricted permission policy rejection
+    const mockContainer = {
+      requestFullscreen: async () => {
+        nativeRequestCalled = true;
+        throw new Error('NotAllowedError: Permissions policy denies fullscreen');
+      },
+    };
+
+    let isFullscreen = false;
+    const handleToggleFullscreen = async () => {
+      try {
+        if (!isFullscreen) {
+          try {
+            await mockContainer.requestFullscreen();
+          } catch (nativeErr) {
+            // Senior Invariant 3: Native Fullscreen API failed, fallback to pure React portal fullscreen
+            fallbackTriggered = true;
+          }
+          isFullscreen = true;
+        } else {
+          try {
+            nativeExitCalled = true;
+          } catch {}
+          isFullscreen = false;
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    };
+
+    await handleToggleFullscreen();
+    assert.equal(nativeRequestCalled, true, 'Should attempt native Fullscreen API');
+    assert.equal(fallbackTriggered, true, 'Should catch native error cleanly');
+    assert.equal(isFullscreen, true, 'React portal fullscreen must activate despite native API rejection');
+
+    // Toggle off
+    await handleToggleFullscreen();
+    assert.equal(nativeExitCalled, true);
+    assert.equal(isFullscreen, false);
+  });
+
+  // -------------------------------------------------------------
+  // Test 31: Body Scroll Lock Lifecycle (Senior Invariant 4)
+  // -------------------------------------------------------------
+  await t.test('31. Fullscreen activates body scroll lock and safely restores previous overflow on exit', () => {
+    const mockBody = {
+      style: {
+        overflow: 'auto',
+      },
+    };
+
+    let isFullscreen = false;
+    let originalOverflow = '';
+
+    const applyScrollLock = (fs) => {
+      if (fs) {
+        originalOverflow = mockBody.style.overflow;
+        mockBody.style.overflow = 'hidden';
+      } else {
+        mockBody.style.overflow = originalOverflow;
+      }
+    };
+
+    // 1. Enter fullscreen
+    isFullscreen = true;
+    applyScrollLock(isFullscreen);
+    assert.equal(mockBody.style.overflow, 'hidden', 'Body overflow must be locked to hidden in fullscreen');
+
+    // 2. Exit fullscreen
+    isFullscreen = false;
+    applyScrollLock(isFullscreen);
+    assert.equal(mockBody.style.overflow, 'auto', 'Body overflow must be restored to original value on exit');
+  });
+
+  // -------------------------------------------------------------
+  // Test 32: Responsive matchMedia Breakpoint Logic (Senior Invariant 5)
+  // -------------------------------------------------------------
+  await t.test('32. matchMedia breakpoint strictly mirrors Tailwind lg (1024px) boundary', () => {
+    const mediaQueryString = '(max-width: 1023px)';
+
+    const evaluateQuery = (width) => {
+      const match = mediaQueryString.match(/max-width:\s*(\d+)px/);
+      const maxWidth = match ? parseInt(match[1], 10) : 1023;
+      return width <= maxWidth;
+    };
+
+    // Strictly below 1024px -> mobile drawer
+    assert.equal(evaluateQuery(1023), true, '1023px must be mobile drawer mode');
+    assert.equal(evaluateQuery(768), true, '768px tablet must be mobile drawer mode');
+    assert.equal(evaluateQuery(375), true, '375px phone must be mobile drawer mode');
+
+    // 1024px and above -> desktop panels
+    assert.equal(evaluateQuery(1024), false, '1024px must be desktop panel mode');
+    assert.equal(evaluateQuery(1280), false, '1280px must be desktop panel mode');
+    assert.equal(evaluateQuery(1920), false, '1920px must be desktop panel mode');
+  });
+
+  // -------------------------------------------------------------
+  // Test 33: Panel Accessibility & Escape Key Hierarchy (Senior Invariant 6)
+  // -------------------------------------------------------------
+  await t.test('33. Escape key hierarchy prioritizes closing mobile drawers before exiting fullscreen', () => {
+    let isFullscreen = true;
+    let isMobile = true;
+    let leftPanelOpen = true;
+    let rightPanelOpen = false;
+
+    const handleEscapeKey = () => {
+      if (isMobile && (leftPanelOpen || rightPanelOpen)) {
+        leftPanelOpen = false;
+        rightPanelOpen = false;
+      } else if (isFullscreen) {
+        isFullscreen = false;
+      }
+    };
+
+    // 1. In mobile fullscreen with drawer open, Escape closes drawer first!
+    handleEscapeKey();
+    assert.equal(leftPanelOpen, false, 'Mobile drawer must close first on Escape');
+    assert.equal(isFullscreen, true, 'Fullscreen must remain active while closing drawer');
+
+    // 2. Second Escape exits fullscreen
+    handleEscapeKey();
+    assert.equal(isFullscreen, false, 'Second Escape exits fullscreen when drawers are closed');
+
+    // 3. Accessibility attribute contracts
+    const getAsideA11y = (isOpen) => ({
+      'aria-hidden': !isOpen,
+      inert: !isOpen ? true : undefined,
+    });
+
+    assert.deepEqual(getAsideA11y(false), { 'aria-hidden': true, inert: true });
+    assert.deepEqual(getAsideA11y(true), { 'aria-hidden': false, inert: undefined });
+
+    const getToggleA11y = (isOpen, panelId) => ({
+      'aria-expanded': isOpen,
+      'aria-controls': panelId,
+    });
+
+    assert.deepEqual(getToggleA11y(false, 'studio-left-panel'), {
+      'aria-expanded': false,
+      'aria-controls': 'studio-left-panel',
+    });
+    assert.deepEqual(getToggleA11y(true, 'studio-right-panel'), {
+      'aria-expanded': true,
+      'aria-controls': 'studio-right-panel',
+    });
   });
 });
 

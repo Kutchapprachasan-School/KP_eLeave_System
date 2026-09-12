@@ -62,6 +62,8 @@ import {
 import {
   ensureFontsLoaded,
   loadCanvasImage,
+  clearImageCache,
+  evictImageCache,
   isValidDrawableImage,
   drawCertificatePage,
   generateCertificatePdfBatch,
@@ -69,7 +71,6 @@ import {
 } from "./cert-pdf-engine";
 import {
   removeSignatureBackground,
-  fileToDataUrl,
 } from "./signature-processor";
 import {
   getCertificateTemplatesAction,
@@ -119,11 +120,14 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
   const [isMobile, setIsMobile] = useState<boolean>(false);
   const [mounted, setMounted] = useState<boolean>(false);
 
-  // Responsive device check & mobile panel defaults
+  // Responsive device check using matchMedia for exact Tailwind lg (1024px) alignment (Senior Invariant 5)
   useEffect(() => {
     setMounted(true);
-    const checkViewport = () => {
-      const mobile = window.innerWidth < 1024;
+    if (typeof window === "undefined" || !window.matchMedia) return;
+
+    const mql = window.matchMedia("(max-width: 1023px)");
+    const handleMediaChange = (e: MediaQueryListEvent | MediaQueryList) => {
+      const mobile = e.matches;
       setIsMobile(mobile);
       if (mobile) {
         // Automatically close sidebars on mobile so preview canvas is front-and-center
@@ -131,23 +135,49 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
         setRightPanelOpen(false);
       }
     };
-    checkViewport();
-    window.addEventListener("resize", checkViewport);
-    return () => window.removeEventListener("resize", checkViewport);
+
+    handleMediaChange(mql);
+
+    if (mql.addEventListener) {
+      mql.addEventListener("change", handleMediaChange);
+      return () => mql.removeEventListener("change", handleMediaChange);
+    } else if ((mql as any).addListener) {
+      (mql as any).addListener(handleMediaChange);
+      return () => (mql as any).removeListener(handleMediaChange);
+    }
   }, []);
 
-  // HTML5 Fullscreen API synchronization
-  const handleToggleFullscreen = useCallback(() => {
+  // Lock body scroll while in fullscreen portal to prevent background page scrolling (Senior Invariant 4)
+  useEffect(() => {
+    if (isFullscreen) {
+      const originalOverflow = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+      return () => {
+        document.body.style.overflow = originalOverflow;
+      };
+    }
+  }, [isFullscreen]);
+
+  // HTML5 Fullscreen API synchronization with try/catch fallback (Senior Invariant 3)
+  const handleToggleFullscreen = useCallback(async () => {
     if (!isFullscreen) {
       setIsFullscreen(true);
-      const elem = document.documentElement;
-      if (elem.requestFullscreen) {
-        elem.requestFullscreen().catch(() => {});
+      try {
+        if (document.documentElement.requestFullscreen) {
+          await document.documentElement.requestFullscreen();
+        }
+      } catch (err) {
+        // Fallback gracefully to CSS Portal Fullscreen if native fullscreen is denied
+        console.warn("Native fullscreen denied, fallback to Portal CSS fullscreen:", err);
       }
     } else {
       setIsFullscreen(false);
-      if (document.fullscreenElement && document.exitFullscreen) {
-        document.exitFullscreen().catch(() => {});
+      try {
+        if (document.fullscreenElement && document.exitFullscreen) {
+          await document.exitFullscreen();
+        }
+      } catch (err) {
+        console.warn("Native fullscreen exit failed:", err);
       }
     }
   }, [isFullscreen]);
@@ -215,14 +245,22 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
       } else if (mod && e.key === "\\") {
         e.preventDefault();
         setLeftPanelOpen((prev) => !prev);
-      } else if (e.key === "Escape" && isFullscreen) {
-        handleToggleFullscreen();
+      } else if (e.key === "Escape") {
+        // Senior Invariant 6: Accessibility hierarchy - close open drawer first before exiting fullscreen
+        if (isMobile && (leftPanelOpen || rightPanelOpen)) {
+          e.preventDefault();
+          setLeftPanelOpen(false);
+          setRightPanelOpen(false);
+        } else if (isFullscreen) {
+          e.preventDefault();
+          handleToggleFullscreen();
+        }
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [handleUndo, handleRedo, selectedElementId, isFullscreen, handleToggleFullscreen]);
+  }, [handleUndo, handleRedo, selectedElementId, isFullscreen, isMobile, leftPanelOpen, rightPanelOpen, handleToggleFullscreen]);
 
   // --- Roster State ---
   const [roster, setRoster] = useState<Array<Record<string, string>>>(() => {
@@ -279,12 +317,14 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
   // Active snap guides line positions
   const [activeGuides, setActiveGuides] = useState<{ x?: number; y?: number }>({});
 
-  // Clean up local preview object URLs on unmount
+  // Clean up local preview object URLs & release bounded image cache on unmount (Senior Invariant 2)
   useEffect(() => {
     return () => {
       if (localPreviewUrlRef.current) {
         URL.revokeObjectURL(localPreviewUrlRef.current);
+        localPreviewUrlRef.current = null;
       }
+      clearImageCache();
     };
   }, []);
 
@@ -331,13 +371,27 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
   };
 
   const applyTemplate = (tmpl: any) => {
+    // Revoke any pending local object URL
+    if (localPreviewUrlRef.current) {
+      URL.revokeObjectURL(localPreviewUrlRef.current);
+      localPreviewUrlRef.current = null;
+    }
+
+    // Evict old template background from cache (Senior Invariant 2)
+    if (backgroundUrl && backgroundUrl !== tmpl.backgroundUrl) {
+      evictImageCache(backgroundUrl);
+    }
+    if (backgroundAttachmentId && backgroundAttachmentId !== tmpl.backgroundAttachmentId) {
+      evictImageCache(backgroundAttachmentId);
+    }
+
     setSelectedTemplateId(tmpl.id);
     setTemplateName(tmpl.name);
     setOrientation(tmpl.orientation);
     setScope(tmpl.scope);
     setTemplateVersion(tmpl.templateVersion || 1);
     setBackgroundAttachmentId(tmpl.backgroundAttachmentId);
-    setBackgroundUrl(tmpl.backgroundUrl);
+    setBackgroundUrl(tmpl.backgroundUrl || "");
     activeBgImageRef.current = null;
 
     if (tmpl.layoutConfig && tmpl.layoutConfig.elements) {
@@ -670,7 +724,7 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
     setZoomScale(Math.max(0.4, Math.min(1.5, Math.round(fit * 100) / 100)));
   };
 
-  // --- Background Upload Handler with 0ms Instant Preview ---
+  // --- Background Upload Handler with ObjectURL Lifecycle (Senior Invariant 1) ---
   const handleBackgroundUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -678,35 +732,28 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
     // Reset input value so selecting the same file again triggers onChange
     e.target.value = "";
 
-    // 1. Instant 0ms Local Preview via Data URL (100% immune to CORS, revoking, or network latency)
-    let localDataUrl = "";
-    try {
-      localDataUrl = await fileToDataUrl(file);
-      setBackgroundUrl(localDataUrl);
-      setStatusMessage(null);
-
-      // Auto-detect image aspect ratio to adjust orientation immediately
-      const img = new Image();
-      img.onload = () => {
-        activeBgImageRef.current = img;
-        if (img.width < img.height && orientation === "LANDSCAPE") {
-          setOrientation("PORTRAIT");
-        } else if (img.width > img.height && orientation === "PORTRAIT") {
-          setOrientation("LANDSCAPE");
-        }
-      };
-      img.src = localDataUrl;
-    } catch (readErr) {
-      console.warn("FileReader data URL failed, fallback to ObjectURL:", readErr);
-      if (localPreviewUrlRef.current) {
-        URL.revokeObjectURL(localPreviewUrlRef.current);
-      }
-      localDataUrl = URL.createObjectURL(file);
-      localPreviewUrlRef.current = localDataUrl;
-      setBackgroundUrl(localDataUrl);
+    // 1. Instant 0ms Local Preview via Object URL (low memory footprint, avoids Base64 heap bloating)
+    if (localPreviewUrlRef.current) {
+      URL.revokeObjectURL(localPreviewUrlRef.current);
     }
+    const localUrl = URL.createObjectURL(file);
+    localPreviewUrlRef.current = localUrl;
+    setBackgroundUrl(localUrl);
+    setStatusMessage(null);
 
-    // 2. Commit to Cloud Storage with R2 -> Supabase resilient fallback
+    // Auto-detect image aspect ratio to adjust orientation immediately
+    const img = new Image();
+    img.onload = () => {
+      activeBgImageRef.current = img;
+      if (img.width < img.height && orientation === "LANDSCAPE") {
+        setOrientation("PORTRAIT");
+      } else if (img.width > img.height && orientation === "PORTRAIT") {
+        setOrientation("LANDSCAPE");
+      }
+    };
+    img.src = localUrl;
+
+    // 2. Commit to Cloud Storage with resilient fallback
     setUploadingBg(true);
     try {
       const formData = new FormData();
@@ -716,9 +763,21 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
       const res = await uploadCertificateBackgroundAction(formData);
       if (res.success && res.data) {
         setBackgroundAttachmentId(res.data.attachmentId);
-        // Pre-warm the cache with cloud URL for persistence, while retaining crisp local preview
         if (res.data.url) {
-          loadCanvasImage(res.data.url).catch(() => {});
+          try {
+            // Preload and cache using canonical attachmentId identity (Senior Invariant 2)
+            const preloaded = await loadCanvasImage(res.data.url, res.data.attachmentId);
+            activeBgImageRef.current = preloaded;
+            setBackgroundUrl(res.data.url);
+
+            // Cleanly revoke local Object URL now that cloud URL is active in cache
+            if (localPreviewUrlRef.current) {
+              URL.revokeObjectURL(localPreviewUrlRef.current);
+              localPreviewUrlRef.current = null;
+            }
+          } catch (loadErr) {
+            console.warn("Could not preload remote background, retaining local Object URL:", loadErr);
+          }
         }
         setStatusMessage({ type: "success", text: "อัปโหลดภาพพื้นหลังสำเร็จ" });
       } else {
@@ -1232,6 +1291,9 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
           {/* Left Panel Toggle (Elements & Layers) */}
           <button
             onClick={() => setLeftPanelOpen((p) => !p)}
+            aria-expanded={leftPanelOpen}
+            aria-controls="studio-left-panel"
+            aria-label={leftPanelOpen ? "พับแถบเครื่องมือซ้าย" : "เปิดแถบเครื่องมือซ้าย"}
             className={`p-2 rounded-lg transition ${
               leftPanelOpen
                 ? "bg-indigo-50 dark:bg-indigo-950/70 text-indigo-600 dark:text-indigo-400"
@@ -1354,6 +1416,9 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
           {/* Right Panel Toggle (Properties Inspector) */}
           <button
             onClick={() => setRightPanelOpen((p) => !p)}
+            aria-expanded={rightPanelOpen}
+            aria-controls="studio-right-panel"
+            aria-label={rightPanelOpen ? "พับแถบปรับแต่งขวา" : "เปิดแถบปรับแต่งขวา"}
             className={`p-2 rounded-lg transition ${
               rightPanelOpen
                 ? "bg-indigo-50 dark:bg-indigo-950/70 text-indigo-600 dark:text-indigo-400"
@@ -1418,12 +1483,25 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
         {/* ─── LEFT PANEL (Desktop collapsible / Mobile slide-over drawer) ─── */}
         {isMobile && leftPanelOpen && (
           <div
+            role="button"
+            tabIndex={0}
+            aria-label="ปิดแผงเครื่องมือ"
             onClick={() => setLeftPanelOpen(false)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                setLeftPanelOpen(false);
+              }
+            }}
             className="fixed inset-0 z-40 bg-black/50 backdrop-blur-xs animate-in fade-in duration-150"
           />
         )}
 
         <aside
+          id="studio-left-panel"
+          aria-label="แผงเครื่องมือองค์ประกอบ"
+          aria-hidden={!leftPanelOpen}
+          inert={!leftPanelOpen ? true : undefined}
           className={`bg-white dark:bg-slate-900 flex flex-col shrink-0 transition-all duration-300 ease-in-out ${
             isMobile
               ? `fixed inset-y-0 left-0 z-50 w-80 max-w-[85vw] shadow-2xl ${
@@ -1778,12 +1856,25 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
         {/* ─── RIGHT PANEL (Desktop collapsible / Mobile slide-over drawer) ─── */}
         {isMobile && rightPanelOpen && (
           <div
+            role="button"
+            tabIndex={0}
+            aria-label="ปิดแผงปรับแต่ง"
             onClick={() => setRightPanelOpen(false)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                setRightPanelOpen(false);
+              }
+            }}
             className="fixed inset-0 z-40 bg-black/50 backdrop-blur-xs animate-in fade-in duration-150"
           />
         )}
 
         <aside
+          id="studio-right-panel"
+          aria-label="แผงปรับแต่งคุณสมบัติ"
+          aria-hidden={!rightPanelOpen}
+          inert={!rightPanelOpen ? true : undefined}
           className={`bg-white dark:bg-slate-900 flex flex-col shrink-0 transition-all duration-300 ease-in-out ${
             isMobile
               ? `fixed inset-y-0 right-0 z-50 w-80 max-w-[85vw] shadow-2xl ${

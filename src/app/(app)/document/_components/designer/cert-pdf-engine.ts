@@ -27,20 +27,48 @@ export const A4_DIMS = {
   },
 } as const;
 
+const MAX_IMAGE_CACHE_SIZE = 30;
 const inMemoryImageCache = new Map<string, HTMLImageElement>();
+
+/**
+ * Explicit Cache Lifecycle Management (Senior Invariant 2)
+ */
+export function clearImageCache(): void {
+  inMemoryImageCache.clear();
+}
+
+export function evictImageCache(key: string): void {
+  if (!key) return;
+  inMemoryImageCache.delete(key);
+}
+
+export function getImageCacheSize(): number {
+  return inMemoryImageCache.size;
+}
+
+function setBoundedCache(key: string, img: HTMLImageElement) {
+  if (inMemoryImageCache.size >= MAX_IMAGE_CACHE_SIZE) {
+    // Evict oldest entry to prevent unbounded memory growth
+    const oldestKey = inMemoryImageCache.keys().next().value;
+    if (oldestKey) inMemoryImageCache.delete(oldestKey);
+  }
+  inMemoryImageCache.set(key, img);
+}
 
 /**
  * Invariant R & H: Cloud Storage CORS Image Loader
  * Sets crossOrigin = "anonymous" for http/https, leaves unset for blob:/data:.
- * Caches loaded images to prevent redundant loads.
+ * Caches loaded images to prevent redundant loads with LRU-style eviction bounds.
  */
-export async function loadCanvasImage(url: string): Promise<HTMLImageElement> {
+export async function loadCanvasImage(url: string, canonicalKey?: string): Promise<HTMLImageElement> {
   if (!url) {
     throw new Error("Image URL is required.");
   }
 
-  if (inMemoryImageCache.has(url)) {
-    const cached = inMemoryImageCache.get(url)!;
+  const lookupKey = canonicalKey || url;
+
+  if (inMemoryImageCache.has(lookupKey)) {
+    const cached = inMemoryImageCache.get(lookupKey)!;
     if (isValidDrawableImage(cached)) {
       return cached;
     }
@@ -57,7 +85,7 @@ export async function loadCanvasImage(url: string): Promise<HTMLImageElement> {
 
     img.onload = () => {
       if (isValidDrawableImage(img)) {
-        inMemoryImageCache.set(url, img);
+        setBoundedCache(lookupKey, img);
         resolve(img);
       } else {
         reject(new Error(`Image loaded but dimensions are invalid (${url.slice(0, 50)})`));
@@ -70,7 +98,7 @@ export async function loadCanvasImage(url: string): Promise<HTMLImageElement> {
         const fallbackImg = new Image();
         fallbackImg.onload = () => {
           if (isValidDrawableImage(fallbackImg)) {
-            inMemoryImageCache.set(url, fallbackImg);
+            setBoundedCache(lookupKey, fallbackImg);
             resolve(fallbackImg);
           } else {
             reject(new Error(`Image loaded but dimensions are invalid (${url.slice(0, 50)})`));
