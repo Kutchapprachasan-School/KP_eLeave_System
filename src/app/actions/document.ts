@@ -1410,4 +1410,70 @@ export async function uploadCertificateSignatureAction(
   }
 }
 
+/**
+ * CORS Taint Immunization Action for Certificate Studio Canvas
+ *
+ * When an image from Cloudflare R2 / Supabase lacks CORS headers, the client browser cannot
+ * export a canvas drawn with it. This server action safely fetches the image on the server
+ * (where browser CORS restrictions do not apply) and returns it as a pristine Data URL.
+ */
+export async function fetchImageAsDataUrlAction(
+  targetUrl: string
+): Promise<ActionResponse<{ dataUrl: string; mimeType: string }>> {
+  try {
+    const user = await getCurrentUser();
+    if (!user) {
+      return { success: false, error: "Unauthorized" };
+    }
+
+    if (!targetUrl || typeof targetUrl !== "string") {
+      return { success: false, error: "Invalid image URL" };
+    }
+
+    let parsedUrl: URL;
+    try {
+      parsedUrl = new URL(targetUrl);
+    } catch {
+      return { success: false, error: "Malformed image URL" };
+    }
+
+    if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
+      return { success: false, error: "Unsupported protocol" };
+    }
+
+    // Security: Disallow loopback / private IP SSRF attempts
+    const hostname = parsedUrl.hostname.toLowerCase();
+    if (
+      hostname === "localhost" ||
+      hostname === "127.0.0.1" ||
+      hostname === "0.0.0.0" ||
+      hostname.startsWith("192.168.") ||
+      hostname.startsWith("10.") ||
+      hostname === "169.254.169.254"
+    ) {
+      return { success: false, error: "Forbidden target host" };
+    }
+
+    const upstreamRes = await fetch(targetUrl);
+    if (!upstreamRes.ok) {
+      return { success: false, error: `Upstream fetch failed with status ${upstreamRes.status}` };
+    }
+
+    const mimeType = upstreamRes.headers.get("content-type") || "image/jpeg";
+    const arrayBuffer = await upstreamRes.arrayBuffer();
+    const base64 = Buffer.from(arrayBuffer).toString("base64");
+    const dataUrl = `data:${mimeType};base64,${base64}`;
+
+    return {
+      success: true,
+      data: {
+        dataUrl,
+        mimeType,
+      },
+    };
+  } catch (err: any) {
+    return handleActionError(err, "fetchImageAsDataUrlAction");
+  }
+}
+
 

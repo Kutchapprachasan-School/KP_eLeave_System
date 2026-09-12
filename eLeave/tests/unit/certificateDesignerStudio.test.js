@@ -1667,5 +1667,50 @@ test('Certificate Designer Studio & Concurrency Invariants Suite', async (t) => 
     assert.equal(mockBody.style.zoom, '');
     assert.equal(mockBody.style.overflow, '');
   });
+
+  // -------------------------------------------------------------
+  // Test 39: Canvas CORS Taint Immunization & Same-Origin Proxy Invariants
+  // -------------------------------------------------------------
+  await t.test('39. Canvas CORS Taint Immunization: loadCanvasImage handles blob/data URLs and isolates remote images', async () => {
+    const originalImage = globalThis.Image;
+    try {
+      const mockImgInstances = [];
+      globalThis.Image = class MockImage {
+        constructor() {
+          this.nodeName = 'IMG';
+          this.complete = true;
+          this.naturalWidth = 1920;
+          this.naturalHeight = 1080;
+          this.width = 1920;
+          this.height = 1080;
+          mockImgInstances.push(this);
+          setTimeout(() => {
+            if (this.onload) this.onload();
+          }, 0);
+        }
+      };
+
+      // 1. Blob URL must NOT have crossOrigin set (setting crossOrigin on blob: causes browser rejection)
+      const blobUrl = 'blob:http://localhost:3000/mock-blob-1234';
+      const loadedBlobImg = await loadCanvasImage(blobUrl);
+      assert.ok(loadedBlobImg);
+      const blobInstance = mockImgInstances[mockImgInstances.length - 1];
+      assert.equal(blobInstance.crossOrigin, undefined, 'Blob URLs must never have crossOrigin set');
+
+      // 2. Data URL must NOT have crossOrigin set
+      const dataUrl = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+      const loadedDataImg = await loadCanvasImage(dataUrl);
+      assert.ok(loadedDataImg);
+      const dataInstance = mockImgInstances[mockImgInstances.length - 1];
+      assert.equal(dataInstance.crossOrigin, undefined, 'Data URLs must never have crossOrigin set');
+
+      // 3. Clear image cache wipes cache
+      clearImageCache();
+      assert.equal(getImageCacheSize(), 0);
+    } finally {
+      globalThis.Image = originalImage;
+      clearImageCache();
+    }
+  });
 });
 

@@ -836,13 +836,11 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
           try {
             // Preload and cache using canonical attachmentId identity (Senior Invariant 2)
             const preloaded = await loadCanvasImage(res.data.url, res.data.attachmentId);
-            activeBgImageRef.current = preloaded;
-            setBackgroundUrl(res.data.url);
-
-            // Cleanly revoke local Object URL now that cloud URL is active in cache
-            if (localPreviewUrlRef.current) {
-              URL.revokeObjectURL(localPreviewUrlRef.current);
-              localPreviewUrlRef.current = null;
+            // If local preview is active, keep localUrl as backgroundUrl for 0ms zero-CORS export;
+            // otherwise use preloaded remote image
+            if (!localPreviewUrlRef.current) {
+              activeBgImageRef.current = preloaded;
+              setBackgroundUrl(res.data.url);
             }
           } catch (loadErr) {
             console.warn("Could not preload remote background, retaining local Object URL:", loadErr);
