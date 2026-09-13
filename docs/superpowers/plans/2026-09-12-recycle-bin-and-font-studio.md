@@ -146,33 +146,46 @@
   - `softDeleteService(params): Promise<SoftDeleteResult>`
   - `restoreService(params): Promise<RestoreResult>`
   - `purgeRecycleBinItemService(params): Promise<PurgeResult>`
+  - `bulkRestoreService(params): Promise<BulkOperationResult>`
+  - `bulkPurgeService(params): Promise<BulkOperationResult>`
   - `validateChronoDateBoundary(params): Promise<void>`
   - `getRecycleBinItemsService(params): Promise<RecycleBinViewModel[]>`
 
-- [ ] **Step 4.1: Write failing unit tests for Invariants 54–60**
-  - Test 54: Soft-Delete Idempotency (no-op on repeated deletes; `purgeAt` fixed).
-  - Test 55: Restore Idempotency (no-op on active records; no double seq assignment).
+- [x] **Step 4.1: Write failing unit tests for Invariants 54–63**
+  - Test 54: Soft-Delete Idempotency & Row Lock (concurrent/repeated deletes execute no-op under `FOR UPDATE` without double-refunding leave quota).
+  - Test 55: Restore Idempotency (repeated restores return no-op and do not re-deduct quota or duplicate seq).
   - Test 56: State-Bound Leave Quota (refund on delete only if `APPROVED`; re-deduct on restore only if `APPROVED`).
-  - Test 57: Chrono-Sequential Bounded Modification (`prevDate <= date <= nextDate` enforced with row locks).
-  - Test 58: Certificate Restore Timeline Reassignment (`RestoreDate = max(latest, today)`, `seqNo = maxSeq + 1`).
-  - Test 59: Hard Purge Attachment Lifecycle Integration (invokes `releaseAttachmentReference` before row deletion).
-  - Test 60: RBAC Matrix Enforcement (Document & Leave deletions restricted to Admin).
+  - Test 57: Chrono-Sequential Concurrency & Partition Lock Mutual Exclusion Harness (TX-A acquires `DocumentConfig` partition lock, TX-B attempts timeline mutation concurrently and is blocked until TX-A commits; timeline ordering preserved).
+  - Test 58: Sole Sequence Allocator Authority & Sanity Healing (`DocumentConfig.currentSeq` is sole authority; `MAX(seqNo)` includes deleted records without `isDeleted` filter; drift triggers audited `AUTO_HEAL_SEQUENCE_DRIFT` under lock).
+  - Test 59: Certificate Restore Timeline Tail Re-issuance (`latestActiveDate` strictly filters `isDeleted = false`; deleted batches never affect tail date).
+  - Test 60: Atomic In-Transaction Audit Invariant (Certificate restore rolls back if `auditLog` write fails; no restore without audit).
+  - Test 61: Official Document Restore Identity Invariant (preserves original `docNo`, rejects with collision error if number taken).
+  - Test 62: Bulk Operations Itemized Isolation (per-item atomic transaction, partial success contract with failure diagnostic tooltips).
+  - Test 63: Hard Purge Attachment Lifecycle Integration (invokes `releaseAttachmentReference` before row deletion).
 
-- [ ] **Step 4.2: Implement `recycle-bin.service.ts`**
-  - Implement `softDeleteService` with static `purgeAt = now + retentionDays` and idempotency check.
-  - Implement `restoreCertificateRecord` with atomic sequence lock on `DocumentConfig` (`FOR UPDATE`) and `RestoreDate = max(latestDate, today)`.
-  - Implement `restoreDocumentRecord` (Admin only) with available sequence check.
-  - Implement `restoreLeaveRequest` (Admin only) with quota check and conditional deduction.
+- [x] **Step 4.2: Implement `recycle-bin.service.ts`**
+  - Enforce global invariant: `NO TIMELINE MUTATION WITHOUT PARTITION LOCK` (Create, Date/Seq Update, Soft Delete, Restore, Hard Purge, Import).
+  - Implement `softDeleteService` with authoritative pessimistic row lock (`SELECT ... FOR UPDATE`), static `purgeAt = now + retentionDays`, idempotency check, and state-bound leave refund.
+  - Implement `restoreCertificateRecord` with `DocumentConfig` as sole sequence allocator authority:
+    - Lock partition `DocumentConfig(docType, year) FOR UPDATE`.
+    - Query `MAX(seqNo)` without `isDeleted` filter (counting deleted records).
+    - If `maxDbSeq > currentSeq`, trigger atomic in-transaction `CRITICAL INTEGRITY EVENT` audit log and repair `currentSeq = maxDbSeq`.
+    - Query `latestActiveDate` with strict `isDeleted = false` filter.
+    - Re-issue with `nextSeqNo = currentSeq + 1` and `restoreDate = max(latestActiveDate, today)`.
+    - Write atomic `auditLog` inside `tx` (Invariant: No Audit = No Commit).
+  - Implement `restoreDocumentRecord` (Admin only) with original identity preservation, collision validation, and atomic audit logging.
+  - Implement `restoreLeaveRequest` (Admin only) with quota check, conditional deduction if `APPROVED`, and atomic audit logging.
+  - Implement `validateChronoDateBoundary` with partition timeline lock (`DocumentConfig FOR UPDATE`) + real row locks on current, preceding (n-1), and succeeding (n+1) rows.
+  - Implement `bulkRestoreService` and `bulkPurgeService` using per-item transaction boundaries returning itemized `BulkOperationResult`.
   - Implement `purgeRecycleBinItemService` with `FileAttachment` release loop.
-  - Implement `validateChronoDateBoundary` with adjacent row locks.
 
-- [ ] **Step 4.3: Integrate into `actions/document.ts` and `actions/leave.ts`**
+- [x] **Step 4.3: Integrate into `actions/document.ts` and `actions/leave.ts`**
   - In `cancelDoc`: keep strike-through status `CANCELLED` and preserve number (Invariant).
   - In `deleteDoc`: enforce Admin-only and delegate to `softDeleteService`.
   - In `deleteLeaveRequest`: enforce Admin/HR-only and delegate to `softDeleteService`.
   - In document date modification: invoke `validateChronoDateBoundary`.
 
-- [ ] **Step 4.4: Run unit tests to verify Invariants 54–60 pass**
+- [x] **Step 4.4: Run unit tests to verify Invariants 54–63 pass**
 
 ---
 
@@ -192,7 +205,7 @@
   - `getRecycleBinStatsAction()`
   - `updateRecycleBinRetentionDaysAction(days: number)`
 
-- [ ] **Step 5.1: Implement Server Actions in `src/app/actions/recycle-bin.ts`**
+- [x] **Step 5.1: Implement Server Actions in `src/app/actions/recycle-bin.ts`**
   - Enforce session authentication via `getSessionUser()`.
   - Enforce Admin authorization for Document & Leave items.
   - Enforce Self-Service authorization for Certificate batches.
@@ -207,14 +220,14 @@
 - Modify: `src/app/(app)/document/_components/designer/cert-designer-studio.tsx`
 - Modify: `src/app/(app)/settings/page.tsx`
 
-- [ ] **Step 6.1: Build Admin Recycle Bin Center (`/admin/recycle-bin`)**
+- [x] **Step 6.1: Build Admin Recycle Bin Center (`/admin/recycle-bin`)**
   - KPI Stat Badges (Total, Certificates, Documents, Leaves, Expiring Soon).
   - Tabs: `ทั้งหมด`, `เกียรติบัตร`, `เลขหนังสือ`, `ใบลา`.
   - Search input, module badge, retention countdown badge.
   - Modals for Restore (with chrono notice) and Purge (danger confirmation).
   - Batch select checkboxes and actions.
 
-- [ ] **Step 6.2: Build Teacher Self-Service Trash (`MyTrashModal`)**
+- [x] **Step 6.2: Build Teacher Self-Service Trash (`MyTrashModal`)**
   - Accessible via "ถังขยะของฉัน" button in `/document`.
   - Shows only user's own deleted certificate batches.
   - Allows Restore; hides Purge button.

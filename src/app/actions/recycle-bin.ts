@@ -7,6 +7,7 @@ import {
   RecycleBinService,
   type RecycleBinItemType,
   type RecycleBinItemViewModel,
+  type BulkOperationResult,
   calculateDaysRemaining,
 } from "@/services/recycle-bin/recycle-bin.service";
 
@@ -209,6 +210,52 @@ export async function purgeRecycleBinItemAction(
   } catch (err: any) {
     console.error("🔒 [RecycleBin Action Error - purgeRecycleBinItemAction]:", err);
     return { success: false, error: err.message || "เกิดข้อผิดพลาดในการลบรายการถาวร" };
+  }
+}
+
+/**
+ * Bulk Restore items from Recycle Bin (Itemized Isolation)
+ */
+export async function bulkRestoreRecycleBinAction(
+  items: Array<{ type: RecycleBinItemType; id: string }>
+): Promise<{ success: boolean; result?: BulkOperationResult; error?: string }> {
+  try {
+    const user = await getAuthenticatedUser();
+    const result = await RecycleBinService.bulkRestore({
+      items,
+      user: { userId: user.id, userRole: user.role },
+    });
+
+    safeRevalidate();
+    return { success: true, result };
+  } catch (err: any) {
+    console.error("🔒 [RecycleBin Action Error - bulkRestoreRecycleBinAction]:", err);
+    return { success: false, error: err.message || "เกิดข้อผิดพลาดในการกู้คืนแบบกลุ่ม" };
+  }
+}
+
+/**
+ * Bulk Purge items from Recycle Bin (Itemized Isolation)
+ */
+export async function bulkPurgeRecycleBinAction(
+  items: Array<{ type: RecycleBinItemType; id: string }>
+): Promise<{ success: boolean; result?: BulkOperationResult; error?: string }> {
+  try {
+    const user = await getAuthenticatedUser();
+    if (user.role !== "ADMIN" && user.role !== "SUPERADMIN") {
+      return { success: false, error: "เฉพาะผู้ดูแลระบบเท่านั้นที่สามารถลบถาวรแบบกลุ่มได้" };
+    }
+
+    const result = await RecycleBinService.bulkPurge({
+      items,
+      user: { userId: user.id, userRole: user.role },
+    });
+
+    safeRevalidate();
+    return { success: true, result };
+  } catch (err: any) {
+    console.error("🔒 [RecycleBin Action Error - bulkPurgeRecycleBinAction]:", err);
+    return { success: false, error: err.message || "เกิดข้อผิดพลาดในการลบถาวรแบบกลุ่ม" };
   }
 }
 
