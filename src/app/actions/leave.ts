@@ -9,6 +9,7 @@ import { sendLineNotify, formatLeaveMessage } from "@/lib/line-notify";
 import { getCurrentLeaveCycle, getLeaveCycleFilter } from "@/lib/cycle";
 import { cache } from "react";
 import { z } from "zod";
+import { RecycleBinService } from "@/services/recycle-bin/recycle-bin.service";
 
 const getAllHolidaysMemo = cache(async () => {
   return prisma.holiday.findMany();
@@ -1243,7 +1244,14 @@ export async function adminDeleteLeaveRequest(id: string) {
   const request = await prisma.leaveRequest.findUnique({ where: { id }, include: { user: true } });
   if (!request) throw new Error("Request not found");
 
-  await prisma.leaveRequest.delete({ where: { id } });
+  const deleteResult = await RecycleBinService.softDelete({
+    type: "LEAVE",
+    id,
+    user: { userId: session.user.id, userRole: user.role || "ADMIN" },
+  });
+  if (!deleteResult.success) {
+    throw new Error(deleteResult.error || "ลบข้อมูลการลาไม่สำเร็จ");
+  }
 
   await writeLog(
     "DELETE_LEAVE",

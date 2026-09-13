@@ -20,6 +20,7 @@ import {
   type SaveTemplateInput,
 } from "@/services/certificate/certificate-template.service";
 import { verifyCertificateByToken } from "@/features/document/application/services/certificate-verification.service";
+import { RecycleBinService } from "@/services/recycle-bin/recycle-bin.service";
 
 // Helper to check user session
 async function getSessionUser() {
@@ -84,7 +85,7 @@ function handleActionError(err: any, context: string): ActionResponse {
     };
   }
 
-  if (err.message.includes("ไม่สามารถออกเลขย้อนหลัง")) {
+  if (err.message && (err.message.includes("ไม่สามารถออกเลขย้อนหลัง") || err.message.includes("วันที่ต้องไม่") || err.message.includes("ลำดับเวลา"))) {
     return {
       success: false,
       code: "VALIDATION_ERROR",
@@ -455,6 +456,44 @@ export async function restoreDoc(id: string): Promise<ActionResponse> {
     return { success: true, data: updated };
   } catch (err: any) {
     return handleActionError(err, "restoreDoc");
+  }
+}
+
+export async function softDeleteDoc(id: string, reason?: string): Promise<ActionResponse> {
+  try {
+    const user = await getSessionUser();
+    const fullUser = await prisma.user.findUnique({ where: { id: user.id } });
+    if (!fullUser) throw new Error("Unauthorized");
+
+    const doc = await prisma.documentRecord.findUnique({ where: { id } });
+    if (!doc) throw new Error("Document not found");
+
+    const type = doc.docType === "CERTIFICATE" ? "CERTIFICATE" : "DOCUMENT";
+    const res = await RecycleBinService.softDelete({
+      type,
+      id,
+      reason,
+      user: { userId: user.id, userRole: fullUser.role },
+    });
+
+    if (!res.success) {
+      throw new Error(res.error || "ไม่สามารถย้ายลงถังขยะได้");
+    }
+
+    await prisma.systemLog.create({
+      data: {
+        actionType: "DOC_SOFT_DELETE",
+        subsystem: "DOCUMENT",
+        description: `ย้ายเอกสาร ${doc.docNo || doc.id} (เรื่อง: "${doc.title}") ลงถังขยะ 30 วัน โดย ${fullUser.name || user.name || "Unknown"} (ID: ${user.id})`,
+        userId: user.id,
+      },
+    });
+
+    safeRevalidatePath("/document");
+    safeRevalidatePath("/admin/recycle-bin");
+    return { success: true, data: res };
+  } catch (err: any) {
+    return handleActionError(err, "softDeleteDoc");
   }
 }
 
@@ -1058,6 +1097,24 @@ export async function issueActivityCertificatesBatch(payload: {
         currentSeq = Number(configRows[0].currentSeq) || 0;
       }
 
+      // 🔴 Chrono-Sequential Invariant: No Backdated Issuance
+      const latestBatchRows: any[] = await tx.$queryRaw`
+        SELECT MAX(date) as "latestDate" 
+        FROM "DocumentRecord" 
+        WHERE "docType" = 'CERTIFICATE' AND year = ${year} AND "isDeleted" = false;
+      `;
+      if (latestBatchRows[0]?.latestDate) {
+        const latestBatchDate = new Date(latestBatchRows[0].latestDate);
+        const reqIssuanceDate = new Date(payload.date || Date.now());
+        const reqTime = new Date(reqIssuanceDate).setHours(0, 0, 0, 0);
+        const latestTime = new Date(latestBatchDate).setHours(0, 0, 0, 0);
+        if (reqTime < latestTime) {
+          throw new Error(
+            `ไม่สามารถออกเกียรติบัตรย้อนหลังได้ (วันที่ต้องไม่น้อยกว่าชุดล่าสุด: ${latestBatchDate.toLocaleDateString("th-TH")})`
+          );
+        }
+      }
+
       const startSeq = currentSeq + 1;
       const endSeq = currentSeq + totalQty;
 
@@ -1218,7 +1275,22 @@ export async function updateCertificateMetadata(
     };
     if (data.origin !== undefined) updatePayload.origin = data.origin.trim();
     if (data.requester !== undefined) updatePayload.requester = data.requester.trim();
-    if (data.date) updatePayload.date = new Date(data.date);
+    if (data.date) {
+      const targetDate = new Date(data.date);
+      if (isNaN(targetDate.getTime())) {
+        throw new Error("วันที่ของเอกสารไม่ถูกต้อง");
+      }
+      if (doc.seqNo) {
+        await RecycleBinService.validateChronoBounds({
+          docType: "CERTIFICATE",
+          year: doc.year,
+          seqNo: doc.seqNo,
+          targetDate,
+          excludeId: doc.id,
+        });
+      }
+      updatePayload.date = targetDate;
+    }
 
     const updated = await prisma.documentRecord.update({
       where: { id },

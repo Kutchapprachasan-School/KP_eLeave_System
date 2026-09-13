@@ -1,4 +1,5 @@
 import { FONT_MANIFEST, SUPPORTED_FONTS, type SupportedFont } from "./font-manifest.ts";
+import { FontRegistry } from "./font-registry.ts";
 
 export interface LoadedFontSet {
   fontsLoaded: Record<SupportedFont, boolean>;
@@ -104,7 +105,7 @@ export async function verifyAndLoadCustomFont(params: {
 
 /**
  * Browser-only Font Loader Gate.
- * Preloads manifest fonts and shapes them using comprehensive Thai glyphs.
+ * Preloads all manifest fonts and verifies them through the Centralized FontRegistry.
  */
 export async function ensureFontsLoaded(): Promise<LoadedFontSet> {
   if (typeof document === "undefined" || !("fonts" in document)) {
@@ -118,38 +119,14 @@ export async function ensureFontsLoaded(): Promise<LoadedFontSet> {
   }
 
   _loadedPromise = (async () => {
-    // Inject stylesheet link if not present for Google Fonts
-    if (!document.getElementById("certificate-fonts-stylesheet")) {
-      const fontQueries = Object.values(FONT_MANIFEST).map((f) => f.googleFontQuery).join("&");
-      const link = document.createElement("link");
-      link.id = "certificate-fonts-stylesheet";
-      link.rel = "stylesheet";
-      link.href = `https://fonts.googleapis.com/css2?${fontQueries}&display=swap`;
-      document.head.appendChild(link);
-    }
-
+    const res = await FontRegistry.ensureTemplateFontsReady(SUPPORTED_FONTS as unknown as string[]);
     const loadStatus: Record<string, boolean> = {};
-    const loadPromises: Promise<any>[] = [];
-
     for (const fontId of SUPPORTED_FONTS) {
-      const font = FONT_MANIFEST[fontId];
-      for (const weight of font.weights) {
-        loadPromises.push(
-          document.fonts
-            .load(`${weight} 16px "${font.family}"`, THAI_TEST_GLYPHS)
-            .then(() => {
-              loadStatus[fontId] = true;
-              _loadedFamilies.add(font.family);
-            })
-            .catch((err) => {
-              console.warn(`[font-loader] Font ${font.family} (${weight}) warning:`, err);
-              loadStatus[fontId] = true; // graceful fallback
-            })
-        );
+      loadStatus[fontId] = !res.failed.includes(fontId);
+      if (loadStatus[fontId]) {
+        _loadedFamilies.add(fontId);
       }
     }
-
-    await Promise.all(loadPromises);
 
     return {
       fontsLoaded: loadStatus as Record<SupportedFont, boolean>,
@@ -159,3 +136,4 @@ export async function ensureFontsLoaded(): Promise<LoadedFontSet> {
 
   return _loadedPromise;
 }
+

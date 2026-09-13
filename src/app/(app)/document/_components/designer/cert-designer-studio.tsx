@@ -72,6 +72,7 @@ import {
   generateCertificatePdfBatch,
   A4_DIMS,
 } from "./cert-pdf-engine";
+import { FontRegistry } from "./font-registry";
 import {
   loadFontWithIntegrity,
 } from "./font-loader";
@@ -120,6 +121,8 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
   const [selectedElementId, setSelectedElementId] = useState<string | null>("el_name");
   const [customFonts, setCustomFonts] = useState<CustomFont[]>([]);
   const [uploadingFont, setUploadingFont] = useState<boolean>(false);
+  const [fontLoadingFamily, setFontLoadingFamily] = useState<string | null>(null);
+  const [fontLoadTick, setFontLoadTick] = useState<number>(0);
 
   const selectedTemplateIdRef = useRef<string>("");
   useEffect(() => {
@@ -1100,6 +1103,13 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
           }
         }
       }
+      // ── Step 2.5: Preload all active text element fonts via FontRegistry ──
+      const activeFontFamilies = elements
+        .filter((el) => el.type === "text" && el.fontFamily)
+        .map((el) => el.fontFamily!);
+      if (activeFontFamilies.length > 0) {
+        await FontRegistry.ensureTemplateFontsReady(activeFontFamilies);
+      }
       if (cancelled) return;
 
       // ── Step 3: Draw Active Certificate Elements with all loaded assets ──
@@ -1215,6 +1225,7 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
     activeGuides,
     isFullscreen,
     mounted,
+    fontLoadTick,
   ]);
 
   const drawPlaceholderBg = (ctx: CanvasRenderingContext2D, w: number, h: number) => {
@@ -1475,6 +1486,7 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
           const filtered = prev.filter((f) => f.family !== newFont.family);
           return [...filtered, newFont];
         });
+        FontRegistry.registerCustomFont(newFont);
 
         if (selectedElementId && selectedElement?.type === "text") {
           updateSelectedElement({ fontFamily: res.data.family });
@@ -1488,6 +1500,17 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
       setStatusMessage({ type: "error", text: err.message || "เกิดข้อผิดพลาดในการอัปโหลดฟอนต์" });
     } finally {
       setUploadingFont(false);
+    }
+  };
+
+  const handleFontSelect = async (family: string) => {
+    updateSelectedElement({ fontFamily: family });
+    setFontLoadingFamily(family);
+    try {
+      await FontRegistry.loadFont(family);
+    } finally {
+      setFontLoadingFamily(null);
+      setFontLoadTick((t) => t + 1);
     }
   };
 
@@ -2511,9 +2534,16 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
                     {/* Font Family Selector with Visual Previews */}
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between">
-                        <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400">
-                          แบบอักษร (Font)
-                        </label>
+                        <div className="flex items-center gap-1.5">
+                          <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400">
+                            แบบอักษร (Font)
+                          </label>
+                          {fontLoadingFamily && (
+                            <span className="inline-flex items-center gap-1 text-[10px] text-indigo-600 dark:text-indigo-400 animate-pulse">
+                              <Loader2 className="w-2.5 h-2.5 animate-spin" /> โหลด...
+                            </span>
+                          )}
+                        </div>
                         <label className="inline-flex items-center gap-1 text-[10px] font-bold text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 cursor-pointer">
                           <Upload className="w-3 h-3" />
                           <span>{uploadingFont ? "กำลังอัปโหลด..." : "อัปโหลดฟอนต์"}</span>
@@ -2528,7 +2558,7 @@ export function CertDesignerStudio({ initialBatch, onClose }: CertDesignerStudio
                       </div>
                       <select
                         value={selectedElement.fontFamily}
-                        onChange={(e) => updateSelectedElement({ fontFamily: e.target.value })}
+                        onChange={(e) => handleFontSelect(e.target.value)}
                         className="w-full text-xs font-semibold bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-2 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                       >
                         <optgroup label="🇹🇭 ภาษาไทย (Thai)">

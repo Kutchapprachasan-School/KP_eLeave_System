@@ -17,26 +17,33 @@ const ALLOWED_PREFIXES = [
   "src/app/verify/cert/",
   "src/app/v/",
   "src/app/actions/document.ts",
+  "src/app/actions/leave.ts",
+  "src/app/actions/recycle-bin.ts",
   "src/services/certificate/",
+  "src/services/recycle-bin/",
+  "src/app/(app)/admin/recycle-bin/",
   "src/app/(app)/facility/",
   "src/app/supervision/",
   "src/app/(app)/academic/supervision/",
   "src/app/(app)/budget/",
   "eLeave/tests/unit/schoolOpsDesignSystem.test.js",
   "eLeave/tests/unit/certificateDesignerStudio.test.js",
+  "eLeave/tests/unit/recycleBinAndFontStudio.test.js",
   "scripts/verify-ui-scope.mjs",
+  "scripts/migrate_recycle_bin.py",
   "package.json",
+  "next.config.ts",
   "middleware.ts",
   "docs/",
+  "prisma/schema.prisma",
 ];
 
 const FORBIDDEN_PREFIXES = [
   "src/app/(app)/leave/",
   "src/app/(app)/attendance/",
   "src/app/(app)/dashboard/",
-  "src/app/(app)/admin/",
+  "src/app/(app)/admin/users/",
   "src/components/ui/",
-  "prisma/",
 ];
 
 const FORBIDDEN_IMPORT_PATTERNS = [

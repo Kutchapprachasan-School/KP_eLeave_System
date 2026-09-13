@@ -22,6 +22,8 @@ import { useSession } from "@/lib/auth-client";
 import { QRCodeSVG } from "qrcode.react";
 import { CertDesignerStudio } from "./designer/cert-designer-studio";
 import { StatusPillBadge } from "@/components/shared-ui/school-ops/StatusPillBadge";
+import { MyTrashModal } from "./my-trash-modal";
+import { softDeleteRecycleBinItemAction } from "@/app/actions/recycle-bin";
 
 interface CertificateRoleItem {
   roleTitle: string;
@@ -91,6 +93,9 @@ export default function CertGenerator({ onBack }: { onBack?: () => void }) {
   const [editingBatch, setEditingBatch] = useState<any | null>(null);
   const [cancellingBatch, setCancellingBatch] = useState<any | null>(null);
   const [cancelReason, setCancelReason] = useState("");
+  const [deletingBatch, setDeletingBatch] = useState<any | null>(null);
+  const [deleteReason, setDeleteReason] = useState("");
+  const [isTrashModalOpen, setIsTrashModalOpen] = useState(false);
   const [submittingAction, setSubmittingAction] = useState(false);
   const [slipModalBatch, setSlipModalBatch] = useState<any | null>(null);
   const [slipFirstItem, setSlipFirstItem] = useState<any | null>(null);
@@ -359,6 +364,36 @@ export default function CertGenerator({ onBack }: { onBack?: () => void }) {
         await fetchHistory();
       } else {
         showToast("error", res.error || "เกิดข้อผิดพลาดในการยกเลิก");
+      }
+    } catch (err: any) {
+      showToast("error", err.message || "เกิดข้อผิดพลาด");
+    } finally {
+      setSubmittingAction(false);
+    }
+  };
+
+  // Handle Delete Batch Submit (Soft Delete to 30-day Recycle Bin)
+  const handleDeleteBatchSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!deletingBatch) return;
+
+    setSubmittingAction(true);
+    try {
+      const res = await softDeleteRecycleBinItemAction(
+        "CERTIFICATE",
+        deletingBatch.id,
+        deleteReason.trim() || undefined
+      );
+      if (res.success) {
+        showToast(
+          "success",
+          `ย้ายเกียรติบัตร ${deletingBatch.docNo || ""} ลงถังขยะเรียบร้อยแล้ว (สามารถกู้คืนได้ภายใน 30 วัน)`
+        );
+        setDeletingBatch(null);
+        setDeleteReason("");
+        await fetchHistory();
+      } else {
+        showToast("error", res.error || "เกิดข้อผิดพลาดในการลบรายการ");
       }
     } catch (err: any) {
       showToast("error", err.message || "เกิดข้อผิดพลาด");
@@ -795,6 +830,16 @@ export default function CertGenerator({ onBack }: { onBack?: () => void }) {
                 <RefreshCw className={`w-3.5 h-3.5 ${loadingHistory ? "animate-spin" : ""}`} />
                 รีเฟรช
               </button>
+
+              <button
+                type="button"
+                onClick={() => setIsTrashModalOpen(true)}
+                className="text-xs font-bold text-slate-700 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-400 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/40 transition cursor-pointer border border-slate-200 dark:border-slate-750"
+                title="ถังขยะเกียรติบัตร (กู้คืนได้ภายใน 30 วัน)"
+              >
+                <Trash2 className="w-3.5 h-3.5 text-rose-500" />
+                ถังขยะของฉัน
+              </button>
             </div>
           </div>
 
@@ -925,12 +970,22 @@ export default function CertGenerator({ onBack }: { onBack?: () => void }) {
                               <button
                                 type="button"
                                 onClick={() => setCancellingBatch(item)}
-                                className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 dark:bg-rose-950/50 dark:text-rose-400 transition cursor-pointer"
-                                title="ยกเลิกเลขเกียรติบัตรชุดนี้"
+                                className="p-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-600 dark:bg-amber-950/50 dark:text-amber-400 transition cursor-pointer"
+                                title="ยกเลิกเลขเกียรติบัตรชุดนี้ (คงเลขไว้แบบขีดฆ่า)"
                               >
                                 <Ban className="w-3.5 h-3.5" />
                               </button>
                             )}
+
+                            {/* Move to Recycle Bin (30 days) */}
+                            <button
+                              type="button"
+                              onClick={() => setDeletingBatch(item)}
+                              className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 dark:bg-rose-950/50 dark:text-rose-400 transition cursor-pointer"
+                              title="ย้ายลงถังขยะ (30 วัน)"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
                           </div>
                         </td>
                       </tr>
@@ -1327,6 +1382,84 @@ export default function CertGenerator({ onBack }: { onBack?: () => void }) {
           </div>
         )}
       </AnimatePresence>
+
+      {/* Modal 5: Delete to 30-Day Recycle Bin Modal */}
+      <AnimatePresence>
+        {deletingBatch && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 sm:p-6 max-w-md w-full shadow-2xl space-y-4 text-slate-900 dark:text-white"
+            >
+              <div className="flex items-center gap-3 border-b border-slate-100 dark:border-slate-800 pb-3 text-rose-600">
+                <div className="w-9 h-9 rounded-xl bg-rose-50 dark:bg-rose-950/50 flex items-center justify-center">
+                  <Trash2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-slate-900 dark:text-white">
+                    ย้ายเกียรติบัตรลงถังขยะ
+                  </h3>
+                  <p className="text-xs text-slate-500 font-mono">
+                    {deletingBatch.docNo}
+                  </p>
+                </div>
+              </div>
+
+              <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200/60 dark:border-amber-900/40 text-xs text-amber-800 dark:text-amber-300 space-y-1.5">
+                <p className="font-bold flex items-center gap-1.5">
+                  <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                  <span>นโยบายถังขยะ 30 วัน (Recycle Bin Policy):</span>
+                </p>
+                <p className="leading-relaxed text-[11px]">
+                  รายการนี้จะถูกย้ายไปเก็บไว้ในถังขยะเป็นเวลา 30 วัน และเลขทะเบียนนี้จะไม่ถูกจองไว้ หากท่านกู้คืนกลับมาในภายหลัง ระบบจะรันเลขใหม่และจัดสรรวันที่ ณ ท้ายสุดของลำดับเวลาโดยอัตโนมัติ
+                </p>
+              </div>
+
+              <form onSubmit={handleDeleteBatchSubmit} className="space-y-3 text-xs">
+                <div>
+                  <label className="block text-xs font-bold text-slate-800 dark:text-slate-200 mb-1.5">
+                    ระบุเหตุผลในการลบ (ถ้ามี)
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={deleteReason}
+                    onChange={(e) => setDeleteReason(e.target.value)}
+                    placeholder="เช่น ข้อมูลซ้ำซ้อน, กรอกผิดชุด..."
+                    className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-750 bg-white dark:bg-slate-950 text-xs font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-rose-500/20 outline-none resize-none"
+                  />
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => { setDeletingBatch(null); setDeleteReason(""); }}
+                    className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-bold cursor-pointer"
+                  >
+                    ยกเลิก
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={submittingAction}
+                    className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition flex items-center gap-1.5 disabled:opacity-50 cursor-pointer shadow-xs"
+                  >
+                    {submittingAction ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                    ย้ายลงถังขยะ
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Teacher Self-Service Trash Modal */}
+      <MyTrashModal
+        isOpen={isTrashModalOpen}
+        onClose={() => setIsTrashModalOpen(false)}
+        onItemRestored={fetchHistory}
+      />
     </div>
   );
 }

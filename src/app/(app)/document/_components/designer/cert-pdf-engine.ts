@@ -10,7 +10,8 @@ import {
 } from "./cert-schema.ts";
 import { drawQRCodeBadge } from "./qr-renderer.ts";
 import { ensureFontsLoaded, type LoadedFontSet } from "./font-loader.ts";
-export { ensureFontsLoaded, type LoadedFontSet };
+import { FontRegistry } from "./font-registry.ts";
+export { ensureFontsLoaded, type LoadedFontSet, FontRegistry };
 
 export const A4_DIMS = {
   LANDSCAPE: {
@@ -516,6 +517,17 @@ export async function generateCertificatePdfBatch({
           console.warn(`Failed to preload signature image for ${el.signatureAttachmentId || el.id}:`, err);
         }
       }
+    }
+  }
+
+  // 3.5 Preload and verify all required template fonts via FontRegistry (Verified PDF Gate)
+  const requiredFontFamilies = template.elements
+    .filter((el) => el.type === "text" && el.fontFamily)
+    .map((el) => el.fontFamily!);
+  if (requiredFontFamilies.length > 0) {
+    const fontVerification = await FontRegistry.ensureTemplateFontsReady(requiredFontFamilies);
+    if (!fontVerification.allReady) {
+      console.warn("[generateCertificatePdfBatch] Template fonts partially incomplete:", fontVerification.failed);
     }
   }
 

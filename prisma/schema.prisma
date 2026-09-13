@@ -64,6 +64,8 @@ model User {
   facilityReservations       FacilityReservation[] @relation("FacilityReservationsCreated")
   facilityApprovalSteps      FacilityApprovalStep[] @relation("FacilityApprovalApprover")
   certificateTemplates       CertificateTemplate[]
+  deletedDocuments           DocumentRecord[]      @relation("DocDeletedByUser")
+  deletedLeaveRequests       LeaveRequest[]        @relation("LeaveDeletedByUser")
 }
 
 model Session {
@@ -116,6 +118,15 @@ model LeaveRequest {
   headApprovedAt DateTime?
   user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   attachments    FileAttachment[]
+  isDeleted      Boolean          @default(false)
+  deletedAt      DateTime?
+  deletedById    String?
+  deletedBy      User?            @relation("LeaveDeletedByUser", fields: [deletedById], references: [id], onDelete: SetNull)
+  purgeAt        DateTime?
+  deleteReason   String?
+
+  @@index([isDeleted, deletedAt])
+  @@index([isDeleted, purgeAt])
 }
 
 model SystemSettings {
@@ -132,6 +143,7 @@ model SystemSettings {
   requirePersonalAdvance       Boolean  @default(true)
   memoThresholdDays            Int      @default(15)
   memoThresholdTimes           Int      @default(6)
+  recycleBinRetentionDays      Int      @default(30)
   defaultInspectorId           String?
   affiliation                  String   @default("สำนักงานเขตพื้นที่การศึกษามัธยมศึกษาอุดรธานี")
   actingDirectorTitle          String   @default("รักษาการในตำแหน่งผู้อำนวยการโรงเรียน")
@@ -310,6 +322,15 @@ model DocumentRecord {
   incomingLinks  DocumentRelation[] @relation("ToDocument")
   attachments    FileAttachment[]
   certificateItems CertificateIssuedItem[]
+  isDeleted      Boolean            @default(false)
+  deletedAt      DateTime?
+  deletedById    String?
+  deletedBy      User?              @relation("DocDeletedByUser", fields: [deletedById], references: [id], onDelete: SetNull)
+  purgeAt        DateTime?
+  deleteReason   String?
+
+  @@index([isDeleted, deletedAt])
+  @@index([isDeleted, purgeAt])
 }
 
 model CertificateIssuedItem {
