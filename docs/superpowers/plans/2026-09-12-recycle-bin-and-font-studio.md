@@ -243,9 +243,9 @@
 
 ### Task 7: Full System Verification & Git Promotion (Phase 6)
 
-- [ ] **Step 7.1: Run all unit tests**
+- [x] **Step 7.1: Run all unit tests**
   - `npm test` (Target: >= 201 tests passing, 0 failing).
-- [ ] **Step 7.2: Run School-Ops UI Scope Audit**
+- [x] **Step 7.2: Run School-Ops UI Scope Audit**
   - `node scripts/verify-ui-scope.mjs --deep-audit`.
 - [ ] **Step 7.3: Commit, Push, and Merge**
   - Commit on `dev`, push to `origin/dev`.
