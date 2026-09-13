@@ -247,6 +247,6 @@
   - `npm test` (Target: >= 201 tests passing, 0 failing).
 - [x] **Step 7.2: Run School-Ops UI Scope Audit**
   - `node scripts/verify-ui-scope.mjs --deep-audit`.
-- [ ] **Step 7.3: Commit, Push, and Merge**
+- [x] **Step 7.3: Commit, Push, and Merge**
   - Commit on `dev`, push to `origin/dev`.
   - Merge into `main`, push to `origin/main`.
