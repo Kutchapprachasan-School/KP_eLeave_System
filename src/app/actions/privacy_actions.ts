@@ -167,6 +167,10 @@ export async function checkUserPolicyAcknowledgmentStatus(userId?: string): Prom
   termsNeedsAck: boolean;
   currentNotice?: PolicyDocument;
   currentTerms?: PolicyDocument;
+  previousNoticeMarkdown?: string;
+  previousTermsMarkdown?: string;
+  previousNoticeVersion?: string;
+  previousTermsVersion?: string;
 }> {
   try {
     let resolvedUserId = userId;
@@ -197,11 +201,69 @@ export async function checkUserPolicyAcknowledgmentStatus(userId?: string): Prom
     const noticeAck = await hasUserAcknowledgedCurrentPolicy(resolvedUserId, "PRIVACY_NOTICE");
     const termsAck = await hasUserAcknowledgedCurrentPolicy(resolvedUserId, "TERMS_OF_USE");
 
+    const currentNotice = noticeAck.currentPolicy || notice || undefined;
+    const currentTerms = termsAck.currentPolicy || terms || undefined;
+
+    let previousNoticeMarkdown: string | undefined;
+    let previousNoticeVersion: string | undefined;
+    let previousTermsMarkdown: string | undefined;
+    let previousTermsVersion: string | undefined;
+
+    if (!noticeAck.hasAcknowledged && currentNotice) {
+      const prevNoticeAck = await prisma.policyAcknowledgment.findFirst({
+        where: {
+          userId: resolvedUserId,
+          policyDocumentId: { not: currentNotice.id },
+          policyDocument: {
+            type: "PRIVACY_NOTICE",
+          },
+        },
+        orderBy: {
+          acknowledgedAt: "desc",
+        },
+        include: {
+          policyDocument: true,
+        },
+      });
+
+      if (prevNoticeAck?.policyDocument) {
+        previousNoticeMarkdown = prevNoticeAck.policyDocument.contentMarkdown;
+        previousNoticeVersion = prevNoticeAck.policyDocument.version || prevNoticeAck.policyVersionSnapshot;
+      }
+    }
+
+    if (!termsAck.hasAcknowledged && currentTerms) {
+      const prevTermsAck = await prisma.policyAcknowledgment.findFirst({
+        where: {
+          userId: resolvedUserId,
+          policyDocumentId: { not: currentTerms.id },
+          policyDocument: {
+            type: "TERMS_OF_USE",
+          },
+        },
+        orderBy: {
+          acknowledgedAt: "desc",
+        },
+        include: {
+          policyDocument: true,
+        },
+      });
+
+      if (prevTermsAck?.policyDocument) {
+        previousTermsMarkdown = prevTermsAck.policyDocument.contentMarkdown;
+        previousTermsVersion = prevTermsAck.policyDocument.version || prevTermsAck.policyVersionSnapshot;
+      }
+    }
+
     return {
       noticeNeedsAck: !noticeAck.hasAcknowledged,
       termsNeedsAck: !termsAck.hasAcknowledged,
-      currentNotice: noticeAck.currentPolicy || notice || undefined,
-      currentTerms: termsAck.currentPolicy || terms || undefined,
+      currentNotice,
+      currentTerms,
+      previousNoticeMarkdown,
+      previousTermsMarkdown,
+      previousNoticeVersion,
+      previousTermsVersion,
     };
   } catch (error) {
     console.error("Error in checkUserPolicyAcknowledgmentStatus:", error);

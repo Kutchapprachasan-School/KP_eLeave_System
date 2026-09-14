@@ -24,6 +24,10 @@ interface AckStatus {
   termsNeedsAck: boolean;
   currentNotice?: any;
   currentTerms?: any;
+  previousNoticeMarkdown?: string;
+  previousTermsMarkdown?: string;
+  previousNoticeVersion?: string;
+  previousTermsVersion?: string;
 }
 
 export function PolicyUpdateNotifier() {
@@ -73,6 +77,20 @@ export function PolicyUpdateNotifier() {
     ? "TERMS"
     : null;
 
+  const previousVersionMarkdown =
+    activeType === "NOTICE"
+      ? status?.previousNoticeMarkdown
+      : activeType === "TERMS"
+      ? status?.previousTermsMarkdown
+      : undefined;
+
+  const previousVersion =
+    activeType === "NOTICE"
+      ? status?.previousNoticeVersion
+      : activeType === "TERMS"
+      ? status?.previousTermsVersion
+      : undefined;
+
   const handleAccept = async () => {
     if (!activePolicy || isSubmitting) return;
     setIsSubmitting(true);
@@ -97,8 +115,8 @@ export function PolicyUpdateNotifier() {
 
   const title =
     activeType === "NOTICE"
-      ? "แจ้งการปรับปรุงประกาศความเป็นส่วนตัว"
-      : "แจ้งปรับปรุงเงื่อนไขการใช้งาน";
+      ? `แจ้งการปรับปรุงประกาศการคุ้มครองข้อมูลส่วนบุคคล (ฉบับที่ ${activePolicy.version})`
+      : `แจ้งการปรับปรุงเงื่อนไขการใช้งานระบบสารสนเทศ (ฉบับที่ ${activePolicy.version})`;
 
   const description =
     activeType === "NOTICE"
@@ -182,6 +200,8 @@ export function PolicyUpdateNotifier() {
           effectiveDate={activePolicy.effectiveAt}
           contentHash={activePolicy.contentHash}
           contentMarkdown={activePolicy.contentMarkdown}
+          previousVersionMarkdown={previousVersionMarkdown}
+          previousVersion={previousVersion}
           type={activeType}
         />
       )}
