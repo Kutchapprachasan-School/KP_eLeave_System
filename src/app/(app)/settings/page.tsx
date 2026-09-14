@@ -29,7 +29,7 @@ import { getHolidays, createHoliday, updateHoliday, deleteHoliday, searchInterne
 
 import { useSession } from "@/lib/auth-client";
 
-import { Save, Image as ImageIcon, ShieldAlert, DownloadCloud, Lock, Code, Settings2, Archive, UploadCloud, Database, FileJson, AlertTriangle, CheckCircle2, ChevronRight, ArrowLeft, Bell, Type, Users, BookOpen, HardDrive, UserCog, FileSpreadsheet, X, CalendarDays, CalendarDays as Calendar, ArrowRightLeft, CheckSquare, FileX, Plus, Clock, ClipboardList, MapPin, FolderOpen, Hash, UserCheck, Pencil, Trash2, ToggleLeft, ToggleRight, Sparkles, AlertCircle, Check, Eye, LayoutGrid, Wrench, Loader2, XCircle, MessageSquare, Building2, Award, FileText, Settings, Wallet, Vote, Layers, Search, Folder } from "lucide-react";
+import { Save, Image as ImageIcon, ShieldAlert, ShieldCheck, DownloadCloud, Lock, Code, Settings2, Archive, UploadCloud, Database, FileJson, AlertTriangle, CheckCircle2, ChevronRight, ArrowLeft, Bell, Type, Users, BookOpen, HardDrive, UserCog, FileSpreadsheet, X, CalendarDays, CalendarDays as Calendar, ArrowRightLeft, CheckSquare, FileX, Plus, Clock, ClipboardList, MapPin, FolderOpen, Hash, UserCheck, Pencil, Trash2, ToggleLeft, ToggleRight, Sparkles, AlertCircle, Check, Eye, LayoutGrid, Wrench, Loader2, XCircle, MessageSquare, Building2, Award, FileText, Settings, Wallet, Vote, Layers, Search, Folder } from "lucide-react";
 
 import { useToast } from "@/components/toast-provider";
 
@@ -2365,6 +2365,8 @@ export default function SettingsPage() {
 
     description: string;
 
+    href?: string;
+
   };
 
   // --- 1. การตั้งค่าภาพรวมทั้งระบบ (Core System-Wide Settings) ---
@@ -2380,6 +2382,13 @@ export default function SettingsPage() {
     coreSystemItems.push({ id: "footer", icon: <Settings2 className="w-5 h-5 text-rose-500" />, title: lang === "en" ? "Footer Settings" : "ท้ายกระดาษ", description: lang === "en" ? "Website footer text" : "ข้อความท้ายหน้าเว็บ" });
     coreSystemItems.push({ id: "subsystems", icon: <LayoutGrid className="w-5 h-5 text-purple-600" />, title: lang === "en" ? "Subsystems Manager" : "จัดการเปิด/ปิดระบบย่อย", description: lang === "en" ? "Enable/disable subsystem features" : "เปิด/ปิดการใช้งานโมดูลระบบย่อยต่าง ๆ" });
   }
+  coreSystemItems.push({
+    id: "privacy",
+    icon: <ShieldCheck className="w-5 h-5 text-teal-600" />,
+    title: lang === "en" ? "Privacy Self-Service Center" : "ศูนย์คุ้มครองข้อมูลส่วนบุคคล & ความยินยอม",
+    description: lang === "en" ? "Manage consent and view acknowledged policies" : "จัดการความยินยอมและตรวจสอบประวัติการยอมรับนโยบาย PDPA",
+    href: "/settings/privacy",
+  });
 
   // --- 2. การตั้งค่าระบบการลา (Leave Subsystem Settings) ---
   const leaveSystemItems: MenuItem[] = [];
@@ -2443,6 +2452,14 @@ export default function SettingsPage() {
 
     }
 
+    hrHeadItems.push({
+      id: "privacy",
+      icon: <ShieldCheck className="w-5 h-5 text-teal-600" />,
+      title: lang === "en" ? "Privacy Self-Service Center" : "ศูนย์คุ้มครองข้อมูลส่วนบุคคล & ความยินยอม",
+      description: lang === "en" ? "Manage consent and view acknowledged policies" : "จัดการความยินยอมและตรวจสอบประวัติการยอมรับนโยบาย PDPA",
+      href: "/settings/privacy",
+    });
+
   }
 
   // Inspector sees approval + leave-rules + backup + manual-import (if permitted)
@@ -2474,6 +2491,14 @@ export default function SettingsPage() {
       inspectorItems.push({ id: "manual-import", icon: <Plus className="w-5 h-5 text-purple-500" />, title: lang === "en" ? "Manual Leave Entry" : "กรอกข้อมูลใบลาด้วยตนเอง", description: lang === "en" ? "Manually record leave history" : "บันทึกประวัติการลาของบุคลากรย้อนหลังด้วยตนเอง" });
 
     }
+
+    inspectorItems.push({
+      id: "privacy",
+      icon: <ShieldCheck className="w-5 h-5 text-teal-600" />,
+      title: lang === "en" ? "Privacy Self-Service Center" : "ศูนย์คุ้มครองข้อมูลส่วนบุคคล & ความยินยอม",
+      description: lang === "en" ? "Manage consent and view acknowledged policies" : "จัดการความยินยอมและตรวจสอบประวัติการยอมรับนโยบาย PDPA",
+      href: "/settings/privacy",
+    });
 
   }
 
@@ -2511,6 +2536,8 @@ export default function SettingsPage() {
 
     "repair-settings": lang === "en" ? "Repair System Settings" : "ตั้งค่าระบบแจ้งซ่อม",
 
+    privacy: lang === "en" ? "Privacy Self-Service Center" : "ศูนย์คุ้มครองข้อมูลส่วนบุคคล & ความยินยอม",
+
   };
 
   // --- Menu Item Component ---
@@ -2519,9 +2546,15 @@ export default function SettingsPage() {
 
     <button
 
-      onClick={onClick}
+      onClick={() => {
+        if (item.href) {
+          router.push(item.href);
+        } else {
+          onClick();
+        }
+      }}
 
-      className="w-full flex items-center gap-4 px-4 py-4 rounded-2xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:bg-gray-50 dark:hover:bg-gray-800/70 hover:border-gray-200 dark:hover:border-gray-700 transition-all duration-200 group text-left"
+      className="w-full flex items-center gap-4 px-4 py-4 rounded-2xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:bg-gray-50 dark:hover:bg-gray-800/70 hover:border-gray-200 dark:hover:border-gray-700 transition-all duration-200 group text-left cursor-pointer"
 
     >
 

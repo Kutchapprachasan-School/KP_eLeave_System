@@ -1,11 +1,14 @@
 "use server";
 
+import crypto from "crypto";
 import { getCurrentPolicy, publishPolicyDocument, acknowledgePolicy, hasUserAcknowledgedCurrentPolicy } from "../../lib/privacy/policy-service.ts";
 import { prisma } from "../../lib/db.ts";
-import { PolicyType } from "@prisma/client";
+import { PolicyType, type WithdrawalReasonCode } from "@prisma/client";
 import type { PolicyDocument } from "@prisma/client";
 import { headers } from "next/headers";
 import { auth } from "../../lib/auth.ts";
+import { evaluatePurposeConsentRequirement, getPublicRopaSummary } from "../../lib/privacy/ropa-service.ts";
+import { recordUserConsent, withdrawUserConsent } from "../../lib/privacy/consent-service.ts";
 
 const DEFAULT_NOTICE = `
 # ประกาศการคุ้มครองข้อมูลส่วนบุคคล (Privacy Notice)
@@ -327,4 +330,228 @@ export async function acknowledgePolicyForCurrentUser(
     return { success: false, error: error.message };
   }
 }
+
+export async function getUserPrivacyProfile(userId?: string) {
+  let resolvedUserId = userId;
+
+  if (!resolvedUserId) {
+    try {
+      const headerList = await headers();
+      if (headerList) {
+        const session = await auth.api.getSession({ headers: headerList });
+        if (session?.user?.id) {
+          resolvedUserId = session.user.id;
+        }
+      }
+    } catch {
+      // Outside request scope
+    }
+  }
+
+  if (!resolvedUserId) {
+    throw new Error("Unauthorized: User session required");
+  }
+
+  const acknowledgments = await prisma.policyAcknowledgment.findMany({
+    where: { userId: resolvedUserId },
+    include: {
+      policyDocument: true,
+    },
+    orderBy: {
+      acknowledgedAt: "desc",
+    },
+  });
+
+  const currentPolicies = await fetchCurrentPolicies();
+
+  const purposes = await prisma.processingPurpose.findMany({
+    where: { active: true },
+    include: {
+      activity: true,
+      dataCategoryPolicies: true,
+    },
+    orderBy: { code: "asc" },
+  });
+
+  const consentRecords = await prisma.consentRecord.findMany({
+    where: { userId: resolvedUserId },
+  });
+  const consentRecordMap = new Map(consentRecords.map((c) => [c.purposeId, c]));
+
+  const consentPurposes: Array<any> = [];
+  const mandatoryPurposes: Array<any> = [];
+
+  for (const purpose of purposes) {
+    const requiresConsent = evaluatePurposeConsentRequirement(purpose.dataCategoryPolicies);
+    const userConsent = consentRecordMap.get(purpose.id) || null;
+    const item = {
+      ...purpose,
+      consent: userConsent,
+    };
+    if (requiresConsent) {
+      consentPurposes.push(item);
+    } else {
+      mandatoryPurposes.push(item);
+    }
+  }
+
+  return {
+    userId: resolvedUserId,
+    acknowledgments,
+    currentPolicies,
+    consentPurposes,
+    mandatoryPurposes,
+  };
+}
+
+export async function withdrawUserConsentAction(params: {
+  purposeId: string;
+  reasonCode: WithdrawalReasonCode;
+  reasonDetail?: string;
+  userId?: string;
+}): Promise<{ success: boolean; error?: string }> {
+  try {
+    let resolvedUserId = params.userId;
+
+    if (!resolvedUserId) {
+      try {
+        const headerList = await headers();
+        if (headerList) {
+          const session = await auth.api.getSession({ headers: headerList });
+          if (session?.user?.id) {
+            resolvedUserId = session.user.id;
+          }
+        }
+      } catch {
+        // Outside request scope
+      }
+    }
+
+    if (!resolvedUserId) {
+      return { success: false, error: "Unauthorized: No active user session" };
+    }
+
+    let ipAddress: string | undefined;
+    let userAgent: string | undefined;
+
+    try {
+      const resolvedHeaders = await headers();
+      ipAddress = resolvedHeaders.get("x-forwarded-for") || resolvedHeaders.get("x-real-ip") || undefined;
+      if (ipAddress && ipAddress.includes(",")) {
+        ipAddress = ipAddress.split(",")[0].trim();
+      }
+      userAgent = resolvedHeaders.get("user-agent") || undefined;
+    } catch {
+      // Outside request scope
+    }
+
+    await withdrawUserConsent({
+      userId: resolvedUserId,
+      purposeId: params.purposeId,
+      reasonCode: params.reasonCode,
+      reasonDetail: params.reasonDetail,
+      source: "PRIVACY_CENTER",
+      correlationId: crypto.randomUUID(),
+      ipAddress,
+      userAgent,
+    });
+
+    return { success: true };
+  } catch (error: any) {
+    console.error("withdrawUserConsentAction failed:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+export async function grantUserConsentAction(params: {
+  purposeId: string;
+  userId?: string;
+}): Promise<{ success: boolean; error?: string }> {
+  try {
+    let resolvedUserId = params.userId;
+
+    if (!resolvedUserId) {
+      try {
+        const headerList = await headers();
+        if (headerList) {
+          const session = await auth.api.getSession({ headers: headerList });
+          if (session?.user?.id) {
+            resolvedUserId = session.user.id;
+          }
+        }
+      } catch {
+        // Outside request scope
+      }
+    }
+
+    if (!resolvedUserId) {
+      return { success: false, error: "Unauthorized: No active user session" };
+    }
+
+    let ipAddress: string | undefined;
+    let userAgent: string | undefined;
+
+    try {
+      const resolvedHeaders = await headers();
+      ipAddress = resolvedHeaders.get("x-forwarded-for") || resolvedHeaders.get("x-real-ip") || undefined;
+      if (ipAddress && ipAddress.includes(",")) {
+        ipAddress = ipAddress.split(",")[0].trim();
+      }
+      userAgent = resolvedHeaders.get("user-agent") || undefined;
+    } catch {
+      // Outside request scope
+    }
+
+    const { notice } = await fetchCurrentPolicies();
+
+    await recordUserConsent({
+      userId: resolvedUserId,
+      purposeId: params.purposeId,
+      consentFormVersion: "1.0",
+      privacyNoticeVersion: notice.version,
+      source: "PRIVACY_CENTER",
+      correlationId: crypto.randomUUID(),
+      ipAddress,
+      userAgent,
+    });
+
+    return { success: true };
+  } catch (error: any) {
+    console.error("grantUserConsentAction failed:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+export async function getPublicPrivacyData() {
+  const { notice } = await fetchCurrentPolicies();
+  const ropaSummary = await getPublicRopaSummary();
+  let settings = await prisma.systemSettings.findUnique({
+    where: { id: "default" },
+  });
+  if (!settings) {
+    settings = await prisma.systemSettings.findFirst();
+  }
+  const safeSettings = settings
+    ? {
+        schoolName: settings.schoolName,
+        subheader: settings.subheader,
+        affiliation: settings.affiliation,
+        logoUrl: settings.logoUrl,
+        footerText: settings.footerText,
+      }
+    : {
+        schoolName: "โรงเรียนกุดจับประชาสรรค์",
+        subheader: "ระบบบริหารจัดการสถานศึกษา",
+        affiliation: "สำนักงานเขตพื้นที่การศึกษามัธยมศึกษาอุดรธานี",
+        logoUrl: "",
+        footerText: "",
+      };
+
+  return {
+    notice,
+    ropaSummary,
+    settings: safeSettings,
+  };
+}
+
 
