@@ -338,6 +338,12 @@ ALTER TABLE "ProcessingDataCategoryPolicy" ADD CONSTRAINT "chk_section26_consist
   ("dataCategory" NOT IN ('SENSITIVE_HEALTH', 'SENSITIVE_BIOMETRIC') AND "section26Condition" IS NULL) OR
   ("dataCategory" IN ('SENSITIVE_HEALTH', 'SENSITIVE_BIOMETRIC') AND "section26Condition" IS NOT NULL)
 );
+
+-- 5. Audit Subject Exclusivity Constraint
+ALTER TABLE "ConsentAuditLog" ADD CONSTRAINT "chk_audit_subject_exclusivity" CHECK (
+  ("subjectType" = 'POLICY_DOCUMENT' AND "policyDocumentId" IS NOT NULL AND "consentRecordId" IS NULL) OR
+  ("subjectType" = 'CONSENT_RECORD' AND "consentRecordId" IS NOT NULL AND "purposeId" IS NOT NULL)
+);
 ```
 3. Apply migration to database and generate client:
 ```bash
@@ -624,9 +630,163 @@ describe('Consent Lifecycle Engine', () => {
 Run: `node --experimental-strip-types --test eLeave/tests/unit/consentService.test.js`
 Expected: FAIL
 
-- [ ] **Step 3: Implement `src/lib/privacy/consent-service.ts` with Row-Level Locking and Concurrency Control**
+- [ ] **Step 3: Implement `src/lib/privacy/consent-service.ts` with CAS Concurrency Control and Section 26 Tuple Validation**
 
-Implement atomic `$transaction` with concurrency locking (`SELECT ... FOR UPDATE` via `tx.$queryRaw` or OCC version checking), state reset rules, and append-only audit log correlation.
+Create `src/lib/privacy/consent-service.ts`:
+```typescript
+import { prisma } from "../db";
+import { ConsentStatus, WithdrawalReasonCode, RevocationReasonCode } from "@prisma/client";
+
+export function validateConsentApplicability(dataCategoryPolicies: Array<{
+  dataCategory?: string;
+  legalBasis: string;
+  section26Condition: string | null;
+}>): boolean {
+  const isApplicable = dataCategoryPolicies.some((p) => {
+    const isSensitive = p.dataCategory === "SENSITIVE_HEALTH" || p.dataCategory === "SENSITIVE_BIOMETRIC";
+    if (isSensitive) {
+      return p.legalBasis === "CONSENT" && p.section26Condition === "EXPLICIT_CONSENT";
+    }
+    return p.legalBasis === "CONSENT" && p.section26Condition === null;
+  });
+
+  if (!isApplicable) {
+    throw new Error("Consent is not an applicable legal basis for this operational purpose");
+  }
+  return true;
+}
+
+export async function recordUserConsent(params: {
+  userId: string;
+  purposeId: string;
+  consentFormVersion: string;
+  privacyNoticeVersion: string;
+  source: string;
+  correlationId: string;
+  ipAddress?: string;
+  userAgent?: string;
+}) {
+  const purpose = await prisma.processingPurpose.findUnique({
+    where: { id: params.purposeId, active: true },
+    include: { dataCategoryPolicies: true },
+  });
+
+  if (!purpose) throw new Error("Processing purpose not found or inactive");
+
+  // Validate that Consent is actually applicable for this purpose according to data category rules
+  validateConsentApplicability(purpose.dataCategoryPolicies);
+
+  return await prisma.$transaction(async (tx) => {
+    const record = await tx.consentRecord.upsert({
+      where: {
+        userId_purposeId: {
+          userId: params.userId,
+          purposeId: params.purposeId,
+        },
+      },
+      create: {
+        userId: params.userId,
+        purposeId: params.purposeId,
+        status: "GIVEN",
+        consentedAt: new Date(),
+        withdrawnAt: null,
+        revokedAt: null,
+        consentFormVersion: params.consentFormVersion,
+        privacyNoticeVersion: params.privacyNoticeVersion,
+        source: params.source,
+      },
+      update: {
+        status: "GIVEN",
+        consentedAt: new Date(),
+        withdrawnAt: null,
+        revokedAt: null,
+        consentFormVersion: params.consentFormVersion,
+        privacyNoticeVersion: params.privacyNoticeVersion,
+        source: params.source,
+      },
+    });
+
+    await tx.consentAuditLog.create({
+      data: {
+        correlationId: params.correlationId,
+        eventType: "CONSENT_GIVEN",
+        subjectType: "CONSENT_RECORD",
+        userId: params.userId,
+        purposeId: purpose.id,
+        purposeCodeSnapshot: purpose.code,
+        consentRecordId: record.id,
+        consentFormVersionSnapshot: params.consentFormVersion,
+        actorType: "USER",
+        actorId: params.userId,
+        source: params.source,
+        ipAddress: params.ipAddress,
+        userAgent: params.userAgent,
+      },
+    });
+
+    return record;
+  });
+}
+
+export async function withdrawUserConsent(params: {
+  userId: string;
+  purposeId: string;
+  reasonCode: WithdrawalReasonCode;
+  reasonDetail?: string;
+  source: string;
+  correlationId: string;
+  ipAddress?: string;
+  userAgent?: string;
+}) {
+  return await prisma.$transaction(async (tx) => {
+    // CAS (Compare-And-Swap) atomic update: only update if status is currently GIVEN (prevents concurrent double-withdraw race)
+    const result = await tx.consentRecord.updateMany({
+      where: {
+        userId: params.userId,
+        purposeId: params.purposeId,
+        status: "GIVEN", // CAS atomic guard
+      },
+      data: {
+        status: "WITHDRAWN",
+        withdrawnAt: new Date(),
+        revokedAt: null,
+      },
+    });
+
+    if (result.count === 0) {
+      throw new Error("Consent record state conflict: record is not in GIVEN state or already withdrawn");
+    }
+
+    const updated = await tx.consentRecord.findUniqueOrThrow({
+      where: { userId_purposeId: { userId: params.userId, purposeId: params.purposeId } },
+      include: { purpose: true },
+    });
+
+    // Audit event is created ONLY when state transition successfully occurred!
+    await tx.consentAuditLog.create({
+      data: {
+        correlationId: params.correlationId,
+        eventType: "CONSENT_WITHDRAWN",
+        subjectType: "CONSENT_RECORD",
+        userId: params.userId,
+        purposeId: updated.purpose.id,
+        purposeCodeSnapshot: updated.purpose.code,
+        consentRecordId: updated.id,
+        consentFormVersionSnapshot: updated.consentFormVersion,
+        actorType: "USER",
+        actorId: params.userId,
+        withdrawalReason: params.reasonCode,
+        reasonDetail: params.reasonDetail,
+        source: params.source,
+        ipAddress: params.ipAddress,
+        userAgent: params.userAgent,
+      },
+    });
+
+    return updated;
+  });
+}
+```
 
 - [ ] **Step 4: Run test to verify it passes**
 

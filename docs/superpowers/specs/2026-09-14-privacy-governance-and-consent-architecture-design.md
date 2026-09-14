@@ -125,8 +125,16 @@ ALTER TABLE "ProcessingDataCategoryPolicy" ADD CONSTRAINT "chk_section26_consist
 );
 ```
 
-### 2.5 Audit Log Snapshot Independence (No FK Cascade Hazard)
+### 2.5 Audit Log Snapshot Independence & Subject Exclusivity Constraint
 ฟิลด์อ้างอิงใน `ConsentAuditLog` (`purposeId`, `policyDocumentId`, `consentRecordId`) **จงใจไม่สร้าง Foreign Key Relation แบบ Cascade กับตารางต้นทาง** เพื่อป้องกันความเสี่ยงที่การแก้ไข/ลบ/ย้าย Business Entity ในอนาคตจะส่งผลกระทบต่อความสมบูรณ์ของหลักฐาน Audit History ย้อนหลัง
+
+โดยมีการบังคับความถูกต้องของ Resource ที่ Event อ้างอิงผ่าน Database CHECK Constraint:
+```sql
+ALTER TABLE "ConsentAuditLog" ADD CONSTRAINT "chk_audit_subject_exclusivity" CHECK (
+  ("subjectType" = 'POLICY_DOCUMENT' AND "policyDocumentId" IS NOT NULL AND "consentRecordId" IS NULL) OR
+  ("subjectType" = 'CONSENT_RECORD' AND "consentRecordId" IS NOT NULL AND "purposeId" IS NOT NULL)
+);
+```
 
 ### 2.6 หลักฐานการรับทราบต้องไม่สูญหาย (`PolicyAcknowledgment.onDelete: Restrict`)
 ความสัมพันธ์ระหว่าง `User` และ `PolicyAcknowledgment` ถูกเปลี่ยนเป็น **`onDelete: Restrict`** เพื่อป้องกันไม่ให้การลบบัญชีผู้ใช้ทำลายหลักฐานทางกฎหมายว่าเคยมีการรับทราบนโยบายฉบับใด (ระบบต้องใช้แนวทาง User Deactivation / Soft Anonymization แทน Hard Deletion)
@@ -417,10 +425,16 @@ export async function recordUserConsent(params: {
 
   if (!purpose) throw new Error("Processing purpose not found or inactive");
 
-  // 2. Validate that Consent is actually a legal basis for this purpose
-  const isConsentApplicable = purpose.dataCategoryPolicies.some(
-    (p) => p.legalBasis === "CONSENT" || p.section26Condition === "EXPLICIT_CONSENT"
-  );
+  // 2. Validate that Consent is actually an applicable legal basis for this purpose according to data category rules
+  const isConsentApplicable = purpose.dataCategoryPolicies.some((p) => {
+    const isSensitive = p.dataCategory === "SENSITIVE_HEALTH" || p.dataCategory === "SENSITIVE_BIOMETRIC";
+    if (isSensitive) {
+      // Sensitive data requires BOTH legalBasis === "CONSENT" AND section26Condition === "EXPLICIT_CONSENT"
+      return p.legalBasis === "CONSENT" && p.section26Condition === "EXPLICIT_CONSENT";
+    }
+    // General data requires legalBasis === "CONSENT" and section26Condition === null
+    return p.legalBasis === "CONSENT" && p.section26Condition === null;
+  });
   if (!isConsentApplicable) {
     throw new Error("Consent is not an applicable legal basis for this operational purpose");
   }
@@ -493,17 +507,13 @@ export async function withdrawUserConsent(params: {
   userAgent?: string;
 }) {
   return await prisma.$transaction(async (tx) => {
-    const existing = await tx.consentRecord.findUnique({
-      where: { userId_purposeId: { userId: params.userId, purposeId: params.purposeId } },
-      include: { purpose: true },
-    });
-
-    if (!existing || existing.status !== "GIVEN") {
-      throw new Error("No active consent record found to withdraw");
-    }
-
-    const updated = await tx.consentRecord.update({
-      where: { id: existing.id },
+    // CAS (Compare-And-Swap) atomic update: only update if status is currently GIVEN (prevents concurrent double-withdraw race)
+    const result = await tx.consentRecord.updateMany({
+      where: {
+        userId: params.userId,
+        purposeId: params.purposeId,
+        status: "GIVEN", // CAS atomic guard
+      },
       data: {
         status: "WITHDRAWN",
         withdrawnAt: new Date(),
@@ -511,16 +521,27 @@ export async function withdrawUserConsent(params: {
       },
     });
 
+    if (result.count === 0) {
+      throw new Error("Consent record state conflict: record is not in GIVEN state or already withdrawn");
+    }
+
+    // Retrieve updated record details for audit logging
+    const updated = await tx.consentRecord.findUniqueOrThrow({
+      where: { userId_purposeId: { userId: params.userId, purposeId: params.purposeId } },
+      include: { purpose: true },
+    });
+
+    // Audit event is created ONLY when state transition successfully occurred!
     await tx.consentAuditLog.create({
       data: {
         correlationId: params.correlationId,
         eventType: "CONSENT_WITHDRAWN",
         subjectType: "CONSENT_RECORD",
         userId: params.userId,
-        purposeId: existing.purpose.id,
-        purposeCodeSnapshot: existing.purpose.code,
+        purposeId: updated.purpose.id,
+        purposeCodeSnapshot: updated.purpose.code,
         consentRecordId: updated.id,
-        consentFormVersionSnapshot: existing.consentFormVersion,
+        consentFormVersionSnapshot: updated.consentFormVersion,
         actorType: "USER",
         actorId: params.userId,
         withdrawalReason: params.reasonCode,
