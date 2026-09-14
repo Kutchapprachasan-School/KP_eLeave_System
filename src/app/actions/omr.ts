@@ -1,6 +1,6 @@
 "use server";
 
-import { prisma } from "../../lib/db.ts";
+import { prisma } from "@/lib/db";
 function safeRevalidatePath(path: string) {
   try {
     // Dynamic import/require for Next.js runtime
@@ -12,7 +12,7 @@ function safeRevalidatePath(path: string) {
 }
 import crypto from "crypto";
 import { ExamItemStatus, SubmissionSyncStatus } from "@prisma/client";
-import { ensureStandardTemplatesAction } from "../../lib/services/omrTemplateService.ts";
+import { ensureStandardTemplatesAction } from "@/lib/services/omrTemplateService";
 
 export type CreateExamPaperInput = {
   subjectCode: string;
