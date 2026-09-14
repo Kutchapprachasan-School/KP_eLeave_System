@@ -3,8 +3,7 @@
 import crypto from "crypto";
 import { getCurrentPolicy, publishPolicyDocument, acknowledgePolicy, hasUserAcknowledgedCurrentPolicy } from "../../lib/privacy/policy-service.ts";
 import { prisma } from "../../lib/db.ts";
-import { PolicyType, type WithdrawalReasonCode } from "@prisma/client";
-import type { PolicyDocument } from "@prisma/client";
+import type { PolicyDocument, WithdrawalReasonCode } from "@prisma/client";
 import { headers } from "next/headers";
 import { auth } from "../../lib/auth.ts";
 import { evaluatePurposeConsentRequirement, getPublicRopaSummary } from "../../lib/privacy/ropa-service.ts";
@@ -331,29 +330,48 @@ export async function acknowledgePolicyForCurrentUser(
   }
 }
 
-export async function getUserPrivacyProfile(userId?: string) {
-  let resolvedUserId = userId;
-
-  if (!resolvedUserId) {
-    try {
-      const headerList = await headers();
-      if (headerList) {
-        const session = await auth.api.getSession({ headers: headerList });
-        if (session?.user?.id) {
-          resolvedUserId = session.user.id;
-        }
+async function getSessionUserId(): Promise<string> {
+  try {
+    const headerList = await headers();
+    if (headerList) {
+      const session = await auth.api.getSession({ headers: headerList });
+      if (session?.user?.id) {
+        return session.user.id;
       }
-    } catch {
-      // Outside request scope
     }
+  } catch {
+    // Outside request scope
+  }
+  throw new Error("Unauthorized: User session required");
+}
+
+async function getClientContext() {
+  let ipAddress: string | undefined;
+  let userAgent: string | undefined;
+
+  try {
+    const resolvedHeaders = await headers();
+    if (resolvedHeaders) {
+      ipAddress = resolvedHeaders.get("x-forwarded-for") || resolvedHeaders.get("x-real-ip") || undefined;
+      if (ipAddress && ipAddress.includes(",")) {
+        ipAddress = ipAddress.split(",")[0].trim();
+      }
+      userAgent = resolvedHeaders.get("user-agent") || undefined;
+    }
+  } catch {
+    // Outside request scope
   }
 
-  if (!resolvedUserId) {
+  return { ipAddress, userAgent };
+}
+
+export async function getUserPrivacyProfileForUser(userId: string) {
+  if (!userId) {
     throw new Error("Unauthorized: User session required");
   }
 
   const acknowledgments = await prisma.policyAcknowledgment.findMany({
-    where: { userId: resolvedUserId },
+    where: { userId },
     include: {
       policyDocument: true,
     },
@@ -374,7 +392,7 @@ export async function getUserPrivacyProfile(userId?: string) {
   });
 
   const consentRecords = await prisma.consentRecord.findMany({
-    where: { userId: resolvedUserId },
+    where: { userId },
   });
   const consentRecordMap = new Map(consentRecords.map((c) => [c.purposeId, c]));
 
@@ -396,7 +414,7 @@ export async function getUserPrivacyProfile(userId?: string) {
   }
 
   return {
-    userId: resolvedUserId,
+    userId,
     acknowledgments,
     currentPolicies,
     consentPurposes,
@@ -404,122 +422,103 @@ export async function getUserPrivacyProfile(userId?: string) {
   };
 }
 
-export async function withdrawUserConsentAction(params: {
+export async function getUserPrivacyProfile() {
+  const userId = await getSessionUserId();
+  return await getUserPrivacyProfileForUser(userId);
+}
+
+export async function withdrawUserConsentForUser(params: {
+  userId: string;
   purposeId: string;
   reasonCode: WithdrawalReasonCode;
   reasonDetail?: string;
-  userId?: string;
+  ipAddress?: string;
+  userAgent?: string;
 }): Promise<{ success: boolean; error?: string }> {
   try {
-    let resolvedUserId = params.userId;
-
-    if (!resolvedUserId) {
-      try {
-        const headerList = await headers();
-        if (headerList) {
-          const session = await auth.api.getSession({ headers: headerList });
-          if (session?.user?.id) {
-            resolvedUserId = session.user.id;
-          }
-        }
-      } catch {
-        // Outside request scope
-      }
-    }
-
-    if (!resolvedUserId) {
-      return { success: false, error: "Unauthorized: No active user session" };
-    }
-
-    let ipAddress: string | undefined;
-    let userAgent: string | undefined;
-
-    try {
-      const resolvedHeaders = await headers();
-      ipAddress = resolvedHeaders.get("x-forwarded-for") || resolvedHeaders.get("x-real-ip") || undefined;
-      if (ipAddress && ipAddress.includes(",")) {
-        ipAddress = ipAddress.split(",")[0].trim();
-      }
-      userAgent = resolvedHeaders.get("user-agent") || undefined;
-    } catch {
-      // Outside request scope
+    if (!params.userId) {
+      return { success: false, error: "Unauthorized: User session required" };
     }
 
     await withdrawUserConsent({
-      userId: resolvedUserId,
+      userId: params.userId,
       purposeId: params.purposeId,
       reasonCode: params.reasonCode,
       reasonDetail: params.reasonDetail,
       source: "PRIVACY_CENTER",
       correlationId: crypto.randomUUID(),
-      ipAddress,
-      userAgent,
+      ipAddress: params.ipAddress,
+      userAgent: params.userAgent,
     });
 
     return { success: true };
   } catch (error: any) {
-    console.error("withdrawUserConsentAction failed:", error);
+    console.error("withdrawUserConsentForUser failed:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+export async function withdrawUserConsentAction(params: {
+  purposeId: string;
+  reasonCode: WithdrawalReasonCode;
+  reasonDetail?: string;
+}): Promise<{ success: boolean; error?: string }> {
+  const userId = await getSessionUserId();
+  const { ipAddress, userAgent } = await getClientContext();
+
+  return await withdrawUserConsentForUser({
+    userId,
+    purposeId: params.purposeId,
+    reasonCode: params.reasonCode,
+    reasonDetail: params.reasonDetail,
+    ipAddress,
+    userAgent,
+  });
+}
+
+export async function grantUserConsentForUser(params: {
+  userId: string;
+  purposeId: string;
+  ipAddress?: string;
+  userAgent?: string;
+}): Promise<{ success: boolean; error?: string }> {
+  try {
+    if (!params.userId) {
+      return { success: false, error: "Unauthorized: User session required" };
+    }
+
+    const { notice } = await fetchCurrentPolicies();
+
+    await recordUserConsent({
+      userId: params.userId,
+      purposeId: params.purposeId,
+      consentFormVersion: "1.0",
+      privacyNoticeVersion: notice.version,
+      source: "PRIVACY_CENTER",
+      correlationId: crypto.randomUUID(),
+      ipAddress: params.ipAddress,
+      userAgent: params.userAgent,
+    });
+
+    return { success: true };
+  } catch (error: any) {
+    console.error("grantUserConsentForUser failed:", error);
     return { success: false, error: error.message };
   }
 }
 
 export async function grantUserConsentAction(params: {
   purposeId: string;
-  userId?: string;
 }): Promise<{ success: boolean; error?: string }> {
-  try {
-    let resolvedUserId = params.userId;
+  const userId = await getSessionUserId();
+  const { ipAddress, userAgent } = await getClientContext();
 
-    if (!resolvedUserId) {
-      try {
-        const headerList = await headers();
-        if (headerList) {
-          const session = await auth.api.getSession({ headers: headerList });
-          if (session?.user?.id) {
-            resolvedUserId = session.user.id;
-          }
-        }
-      } catch {
-        // Outside request scope
-      }
-    }
-
-    if (!resolvedUserId) {
-      return { success: false, error: "Unauthorized: No active user session" };
-    }
-
-    let ipAddress: string | undefined;
-    let userAgent: string | undefined;
-
-    try {
-      const resolvedHeaders = await headers();
-      ipAddress = resolvedHeaders.get("x-forwarded-for") || resolvedHeaders.get("x-real-ip") || undefined;
-      if (ipAddress && ipAddress.includes(",")) {
-        ipAddress = ipAddress.split(",")[0].trim();
-      }
-      userAgent = resolvedHeaders.get("user-agent") || undefined;
-    } catch {
-      // Outside request scope
-    }
-
-    const { notice } = await fetchCurrentPolicies();
-
-    await recordUserConsent({
-      userId: resolvedUserId,
-      purposeId: params.purposeId,
-      consentFormVersion: "1.0",
-      privacyNoticeVersion: notice.version,
-      source: "PRIVACY_CENTER",
-      correlationId: crypto.randomUUID(),
-      ipAddress,
-      userAgent,
-    });
-
-    return { success: true };
-  } catch (error: any) {
-    console.error("grantUserConsentAction failed:", error);
-    return { success: false, error: error.message };
-  }
+  return await grantUserConsentForUser({
+    userId,
+    purposeId: params.purposeId,
+    ipAddress,
+    userAgent,
+  });
 }
 
 export async function getPublicPrivacyData() {

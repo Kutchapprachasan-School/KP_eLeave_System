@@ -8,6 +8,9 @@ const {
   getUserPrivacyProfile,
   withdrawUserConsentAction,
   grantUserConsentAction,
+  getUserPrivacyProfileForUser,
+  withdrawUserConsentForUser,
+  grantUserConsentForUser,
   getPublicPrivacyData,
 } = await import('../../../src/app/actions/privacy_actions.ts');
 
@@ -50,10 +53,39 @@ describe('Privacy Self-Service Center & Public Actions', () => {
     await pool.end();
   });
 
-  it('getUserPrivacyProfile should return categorized purposes, current policies, and acknowledgments', async () => {
-    assert.strictEqual(typeof getUserPrivacyProfile, 'function', 'getUserPrivacyProfile must be a function');
+  it('invoking Server Actions directly without session should reject with Unauthorized (cannot spoof userId)', async () => {
+    assert.strictEqual(typeof getUserPrivacyProfile, 'function');
+    assert.strictEqual(typeof grantUserConsentAction, 'function');
+    assert.strictEqual(typeof withdrawUserConsentAction, 'function');
 
-    const profile = await getUserPrivacyProfile(testUser.id);
+    // getUserPrivacyProfile should reject if no authenticated session
+    await assert.rejects(
+      async () => await getUserPrivacyProfile(),
+      /Unauthorized/
+    );
+
+    // grantUserConsentAction should reject if no authenticated session (ignoring any spoofed userId)
+    await assert.rejects(
+      async () => await grantUserConsentAction({ purposeId: consentPurpose.id, userId: testUser.id }),
+      /Unauthorized/
+    );
+
+    // withdrawUserConsentAction should reject if no authenticated session (ignoring any spoofed userId)
+    await assert.rejects(
+      async () => await withdrawUserConsentAction({
+        purposeId: consentPurpose.id,
+        reasonCode: 'USER_CHOICE',
+        reasonDetail: 'Spoof attempt',
+        userId: testUser.id,
+      }),
+      /Unauthorized/
+    );
+  });
+
+  it('getUserPrivacyProfileForUser should return categorized purposes, current policies, and acknowledgments', async () => {
+    assert.strictEqual(typeof getUserPrivacyProfileForUser, 'function', 'getUserPrivacyProfileForUser must be a function');
+
+    const profile = await getUserPrivacyProfileForUser(testUser.id);
     assert.ok(profile);
     assert.strictEqual(profile.userId, testUser.id);
     assert.ok(Array.isArray(profile.acknowledgments));
@@ -73,10 +105,10 @@ describe('Privacy Self-Service Center & Public Actions', () => {
     assert.ok(foundMandatory, 'PURPOSE_LEAVE_APPLICATION should be in mandatoryPurposes');
   });
 
-  it('grantUserConsentAction should grant consent for optional consent-based purpose', async () => {
-    assert.strictEqual(typeof grantUserConsentAction, 'function', 'grantUserConsentAction must be a function');
+  it('grantUserConsentForUser should grant consent for optional consent-based purpose', async () => {
+    assert.strictEqual(typeof grantUserConsentForUser, 'function', 'grantUserConsentForUser must be a function');
 
-    const res = await grantUserConsentAction({
+    const res = await grantUserConsentForUser({
       purposeId: consentPurpose.id,
       userId: testUser.id,
     });
@@ -95,15 +127,15 @@ describe('Privacy Self-Service Center & Public Actions', () => {
     assert.ok(record.consentedAt);
 
     // Verify updated profile reflects the given consent
-    const updatedProfile = await getUserPrivacyProfile(testUser.id);
+    const updatedProfile = await getUserPrivacyProfileForUser(testUser.id);
     const purposeInProfile = updatedProfile.consentPurposes.find((p) => p.id === consentPurpose.id);
     assert.ok(purposeInProfile);
     assert.ok(purposeInProfile.consent);
     assert.strictEqual(purposeInProfile.consent.status, 'GIVEN');
   });
 
-  it('grantUserConsentAction should fail if purpose is mandatory non-consent purpose', async () => {
-    const res = await grantUserConsentAction({
+  it('grantUserConsentForUser should fail if purpose is mandatory non-consent purpose', async () => {
+    const res = await grantUserConsentForUser({
       purposeId: mandatoryPurpose.id,
       userId: testUser.id,
     });
@@ -111,10 +143,10 @@ describe('Privacy Self-Service Center & Public Actions', () => {
     assert.match(res.error || '', /Consent is not an applicable legal basis/);
   });
 
-  it('withdrawUserConsentAction should withdraw an active consent with reason code and detail', async () => {
-    assert.strictEqual(typeof withdrawUserConsentAction, 'function', 'withdrawUserConsentAction must be a function');
+  it('withdrawUserConsentForUser should withdraw an active consent with reason code and detail', async () => {
+    assert.strictEqual(typeof withdrawUserConsentForUser, 'function', 'withdrawUserConsentForUser must be a function');
 
-    const res = await withdrawUserConsentAction({
+    const res = await withdrawUserConsentForUser({
       purposeId: consentPurpose.id,
       reasonCode: 'USER_CHOICE',
       reasonDetail: 'Testing consent withdrawal from privacy center',
@@ -148,8 +180,8 @@ describe('Privacy Self-Service Center & Public Actions', () => {
     assert.strictEqual(audit.source, 'PRIVACY_CENTER');
   });
 
-  it('withdrawUserConsentAction should fail if consent is already withdrawn', async () => {
-    const res = await withdrawUserConsentAction({
+  it('withdrawUserConsentForUser should fail if consent is already withdrawn (CAS guard)', async () => {
+    const res = await withdrawUserConsentForUser({
       purposeId: consentPurpose.id,
       reasonCode: 'USER_CHOICE',
       userId: testUser.id,

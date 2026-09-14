@@ -2452,13 +2452,6 @@ export default function SettingsPage() {
 
     }
 
-    hrHeadItems.push({
-      id: "privacy",
-      icon: <ShieldCheck className="w-5 h-5 text-teal-600" />,
-      title: lang === "en" ? "Privacy Self-Service Center" : "ศูนย์คุ้มครองข้อมูลส่วนบุคคล & ความยินยอม",
-      description: lang === "en" ? "Manage consent and view acknowledged policies" : "จัดการความยินยอมและตรวจสอบประวัติการยอมรับนโยบาย PDPA",
-      href: "/settings/privacy",
-    });
 
   }
 
@@ -2492,13 +2485,6 @@ export default function SettingsPage() {
 
     }
 
-    inspectorItems.push({
-      id: "privacy",
-      icon: <ShieldCheck className="w-5 h-5 text-teal-600" />,
-      title: lang === "en" ? "Privacy Self-Service Center" : "ศูนย์คุ้มครองข้อมูลส่วนบุคคล & ความยินยอม",
-      description: lang === "en" ? "Manage consent and view acknowledged policies" : "จัดการความยินยอมและตรวจสอบประวัติการยอมรับนโยบาย PDPA",
-      href: "/settings/privacy",
-    });
 
   }
 
@@ -8720,39 +8706,65 @@ function doPost(e) {
   const renderMenuList = () => {
 
     if (isInspector) {
-
       return (
+        <div className="space-y-6">
+          {coreSystemItems.length > 0 && (
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 pl-2 mb-3">
+                {lang === "en" ? "Global System Settings" : "การตั้งค่าภาพรวมทั้งระบบ"}
+              </p>
+              <div className="space-y-2">
+                {coreSystemItems.map((item) => (
+                  <MenuItemRow key={item.id} item={item} onClick={() => setActiveSection(item.id)} />
+                ))}
+              </div>
+            </div>
+          )}
 
-        <div className="space-y-2">
-
-          {inspectorItems.map((item) => (
-
-            <MenuItemRow key={item.id} item={item} onClick={() => setActiveSection(item.id)} />
-
-          ))}
-
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 pl-2 mb-3 flex items-center gap-1.5">
+              <CalendarDays className="w-3.5 h-3.5" />
+              {lang === "en" ? "Leave Subsystem Settings" : "ตั้งค่าระบบการลา (Leave System)"}
+            </p>
+            <div className="space-y-2">
+              {inspectorItems.map((item) => (
+                <MenuItemRow key={item.id} item={item} onClick={() => setActiveSection(item.id)} />
+              ))}
+            </div>
+          </div>
         </div>
-
       );
-
     }
 
     if (isHRHead) {
-
       return (
+        <div className="space-y-6">
+          {coreSystemItems.length > 0 && (
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 pl-2 mb-3">
+                {lang === "en" ? "Global System Settings" : "การตั้งค่าภาพรวมทั้งระบบ"}
+              </p>
+              <div className="space-y-2">
+                {coreSystemItems.map((item) => (
+                  <MenuItemRow key={item.id} item={item} onClick={() => setActiveSection(item.id)} />
+                ))}
+              </div>
+            </div>
+          )}
 
-        <div className="space-y-2">
-
-          {hrHeadItems.map((item) => (
-
-            <MenuItemRow key={item.id} item={item} onClick={() => setActiveSection(item.id)} />
-
-          ))}
-
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 pl-2 mb-3 flex items-center gap-1.5">
+              <CalendarDays className="w-3.5 h-3.5" />
+              {lang === "en" ? "Leave Subsystem Settings" : "ตั้งค่าระบบการลา (Leave System)"}
+            </p>
+            <div className="space-y-2">
+              {hrHeadItems.map((item) => (
+                <MenuItemRow key={item.id} item={item} onClick={() => setActiveSection(item.id)} />
+              ))}
+            </div>
+          </div>
         </div>
-
       );
-
     }
 
     return (
