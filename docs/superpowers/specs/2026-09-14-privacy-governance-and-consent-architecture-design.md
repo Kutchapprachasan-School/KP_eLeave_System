@@ -1,19 +1,47 @@
 # School Operation Privacy Governance Architecture Specification
 ## ระบบการกำกับดูแลความเป็นส่วนตัวและการจัดการความยินยอมสำหรับระบบปฏิบัติราชการอิเล็กทรอนิกส์ (KP e-Leave System)
 
-- **Document ID:** SPEC-2026-09-14-PRIVACY-GOVERNANCE
-- **Revision:** 2.1 (Architecture Freeze Candidate)
-- **Status:** APPROVED & FROZEN
-- **Author:** System Architect / Antigravity AI
-- **Date:** 2026-09-14
-- **ORM & Runtime Environment:**
-  - Prisma Version: `^7.8.0` (with `previewFeatures = ["partialIndexes"]` active in `schema.prisma`)
-  - Database: PostgreSQL 16+ (Neon Serverless / Hosted PG)
-- **Regulatory Framework:** 
-  - พระราชบัญญัติคุ้มครองข้อมูลส่วนบุคคล พ.ศ. 2562 (PDPA)
-  - พระราชบัญญัติว่าด้วยธุรกรรมทางอิเล็กทรอนิกส์ พ.ศ. 2544 และที่แก้ไขเพิ่มเติม
-  - แนวปฏิบัติและมาตรฐานแพลตฟอร์ม GPPC สำนักงานคณะกรรมการคุ้มครองข้อมูลส่วนบุคคล (สคส.)
-  - ระเบียบสำนักนายกรัฐมนตรีว่าด้วยการลาของข้าราชการ พ.ศ. 2555 และระเบียบงานสารบรรณ
+---
+
+### ข้อมูลควบคุมเอกสาร (Document Control Metadata)
+
+| ข้อมูล (Attribute) | รายละเอียด (Specification Details) |
+| :--- | :--- |
+| **Document ID** | `SPEC-2026-09-14-PRIVACY-GOVERNANCE` |
+| **Document Title** | School Operation Privacy Governance & Consent Architecture Specification |
+| **Current Revision** | **Rev. 1.0 (Official Baselined Architecture / Architecture Freeze)** |
+| **Document Status** | **APPROVED & FROZEN (Issued for Implementation)** |
+| **Effective Date** | 14 กันยายน 2569 (2026-09-14) |
+| **Target System** | ระบบบริหารจัดการการลาและปฏิบัติราชการอิเล็กทรอนิกส์ โรงเรียนกุดจับประชาสรรค์ (`KP e-Leave`) |
+| **ORM & Runtime** | Prisma Client `^7.8.0` (`previewFeatures = ["partialIndexes"]`), PostgreSQL 16+ (Neon/Self-hosted) |
+| **Classification** | Internal Institutional Governance Document (เอกสารกำกับมาตรฐานภายในสถานศึกษา) |
+
+---
+
+### ตารางการอนุมัติและควบคุมเอกสาร (Governance & Sign-off)
+
+| บทบาท (Role) | ผู้รับผิดชอบ (Name / Identifier) | ตำแหน่ง / อำนาจหน้าที่ | การดำเนินการ (Action) | วันที่ (Date) |
+| :--- | :--- | :--- | :--- | :--- |
+| **Prepared By** | System Architect (Antigravity AI) | System Architect & Tech Lead | Submitted for Review | 2026-09-14 |
+| **Technical Reviewer** | Lead Architecture Reviewer (USER) | Lead Software Architect | Technical Audit & Sign-off | 2026-09-14 |
+| **Compliance Review** | Data Protection & Governance Lead (USER) | School Data Protection Specialist | Legal & PDPA Verification | 2026-09-14 |
+| **Approved By** | Head of Architecture & DevOps (USER) | Architecture Review Board | **APPROVED & FROZEN** | 2026-09-14 |
+
+---
+
+### ตารางบันทึกประวัติการเปลี่ยนแปลง (Revision History)
+
+| Revision | วันที่ (Date) | ผู้แก้ไข (Author/Editor) | ผู้อนุมัติ (Approver) | รายละเอียดการเปลี่ยนแปลง (Description of Change) | สถานะเอกสาร (Document Status) |
+| :---: | :---: | :--- | :--- | :--- | :---: |
+| **Rev. 0.1** | 2026-09-14 | System Architect | Architecture Lead | ร่างข้อกำหนดเริ่มต้น: เสนอ Single Boolean `User.pdpaConsent` และกล่องกดยินยอมรวมในหน้าสมัครสมาชิก | **REJECTED**<br>(Architecture Review 1: ข้อท้วงติงเรื่องการมัดรวม Consent, ฐานภารกิจรัฐ, และขาด Audit Trail) |
+| **Rev. 0.2** | 2026-09-14 | System Architect | Architecture Lead | แยก 4 เสาหลัก (Notice, Terms, Signature, Consent), เพิ่ม `ConsentRecord` และ `ConsentAuditLog` แบบพื้นฐาน | **APPROVE WITH CHANGES**<br>(Architecture Review 2: พบปัญหา `@@unique` ชนกับ Lifecycle, ขาด ROPA, และความปลอดภัย Audit ยังไม่พอ) |
+| **Rev. 0.3** | 2026-09-14 | System Architect | Architecture Lead | ปรับแก้ตามการ Audit เชิงลึก 17 จุด: เพิ่ม `PolicyDocument` versioning, โครงสร้าง ROPA, แยก E-Signature Domain, ออกแบบ DB Trigger | **REVISE FOR FREEZE**<br>(Architecture Review 3: มี 4 Critical Blocks ที่ต้องระบุในระดับ Database Invariant และ State Constraint) |
+| **Rev. 1.0** | 2026-09-14 | System Architect | Lead Architect (USER) | **ฉบับประกาศใช้จริง (Issued for Implementation / Architecture Freeze):**<br>1. ระบุ Prisma `^7.8.0` พร้อมกลยุทธ์ Dual-layer Partial Unique Index สำหรับ `isCurrent`<br>2. ปรับโมเดลความปลอดภัย Append-Only ของ DB Trigger ให้สอดคล้องกับสิทธิ์ Application Role จริง<br>3. แยก `WithdrawalReasonCode` (User) ออกจาก `RevocationReasonCode` (System/Admin) ชัดเจน<br>4. บังคับ State Invariant ด้วย PostgreSQL CHECK Constraints บน `ConsentRecord`<br>5. บังคับความสัมพันธ์ ม.26 กับ Sensitive Data Category ผ่าน DB Constraint<br>6. เปลี่ยน `PolicyAcknowledgment.user` เป็น `onDelete: Restrict` ป้องกันการทำลายหลักฐาน<br>7. กำหนด Independence ของ Audit Snapshot References โดยไม่ใช้ FK Cascade | **APPROVED & FROZEN**<br>(สถานะทางการ: เอกสารฐานเพื่อเริ่ม Implementation Plan) |
+
+---
+
+### ประกาศการยกเลิกและแทนที่เอกสารเดิม (Supersession Notice)
+> **สำคัญ:** เอกสารฉบับนี้ (**Rev. 1.0**) ถือเป็น **ฉบับทางการฉบับเดียว (Single Authoritative Baseline)** ที่ได้รับการอนุมัติ (Architecture Freeze) สำหรับการพัฒนา โดยให้ **ยกเลิกและแทนที่ร่างการออกแบบก่อนหน้าทั้งหมด (Draft Rev. 0.1, Rev. 0.2, Rev. 0.3)** โดยเด็ดขาด ห้ามมิให้ทีมพัฒนาหรือผู้มีส่วนเกี่ยวข้องนำแนวคิด โครงสร้าง Schema หรือเนื้อหาในร่างเวอร์ชันเก่ามาอ้างอิงหรือใช้งานในระบบโดยเด็ดขาด
 
 ---
 
