@@ -1,7 +1,7 @@
 "use server";
 
-import { getCurrentPolicy, publishPolicyDocument, acknowledgePolicy } from "../../lib/privacy/policy-service.ts";
-import { prisma } from "../../lib/db.ts";
+import { getCurrentPolicy, publishPolicyDocument, acknowledgePolicy } from "@/lib/privacy/policy-service";
+import { prisma } from "@/lib/db";
 import { PolicyType } from "@prisma/client";
 
 const DEFAULT_NOTICE = `
