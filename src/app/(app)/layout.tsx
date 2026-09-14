@@ -41,7 +41,8 @@ import {
   Award,
   Layers,
   Wallet,
-  Vote
+  Vote,
+  ScanLine
 } from "lucide-react";
 import { hasRepairPermission, hasFacilityPermission } from "@/lib/permissions";
 import { getNotifications } from "@/app/actions/admin";
@@ -848,6 +849,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
   const examSubItems = enableExam
     ? [
         { href: "/academic/exam", label: "จัดตารางสอบ & ผังที่นั่ง", icon: FileText },
+        { href: "/academic/exam/omr", label: "ตรวจข้อสอบ OMR อัตโนมัติ", icon: ScanLine },
       ]
     : [];
 

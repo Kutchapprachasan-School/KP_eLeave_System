@@ -68,6 +68,8 @@ model User {
   deletedLeaveRequests       LeaveRequest[]        @relation("LeaveDeletedByUser")
   policyAcknowledgments      PolicyAcknowledgment[]
   consentRecords             ConsentRecord[]
+  examPapersCreated          ExamPaper[]           @relation("ExamCreatedBy")
+  scannedSubmissions         ExamSubmission[]      @relation("ExamScannedBy")
 }
 
 model Session {
@@ -2050,4 +2052,229 @@ model ConsentAuditLog {
   @@index([correlationId])
   @@index([eventId])
 }
+
+// ==========================================
+// 📝 ACADEMIC OMR EXAM & GRADING SUBSYSTEM (REV 7.3 FROZEN BASELINE)
+// ==========================================
+
+enum ExamSheetType {
+  SHEET_20_ITEMS
+  SHEET_50_ITEMS
+  SHEET_100_ITEMS
+  CUSTOM
+}
+
+enum ExamItemStatus {
+  CORRECT
+  INCORRECT
+  BLANK
+  MULTIPLE_MARKS
+  FLAGGED_FOR_REVIEW
+  MANUALLY_OVERRIDDEN
+}
+
+enum SubmissionSyncStatus {
+  PENDING_SYNC
+  SYNCED
+  CONFLICT
+  SUPERSEDED
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 1. TEMPLATE VERSIONING (Immutable Master)
+// ─────────────────────────────────────────────────────────────────────────────
+model ExamTemplate {
+  id                  String         @id @default(cuid())
+  code                String         // e.g. "KP-OMR-A4-50"
+  version             Int            // 1, 2, 3...
+  name                String         // แบบฟอร์ม 50 ข้อ มาตรฐาน 2569
+  sheetType           ExamSheetType  @default(SHEET_50_ITEMS)
+  canvasWidth         Int            @default(1654)
+  canvasHeight        Int            @default(2339)
+  
+  gridMetadata        Json           // Strict Schema: markers, bubbles, studentId
+  calibrationDefaults Json           // Configurable CV Defaults
+  
+  isDeprecated        Boolean        @default(false)
+  examPapers          ExamPaper[]
+  createdAt           DateTime       @default(now())
+
+  @@unique([code, version], map: "uk_exam_template_code_version")
+  @@index([sheetType, isDeprecated])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 2. EXAM PAPER & PRINTED SHEET REGISTRY
+// ─────────────────────────────────────────────────────────────────────────────
+model ExamPaper {
+  id              String             @id @default(cuid())
+  subjectCode     String             // e.g. "ว23101"
+  subjectName     String             // e.g. "วิทยาศาสตร์ 5"
+  academicYear    Int                // e.g. 2026
+  term            Int                // 1 หรือ 2
+  gradeLevel      String             // e.g. "ม.3"
+  title           String             // e.g. "สอบกลางภาคเรียนที่ 1/2569"
+  
+  templateId      String
+  template        ExamTemplate       @relation(fields: [templateId], references: [id], onDelete: Restrict)
+  
+  totalItems      Int                @default(50)
+  maxScore        Decimal            @db.Decimal(6, 2)
+  passScore       Decimal            @db.Decimal(6, 2)
+  
+  createdById     String
+  createdBy       User               @relation("ExamCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  
+  answerKeys      ExamAnswerKey[]
+  printedSheets   ExamPrintedSheet[]
+  submissions     ExamSubmission[]
+  
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  @@index([subjectCode, academicYear, term])
+  @@index([createdById])
+}
+
+model ExamPrintedSheet {
+  id              String         @id @default(cuid())
+  sheetToken      String         @unique(map: "uk_printed_sheet_token") // Opaque CUID2
+  examPaperId     String
+  examPaper       ExamPaper      @relation(fields: [examPaperId], references: [id], onDelete: Restrict)
+  
+  studentId       String         // รหัสนักเรียน
+  studentName     String?
+  classroom       String?
+  seatNo          Int?
+  attemptNo       Int            @default(1)
+  isUsed          Boolean        @default(false)
+  usedAt          DateTime?
+  
+  createdAt       DateTime       @default(now())
+
+  @@unique([examPaperId, studentId, attemptNo], map: "uk_printed_sheet_paper_student_attempt")
+  @@index([sheetToken])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 3. ANSWER KEYS & NORMALIZED ITEMS
+// ─────────────────────────────────────────────────────────────────────────────
+model ExamAnswerKey {
+  id              String               @id @default(cuid())
+  examPaperId     String
+  examPaper       ExamPaper            @relation(fields: [examPaperId], references: [id], onDelete: Cascade)
+  versionCode     String               // e.g. "01", "02", "03", "04"
+  items           ExamAnswerKeyItem[]
+  
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  @@unique([examPaperId, versionCode], map: "uk_answer_key_paper_version")
+  @@index([examPaperId])
+}
+
+model ExamAnswerKeyItem {
+  id              String            @id @default(cuid())
+  answerKeyId     String
+  answerKey       ExamAnswerKey     @relation(fields: [answerKeyId], references: [id], onDelete: Cascade)
+  itemNo          Int               // 1..totalItems (Validated via Trigger & Service)
+  correctChoices  String[]          // Checked by cardinality() BETWEEN 1 AND 5
+  points          Decimal           @default(1.00) @db.Decimal(5, 2)
+  penaltyPoints   Decimal           @default(0.00) @db.Decimal(5, 2)
+  
+  @@unique([answerKeyId, itemNo], map: "uk_answer_key_item_no")
+  @@index([answerKeyId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 4. SUBMISSION ATTEMPTS & MATERIALIZED CACHE
+// ─────────────────────────────────────────────────────────────────────────────
+model ExamSubmission {
+  id                  String               @id @default(cuid())
+  clientScanId        String               @unique(map: "uk_submission_client_scan_id") // Idempotency Key
+  examPaperId         String
+  examPaper           ExamPaper            @relation(fields: [examPaperId], references: [id], onDelete: Restrict)
+  
+  studentId           String
+  studentName         String?
+  classroom           String?
+  seatNo              Int?
+  versionCode         String               @default("01")
+  attemptNo           Int                  @default(1)
+  isLatestAttempt     Boolean              @default(true)
+  
+  // ⚠️ DERIVED MATERIALIZED SNAPSHOT ONLY: Updated exclusively via recalculateSubmissionScore
+  rawScore            Decimal              @db.Decimal(6, 2)
+  netScore            Decimal              @db.Decimal(6, 2)
+  totalCorrect        Int                  @default(0)
+  totalIncorrect      Int                  @default(0)
+  totalBlanks         Int                  @default(0)
+  totalMultiple       Int                  @default(0)
+  gradingVersion      Int                  @default(1)
+  
+  confidenceAvg       Decimal              @db.Decimal(4, 3)
+  hasAnomalies        Boolean              @default(false)
+  isVerifiedByTeacher Boolean              @default(false)
+  verifiedByUserId    String?
+  verifiedAt          DateTime?
+  
+  scannedImageKey     String?              // Pure ASCII Storage Key
+  syncStatus          SubmissionSyncStatus @default(SYNCED)
+  
+  itemSubmissions     ExamItemSubmission[]
+  scannedAt           DateTime             @default(now())
+  scannedByUserId     String
+  scannedByUser       User                 @relation("ExamScannedBy", fields: [scannedByUserId], references: [id], onDelete: Restrict)
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+
+  // Partial Unique Index: 1 Latest Attempt per student per exam
+  @@unique([examPaperId, studentId], map: "uk_latest_submission_per_student", where: { isLatestAttempt: true })
+  @@index([examPaperId, classroom])
+  @@index([scannedByUserId])
+  @@index([syncStatus])
+}
+
+// ⭐ SINGLE SOURCE OF TRUTH (Leaf Item Scores)
+model ExamItemSubmission {
+  id                  String             @id @default(cuid())
+  submissionId        String
+  submission          ExamSubmission     @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  itemNo              Int
+  
+  detectedChoices     String[]
+  fillRatios          Json
+  confidenceScore     Decimal            @db.Decimal(4, 3)
+  
+  overrideChoice      String?            // Manual Override by Teacher
+  effectiveChoice     String?            // Source of Truth for recalculation
+  isOverridden        Boolean            @default(false)
+  
+  isCorrect           Boolean            @default(false)
+  scoreEarned         Decimal            @db.Decimal(4, 2) @default(0)
+  status              ExamItemStatus     @default(CORRECT)
+
+  @@unique([submissionId, itemNo], map: "uk_item_submission_item_no")
+  @@index([submissionId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 5. IMMUTABLE AUDIT LOG (100% PURE SNAPSHOT - NO FK COUPLING)
+// ─────────────────────────────────────────────────────────────────────────────
+model ExamAuditLog {
+  id                   String       @id @default(cuid())
+  examPaperIdSnapshot  String       // Pure Snapshot Scalar
+  submissionIdSnapshot String?      // Pure Snapshot Scalar
+  
+  action               String       // "SCAN_INGEST", "MANUAL_OVERRIDE", "RECALCULATE_SCORES"
+  performedByUserId    String       // User ID Snapshot
+  details              Json         // Diff: { itemNo, oldChoice, newChoice, oldScore, newScore }
+  ipAddress            String?
+  userAgent            String?
+  createdAt            DateTime     @default(now())
+
+  @@index([examPaperIdSnapshot, createdAt], map: "idx_audit_paper_created")
+  @@index([performedByUserId], map: "idx_audit_user")
+}
+
 

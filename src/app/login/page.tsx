@@ -7,7 +7,9 @@ import { Lock, User, Eye, EyeOff, Briefcase, BookOpen } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { getSystemSettings } from "@/app/actions/settings";
 import { resolveEmailForLogin } from "@/app/actions/auth_actions";
+import { fetchCurrentPolicies, recordRegistrationPolicyAcknowledgments } from "@/app/actions/privacy_actions";
 import { useI18n } from "@/lib/i18n";
+import { PolicyModal } from "@/components/privacy/PolicyModal";
 
 export default function LoginPage() {
   const { t, lang, setLang } = useI18n();
@@ -22,6 +24,16 @@ export default function LoginPage() {
   const [isForgotPassword, setIsForgotPassword] = useState(false);
   const [resetEmail, setResetEmail] = useState("");
   const router = useRouter();
+
+  const [noticeChecked, setNoticeChecked] = useState(false);
+  const [termsChecked, setTermsChecked] = useState(false);
+  const [noticeModalOpen, setNoticeModalOpen] = useState(false);
+  const [termsModalOpen, setTermsModalOpen] = useState(false);
+  const [policies, setPolicies] = useState<{ notice: any; terms: any } | null>(null);
+
+  useEffect(() => {
+    fetchCurrentPolicies().then(setPolicies).catch(console.error);
+  }, []);
 
   // Dynamic branding from SystemSettings
   const [schoolName, setSchoolName] = useState("ระบบจัดการการลา");
@@ -106,8 +118,9 @@ export default function LoginPage() {
         position,
         subjectGroup: ["ครู", "นักศึกษาฝึกประสบการณ์", "หัวหน้างานบุคคล"].includes(position) ? subjectGroup : "",
         fetchOptions: {
-          onSuccess: () => {
+          onSuccess: async () => {
             clearTimeout(safetyTimer);
+            await recordRegistrationPolicyAcknowledgments({ email: finalEmail });
             alert(t("registerSuccess"));
             setIsRegister(false);
             setLoading(false);
@@ -387,14 +400,90 @@ export default function LoginPage() {
               </div>
             )}
 
+            {isRegister && (
+              <div className="space-y-3 pt-2">
+                <label className="flex items-start gap-3 cursor-pointer group">
+                  <div className="relative flex items-center pt-0.5">
+                    <input
+                      type="checkbox"
+                      required
+                      checked={noticeChecked}
+                      onChange={(e) => setNoticeChecked(e.target.checked)}
+                      className="w-5 h-5 rounded border-slate-300 dark:border-slate-600 text-purple-600 focus:ring-purple-500/30 transition-colors cursor-pointer"
+                    />
+                  </div>
+                  <div className="text-sm text-slate-600 dark:text-slate-300">
+                    ข้าพเจ้าได้อ่านและรับทราบ <span className="font-semibold text-slate-800 dark:text-slate-200">ประกาศการคุ้มครองข้อมูลส่วนบุคคล (Privacy Notice)</span>
+                    <button
+                      type="button"
+                      onClick={() => setNoticeModalOpen(true)}
+                      className="ml-2 text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300 font-medium hover:underline transition-all inline-block"
+                    >
+                      [เปิดอ่านฉบับเต็ม]
+                    </button>
+                  </div>
+                </label>
+
+                <label className="flex items-start gap-3 cursor-pointer group">
+                  <div className="relative flex items-center pt-0.5">
+                    <input
+                      type="checkbox"
+                      required
+                      checked={termsChecked}
+                      onChange={(e) => setTermsChecked(e.target.checked)}
+                      className="w-5 h-5 rounded border-slate-300 dark:border-slate-600 text-purple-600 focus:ring-purple-500/30 transition-colors cursor-pointer"
+                    />
+                  </div>
+                  <div className="text-sm text-slate-600 dark:text-slate-300">
+                    ข้าพเจ้ายอมรับ <span className="font-semibold text-slate-800 dark:text-slate-200">เงื่อนไขการใช้งานระบบสารสนเทศตามระเบียบของหน่วยงาน (Terms of Use)</span>
+                    <button
+                      type="button"
+                      onClick={() => setTermsModalOpen(true)}
+                      className="ml-2 text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300 font-medium hover:underline transition-all inline-block"
+                    >
+                      [เปิดอ่านเงื่อนไข]
+                    </button>
+                  </div>
+                </label>
+              </div>
+            )}
+
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || (isRegister && (!noticeChecked || !termsChecked))}
               className="w-full h-[50px] rounded-xl bg-gradient-to-r from-purple-500 to-indigo-600 text-white text-[15px] font-semibold hover:opacity-95 focus:outline-none focus:ring-2 focus:ring-purple-500/50 disabled:opacity-50 shadow-lg shadow-purple-500/20 transition-all duration-200 mt-2"
             >
               {loading ? (isRegister ? t("registering") : t("signingIn")) : (isRegister ? t("registerButton") : t("loginButton"))}
             </button>
           </form>
+        )}
+
+        {policies?.notice && (
+          <PolicyModal
+            isOpen={noticeModalOpen}
+            onClose={() => setNoticeModalOpen(false)}
+            onAccept={() => setNoticeChecked(true)}
+            title={policies.notice.title}
+            version={policies.notice.version}
+            effectiveDate={policies.notice.effectiveAt}
+            contentHash={policies.notice.contentHash}
+            contentMarkdown={policies.notice.contentMarkdown}
+            type="NOTICE"
+          />
+        )}
+
+        {policies?.terms && (
+          <PolicyModal
+            isOpen={termsModalOpen}
+            onClose={() => setTermsModalOpen(false)}
+            onAccept={() => setTermsChecked(true)}
+            title={policies.terms.title}
+            version={policies.terms.version}
+            effectiveDate={policies.terms.effectiveAt}
+            contentHash={policies.terms.contentHash}
+            contentMarkdown={policies.terms.contentMarkdown}
+            type="TERMS"
+          />
         )}
 
         {!isRegister && !isForgotPassword && (
