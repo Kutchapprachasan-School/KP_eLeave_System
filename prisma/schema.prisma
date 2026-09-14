@@ -1051,9 +1051,12 @@ model FacilityReservation {
   assignments      ReservationResourceAssignment[]
   roomDetails      RoomReservationDetail?
   vehicleDetails   VehicleReservationDetail?
-  createdAt        DateTime                        @default(now())
-  updatedAt        DateTime                        @updatedAt
+  createdAt              DateTime                        @default(now())
+  updatedAt              DateTime                        @updatedAt
+  idempotencyKey         String?                         @db.VarChar(128)
+  idempotencyPayloadHash String?                         @db.VarChar(64)
 
+  @@unique([reservedByUserId, idempotencyKey], map: "uq_facility_reservation_user_idempotency")
   @@index([resourceId, status, startAt, endAt])
   @@index([reservedByUserId, status])
 }

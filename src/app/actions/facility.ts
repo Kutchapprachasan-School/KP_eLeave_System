@@ -7,6 +7,11 @@ import { revalidatePath } from "next/cache";
 import { assertFacilityPermission, getFacilityRole, hasFacilityPermission } from "@/lib/permissions";
 import type { Prisma, ReservationStatus, ResourceType, ResourceStatus } from "@prisma/client";
 
+import { executeFacilityAction, type FacilityActionResult } from "@/services/facility/facility-action-boundary";
+import { toDbUtcDate, toIsoUtcString, utcNow, calculateDynamicSlaExpiry as calculateDynamicSlaExpiryUtil } from "@/services/facility/facility-time";
+import { mapReservationToDTO, mapResourceToDTO, type FacilityReservationDTO, type FacilityResourceDTO } from "@/services/facility/facility-dto";
+import { computeCanonicalPayloadHash, isIdempotencyUniqueViolation, recoverFromIdempotencyRace } from "@/services/facility/facility-idempotency";
+
 export type CreateFacilityResourceInput = {
   code: string;
   name: string;
@@ -43,6 +48,7 @@ export type ReserveFacilityInput = {
   department?: string;
   contactPhone?: string;
   attachments?: any;
+  idempotencyKey?: string;
   roomDetails?: {
     layoutType?: any;
     layoutNotes?: string;
@@ -205,11 +211,12 @@ export async function executeReservationMutation<T>(
 
 /**
  * Calculates dynamic SLA Expiry based on module policy and Server Clock
+ * Uses canonical time utility with guaranteed minimum 30-minute grace period
  */
 async function calculateDynamicSlaExpiry(
   moduleType: ResourceType,
-  startAt: Date,
-  serverNow: Date = new Date()
+  startAt: Date | string,
+  serverNow: Date = utcNow()
 ): Promise<Date> {
   const policy = await prisma.facilityApprovalPolicy.findFirst({
     where: { moduleType, stepNo: 1, isActive: true }
@@ -218,204 +225,282 @@ async function calculateDynamicSlaExpiry(
   const slaHours = policy?.slaHours ?? (moduleType === "VEHICLE" ? 48 : 24);
   const bufferHours = policy?.bufferHoursBefore ?? 6;
 
-  const slaTarget = new Date(serverNow.getTime() + slaHours * 60 * 60 * 1000);
-  const bufferTarget = new Date(startAt.getTime() - bufferHours * 60 * 60 * 1000);
-
-  return bufferTarget < slaTarget ? bufferTarget : slaTarget;
+  return calculateDynamicSlaExpiryUtil(startAt, slaHours, bufferHours, serverNow);
 }
 
 /**
  * Create a new Facility/Vehicle Reservation (Queue hold as PENDING with SLA Expiry)
+ * Hardened with:
+ * - executeFacilityAction boundary wrapper (Zero unhandled throw)
+ * - Idempotency hash check & PostgreSQL 23505 race recovery
+ * - Canonical UTC time mapping (toDbUtcDate)
+ * - Post-commit revalidation
+ * - Pure Plain DTO return contract
  */
-export async function reserveFacilityAction(input: ReserveFacilityInput) {
-  const user = await getSessionUser();
-  if (!user) throw new Error("กรุณาเข้าสู่ระบบก่อนทำรายการ");
+export async function reserveFacilityAction(
+  input: ReserveFacilityInput
+): Promise<FacilityActionResult<FacilityReservationDTO>> {
+  return await executeFacilityAction("reserveFacilityAction", async (_correlationId) => {
+    const user = await getSessionUser();
+    if (!user) throw new Error("กรุณาเข้าสู่ระบบก่อนทำรายการ");
 
-  const startAt = new Date(input.startAt);
-  const endAt = new Date(input.endAt);
-  const serverNow = new Date();
+    const startAt = toDbUtcDate(input.startAt);
+    const endAt = toDbUtcDate(input.endAt);
+    const serverNow = utcNow();
 
-  if (isNaN(startAt.getTime()) || isNaN(endAt.getTime())) {
-    throw new Error("รูปแบบวันที่และเวลาไม่ถูกต้อง");
-  }
-
-  if (endAt <= startAt) {
-    throw new Error("เวลาสิ้นสุดต้องอยู่หลังเวลาเริ่มต้น");
-  }
-
-  // Min duration 15 minutes
-  if (endAt.getTime() - startAt.getTime() < 15 * 60 * 1000) {
-    throw new Error("ระยะเวลาการจองต้องไม่น้อยกว่า 15 นาที");
-  }
-
-  const driverId = input.vehicleDetails?.driverProfileId;
-
-  return await executeReservationMutation(input.resourceId, driverId, async (tx) => {
-    // 0. Physical Availability & Active Status Guard
-    const targetResource = await tx.facilityResource.findUnique({
-      where: { id: input.resourceId },
-      select: { id: true, name: true, status: true, type: true }
-    });
-
-    if (!targetResource) {
-      throw new Error("ไม่พบข้อมูลทรัพยากรที่ระบุ");
+    if (endAt <= startAt) {
+      throw new Error("เวลาสิ้นสุดต้องอยู่หลังเวลาเริ่มต้น");
     }
 
-    if (targetResource.status !== "AVAILABLE") {
-      const statusLabel = {
-        UNDER_MAINTENANCE: "อยู่ระหว่างปรับปรุง/ซ่อมบำรุง",
-        OUT_OF_SERVICE: "งดให้บริการชั่วคราว",
-        RETIRED: "ยกเลิกการใช้งานแล้ว"
-      }[targetResource.status] || targetResource.status;
-
-      throw new Error(`ไม่สามารถทำรายการจองได้ เนื่องจากทรัพยากร "${targetResource.name}" อยู่ในสถานะ "${statusLabel}"`);
+    // Min duration 15 minutes
+    if (endAt.getTime() - startAt.getTime() < 15 * 60 * 1000) {
+      throw new Error("ระยะเวลาการจองต้องไม่น้อยกว่า 15 นาที");
     }
 
-    // 1. Application-level Overlap Pre-check (Resource)
-    const conflictingResource = await tx.reservationResourceAssignment.findFirst({
-      where: {
-        resourceId: input.resourceId,
-        status: { in: ["PENDING", "APPROVED", "IN_USE"] },
-        AND: [
-          { startAt: { lt: endAt } },
-          { endAt: { gt: startAt } }
-        ]
-      }
-    });
-
-    if (conflictingResource) {
-      throw new Error("ทรัพยากรนี้ถูกจองในช่วงเวลาดังกล่าวแล้ว");
+    // Past startAt reject
+    if (startAt.getTime() < serverNow.getTime()) {
+      throw new Error("ไม่อนุญาตให้ยื่นจองย้อนหลังในอดีตได้");
     }
 
-    // 2. Application-level Overlap Pre-check (Driver)
-    if (driverId) {
-      const conflictingDriver = await tx.reservationResourceAssignment.findFirst({
+    // Idempotency Pre-check & Hash Computation
+    let payloadHash: string | null = null;
+    if (input.idempotencyKey) {
+      payloadHash = computeCanonicalPayloadHash(input);
+
+      const existingWinner = await prisma.facilityReservation.findFirst({
         where: {
-          driverProfileId: driverId,
-          status: { in: ["PENDING", "APPROVED", "IN_USE"] },
-          AND: [
-            { startAt: { lt: endAt } },
-            { endAt: { gt: startAt } }
-          ]
+          reservedByUserId: user.id,
+          idempotencyKey: input.idempotencyKey.trim()
+        },
+        include: {
+          resource: {
+            include: {
+              roomProfile: true,
+              vehicleProfile: true
+            }
+          },
+          reservedByUser: true,
+          approvalSteps: {
+            include: { approver: true },
+            orderBy: { stepNo: "asc" }
+          },
+          assignments: {
+            include: {
+              driverProfile: {
+                include: { user: true }
+              }
+            }
+          },
+          roomDetails: true,
+          vehicleDetails: true
         }
       });
 
-      if (conflictingDriver) {
-        throw new Error("พนักงานขับรถท่านนี้มีภารกิจอื่นในช่วงเวลาดังกล่าวแล้ว");
+      if (existingWinner) {
+        if (existingWinner.idempotencyPayloadHash === payloadHash) {
+          return mapReservationToDTO(existingWinner); // Safe Replay
+        }
+        throw new Error("IDEMPOTENCY_MISMATCH:ไม่สามารถใช้ Idempotency Key ซ้ำกับข้อมูลคำขอที่แตกต่างกันได้");
       }
     }
 
-    // Get Resource Type for Prefix and SLA
-    const resource = await tx.facilityResource.findUnique({
-      where: { id: input.resourceId }
-    });
-    if (!resource) throw new Error("ไม่พบข้อมูลทรัพยากร");
+    const driverId = input.vehicleDetails?.driverProfileId;
 
-    const prefix = resource.type === "VEHICLE" ? "FV" : "FR";
-    const count = await tx.facilityReservation.count();
-    const bookingNumber = `${prefix}-${serverNow.getFullYear()}-${String(count + 1).padStart(4, "0")}`;
+    try {
+      return await executeReservationMutation(input.resourceId, driverId, async (tx) => {
+        // 0. Physical Availability & Active Status Guard
+        const targetResource = await tx.facilityResource.findUnique({
+          where: { id: input.resourceId },
+          select: { id: true, name: true, status: true, type: true }
+        });
 
-    const expiresAt = await calculateDynamicSlaExpiry(resource.type, startAt, serverNow);
+        if (!targetResource) {
+          throw new Error("ไม่พบข้อมูลทรัพยากรที่ระบุ");
+        }
 
-    // 3. Create Master Reservation
-    const reservation = await tx.facilityReservation.create({
-      data: {
-        bookingNumber,
-        resourceId: input.resourceId,
-        reservedByUserId: user.id,
-        consumerModule: input.consumerModule || (resource.type === "VEHICLE" ? "VEHICLE" : "MEETING_ROOM"),
-        title: input.title,
-        purpose: input.purpose,
-        startAt,
-        endAt,
-        expiresAt,
-        attendeeCount: input.attendeeCount,
-        department: input.department,
-        contactPhone: input.contactPhone,
-        status: "PENDING",
-        currentStep: 1,
-        totalSteps: 2,
-        attachments: input.attachments || {},
-        // Create Snapshot Approval Steps
-        approvalSteps: {
-          create: [
-            {
-              stepNo: 1,
-              roleRequired: resource.type === "VEHICLE" ? "HEAD_VEHICLE" : "HEAD_FACILITY",
-              title: resource.type === "VEHICLE" ? "การจัดสรรยานพาหนะและพนักงานขับรถ" : "การตรวจสอบสถานที่และโสตทัศนูปกรณ์",
-              status: "PENDING"
-            },
-            {
-              stepNo: 2,
-              roleRequired: "DIRECTOR",
-              title: "การอนุมัติขั้นสุดท้ายของผู้อำนวยการโรงเรียน",
-              status: "PENDING"
-            }
-          ]
-        },
-        // Create Schedulable Assignments
-        assignments: {
-          create: [
-            {
-              targetType: "RESOURCE",
-              resourceId: input.resourceId,
-              startAt,
-              endAt,
-              status: "PENDING"
-            },
-            ...(driverId ? [{
-              targetType: "DRIVER" as const,
+        if (targetResource.status !== "AVAILABLE") {
+          const statusLabel = {
+            UNDER_MAINTENANCE: "อยู่ระหว่างปรับปรุง/ซ่อมบำรุง",
+            OUT_OF_SERVICE: "งดให้บริการชั่วคราว",
+            RETIRED: "ยกเลิกการใช้งานแล้ว"
+          }[targetResource.status] || targetResource.status;
+
+          throw new Error(`ไม่สามารถทำรายการจองได้ เนื่องจากทรัพยากร "${targetResource.name}" อยู่ในสถานะ "${statusLabel}"`);
+        }
+
+        // 1. Application-level Overlap Pre-check (Resource)
+        const conflictingResource = await tx.reservationResourceAssignment.findFirst({
+          where: {
+            resourceId: input.resourceId,
+            status: { in: ["PENDING", "APPROVED", "IN_USE"] },
+            AND: [
+              { startAt: { lt: endAt } },
+              { endAt: { gt: startAt } }
+            ]
+          }
+        });
+
+        if (conflictingResource) {
+          throw new Error("ทรัพยากรนี้ถูกจองในช่วงเวลาดังกล่าวแล้ว");
+        }
+
+        // 2. Application-level Overlap Pre-check (Driver)
+        if (driverId) {
+          const conflictingDriver = await tx.reservationResourceAssignment.findFirst({
+            where: {
               driverProfileId: driverId,
-              startAt,
-              endAt,
-              status: "PENDING" as const
-            }] : [])
-          ]
-        },
-        // Extension Details
-        ...(input.roomDetails ? {
-          roomDetails: {
-            create: {
-              layoutType: input.roomDetails.layoutType || "THEATER",
-              layoutNotes: input.roomDetails.layoutNotes,
-              audioVisualNotes: input.roomDetails.audioVisualNotes,
-              cateringNotes: input.roomDetails.cateringNotes,
-              requireAirCon: input.roomDetails.requireAirCon ?? true
+              status: { in: ["PENDING", "APPROVED", "IN_USE"] },
+              AND: [
+                { startAt: { lt: endAt } },
+                { endAt: { gt: startAt } }
+              ]
             }
-          }
-        } : {}),
-        ...(input.vehicleDetails ? {
-          vehicleDetails: {
-            create: {
-              missionType: input.vehicleDetails.missionType || "OFFICIAL_MEETING",
-              origin: input.vehicleDetails.origin || "โรงเรียนกุดจับประชาสรรค์",
-              destination: input.vehicleDetails.destination || "-",
-              teacherCount: input.vehicleDetails.teacherCount ?? 1,
-              studentCount: input.vehicleDetails.studentCount ?? 0,
-              passengerListNotes: input.vehicleDetails.passengerListNotes
-            }
-          }
-        } : {})
-      },
-      include: {
-        resource: true,
-        approvalSteps: true,
-        assignments: true,
-        roomDetails: true,
-        vehicleDetails: true
-      }
-    });
+          });
 
+          if (conflictingDriver) {
+            throw new Error("พนักงานขับรถท่านนี้มีภารกิจอื่นในช่วงเวลาดังกล่าวแล้ว");
+          }
+        }
+
+        // Get Resource Type for Prefix and SLA
+        const resource = await tx.facilityResource.findUnique({
+          where: { id: input.resourceId }
+        });
+        if (!resource) throw new Error("ไม่พบข้อมูลทรัพยากร");
+
+        const prefix = resource.type === "VEHICLE" ? "FV" : "FR";
+        const count = await tx.facilityReservation.count();
+        const bookingNumber = `${prefix}-${serverNow.getFullYear()}-${String(count + 1).padStart(4, "0")}`;
+
+        const expiresAt = await calculateDynamicSlaExpiry(resource.type, startAt, serverNow);
+
+        // 3. Create Master Reservation
+        const reservation = await tx.facilityReservation.create({
+          data: {
+            bookingNumber,
+            resourceId: input.resourceId,
+            reservedByUserId: user.id,
+            consumerModule: input.consumerModule || (resource.type === "VEHICLE" ? "VEHICLE" : "MEETING_ROOM"),
+            title: input.title,
+            purpose: input.purpose,
+            startAt,
+            endAt,
+            expiresAt,
+            attendeeCount: input.attendeeCount,
+            department: input.department,
+            contactPhone: input.contactPhone,
+            status: "PENDING",
+            currentStep: 1,
+            totalSteps: 2,
+            idempotencyKey: input.idempotencyKey ? input.idempotencyKey.trim() : null,
+            idempotencyPayloadHash: input.idempotencyKey ? payloadHash : null,
+            attachments: input.attachments || {},
+            // Create Snapshot Approval Steps
+            approvalSteps: {
+              create: [
+                {
+                  stepNo: 1,
+                  roleRequired: resource.type === "VEHICLE" ? "HEAD_VEHICLE" : "HEAD_FACILITY",
+                  title: resource.type === "VEHICLE" ? "การจัดสรรยานพาหนะและพนักงานขับรถ" : "การตรวจสอบสถานที่และโสตทัศนูปกรณ์",
+                  status: "PENDING"
+                },
+                {
+                  stepNo: 2,
+                  roleRequired: "DIRECTOR",
+                  title: "การอนุมัติขั้นสุดท้ายของผู้อำนวยการโรงเรียน",
+                  status: "PENDING"
+                }
+              ]
+            },
+            // Create Schedulable Assignments
+            assignments: {
+              create: [
+                {
+                  targetType: "RESOURCE",
+                  resourceId: input.resourceId,
+                  startAt,
+                  endAt,
+                  status: "PENDING"
+                },
+                ...(driverId ? [{
+                  targetType: "DRIVER" as const,
+                  driverProfileId: driverId,
+                  startAt,
+                  endAt,
+                  status: "PENDING" as const
+                }] : [])
+              ]
+            },
+            // Extension Details
+            ...(input.roomDetails ? {
+              roomDetails: {
+                create: {
+                  layoutType: input.roomDetails.layoutType || "THEATER",
+                  layoutNotes: input.roomDetails.layoutNotes,
+                  audioVisualNotes: input.roomDetails.audioVisualNotes,
+                  cateringNotes: input.roomDetails.cateringNotes,
+                  requireAirCon: input.roomDetails.requireAirCon ?? true
+                }
+              }
+            } : {}),
+            ...(input.vehicleDetails ? {
+              vehicleDetails: {
+                create: {
+                  missionType: input.vehicleDetails.missionType || "OFFICIAL_MEETING",
+                  origin: input.vehicleDetails.origin || "โรงเรียนกุดจับประชาสรรค์",
+                  destination: input.vehicleDetails.destination || "-",
+                  teacherCount: input.vehicleDetails.teacherCount ?? 1,
+                  studentCount: input.vehicleDetails.studentCount ?? 0,
+                  passengerListNotes: input.vehicleDetails.passengerListNotes
+                }
+              }
+            } : {})
+          },
+          include: {
+            resource: {
+              include: {
+                roomProfile: true,
+                vehicleProfile: true
+              }
+            },
+            reservedByUser: true,
+            approvalSteps: {
+              include: { approver: true },
+              orderBy: { stepNo: "asc" }
+            },
+            assignments: {
+              include: {
+                driverProfile: {
+                  include: { user: true }
+                }
+              }
+            },
+            roomDetails: true,
+            vehicleDetails: true
+          }
+        });
+
+        return mapReservationToDTO(reservation);
+      });
+    } catch (err: unknown) {
+      if (input.idempotencyKey && payloadHash && isIdempotencyUniqueViolation(err)) {
+        return await recoverFromIdempotencyRace(prisma, user.id, input.idempotencyKey, payloadHash, err);
+      }
+      throw err;
+    }
+  }, () => {
     revalidatePath("/facility");
     revalidatePath("/general/facility");
     revalidatePath("/academic/facility");
-
-    return reservation;
   });
 }
 
 /**
  * Step 1: Section Head Review & Driver Allocation
+ */
+/**
+ * Step 1: Section Head Review & Driver Allocation
+ * Hardened with executeFacilityAction and post-commit revalidation
  */
 export async function reviewFacilityReservationHeadAction(
   reservationId: string,
@@ -425,161 +510,163 @@ export async function reviewFacilityReservationHeadAction(
     audioVisualNotes?: string;
     comment?: string;
   }
-) {
-  const user = await getSessionUser();
-  if (!user) throw new Error("กรุณาเข้าสู่ระบบ");
+): Promise<FacilityActionResult<{ success: boolean; reservation: FacilityReservationDTO }>> {
+  return await executeFacilityAction("reviewFacilityReservationHeadAction", async (_correlationId) => {
+    const user = await getSessionUser();
+    if (!user) throw new Error("กรุณาเข้าสู่ระบบ");
 
-  const existing = await prisma.facilityReservation.findUnique({
-    where: { id: reservationId },
-    include: { resource: true, assignments: true }
-  });
-  if (!existing) throw new Error("ไม่พบคำขอจอง");
-
-  const permission = existing.resource.type === "VEHICLE" ? "facility:vehicle.manage" : "facility:room.manage";
-  assertFacilityPermission(user, permission as any);
-
-  const resourceIds = Array.from(new Set([existing.resourceId, ...existing.assignments.map(a => a.resourceId)].filter(Boolean))) as string[];
-  const driverIds = Array.from(new Set([data.driverProfileId, ...existing.assignments.map(a => a.driverProfileId)].filter(Boolean))) as string[];
-
-  return await executeReservationMutation(resourceIds, driverIds, async (tx) => {
-    const reservation = await tx.facilityReservation.findUnique({
+    const existing = await prisma.facilityReservation.findUnique({
       where: { id: reservationId },
-      include: { assignments: true }
+      include: { resource: true, assignments: true }
     });
-    if (!reservation || reservation.status !== "PENDING") {
-      throw new Error("คำขอนี้ไม่ได้อยู่ในสถานะรอพิจารณา");
-    }
+    if (!existing) throw new Error("ไม่พบคำขอจอง");
 
-    // If driver is allocated, check conflict & create/update Driver Assignment row
-    if (data.driverProfileId) {
-      const driverConflict = await tx.reservationResourceAssignment.findFirst({
-        where: {
-          driverProfileId: data.driverProfileId,
-          reservationId: { not: reservationId },
-          status: { in: ["PENDING", "APPROVED", "IN_USE"] },
-          AND: [
-            { startAt: { lt: reservation.endAt } },
-            { endAt: { gt: reservation.startAt } }
-          ]
-        }
+    const permission = existing.resource.type === "VEHICLE" ? "facility:vehicle.manage" : "facility:room.manage";
+    assertFacilityPermission(user, permission as any);
+
+    const resourceIds = Array.from(new Set([existing.resourceId, ...existing.assignments.map(a => a.resourceId)].filter(Boolean))) as string[];
+    const driverIds = Array.from(new Set([data.driverProfileId, ...existing.assignments.map(a => a.driverProfileId)].filter(Boolean))) as string[];
+
+    return await executeReservationMutation(resourceIds, driverIds, async (tx) => {
+      const reservation = await tx.facilityReservation.findUnique({
+        where: { id: reservationId },
+        include: { assignments: true }
       });
-
-      if (driverConflict) {
-        throw new Error("พนักงานขับรถท่านนี้มีภารกิจขับรถคันอื่นในช่วงเวลาดังกล่าวแล้ว");
+      if (!reservation || reservation.status !== "PENDING") {
+        throw new Error("คำขอนี้ไม่ได้อยู่ในสถานะรอพิจารณา");
       }
 
-      // Upsert Driver Assignment
-      await tx.reservationResourceAssignment.deleteMany({
-        where: { reservationId, targetType: "DRIVER" }
-      });
-      await tx.reservationResourceAssignment.create({
-        data: {
-          reservationId,
-          targetType: "DRIVER",
-          driverProfileId: data.driverProfileId,
-          startAt: reservation.startAt,
-          endAt: reservation.endAt,
-          status: reservation.status
+      // If driver is allocated, check conflict & create/update Driver Assignment row
+      if (data.driverProfileId) {
+        const driverConflict = await tx.reservationResourceAssignment.findFirst({
+          where: {
+            driverProfileId: data.driverProfileId,
+            reservationId: { not: reservationId },
+            status: { in: ["PENDING", "APPROVED", "IN_USE"] },
+            AND: [
+              { startAt: { lt: reservation.endAt } },
+              { endAt: { gt: reservation.startAt } }
+            ]
+          }
+        });
+
+        if (driverConflict) {
+          throw new Error("พนักงานขับรถท่านนี้มีภารกิจขับรถคันอื่นในช่วงเวลาดังกล่าวแล้ว");
         }
-      });
 
-      await tx.vehicleReservationDetail.updateMany({
-        where: { reservationId },
-        data: { driverAssignedAt: new Date() }
-      });
-    }
+        // Upsert Driver Assignment
+        await tx.reservationResourceAssignment.deleteMany({
+          where: { reservationId, targetType: "DRIVER" }
+        });
+        await tx.reservationResourceAssignment.create({
+          data: {
+            reservationId,
+            targetType: "DRIVER",
+            driverProfileId: data.driverProfileId,
+            startAt: reservation.startAt,
+            endAt: reservation.endAt,
+            status: reservation.status
+          }
+        });
 
-    if (data.layoutNotes || data.audioVisualNotes) {
-      await tx.roomReservationDetail.updateMany({
-        where: { reservationId },
-        data: {
-          layoutNotes: data.layoutNotes,
-          audioVisualNotes: data.audioVisualNotes
-        }
-      });
-    }
-
-    // Step 1 Snapshot Approval
-    await tx.facilityApprovalStep.updateMany({
-      where: { reservationId, stepNo: 1 },
-      data: {
-        status: "APPROVED",
-        approverUserId: user.id,
-        comment: data.comment,
-        actedAt: new Date()
+        await tx.vehicleReservationDetail.updateMany({
+          where: { reservationId },
+          data: { driverAssignedAt: utcNow() }
+        });
       }
-    });
 
-    await tx.facilityReservation.update({
-      where: { id: reservationId },
-      data: { currentStep: 2 }
-    });
+      if (data.layoutNotes || data.audioVisualNotes) {
+        await tx.roomReservationDetail.updateMany({
+          where: { reservationId },
+          data: {
+            layoutNotes: data.layoutNotes,
+            audioVisualNotes: data.audioVisualNotes
+          }
+        });
+      }
 
+      // Step 1 Snapshot Approval
+      await tx.facilityApprovalStep.updateMany({
+        where: { reservationId, stepNo: 1 },
+        data: {
+          status: "APPROVED",
+          approverUserId: user.id,
+          comment: data.comment,
+          actedAt: utcNow()
+        }
+      });
+
+      const updated = await tx.facilityReservation.update({
+        where: { id: reservationId },
+        data: { currentStep: 2 },
+        include: {
+          resource: { include: { roomProfile: true, vehicleProfile: true } },
+          reservedByUser: true,
+          approvalSteps: { include: { approver: true }, orderBy: { stepNo: "asc" } },
+          assignments: { include: { driverProfile: { include: { user: true } } } },
+          roomDetails: true,
+          vehicleDetails: true
+        }
+      });
+
+      return {
+        success: true,
+        reservation: mapReservationToDTO(updated)
+      };
+    });
+  }, () => {
     revalidatePath("/facility");
     revalidatePath("/general/facility");
     revalidatePath("/academic/facility");
     revalidatePath("/facility/settings");
-    return { success: true };
   });
 }
 
 /**
  * Step 2: Director Final Approval with Concurrency Re-Check & SLA Freshness
+ * Hardened with:
+ * - executeFacilityAction boundary wrapper (Zero unhandled throw -> Prevents React Error #441)
+ * - Canonical SLA Expiry Check with standardized SLA_EXPIRED error code
+ * - Post-commit revalidation
+ * - Pure Plain DTO return
  */
 export async function approveFacilityReservationDirectorAction(
   reservationId: string,
   data?: { comment?: string }
-) {
-  const user = await getSessionUser();
-  if (!user) throw new Error("กรุณาเข้าสู่ระบบ");
-  assertFacilityPermission(user, "facility:approve.director");
+): Promise<FacilityActionResult<FacilityReservationDTO>> {
+  return await executeFacilityAction("approveFacilityReservationDirectorAction", async (_correlationId) => {
+    const user = await getSessionUser();
+    if (!user) throw new Error("กรุณาเข้าสู่ระบบ");
+    assertFacilityPermission(user, "facility:approve.director");
 
-  const existing = await prisma.facilityReservation.findUnique({
-    where: { id: reservationId },
-    include: { assignments: true }
-  });
-  if (!existing) throw new Error("ไม่พบคำขอจอง");
-
-  const resourceIds = Array.from(new Set([existing.resourceId, ...existing.assignments.map(a => a.resourceId)].filter(Boolean))) as string[];
-  const driverIds = Array.from(new Set(existing.assignments.map(a => a.driverProfileId).filter(Boolean))) as string[];
-
-  return await executeReservationMutation(resourceIds, driverIds, async (tx) => {
-    // 1. Row Lock & SLA Check
-    const [res] = await tx.$queryRaw<Array<{ id: string; status: ReservationStatus; expiresAt: Date | null }>>`
-      SELECT id, status, "expiresAt" FROM "FacilityReservation" WHERE id = ${reservationId} FOR UPDATE
-    `;
-
-    if (!res) throw new Error("ไม่พบคำขอจอง");
-    if (res.status !== "PENDING") {
-      throw new Error(`ไม่สามารถอนุมัติได้เนื่องจากคำขออยู่ในสถานะ ${res.status}`);
-    }
-
-    if (res.expiresAt && new Date() > new Date(res.expiresAt)) {
-      throw new Error("คำขอนี้หมดอายุตาม SLA แล้ว ไม่สามารถอนุมัติได้ (ระบบจะทำการยกเลิกอัตโนมัติ)");
-    }
-
-    // 2. Atomic Re-Check Overlap against already APPROVED or IN_USE items
-    const conflictResource = await tx.reservationResourceAssignment.findFirst({
-      where: {
-        resourceId: existing.resourceId,
-        reservationId: { not: reservationId },
-        status: { in: ["APPROVED", "IN_USE"] },
-        AND: [
-          { startAt: { lt: existing.endAt } },
-          { endAt: { gt: existing.startAt } }
-        ]
-      }
+    const existing = await prisma.facilityReservation.findUnique({
+      where: { id: reservationId },
+      include: { assignments: true }
     });
+    if (!existing) throw new Error("ไม่พบคำขอจอง");
 
-    if (conflictResource) {
-      throw new Error("ไม่สามารถอนุมัติได้ เนื่องจากทรัพยากรถูกอนุมัติให้รายการอื่นในช่วงเวลาเดียวกันไปแล้ว");
-    }
+    const resourceIds = Array.from(new Set([existing.resourceId, ...existing.assignments.map(a => a.resourceId)].filter(Boolean))) as string[];
+    const driverIds = Array.from(new Set(existing.assignments.map(a => a.driverProfileId).filter(Boolean))) as string[];
 
-    const driverAssignment = existing.assignments.find(a => a.targetType === "DRIVER");
-    if (driverAssignment?.driverProfileId) {
-      const conflictDriver = await tx.reservationResourceAssignment.findFirst({
+    return await executeReservationMutation(resourceIds, driverIds, async (tx) => {
+      // 1. Row Lock & SLA Check
+      const [res] = await tx.$queryRaw<Array<{ id: string; status: ReservationStatus; expiresAt: Date | null }>>`
+        SELECT id, status, "expiresAt" FROM "FacilityReservation" WHERE id = ${reservationId} FOR UPDATE
+      `;
+
+      if (!res) throw new Error("ไม่พบคำขอจอง");
+      if (res.status !== "PENDING") {
+        throw new Error(`ไม่สามารถอนุมัติได้เนื่องจากคำขออยู่ในสถานะ ${res.status}`);
+      }
+
+      if (res.expiresAt && utcNow().getTime() > new Date(res.expiresAt).getTime()) {
+        throw new Error("SLA_EXPIRED:คำขอนี้หมดอายุตาม SLA แล้ว ไม่สามารถอนุมัติได้ (ระบบจะทำการยกเลิกอัตโนมัติ)");
+      }
+
+      // 2. Atomic Re-Check Overlap against already APPROVED or IN_USE items
+      const conflictResource = await tx.reservationResourceAssignment.findFirst({
         where: {
-          driverProfileId: driverAssignment.driverProfileId,
+          resourceId: existing.resourceId,
           reservationId: { not: reservationId },
           status: { in: ["APPROVED", "IN_USE"] },
           AND: [
@@ -589,151 +676,185 @@ export async function approveFacilityReservationDirectorAction(
         }
       });
 
-      if (conflictDriver) {
-        throw new Error("ไม่สามารถอนุมัติได้ เนื่องจากพนักงานขับรถถูกมอบหมายให้รายการอื่นไปแล้ว");
+      if (conflictResource) {
+        throw new Error("ไม่สามารถอนุมัติได้ เนื่องจากทรัพยากรถูกอนุมัติให้รายการอื่นในช่วงเวลาเดียวกันไปแล้ว");
       }
-    }
 
-    // 3. Step 2 Snapshot Approval
-    await tx.facilityApprovalStep.updateMany({
-      where: { reservationId, stepNo: 2 },
-      data: {
-        status: "APPROVED",
-        approverUserId: user.id,
-        comment: data?.comment,
-        actedAt: new Date()
+      const driverAssignment = existing.assignments.find(a => a.targetType === "DRIVER");
+      if (driverAssignment?.driverProfileId) {
+        const conflictDriver = await tx.reservationResourceAssignment.findFirst({
+          where: {
+            driverProfileId: driverAssignment.driverProfileId,
+            reservationId: { not: reservationId },
+            status: { in: ["APPROVED", "IN_USE"] },
+            AND: [
+              { startAt: { lt: existing.endAt } },
+              { endAt: { gt: existing.startAt } }
+            ]
+          }
+        });
+
+        if (conflictDriver) {
+          throw new Error("ไม่สามารถอนุมัติได้ เนื่องจากพนักงานขับรถถูกมอบหมายให้รายการอื่นไปแล้ว");
+        }
       }
+
+      // 3. Step 2 Snapshot Approval
+      await tx.facilityApprovalStep.updateMany({
+        where: { reservationId, stepNo: 2 },
+        data: {
+          status: "APPROVED",
+          approverUserId: user.id,
+          comment: data?.comment,
+          actedAt: utcNow()
+        }
+      });
+
+      // 4. Single Gate Lifecycle Transition
+      const updated = await transitionReservationStatus(tx, reservationId, "APPROVED", { currentStep: 2 });
+      return mapReservationToDTO(updated);
     });
-
-    // 4. Single Gate Lifecycle Transition
-    const updated = await transitionReservationStatus(tx, reservationId, "APPROVED", { currentStep: 2 });
-
+  }, () => {
     revalidatePath("/facility");
     revalidatePath("/general/facility");
     revalidatePath("/academic/facility");
     revalidatePath("/facility/settings");
-    return updated;
   });
 }
 
 /**
  * Rejects reservation
  */
-export async function rejectFacilityReservationAction(reservationId: string, reason: string) {
-  const user = await getSessionUser();
-  if (!user) throw new Error("กรุณาเข้าสู่ระบบ");
+export async function rejectFacilityReservationAction(
+  reservationId: string,
+  reason: string
+): Promise<FacilityActionResult<FacilityReservationDTO>> {
+  return await executeFacilityAction("rejectFacilityReservationAction", async (_correlationId) => {
+    const user = await getSessionUser();
+    if (!user) throw new Error("กรุณาเข้าสู่ระบบ");
 
-  return await prisma.$transaction(async (tx) => {
-    const reservation = await tx.facilityReservation.findUnique({
-      where: { id: reservationId },
-      include: { approvalSteps: true }
-    });
+    return await prisma.$transaction(async (tx) => {
+      const reservation = await tx.facilityReservation.findUnique({
+        where: { id: reservationId },
+        include: { approvalSteps: true }
+      });
 
-    if (!reservation || reservation.status !== "PENDING") {
-      throw new Error("สามารถปฏิเสธได้เฉพาะคำขอที่อยู่ในสถานะรออนุมัติเท่านั้น");
-    }
-
-    // Snapshot active step
-    await tx.facilityApprovalStep.updateMany({
-      where: { reservationId, status: "PENDING" },
-      data: {
-        status: "REJECTED",
-        approverUserId: user.id,
-        comment: reason,
-        actedAt: new Date()
+      if (!reservation || reservation.status !== "PENDING") {
+        throw new Error("สามารถปฏิเสธได้เฉพาะคำขอที่อยู่ในสถานะรออนุมัติเท่านั้น");
       }
-    });
 
-    const updated = await transitionReservationStatus(tx, reservationId, "REJECTED", { rejectionReason: reason });
+      // Snapshot active step
+      await tx.facilityApprovalStep.updateMany({
+        where: { reservationId, status: "PENDING" },
+        data: {
+          status: "REJECTED",
+          approverUserId: user.id,
+          comment: reason,
+          actedAt: utcNow()
+        }
+      });
+
+      const updated = await transitionReservationStatus(tx, reservationId, "REJECTED", { rejectionReason: reason });
+      return mapReservationToDTO(updated);
+    });
+  }, () => {
     revalidatePath("/facility");
     revalidatePath("/general/facility");
     revalidatePath("/academic/facility");
     revalidatePath("/facility/settings");
-    return updated;
   });
 }
 
 /**
  * Strict Cancellation Action
  */
-export async function cancelFacilityReservationAction(reservationId: string) {
-  const user = await getSessionUser();
-  if (!user) throw new Error("กรุณาเข้าสู่ระบบ");
+export async function cancelFacilityReservationAction(
+  reservationId: string
+): Promise<FacilityActionResult<FacilityReservationDTO>> {
+  return await executeFacilityAction("cancelFacilityReservationAction", async (_correlationId) => {
+    const user = await getSessionUser();
+    if (!user) throw new Error("กรุณาเข้าสู่ระบบ");
 
-  return await prisma.$transaction(async (tx) => {
-    const reservation = await tx.facilityReservation.findUnique({
-      where: { id: reservationId }
-    });
+    return await prisma.$transaction(async (tx) => {
+      const reservation = await tx.facilityReservation.findUnique({
+        where: { id: reservationId }
+      });
 
-    if (!reservation) throw new Error("ไม่พบคำขอจอง");
+      if (!reservation) throw new Error("ไม่พบคำขอจอง");
 
-    if (reservation.status === "COMPLETED" || reservation.status === "REJECTED") {
-      throw new Error("รายการนี้เสร็จสิ้นหรือถูกปฏิเสธแล้ว ไม่สามารถยกเลิกได้ (Immutable Record)");
-    }
-
-    const isOwner = reservation.reservedByUserId === user.id;
-    const isAdmin = user.role === "ADMIN";
-
-    if (reservation.status === "IN_USE" && !isAdmin) {
-      throw new Error("ภารกิจกำลังดำเนินการอยู่ เฉพาะผู้ดูแลระบบเท่านั้นที่สามารถยกเลิกฉุกเฉินได้");
-    }
-
-    if (reservation.status === "APPROVED" && isOwner && !isAdmin) {
-      const oneHourBefore = new Date(reservation.startAt.getTime() - 60 * 60 * 1000);
-      if (new Date() > oneHourBefore) {
-        throw new Error("ไม่อนุญาตให้ยกเลิกล่วงหน้าน้อยกว่า 1 ชั่วโมงก่อนถึงเวลาเริ่มใช้งาน");
+      if (reservation.status === "COMPLETED" || reservation.status === "REJECTED") {
+        throw new Error("รายการนี้เสร็จสิ้นหรือถูกปฏิเสธแล้ว ไม่สามารถยกเลิกได้ (Immutable Record)");
       }
-    }
 
-    const updated = await transitionReservationStatus(tx, reservationId, "CANCELLED", {
-      rejectionReason: `ยกเลิกโดย ${user.name || user.email}`
+      const isOwner = reservation.reservedByUserId === user.id;
+      const isAdmin = user.role === "ADMIN";
+
+      if (reservation.status === "IN_USE" && !isAdmin) {
+        throw new Error("ภารกิจกำลังดำเนินการอยู่ เฉพาะผู้ดูแลระบบเท่านั้นที่สามารถยกเลิกฉุกเฉินได้");
+      }
+
+      if (reservation.status === "APPROVED" && isOwner && !isAdmin) {
+        const oneHourBefore = new Date(reservation.startAt.getTime() - 60 * 60 * 1000);
+        if (utcNow() > oneHourBefore) {
+          throw new Error("ไม่อนุญาตให้ยกเลิกล่วงหน้าน้อยกว่า 1 ชั่วโมงก่อนถึงเวลาเริ่มใช้งาน");
+        }
+      }
+
+      const updated = await transitionReservationStatus(tx, reservationId, "CANCELLED", {
+        rejectionReason: `ยกเลิกโดย ${user.name || user.email}`
+      });
+
+      return mapReservationToDTO(updated);
     });
-
+  }, () => {
     revalidatePath("/facility");
     revalidatePath("/general/facility");
     revalidatePath("/academic/facility");
     revalidatePath("/facility/settings");
-    return updated;
   });
 }
 
 /**
  * Idempotent SLA Auto-Cancel Cleanup Action
  */
-export async function cleanupExpiredPendingReservationsAction() {
-  const serverNow = new Date();
+export async function cleanupExpiredPendingReservationsAction(): Promise<FacilityActionResult<{ cancelledCount: number }>> {
+  return await executeFacilityAction("cleanupExpiredPendingReservationsAction", async (_correlationId) => {
+    const serverNow = utcNow();
 
-  const candidates = await prisma.facilityReservation.findMany({
-    where: {
-      status: "PENDING",
-      expiresAt: { lte: serverNow }
-    },
-    select: { id: true, resourceId: true }
-  });
+    const candidates = await prisma.facilityReservation.findMany({
+      where: {
+        status: "PENDING",
+        expiresAt: { lte: serverNow }
+      },
+      select: { id: true, resourceId: true }
+    });
 
-  let cancelledCount = 0;
+    let cancelledCount = 0;
 
-  for (const candidate of candidates) {
-    try {
-      await executeReservationMutation(candidate.resourceId, null, async (tx) => {
-        const [locked] = await tx.$queryRaw<Array<{ id: string; status: ReservationStatus; expiresAt: Date | null }>>`
-          SELECT id, status, "expiresAt" FROM "FacilityReservation" WHERE id = ${candidate.id} FOR UPDATE
-        `;
+    for (const candidate of candidates) {
+      try {
+        await executeReservationMutation(candidate.resourceId, null, async (tx) => {
+          const [locked] = await tx.$queryRaw<Array<{ id: string; status: ReservationStatus; expiresAt: Date | null }>>`
+            SELECT id, status, "expiresAt" FROM "FacilityReservation" WHERE id = ${candidate.id} FOR UPDATE
+          `;
 
-        if (locked && locked.status === "PENDING" && locked.expiresAt && serverNow >= new Date(locked.expiresAt)) {
-          await transitionReservationStatus(tx, candidate.id, "CANCELLED", {
-            rejectionReason: "หมดเวลาการพิจารณาอนุมัติตาม SLA อัตโนมัติ (SLA Timeout Auto-Cancelled)"
-          });
-          cancelledCount++;
-        }
-      });
-    } catch {
-      // Safely ignore concurrent approval race errors
+          if (locked && locked.status === "PENDING" && locked.expiresAt && serverNow >= new Date(locked.expiresAt)) {
+            await transitionReservationStatus(tx, candidate.id, "CANCELLED", {
+              rejectionReason: "หมดเวลาการพิจารณาอนุมัติตาม SLA อัตโนมัติ (SLA Timeout Auto-Cancelled)"
+            });
+            cancelledCount++;
+          }
+        });
+      } catch {
+        // Safely ignore concurrent approval race errors
+      }
     }
-  }
 
-  revalidatePath("/facility");
-  return { cancelledCount };
+    return { cancelledCount };
+  }, () => {
+    revalidatePath("/facility");
+    revalidatePath("/general/facility");
+  });
 }
 
 /**
@@ -747,53 +868,59 @@ export async function completeVehicleTripAction(
     fuelCost?: number;
     tripNotes?: string;
   }
-) {
-  const user = await getSessionUser();
-  if (!user) throw new Error("กรุณาเข้าสู่ระบบ");
+): Promise<FacilityActionResult<FacilityReservationDTO>> {
+  return await executeFacilityAction("completeVehicleTripAction", async (_correlationId) => {
+    const user = await getSessionUser();
+    if (!user) throw new Error("กรุณาเข้าสู่ระบบ");
 
-  return await prisma.$transaction(async (tx) => {
-    const reservation = await tx.facilityReservation.findUnique({
-      where: { id: reservationId },
-      include: { vehicleDetails: true }
-    });
-
-    if (!reservation) throw new Error("ไม่พบคำขอจอง");
-    if (reservation.status !== "IN_USE" && reservation.status !== "APPROVED") {
-      throw new Error("สามารถบันทึกสิ้นสุดภารกิจได้เฉพาะรายการที่กำลังใช้งานหรือได้รับการอนุมัติแล้ว");
-    }
-
-    if (data.startMileage !== undefined || data.endMileage !== undefined || data.fuelCost !== undefined || data.tripNotes !== undefined) {
-      await tx.vehicleReservationDetail.updateMany({
-        where: { reservationId },
-        data: {
-          startMileage: data.startMileage,
-          endMileage: data.endMileage,
-          fuelCost: data.fuelCost,
-          tripNotes: data.tripNotes
-        }
+    return await prisma.$transaction(async (tx) => {
+      const reservation = await tx.facilityReservation.findUnique({
+        where: { id: reservationId },
+        include: { vehicleDetails: true }
       });
 
-      // Update vehicle current odometer if endMileage is provided
-      if (data.endMileage && data.endMileage > 0) {
-        await tx.vehicleProfile.updateMany({
-          where: { resourceId: reservation.resourceId },
-          data: { currentOdometer: data.endMileage }
-        });
+      if (!reservation) throw new Error("ไม่พบคำขอจอง");
+      if (reservation.status !== "IN_USE" && reservation.status !== "APPROVED") {
+        throw new Error("สามารถบันทึกสิ้นสุดภารกิจได้เฉพาะรายการที่กำลังใช้งานหรือได้รับการอนุมัติแล้ว");
       }
-    }
 
-    const updated = await transitionReservationStatus(tx, reservationId, "COMPLETED");
+      if (data.startMileage !== undefined || data.endMileage !== undefined || data.fuelCost !== undefined || data.tripNotes !== undefined) {
+        await tx.vehicleReservationDetail.updateMany({
+          where: { reservationId },
+          data: {
+            startMileage: data.startMileage,
+            endMileage: data.endMileage,
+            fuelCost: data.fuelCost,
+            tripNotes: data.tripNotes
+          }
+        });
+
+        // Update vehicle current odometer if endMileage is provided
+        if (data.endMileage && data.endMileage > 0) {
+          await tx.vehicleProfile.updateMany({
+            where: { resourceId: reservation.resourceId },
+            data: { currentOdometer: data.endMileage }
+          });
+        }
+      }
+
+      const updated = await transitionReservationStatus(tx, reservationId, "COMPLETED");
+      return mapReservationToDTO(updated);
+    });
+  }, () => {
     revalidatePath("/facility");
-    return updated;
+    revalidatePath("/general/facility");
+    revalidatePath("/academic/facility");
   });
 }
 
 /**
  * Query Facility Resources with Profiles (excludes RETIRED by default)
+ * Returns whitelisted Plain DTOs (Zero Date/Class instance leak)
  */
 export async function getFacilityResourcesAction(
   typeOrOptions?: ResourceType | { type?: ResourceType; includeRetired?: boolean }
-) {
+): Promise<FacilityResourceDTO[]> {
   const options = typeof typeOrOptions === "string" ? { type: typeOrOptions } : typeOrOptions;
   const where: any = {};
   if (options?.type) {
@@ -802,7 +929,7 @@ export async function getFacilityResourcesAction(
   if (!options?.includeRetired) {
     where.status = { not: "RETIRED" };
   }
-  return await prisma.facilityResource.findMany({
+  const resources = await prisma.facilityResource.findMany({
     where,
     include: {
       roomProfile: true,
@@ -810,6 +937,7 @@ export async function getFacilityResourcesAction(
     },
     orderBy: { code: "asc" }
   });
+  return resources.map(mapResourceToDTO);
 }
 
 export type GetFacilityReservationsFilter = {
@@ -825,8 +953,11 @@ export type GetFacilityReservationsFilter = {
 /**
  * Query Facility Reservations with all relations
  * Strictly enforces session identity when onlyMine is specified to prevent IDOR
+ * Returns whitelisted Plain DTOs (Zero Date/Class instance leak)
  */
-export async function getFacilityReservationsAction(filter?: GetFacilityReservationsFilter) {
+export async function getFacilityReservationsAction(
+  filter?: GetFacilityReservationsFilter
+): Promise<FacilityReservationDTO[]> {
   const where: any = {};
   if (filter?.consumerModule) {
     where.consumerModule = filter.consumerModule;
@@ -856,11 +987,11 @@ export async function getFacilityReservationsAction(filter?: GetFacilityReservat
 
   if (filter?.startDate || filter?.endDate) {
     where.startAt = {};
-    if (filter.startDate) where.startAt.gte = new Date(filter.startDate);
-    if (filter.endDate) where.startAt.lte = new Date(filter.endDate);
+    if (filter.startDate) where.startAt.gte = toDbUtcDate(filter.startDate);
+    if (filter.endDate) where.startAt.lte = toDbUtcDate(filter.endDate);
   }
 
-  return await prisma.facilityReservation.findMany({
+  const reservations = await prisma.facilityReservation.findMany({
     where,
     include: {
       resource: {
@@ -916,6 +1047,8 @@ export async function getFacilityReservationsAction(filter?: GetFacilityReservat
     },
     orderBy: { startAt: "desc" }
   });
+
+  return reservations.map(mapReservationToDTO);
 }
 
 /**

@@ -43,7 +43,7 @@ import {
   Wallet,
   Vote
 } from "lucide-react";
-import { hasRepairPermission } from "@/lib/permissions";
+import { hasRepairPermission, hasFacilityPermission } from "@/lib/permissions";
 import { getNotifications } from "@/app/actions/admin";
 import { getMyPendingRoutingCount } from "@/app/actions/incoming";
 import { getSystemSettings } from "@/app/actions/settings";
@@ -329,9 +329,18 @@ function CollapsibleGroup({
     if (item.href.includes("?")) {
       const [path, query] = item.href.split("?");
       const keyVal = query.split("=");
-      return pathname === path && searchParams?.get(keyVal[0]) === keyVal[1];
+      const matchesPath =
+        pathname === path ||
+        (path === "/general/facility" && (pathname === "/facility" || pathname === "/academic/facility"));
+      const matchesQuery =
+        searchParams?.get(keyVal[0]) === keyVal[1] ||
+        (keyVal[0] === "view" && keyVal[1] === "request" && !searchParams?.get("view"));
+      return matchesPath && matchesQuery;
     }
-    return pathname === item.href;
+    return (
+      pathname === item.href ||
+      (item.href === "/general/facility" && (pathname === "/facility" || pathname === "/academic/facility"))
+    );
   });
 
   const [isOpen, setIsOpen] = useState(defaultOpen || isAnyChildActive);
@@ -782,6 +791,29 @@ function AppContent({ children }: { children: React.ReactNode }) {
       ]
     : [];
 
+  const isFacilityApprover =
+    isAdmin ||
+    hasFacilityPermission(user, "facility:room.manage") ||
+    hasFacilityPermission(user, "facility:vehicle.manage") ||
+    hasFacilityPermission(user, "facility:approve.director") ||
+    hasFacilityPermission(user, "facility:driver.assign");
+
+  const isFacilityManager =
+    isAdmin ||
+    hasFacilityPermission(user, "facility:resource.manage") ||
+    hasFacilityPermission(user, "facility:resource.create");
+
+  // Sub-items for Facility System (ระบบจองทรัพยากรกลาง)
+  const facilitySubItems = enableFacility
+    ? [
+        { href: "/general/facility?view=request", label: "ยื่นจองทรัพยากร", icon: Plus },
+        { href: "/general/facility?view=calendar", label: "ปฏิทินการใช้ทรัพยากร", icon: Calendar },
+        { href: "/general/facility?view=history", label: "ประวัติและคำขอของฉัน", icon: History },
+        ...(isFacilityApprover ? [{ href: "/general/facility?view=approval", label: "ศูนย์พิจารณาอนุมัติ", icon: CheckSquare }] : []),
+        ...(isFacilityManager ? [{ href: "/general/facility?view=crud", label: "จัดการข้อมูลทรัพยากร", icon: Settings }] : []),
+      ]
+    : [];
+
   // Sub-items for Academic Affairs Systems (งานฝ่ายวิชาการ - แยกเป็นระบบย่อย)
   const academicPlanningSubItems = showAcademicPlanning
     ? [
@@ -865,8 +897,11 @@ function AppContent({ children }: { children: React.ReactNode }) {
 
   const renderNavItem = (item: any, isSubItem: boolean = false) => {
     const isExactMatch = item.href.includes("?")
-      ? pathname === item.href.split("?")[0] && (searchParams?.get(item.href.split("?")[1].split("=")[0]) === item.href.split("?")[1].split("=")[1])
-      : (pathname === item.href || (item.href === "/hr/leave/request" && pathname === "/request") || (item.href === "/hr/leave/history" && pathname === "/history") || (item.href === "/hr/leave/approvals" && pathname === "/approvals") || (item.href === "/hr/leave/reports" && pathname === "/reports") || (item.href === "/hr/attendance" && pathname === "/attendance") || (item.href === "/hr/competency" && pathname === "/academic/competency") || (item.href === "/general/facility" && pathname === "/academic/facility"));
+      ? (pathname === item.href.split("?")[0] ||
+         (item.href.startsWith("/general/facility") && (pathname === "/facility" || pathname === "/academic/facility"))) &&
+        (searchParams?.get(item.href.split("?")[1].split("=")[0]) === item.href.split("?")[1].split("=")[1] ||
+         (item.href.endsWith("view=request") && !searchParams?.get("view")))
+      : (pathname === item.href || (item.href === "/hr/leave/request" && pathname === "/request") || (item.href === "/hr/leave/history" && pathname === "/history") || (item.href === "/hr/leave/approvals" && pathname === "/approvals") || (item.href === "/hr/leave/reports" && pathname === "/reports") || (item.href === "/hr/attendance" && pathname === "/attendance") || (item.href === "/hr/competency" && pathname === "/academic/competency") || (item.href === "/general/facility" && (pathname === "/academic/facility" || pathname === "/facility")));
 
     const isActive = isExactMatch || (item.href.startsWith("/settings") && !item.href.includes("?") && pathname.startsWith("/settings") && !searchParams?.get("section"));
     const Icon = item.icon;
@@ -905,6 +940,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
     if ((path.startsWith("/document") || path.startsWith("/general/document")) && !enableDocument && !isAdmin) return false;
     if ((path.startsWith("/repair") || path.startsWith("/general/repair")) && !enableRepair && !isAdmin) return false;
     if ((path.startsWith("/repair") || path.startsWith("/general/repair")) && !hasRepairPermission(user, "repair:view.own") && !hasRepairPermission(user, "repair:view.all")) return false;
+    if ((path.startsWith("/facility") || path.startsWith("/general/facility") || path.startsWith("/academic/facility")) && !enableFacility && !isAdmin) return false;
     if (path.startsWith("/budget") && !enableBudget && !isAdmin) return false;
     if (path.startsWith("/student-affairs") && !enableStudentAffairs && !isAdmin) return false;
     if (path.startsWith("/student-council") && !enableStudentCouncil && !isAdmin) return false;
@@ -933,6 +969,9 @@ function AppContent({ children }: { children: React.ReactNode }) {
   }
   if (showDocument) {
     mobileNavItems.push({ href: "/document", label: lang === "en" ? "Documents" : "เอกสาร", icon: ClipboardList });
+  }
+  if (enableFacility) {
+    mobileNavItems.push({ href: "/general/facility?view=request", label: lang === "en" ? "Facilities" : "จองทรัพยากร", icon: Building2 });
   }
 
   const hasAccess = checkPermission(pathname);
@@ -1049,8 +1088,17 @@ function AppContent({ children }: { children: React.ReactNode }) {
               ทั่วไป
             </div>
 
-            {/* จองทรัพยากรกลาง */}
-            {enableFacility && renderNavItem({ href: "/general/facility", label: "จองทรัพยากรกลาง", icon: Building2 })}
+            {/* ระบบจองทรัพยากรกลาง (Collapsible Group) */}
+            {facilitySubItems.length > 0 && (
+              <CollapsibleGroup
+                title="จองทรัพยากรกลาง"
+                icon={Building2}
+                items={facilitySubItems}
+                pathname={pathname}
+                searchParams={searchParams}
+                renderNavItem={renderNavItem}
+              />
+            )}
 
             {/* ระบบสารบรรณ (Collapsible Group) */}
             {documentSubItems.length > 0 && (

@@ -1,0 +1,323 @@
+"use client";
+
+import React, { useState, useMemo } from "react";
+import Link from "next/link";
+import {
+  FileText,
+  Printer,
+  RefreshCw,
+  AlertCircle,
+  Plus,
+  Building,
+  Bus,
+  Search,
+  Filter,
+  Trash2,
+  Calendar,
+  Clock,
+  MapPin,
+  CheckCircle2
+} from "lucide-react";
+import { useToast } from "@/components/toast-provider";
+import { cancelFacilityReservationAction } from "@/app/actions/facility";
+import {
+  toThaiDateString,
+  toThaiTimeString
+} from "./facility-shared";
+import {
+  StatusPillBadge,
+  UnifiedModal,
+  UnifiedModalHeader,
+  UnifiedModalBody,
+  UnifiedModalFooter
+} from "@/components/shared-ui/school-ops";
+
+interface FacilityHistoryViewProps {
+  myReservations: any[];
+  onRefresh: () => void;
+  onNavigateToRequest?: () => void;
+}
+
+export default function FacilityHistoryView({
+  myReservations,
+  onRefresh,
+  onNavigateToRequest
+}: FacilityHistoryViewProps) {
+  const { showToast } = useToast();
+
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("ALL");
+  const [cancelTarget, setCancelTarget] = useState<any>(null);
+  const [cancelling, setCancelling] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const filteredItems = useMemo(() => {
+    return myReservations.filter((res) => {
+      if (statusFilter !== "ALL") {
+        if (statusFilter === "PENDING" && res.status !== "PENDING") return false;
+        if (statusFilter === "APPROVED" && res.status !== "APPROVED" && res.status !== "IN_USE") return false;
+        if (statusFilter === "CANCELLED" && res.status !== "CANCELLED" && res.status !== "REJECTED") return false;
+      }
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        return (
+          res.title?.toLowerCase().includes(q) ||
+          res.bookingNumber?.toLowerCase().includes(q) ||
+          res.resource?.name?.toLowerCase().includes(q) ||
+          res.vehicleDetails?.destination?.toLowerCase().includes(q)
+        );
+      }
+      return true;
+    });
+  }, [myReservations, statusFilter, searchQuery]);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await onRefresh();
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  const handleConfirmCancel = async () => {
+    if (!cancelTarget) return;
+    try {
+      setCancelling(true);
+      const res = await cancelFacilityReservationAction(cancelTarget.id);
+      if (!res.success) {
+        showToast("error", res.error || "เกิดข้อผิดพลาดในการยกเลิกคำขอ");
+        return;
+      }
+      showToast("success", "ยกเลิกคำขอจองเรียบร้อยแล้ว");
+      setCancelTarget(null);
+      await onRefresh();
+    } catch (err: any) {
+      showToast("error", err.message || "เกิดข้อผิดพลาดในการยกเลิกคำขอ");
+    } finally {
+      setCancelling(false);
+    }
+  };
+
+  return (
+    <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white/60 dark:border-slate-800 rounded-3xl p-6 sm:p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] space-y-6">
+      {/* Header & Actions */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 dark:border-slate-800 pb-4">
+        <div>
+          <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+            <FileText className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+            ประวัติและสถานะคำขอจองของฉัน ({myReservations.length} รายการ)
+          </h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+            ติดตามสถานะการพิจารณา พิมพ์ใบขอใช้ทรัพยากรขนาด A4 หรือยกเลิกคำขอที่ยังอยู่ระหว่างรออนุมัติ
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {onNavigateToRequest && (
+            <button
+              onClick={onNavigateToRequest}
+              className="px-4 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white text-xs font-bold shadow-xs flex items-center gap-1.5 cursor-pointer transition"
+            >
+              <Plus className="w-4 h-4" /> ยื่นคำขอจองใหม่
+            </button>
+          )}
+
+          <button
+            onClick={handleRefresh}
+            className="p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer"
+            title="รีเฟรชข้อมูล"
+          >
+            <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin text-indigo-600" : ""}`} />
+          </button>
+        </div>
+      </div>
+
+      {/* Filter & Search Toolbar */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        {/* Status Filter Tabs */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
+          {[
+            { key: "ALL", label: "ทั้งหมด" },
+            { key: "PENDING", label: "รอพิจารณา" },
+            { key: "APPROVED", label: "อนุมัติแล้ว" },
+            { key: "CANCELLED", label: "ยกเลิก / ปฏิเสธ" }
+          ].map((tab) => (
+            <button
+              key={tab.key}
+              onClick={() => setStatusFilter(tab.key)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
+                statusFilter === tab.key
+                  ? "bg-indigo-600 text-white shadow-2xs"
+                  : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900"
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Search */}
+        <div className="relative min-w-[220px]">
+          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+          <input
+            type="text"
+            placeholder="ค้นหาชื่อภารกิจ, รหัสการจอง..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-9 pr-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs"
+          />
+        </div>
+      </div>
+
+      {/* Booking List */}
+      {filteredItems.length === 0 ? (
+        <div className="py-16 text-center text-slate-400 space-y-3 bg-slate-50/50 dark:bg-slate-800/20 rounded-3xl border border-dashed border-slate-200 dark:border-slate-800">
+          <AlertCircle className="w-10 h-10 mx-auto text-slate-300 dark:text-slate-600" />
+          <p className="text-sm font-semibold">ไม่พบรายการคำขอจองตามเงื่อนไขที่เลือก</p>
+          {onNavigateToRequest && (
+            <button
+              onClick={onNavigateToRequest}
+              className="px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold shadow-xs inline-flex items-center gap-1.5 cursor-pointer"
+            >
+              <Plus className="w-4 h-4" /> เริ่มต้นยื่นคำขอจองแรกของคุณ
+            </button>
+          )}
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {filteredItems.map((res) => {
+            const isRoom = res.consumerModule === "MEETING_ROOM";
+
+            return (
+              <div
+                key={res.id}
+                className="p-4 sm:p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 flex flex-col md:flex-row md:items-center justify-between gap-4 transition hover:border-slate-300 dark:hover:border-slate-700 hover:shadow-xs"
+              >
+                <div className="space-y-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-mono text-xs font-bold text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 px-2 py-0.5 rounded-md border border-slate-200 dark:border-slate-700">
+                      {res.bookingNumber || "KP-FACILITY"}
+                    </span>
+
+                    <span className={`inline-flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full ${
+                      isRoom
+                        ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800"
+                        : "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800"
+                    }`}>
+                      {isRoom ? <Building className="w-3 h-3" /> : <Bus className="w-3 h-3" />}
+                      {isRoom ? "ห้องประชุม" : "รถโรงเรียน"}
+                    </span>
+
+                    <StatusPillBadge
+                      status={res.status}
+                      label={
+                        res.status === "APPROVED" ? "อนุมัติแล้ว" :
+                        res.status === "PENDING" && res.currentStep === 1 ? "รอตรวจสอบจัดสรร (Step 1/2)" :
+                        res.status === "PENDING" && res.currentStep === 2 ? "รอ ผอ.อนุมัติ (Step 2/2)" :
+                        res.status === "CANCELLED" ? "ยกเลิกแล้ว" :
+                        res.status === "REJECTED" ? "ไม่อนุมัติ / ปฏิเสธ" :
+                        res.status === "IN_USE" ? "กำลังใช้งาน" :
+                        res.status === "COMPLETED" ? "เสร็จสิ้นภารกิจ" : undefined
+                      }
+                      size="sm"
+                    />
+                  </div>
+
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                    {res.title}
+                  </h3>
+
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-slate-500 dark:text-slate-400">
+                    <span className="flex items-center gap-1">
+                      <strong>ทรัพยากร:</strong> {res.resource?.name} ({res.resource?.code})
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                      {toThaiDateString(res.startAt)}
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <Clock className="w-3.5 h-3.5 text-slate-400" />
+                      {toThaiTimeString(res.startAt)} - {toThaiTimeString(res.endAt)}
+                    </span>
+                    {res.vehicleDetails?.destination && (
+                      <span className="flex items-center gap-1">
+                        <MapPin className="w-3.5 h-3.5 text-emerald-500" />
+                        <strong>ปลายทาง:</strong> {res.vehicleDetails.destination}
+                      </span>
+                    )}
+                  </div>
+
+                  {res.rejectionReason && (
+                    <div className="p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200/60 dark:border-rose-900/40 text-xs text-rose-700 dark:text-rose-300 font-medium">
+                      <strong>เหตุผลการปฏิเสธ:</strong> {res.rejectionReason}
+                    </div>
+                  )}
+                </div>
+
+                {/* Actions */}
+                <div className="flex items-center gap-2 shrink-0 pt-2 md:pt-0 border-t md:border-t-0 border-slate-200/60 dark:border-slate-700/60">
+                  <Link
+                    href={isRoom ? `/print/facility/room/${res.id}` : `/print/facility/vehicle/${res.id}`}
+                    target="_blank"
+                    className="px-3.5 py-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold flex items-center gap-1.5 shadow-2xs transition"
+                  >
+                    <Printer className="w-3.5 h-3.5 text-indigo-500" /> พิมพ์แบบฟอร์ม A4
+                  </Link>
+
+                  {res.status === "PENDING" && (
+                    <button
+                      onClick={() => setCancelTarget(res)}
+                      className="px-3.5 py-2 rounded-xl border border-rose-200 dark:border-rose-900/50 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-xs font-semibold flex items-center gap-1 transition cursor-pointer"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" /> ยกเลิกคำขอ
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Cancel Confirmation Modal */}
+      <UnifiedModal
+        isOpen={Boolean(cancelTarget)}
+        onClose={() => setCancelTarget(null)}
+        size="sm"
+      >
+        <UnifiedModalHeader
+          title="ยืนยันการยกเลิกคำขอ"
+          subtitle={`รหัสการจอง: ${cancelTarget?.bookingNumber || "-"}`}
+          icon={AlertCircle}
+          iconClass="bg-rose-50 text-rose-600 dark:bg-rose-950/60 dark:text-rose-400"
+          onClose={() => setCancelTarget(null)}
+        />
+        <UnifiedModalBody>
+          {cancelTarget && (
+            <p className="text-slate-600 dark:text-slate-300 text-xs text-center py-2 leading-relaxed">
+              ท่านต้องการยกเลิกคำขอจอง &ldquo;<strong>{cancelTarget.title}</strong>&rdquo; ({cancelTarget.bookingNumber}) ใช่หรือไม่?
+            </p>
+          )}
+        </UnifiedModalBody>
+        <UnifiedModalFooter>
+          <button
+            type="button"
+            onClick={() => setCancelTarget(null)}
+            className="px-4 py-2 rounded-xl text-slate-600 dark:text-slate-400 hover:bg-slate-100 text-xs font-semibold cursor-pointer"
+          >
+            ปิด
+          </button>
+          <button
+            type="button"
+            disabled={cancelling}
+            onClick={handleConfirmCancel}
+            className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-md shadow-rose-600/20 transition cursor-pointer disabled:opacity-50"
+          >
+            {cancelling ? "กำลังยกเลิก..." : "ยืนยันการยกเลิก"}
+          </button>
+        </UnifiedModalFooter>
+      </UnifiedModal>
+    </div>
+  );
+}

@@ -20,6 +20,26 @@ In `certificate-template.service.ts`:
 ### 🟠 2. Redundant Index Elimination
 - In `model FileAttachment`, `objectKey String @unique` already establishes a unique B-Tree index. The redundant `@@index([objectKey])` is removed to reduce write I/O overhead on PostgreSQL.
 
+### 🔴 3. Cloudflare R2 / S3 Storage CORS Deployment Checklist (Canvas Immunization)
+To guarantee `canvas.toBlob()` and `canvas.getImageData()` never fail with browser `SecurityError: The operation is insecure`:
+- **R2 / S3 Bucket CORS Configuration**:
+  ```json
+  [
+    {
+      "AllowedOrigins": ["https://eleave.kp.ac.th", "http://localhost:3000", "http://localhost:3001"],
+      "AllowedMethods": ["GET", "HEAD"],
+      "AllowedHeaders": ["*"],
+      "ExposeHeaders": ["ETag", "Content-Length", "Content-Type"],
+      "MaxAgeSeconds": 3600
+    }
+  ]
+  ```
+- **Client Canvas Loader Protocol**:
+  1. `img.crossOrigin = "anonymous"` must be set before assigning `img.src = signedUrl`
+  2. URL is signed via backend with explicit CORS origin verification
+  3. Playwright E2E tests verify real R2/S3 signed URLs through export to blob without taint.
+
+
 ---
 
 ## 🏛️ Comprehensive Architecture Registry (37 Audited Invariants)
