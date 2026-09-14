@@ -66,6 +66,8 @@ model User {
   certificateTemplates       CertificateTemplate[]
   deletedDocuments           DocumentRecord[]      @relation("DocDeletedByUser")
   deletedLeaveRequests       LeaveRequest[]        @relation("LeaveDeletedByUser")
+  policyAcknowledgments      PolicyAcknowledgment[]
+  consentRecords             ConsentRecord[]
 }
 
 model Session {
@@ -1816,5 +1818,236 @@ model CertificateTemplate {
   @@index([createdById])
   @@index([scope, createdById])
   @@index([backgroundAttachmentId])
+}
+
+enum PolicyType {
+  PRIVACY_NOTICE
+  TERMS_OF_USE
+}
+
+enum LegalBasisType {
+  PUBLIC_TASK
+  LEGAL_OBLIGATION
+  CONTRACT
+  CONSENT
+  LEGITIMATE_INTEREST
+  VITAL_INTEREST
+}
+
+enum Section26ConditionType {
+  EXPLICIT_CONSENT
+  VITAL_INTEREST_EMERGENCY
+  NON_PROFIT_BODY_LEGITIMATE_ACTIVITY
+  MANIFESTLY_PUBLIC_DATA
+  LEGAL_CLAIMS_AND_DEFENSE
+  LABOR_AND_SOCIAL_SECURITY_LAW
+  STATUTORY_PUBLIC_HEALTH
+  SUBSTANTIAL_PUBLIC_INTEREST
+}
+
+enum DataCategoryType {
+  GENERAL_IDENTITY
+  CONTACT_INFO
+  EMPLOYMENT_RECORD
+  SENSITIVE_HEALTH
+  SENSITIVE_BIOMETRIC
+  GEOLOCATION
+  DOCUMENT_ATTACHMENT
+  SYSTEM_AUDIT_LOG
+}
+
+enum ConsentStatus {
+  GIVEN
+  WITHDRAWN
+  REVOKED
+}
+
+enum AuditEventType {
+  POLICY_ACKNOWLEDGED
+  CONSENT_GIVEN
+  CONSENT_WITHDRAWN
+  CONSENT_REVOKED
+}
+
+enum AuditSubjectType {
+  POLICY_DOCUMENT
+  CONSENT_RECORD
+}
+
+enum AuditActorType {
+  USER
+  ADMIN
+  SYSTEM
+  MIGRATION
+}
+
+enum WithdrawalReasonCode {
+  USER_CHOICE
+  NO_LONGER_USING_FEATURE
+  DATA_MINIMIZATION_PREFERENCE
+}
+
+enum RevocationReasonCode {
+  ADMINISTRATIVE_DISCONTINUATION
+  SYSTEM_MIGRATION
+  STATUTORY_LEGAL_ORDER
+  ACCOUNT_DECOMMISSIONED
+}
+
+enum RetentionRuleType {
+  EVENT_BASED
+  FISCAL_YEAR_BASED
+  STATUTORY_LOG_90_DAYS
+}
+
+enum DisposalMethod {
+  SECURE_DESTROY
+  PERMANENT_ANONYMIZE
+  TRANSFER_TO_NATIONAL_ARCHIVES
+}
+
+model PolicyDocument {
+  id                      String                  @id @default(cuid())
+  type                    PolicyType
+  version                 String
+  title                   String
+  contentMarkdown         String                  @db.Text
+  contentHash             String
+  canonicalEngineVersion  String                  @default("v1")
+  effectiveAt             DateTime
+  publishedAt             DateTime                @default(now())
+  isCurrent               Boolean                 @default(false)
+  createdAt               DateTime                @default(now())
+
+  acknowledgments         PolicyAcknowledgment[]
+
+  @@unique([type, version])
+  @@unique([type], map: "unique_current_policy_per_type", where: { isCurrent: true })
+  @@index([type, isCurrent])
+}
+
+model PolicyAcknowledgment {
+  id                      String                  @id @default(cuid())
+  userId                  String
+  policyDocumentId        String
+  policyVersionSnapshot   String
+  contentHashSnapshot     String
+  source                  String                  @default("WEB_APP")
+  acknowledgedAt          DateTime                @default(now())
+  ipAddress               String?
+  userAgent               String?
+
+  user                    User                    @relation(fields: [userId], references: [id], onDelete: Restrict)
+  policyDocument          PolicyDocument          @relation(fields: [policyDocumentId], references: [id], onDelete: Restrict)
+
+  @@unique([userId, policyDocumentId])
+  @@index([userId])
+}
+
+model ProcessingActivity {
+  id                      String                  @id @default(cuid())
+  code                    String                  @unique
+  module                  String
+  name                    String
+  description             String?                 @db.Text
+  controllerName          String                  @default("โรงเรียนกุดจับประชาสรรค์")
+  dpoContact              String                  @default("kpschool_dpo@obec.moe.go.th")
+  dataSubjectCategory     String
+  retentionRuleType       RetentionRuleType       @default(EVENT_BASED)
+  retentionDurationMonths Int
+  retentionAuthority      String
+  disposalMethod          DisposalMethod          @default(SECURE_DESTROY)
+  recipientsSummary       String
+  crossBorderTransfer     Boolean                 @default(false)
+  crossBorderDetails      String?
+  active                  Boolean                 @default(true)
+  createdAt               DateTime                @default(now())
+  updatedAt               DateTime                @updatedAt
+
+  purposes                ProcessingPurpose[]
+
+  @@index([module, active])
+}
+
+model ProcessingPurpose {
+  id                      String                         @id @default(cuid())
+  activityId              String
+  code                    String                         @unique
+  name                    String
+  description             String?                        @db.Text
+  active                  Boolean                        @default(true)
+  createdAt               DateTime                       @default(now())
+  updatedAt               DateTime                       @updatedAt
+
+  activity                ProcessingActivity             @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  dataCategoryPolicies    ProcessingDataCategoryPolicy[]
+  consents                ConsentRecord[]
+
+  @@index([activityId, active])
+}
+
+model ProcessingDataCategoryPolicy {
+  id                      String                         @id @default(cuid())
+  purposeId               String
+  dataCategory            DataCategoryType
+  legalBasis              LegalBasisType
+  section26Condition      Section26ConditionType?
+  statutoryReference      String?
+  isMandatoryForOperation Boolean                        @default(true)
+
+  purpose                 ProcessingPurpose              @relation(fields: [purposeId], references: [id], onDelete: Cascade)
+
+  @@unique([purposeId, dataCategory, legalBasis])
+}
+
+model ConsentRecord {
+  id                      String                         @id @default(cuid())
+  userId                  String
+  purposeId               String
+  status                  ConsentStatus                  @default(GIVEN)
+  consentFormVersion      String
+  privacyNoticeVersion    String?
+  consentedAt             DateTime?
+  withdrawnAt             DateTime?
+  revokedAt               DateTime?
+  source                  String
+  createdAt               DateTime                       @default(now())
+  updatedAt               DateTime                       @updatedAt
+
+  user                    User                           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  purpose                 ProcessingPurpose              @relation(fields: [purposeId], references: [id], onDelete: Restrict)
+
+  @@unique([userId, purposeId])
+  @@index([userId, status])
+}
+
+model ConsentAuditLog {
+  id                             String                  @id @default(cuid())
+  eventId                        String                  @default(cuid())
+  correlationId                  String
+  eventType                      AuditEventType
+  subjectType                    AuditSubjectType
+  userId                         String
+  policyDocumentId               String?
+  policyVersionSnapshot          String?
+  contentHashSnapshot            String?
+  purposeId                      String?
+  purposeCodeSnapshot            String?
+  consentRecordId                String?
+  consentFormVersionSnapshot     String?
+  actorType                      AuditActorType          @default(USER)
+  actorId                        String?
+  source                         String
+  withdrawalReason               WithdrawalReasonCode?
+  revocationReason               RevocationReasonCode?
+  reasonDetail                   String?
+  occurredAt                     DateTime                @default(now())
+  ipAddress                      String?
+  userAgent                      String?
+
+  @@index([userId, occurredAt])
+  @@index([eventType, occurredAt])
+  @@index([correlationId])
+  @@index([eventId])
 }
 
