@@ -38,6 +38,11 @@ describe('PolicyUpdateNotifier Server Actions', () => {
         where: { id: testUser.id },
       });
     }
+    // Clean up test documents and restore official 1.0 policies
+    await prisma.policyDocument.deleteMany({
+      where: { version: { contains: '_' } }
+    });
+    await fetchCurrentPolicies();
     await prisma.$disconnect();
     await pool.end();
   });
