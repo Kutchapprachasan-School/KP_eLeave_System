@@ -1,8 +1,9 @@
 "use server";
 
-import { getCurrentPolicy, publishPolicyDocument, acknowledgePolicy } from "../../lib/privacy/policy-service.ts";
+import { getCurrentPolicy, publishPolicyDocument, acknowledgePolicy, hasUserAcknowledgedCurrentPolicy } from "../../lib/privacy/policy-service.ts";
 import { prisma } from "../../lib/db.ts";
 import { PolicyType } from "@prisma/client";
+import type { PolicyDocument } from "@prisma/client";
 import { headers } from "next/headers";
 import { auth } from "../../lib/auth.ts";
 
@@ -160,3 +161,108 @@ export async function recordRegistrationPolicyAcknowledgments(params: { userId?:
     return { success: false, error: error.message };
   }
 }
+
+export async function checkUserPolicyAcknowledgmentStatus(userId?: string): Promise<{
+  noticeNeedsAck: boolean;
+  termsNeedsAck: boolean;
+  currentNotice?: PolicyDocument;
+  currentTerms?: PolicyDocument;
+}> {
+  try {
+    let resolvedUserId = userId;
+
+    if (!resolvedUserId) {
+      try {
+        const headerList = await headers();
+        if (headerList) {
+          const session = await auth.api.getSession({ headers: headerList });
+          if (session?.user?.id) {
+            resolvedUserId = session.user.id;
+          }
+        }
+      } catch {
+        // Outside request scope
+      }
+    }
+
+    if (!resolvedUserId) {
+      return {
+        noticeNeedsAck: false,
+        termsNeedsAck: false,
+      };
+    }
+
+    const { notice, terms } = await fetchCurrentPolicies();
+
+    const noticeAck = await hasUserAcknowledgedCurrentPolicy(resolvedUserId, "PRIVACY_NOTICE");
+    const termsAck = await hasUserAcknowledgedCurrentPolicy(resolvedUserId, "TERMS_OF_USE");
+
+    return {
+      noticeNeedsAck: !noticeAck.hasAcknowledged,
+      termsNeedsAck: !termsAck.hasAcknowledged,
+      currentNotice: noticeAck.currentPolicy || notice || undefined,
+      currentTerms: termsAck.currentPolicy || terms || undefined,
+    };
+  } catch (error) {
+    console.error("Error in checkUserPolicyAcknowledgmentStatus:", error);
+    return {
+      noticeNeedsAck: false,
+      termsNeedsAck: false,
+    };
+  }
+}
+
+export async function acknowledgePolicyForCurrentUser(
+  policyDocumentId: string,
+  userId?: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    let resolvedUserId = userId;
+
+    if (!resolvedUserId) {
+      try {
+        const headerList = await headers();
+        if (headerList) {
+          const session = await auth.api.getSession({ headers: headerList });
+          if (session?.user?.id) {
+            resolvedUserId = session.user.id;
+          }
+        }
+      } catch {
+        // Outside request scope
+      }
+    }
+
+    if (!resolvedUserId) {
+      return { success: false, error: "Unauthorized: No active user session" };
+    }
+
+    let ipAddress: string | undefined;
+    let userAgent: string | undefined;
+
+    try {
+      const resolvedHeaders = await headers();
+      ipAddress = resolvedHeaders.get("x-forwarded-for") || resolvedHeaders.get("x-real-ip") || undefined;
+      if (ipAddress && ipAddress.includes(",")) {
+        ipAddress = ipAddress.split(",")[0].trim();
+      }
+      userAgent = resolvedHeaders.get("user-agent") || undefined;
+    } catch {
+      // Outside request scope
+    }
+
+    await acknowledgePolicy({
+      userId: resolvedUserId,
+      policyDocumentId,
+      source: "IN_APP_BANNER",
+      ipAddress,
+      userAgent,
+    });
+
+    return { success: true };
+  } catch (error: any) {
+    console.error("Failed to acknowledge policy for current user:", error);
+    return { success: false, error: error.message };
+  }
+}
+
