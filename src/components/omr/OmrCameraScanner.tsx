@@ -17,7 +17,7 @@ import {
   RotateCcw
 } from "lucide-react";
 import { processOmrSheet, OmrScanResult, RawImageData } from "@/lib/omr/omrEngine";
-import { generate50ItemGridMetadata, generate20ItemGridMetadata, TemplateGridMetadata } from "@/lib/services/omrTemplateService";
+import { generate50ItemGridMetadata, generate20ItemGridMetadata, TemplateGridMetadata } from "@/lib/omr/omrTemplateGrid";
 import { ingestExamSubmissionAction } from "@/app/actions/omr";
 import { useSession } from "@/lib/auth-client";
 
