@@ -234,25 +234,30 @@ export async function revokeConsentByAdmin(params: {
   const targetPurposeId = purpose ? purpose.id : params.purposeId;
 
   return await prisma.$transaction(async (tx) => {
-    const existing = await tx.consentRecord.findUnique({
+    // CAS (Compare-And-Swap) atomic update: only revoke if not already revoked
+    const result = await tx.consentRecord.updateMany({
+      where: {
+        userId: params.userId,
+        purposeId: targetPurposeId,
+        status: { not: "REVOKED" }, // CAS guard: only revoke if not already revoked
+      },
+      data: {
+        status: "REVOKED",
+        revokedAt: new Date(),
+        withdrawnAt: null,
+      },
+    });
+
+    if (result.count === 0) {
+      throw new Error("Consent record state conflict: record is already revoked or does not exist");
+    }
+
+    const updated = await tx.consentRecord.findUniqueOrThrow({
       where: {
         userId_purposeId: {
           userId: params.userId,
           purposeId: targetPurposeId,
         },
-      },
-      include: { purpose: true },
-    });
-
-    if (!existing) {
-      throw new Error("Consent record not found");
-    }
-
-    const updated = await tx.consentRecord.update({
-      where: { id: existing.id },
-      data: {
-        status: "REVOKED",
-        revokedAt: new Date(),
       },
       include: { purpose: true },
     });
