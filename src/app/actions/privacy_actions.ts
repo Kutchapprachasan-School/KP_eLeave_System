@@ -3,6 +3,8 @@
 import { getCurrentPolicy, publishPolicyDocument, acknowledgePolicy } from "../../lib/privacy/policy-service.ts";
 import { prisma } from "../../lib/db.ts";
 import { PolicyType } from "@prisma/client";
+import { headers } from "next/headers";
+import { auth } from "../../lib/auth.ts";
 
 const DEFAULT_NOTICE = `
 # ประกาศการคุ้มครองข้อมูลส่วนบุคคล (Privacy Notice)
@@ -58,66 +60,99 @@ export async function fetchCurrentPolicies() {
 
 export async function recordRegistrationPolicyAcknowledgments(params: { userId?: string; email?: string }) {
   try {
-    let resolvedUserId = params.userId;
-    if (!resolvedUserId && params.email) {
-      const user = await prisma.user.findFirst({
-        where: { email: params.email },
-      });
-      if (user) {
-        resolvedUserId = user.id;
+    let resolvedUserId: string | undefined;
+
+    // 1. Attempt to resolve identity via authenticated session
+    try {
+      const headerList = await headers();
+      if (headerList) {
+        const session = await auth.api.getSession({ headers: headerList });
+        if (session?.user?.id) {
+          resolvedUserId = session.user.id;
+        }
+      }
+    } catch {
+      // Outside request scope (e.g. unit test runner)
+    }
+
+    // 2. If no session (e.g. immediate registration callback or unit test),
+    // verify params.email: ensure user exists and was created recently (createdAt >= 5m ago),
+    // preventing forgery against arbitrary existing accounts.
+    if (!resolvedUserId) {
+      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+      if (params.email) {
+        const recentUser = await prisma.user.findFirst({
+          where: {
+            email: params.email,
+            createdAt: {
+              gte: fiveMinutesAgo,
+            },
+          },
+        });
+        if (recentUser) {
+          resolvedUserId = recentUser.id;
+        }
+      } else if (params.userId) {
+        const recentUser = await prisma.user.findFirst({
+          where: {
+            id: params.userId,
+            createdAt: {
+              gte: fiveMinutesAgo,
+            },
+          },
+        });
+        if (recentUser) {
+          resolvedUserId = recentUser.id;
+        }
       }
     }
 
     if (!resolvedUserId) {
-      return { success: false, error: "User not found" };
+      return { success: false, error: "User not found, unauthenticated, or account creation window expired" };
     }
 
     const { notice, terms } = await fetchCurrentPolicies();
-    
-    let getHeaders: any;
-    try {
-      const mod = await import("next/headers");
-      getHeaders = mod.headers;
-    } catch (e) {
-      // Fallback for test environment
-      getHeaders = () => new Map([
-        ['x-forwarded-for', '127.0.0.1'],
-        ['user-agent', 'Test Agent']
-      ]);
-    }
-    
-    const headersList = typeof getHeaders === "function" ? getHeaders() : (await (getHeaders as any)());
-    
+
     let ipAddress: string | undefined;
     let userAgent: string | undefined;
 
-    const resolvedHeaders = await Promise.resolve(headersList);
-    
-    ipAddress = resolvedHeaders.get("x-forwarded-for") || resolvedHeaders.get("x-real-ip") || undefined;
-    if (ipAddress && ipAddress.includes(",")) {
-      ipAddress = ipAddress.split(",")[0].trim();
+    try {
+      const resolvedHeaders = await headers();
+      ipAddress = resolvedHeaders.get("x-forwarded-for") || resolvedHeaders.get("x-real-ip") || undefined;
+      if (ipAddress && ipAddress.includes(",")) {
+        ipAddress = ipAddress.split(",")[0].trim();
+      }
+      userAgent = resolvedHeaders.get("user-agent") || undefined;
+    } catch {
+      // Outside request scope
     }
-    userAgent = resolvedHeaders.get("user-agent") || undefined;
 
+    const acks: Promise<any>[] = [];
     if (notice) {
-      await acknowledgePolicy({
-        userId: resolvedUserId,
-        policyDocumentId: notice.id,
-        source: "REGISTRATION",
-        ipAddress,
-        userAgent,
-      });
+      acks.push(
+        acknowledgePolicy({
+          userId: resolvedUserId,
+          policyDocumentId: notice.id,
+          source: "REGISTRATION",
+          ipAddress,
+          userAgent,
+        })
+      );
     }
 
     if (terms) {
-      await acknowledgePolicy({
-        userId: resolvedUserId,
-        policyDocumentId: terms.id,
-        source: "REGISTRATION",
-        ipAddress,
-        userAgent,
-      });
+      acks.push(
+        acknowledgePolicy({
+          userId: resolvedUserId,
+          policyDocumentId: terms.id,
+          source: "REGISTRATION",
+          ipAddress,
+          userAgent,
+        })
+      );
     }
+
+    await Promise.all(acks);
 
     return { success: true };
   } catch (error: any) {

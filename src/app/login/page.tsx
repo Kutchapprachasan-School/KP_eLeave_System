@@ -402,44 +402,54 @@ export default function LoginPage() {
 
             {isRegister && (
               <div className="space-y-3 pt-2">
-                <label className="flex items-start gap-3 cursor-pointer group">
+                {!policies && (
+                  <div className="flex items-center gap-2 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/60 dark:border-slate-700/60 text-xs text-slate-500 dark:text-slate-400">
+                    <div className="w-3.5 h-3.5 border-2 border-purple-500 border-t-transparent rounded-full animate-spin flex-shrink-0" />
+                    <span>{lang === "en" ? "Loading privacy policies & terms..." : "กำลังโหลดนโยบายความเป็นส่วนตัวและเงื่อนไขการใช้งาน..."}</span>
+                  </div>
+                )}
+                <label className={`flex items-start gap-3 ${!policies ? "opacity-50 cursor-not-allowed" : "cursor-pointer"} group`}>
                   <div className="relative flex items-center pt-0.5">
                     <input
                       type="checkbox"
                       required
+                      disabled={!policies}
                       checked={noticeChecked}
                       onChange={(e) => setNoticeChecked(e.target.checked)}
-                      className="w-5 h-5 rounded border-slate-300 dark:border-slate-600 text-purple-600 focus:ring-purple-500/30 transition-colors cursor-pointer"
+                      className="w-5 h-5 rounded border-slate-300 dark:border-slate-600 text-purple-600 focus:ring-purple-500/30 transition-colors cursor-pointer disabled:cursor-not-allowed"
                     />
                   </div>
                   <div className="text-sm text-slate-600 dark:text-slate-300">
                     ข้าพเจ้าได้อ่านและรับทราบ <span className="font-semibold text-slate-800 dark:text-slate-200">ประกาศการคุ้มครองข้อมูลส่วนบุคคล (Privacy Notice)</span>
                     <button
                       type="button"
+                      disabled={!policies}
                       onClick={() => setNoticeModalOpen(true)}
-                      className="ml-2 text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300 font-medium hover:underline transition-all inline-block"
+                      className="ml-2 text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300 font-medium hover:underline transition-all inline-block disabled:opacity-50 disabled:no-underline disabled:cursor-not-allowed"
                     >
                       [เปิดอ่านฉบับเต็ม]
                     </button>
                   </div>
                 </label>
 
-                <label className="flex items-start gap-3 cursor-pointer group">
+                <label className={`flex items-start gap-3 ${!policies ? "opacity-50 cursor-not-allowed" : "cursor-pointer"} group`}>
                   <div className="relative flex items-center pt-0.5">
                     <input
                       type="checkbox"
                       required
+                      disabled={!policies}
                       checked={termsChecked}
                       onChange={(e) => setTermsChecked(e.target.checked)}
-                      className="w-5 h-5 rounded border-slate-300 dark:border-slate-600 text-purple-600 focus:ring-purple-500/30 transition-colors cursor-pointer"
+                      className="w-5 h-5 rounded border-slate-300 dark:border-slate-600 text-purple-600 focus:ring-purple-500/30 transition-colors cursor-pointer disabled:cursor-not-allowed"
                     />
                   </div>
                   <div className="text-sm text-slate-600 dark:text-slate-300">
                     ข้าพเจ้ายอมรับ <span className="font-semibold text-slate-800 dark:text-slate-200">เงื่อนไขการใช้งานระบบสารสนเทศตามระเบียบของหน่วยงาน (Terms of Use)</span>
                     <button
                       type="button"
+                      disabled={!policies}
                       onClick={() => setTermsModalOpen(true)}
-                      className="ml-2 text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300 font-medium hover:underline transition-all inline-block"
+                      className="ml-2 text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300 font-medium hover:underline transition-all inline-block disabled:opacity-50 disabled:no-underline disabled:cursor-not-allowed"
                     >
                       [เปิดอ่านเงื่อนไข]
                     </button>
@@ -450,7 +460,7 @@ export default function LoginPage() {
 
             <button
               type="submit"
-              disabled={loading || (isRegister && (!noticeChecked || !termsChecked))}
+              disabled={loading || (isRegister && (!noticeChecked || !termsChecked || !policies))}
               className="w-full h-[50px] rounded-xl bg-gradient-to-r from-purple-500 to-indigo-600 text-white text-[15px] font-semibold hover:opacity-95 focus:outline-none focus:ring-2 focus:ring-purple-500/50 disabled:opacity-50 shadow-lg shadow-purple-500/20 transition-all duration-200 mt-2"
             >
               {loading ? (isRegister ? t("registering") : t("signingIn")) : (isRegister ? t("registerButton") : t("loginButton"))}
