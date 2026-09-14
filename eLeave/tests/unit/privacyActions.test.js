@@ -1,10 +1,15 @@
-import { describe, it } from 'node:test';
+import { describe, it, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { prisma } from '../../../src/lib/db.ts';
+import { prisma, pool } from '../../../src/lib/db.ts';
 
 const { fetchCurrentPolicies, recordRegistrationPolicyAcknowledgments } = await import('../../../src/app/actions/privacy_actions.ts');
 
 describe('privacy_actions', () => {
+  after(async () => {
+    await prisma.$disconnect();
+    await pool.end();
+  });
+
   it('fetchCurrentPolicies should return notice and terms', async () => {
     const policies = await fetchCurrentPolicies();
     assert.ok(policies);
@@ -14,14 +19,14 @@ describe('privacy_actions', () => {
     assert.equal(policies.terms.type, 'TERMS_OF_USE');
   });
 
-  it('recordRegistrationPolicyAcknowledgments should resolve user and acknowledge both policies', async () => {
-    const testUser = await prisma.user.upsert({
-      where: { email: 'test_reg_ack@kpschool.ac.th' },
-      update: {},
-      create: {
-        email: 'test_reg_ack@kpschool.ac.th',
+  it('recordRegistrationPolicyAcknowledgments should resolve user and acknowledge both policies for recently created user', async () => {
+    const testEmail = `test_reg_ack_${Date.now()}@kpschool.ac.th`;
+    const testUser = await prisma.user.create({
+      data: {
+        email: testEmail,
         name: 'Test Acknowledger',
         role: 'TEACHER',
+        createdAt: new Date(),
       },
     });
 
@@ -32,5 +37,21 @@ describe('privacy_actions', () => {
       where: { userId: testUser.id },
     });
     assert.ok(acks.length >= 2, 'Should have at least 2 policy acknowledgments');
+  });
+
+  it('recordRegistrationPolicyAcknowledgments should reject unauthenticated acknowledgment for old account', async () => {
+    const oldEmail = `test_old_user_${Date.now()}@kpschool.ac.th`;
+    const oldUser = await prisma.user.create({
+      data: {
+        email: oldEmail,
+        name: 'Old User',
+        role: 'TEACHER',
+        createdAt: new Date(Date.now() - 10 * 60 * 1000), // 10 minutes ago (> 5m threshold)
+      },
+    });
+
+    const result = await recordRegistrationPolicyAcknowledgments({ email: oldUser.email });
+    assert.strictEqual(result.success, false);
+    assert.match(result.error || '', /User not found|expired/);
   });
 });

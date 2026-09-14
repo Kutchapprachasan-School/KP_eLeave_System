@@ -48,6 +48,7 @@ import { hasRepairPermission, hasFacilityPermission } from "@/lib/permissions";
 import { getNotifications } from "@/app/actions/admin";
 import { getMyPendingRoutingCount } from "@/app/actions/incoming";
 import { getSystemSettings } from "@/app/actions/settings";
+import { PolicyUpdateNotifier } from "@/components/privacy/PolicyUpdateNotifier";
 
 function ToolbarButtons({ isAdmin, isApprover }: { isAdmin: boolean; isApprover: boolean }) {
   const { theme, setTheme } = useTheme();
@@ -1384,6 +1385,9 @@ function AppContent({ children }: { children: React.ReactNode }) {
           </div>
         </Link>
       </div>
+
+      {/* Non-coercive Policy Update Notification Banner */}
+      <PolicyUpdateNotifier />
     </div>
   );
 }

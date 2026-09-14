@@ -129,7 +129,7 @@ export async function recordUserConsent(params: {
     });
 
     return record;
-  });
+  }, { maxWait: 15000, timeout: 30000 });
 }
 
 /**
@@ -207,7 +207,7 @@ export async function withdrawUserConsent(params: {
     });
 
     return updated;
-  });
+  }, { maxWait: 15000, timeout: 30000 });
 }
 
 /**
@@ -283,7 +283,7 @@ export async function revokeConsentByAdmin(params: {
     });
 
     return updated;
-  });
+  }, { maxWait: 15000, timeout: 30000 });
 }
 
 /**
