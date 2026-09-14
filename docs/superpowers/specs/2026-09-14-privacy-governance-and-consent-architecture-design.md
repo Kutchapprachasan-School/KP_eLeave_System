@@ -2,10 +2,13 @@
 ## ระบบการกำกับดูแลความเป็นส่วนตัวและการจัดการความยินยอมสำหรับระบบปฏิบัติราชการอิเล็กทรอนิกส์ (KP e-Leave System)
 
 - **Document ID:** SPEC-2026-09-14-PRIVACY-GOVERNANCE
-- **Revision:** 2.0 (Post-Deep-Audit Refinement)
-- **Status:** READY FOR FINAL FREEZE
+- **Revision:** 2.1 (Architecture Freeze Candidate)
+- **Status:** APPROVED & FROZEN
 - **Author:** System Architect / Antigravity AI
 - **Date:** 2026-09-14
+- **ORM & Runtime Environment:**
+  - Prisma Version: `^7.8.0` (with `previewFeatures = ["partialIndexes"]` active in `schema.prisma`)
+  - Database: PostgreSQL 16+ (Neon Serverless / Hosted PG)
 - **Regulatory Framework:** 
   - พระราชบัญญัติคุ้มครองข้อมูลส่วนบุคคล พ.ศ. 2562 (PDPA)
   - พระราชบัญญัติว่าด้วยธุรกรรมทางอิเล็กทรอนิกส์ พ.ศ. 2544 และที่แก้ไขเพิ่มเติม
@@ -14,72 +17,95 @@
 
 ---
 
-## 1. บทนำและการแยกขอบเขตโดเมน (Separation of Domains)
+## 1. การแยกขอบเขตโดเมนและหลักการทางกฎหมาย (Domain Boundaries & Legal Invariants)
 
-### 1.1 การแยก Privacy Governance ออกจาก Electronic Signature Governance
-เอกสารข้อกำหนดนี้กำกับดูแลเฉพาะ **School Operation Privacy Governance Platform** เท่านั้น 
-ส่วน **Electronic Signature Governance Domain** (การสร้าง, ประทับ, ยืนยัน Token ลายเซ็นผ่าน `SignatureTokenLog` และการผูกเจตนาทางนิติวิธีตาม พ.ร.บ.ธุรกรรมอิเล็กทรอนิกส์) ถือเป็น **โดเมนอิสระภายนอก** โดย Privacy Governance จะเชื่อมต่อกับ Electronic Signature ในฐานะหนึ่งในกิจกรรมการประมวลผล (Processing Activity) ภายใต้บันทึกรายการกิจกรรม (ROPA) เท่านั้น
+### 1.1 การแยก Privacy Governance ออกจาก Electronic Signature Domain
+ระบบนี้เป็น **Shared Privacy Governance Platform** โดยแยกขอบเขตออกจาก **Electronic Signature Governance Domain** อย่างเด็ดขาด:
+* **Privacy Governance:** กำกับดูแล Policy Management, ROPA Registry, Legal Basis Mapping, Purpose Management, Consent Lifecycle และ Audit Trail
+* **Electronic Signature Domain:** กำกับดูแล Signing Policy, การผูกเจตนาทางนิติวิธีตาม พ.ร.บ.ธุรกรรมทางอิเล็กทรอนิกส์, การตรวจสอบ Cryptographic Token ผ่าน `SignatureTokenLog`
+* สองโดเมนเชื่อมโยงกันเฉพาะในฐานะที่การประมวลผลลายเซ็นเป็นหนึ่งในกิจกรรม (Processing Activity) ภายใต้ ROPA เท่านั้น
 
-```
-┌────────────────────────────────────────────────────────┐      ┌────────────────────────────────────────────────────────┐
-│             Privacy Governance Platform                │      │         Electronic Signature Governance Domain         │
-│  (Policy, ROPA, Legal Basis, Purpose, Consent, Audit)  │◄────►│   (Signing Policy, Signature Token, Evidence Binding)  │
-└────────────────────────────────────────────────────────┘      └────────────────────────────────────────────────────────┘
-```
+### 1.2 กฎเหล็กขอบเขตการถอนความยินยอม (Consent Withdrawal Legal Scope)
+> **Invariant:** การถอนความยินยอม (Withdrawal) ตาม ม.19 วรรคห้า มีผลระงับเฉพาะกิจกรรมหรือชุดข้อมูล (Data Category) ที่อาศัยฐานความยินยอม (Consent Basis) เป็นฐานกฎหมายเท่านั้น โดย:
+> 1. ไม่มีผลกระทบย้อนหลังต่อการประมวลผลที่ชอบด้วยกฎหมายก่อนการถอน
+> 2. **ไม่มีผลระงับหรือขัดขวางการประมวลผลที่มีฐานหน้าที่ตามกฎหมาย (Legal Obligation) หรือภารกิจเพื่อประโยชน์สาธารณะ/อำนาจรัฐ (Public Task)** เช่น การจัดเก็บสถิติวันลา, การตรวจสอบสิทธิการลาตามระเบียบสำนักนายกรัฐมนตรีฯ และการจัดเก็บ Log คอมพิวเตอร์ 90 วันตามกฎหมาย
 
-### 1.2 วัตถุประสงค์และหลักการพื้นฐาน
-1. **No Single-Boolean Consent:** ข้อมูล `User.pdpaConsent` ถูกยกเลิกเด็ดขาด การปฏิบัติตามกฎหมายต้องบริหารผ่านสถาปัตยกรรม 4 ชั้น: Policy Management, ROPA Registry, Contextual Consent Lifecycle และ Immutable Audit Trail
-2. **Authoritative Source of Truth:** ฐานทางกฎหมาย (Legal Basis) และเงื่อนไขการประมวลผลข้อมูลส่วนบุคคลที่มีความอ่อนไหว (Section 26 Condition) ถูกกำหนดไว้ที่ชั้น **ProcessingDataCategoryPolicy** เท่านั้น โดยระบบต้องไม่มีฟิลด์ Boolean เช่น `isConsentRequired` เป็น Authoritative State อีกต่อไป แต่ต้อง Derive จากนโยบายกฎหมายของกิจกรรมนั้นโดยตรง
-3. **No Coercive Consent Invariant:** การปฏิบัติงานของบุคลากรทางการศึกษาที่มีฐานกฎหมายรองรับ (หน้าที่ตามกฎหมาย / ภารกิจเพื่อประโยชน์สาธารณะตามระเบียบราชการ) **ต้องไม่ถูกนำไปผูกมัดเป็นการขอความยินยอม (Consent)** และผู้ใช้ต้องไม่ถูกบังคับให้กดยินยอมเพื่อแลกกับการเข้าใช้งานระบบ
-4. **Legal Scope of Consent Withdrawal:** การถอนความยินยอม (Withdrawal) ของผู้ใช้ **มีผลระงับเฉพาะการประมวลผลที่อาศัยฐานความยินยอม (Consent) เป็นฐานกฎหมายเท่านั้น** ไม่ส่งผลกระทบย้อนหลังต่อการประมวลผลที่ชอบด้วยกฎหมายก่อนการถอน (ตาม ม.19 วรรคห้า) และ**ไม่มีผลระงับการประมวลผลที่มีฐานหน้าที่ตามกฎหมาย (Legal Obligation) หรือภารกิจเพื่อประโยชน์สาธารณะ/อำนาจรัฐ (Public Task)** เช่น ประวัติการลาป่วยตามระเบียบสำนักนายกรัฐมนตรีฯ และการจัดเก็บ Log คอมพิวเตอร์ตามกฎหมาย
+### 1.3 การกำหนดฐานทางกฎหมายและข้อยกเว้น ม.26 (No Blanket Legal Assumptions)
+ระบบจะไม่ Hard-code หรือเหมารวมว่ากิจกรรมใดใช้มาตรา 26 ข้อใดเป็นการถาวร แต่:
+> **Rule:** Legal Basis และ Section 26 Condition ต้องถูกกำหนดเป็นรายกิจกรรม (Per Processing Activity) ภายใน ROPA Registry ตามข้อเท็จจริงทางกฎหมายที่กำหนดโดยผู้ควบคุมข้อมูล (Data Controller) หรือฝ่ายนิติการ
 
 ---
 
-## 2. โครงสร้างสถาปัตยกรรม (Architectural Structure)
+## 2. โครงสร้างสถาปัตยกรรมและกลไกความมั่นคงปลอดภัย (Security & Architecture Invariants)
 
+### 2.1 Prisma Version & Partial Index Strategy
+* **Prisma Context:** โปรเจกต์ใช้งาน Prisma Client `^7.8.0` และเปิด `previewFeatures = ["partialIndexes"]` ใน `schema.prisma`
+* **Dual-Layer Enforcement:**
+  1. ในระดับ Prisma Schema ระบุ:
+     `@@unique([type], map: "unique_current_policy_per_type", where: { isCurrent: true })`
+  2. ในระดับ DDL Migration SQL ระบุคำสั่งสร้าง Partial Unique Index โดยตรง เพื่อป้องกันความคลาดเคลื่อนของ Generator:
+     ```sql
+     CREATE UNIQUE INDEX IF NOT EXISTS "unique_current_policy_per_type" 
+     ON "PolicyDocument" ("type") 
+     WHERE "isCurrent" = true;
+     ```
+  3. การเปลี่ยนสถานะ `isCurrent = true` ต้องกระทำผ่าน **Database Transaction (`prisma.$transaction`)** แบบ Atomic เสมอ
+
+### 2.2 Database-Level Audit Append-Only & Privilege Separation
+* **Realistic Security Model:**
+  - ตาราง `ConsentAuditLog` ถูกออกแบบให้เป็น **Strictly Append-Only** สำหรับ Application Runtime Role (`app_user`)
+  - มี Trigger บังคับสกัดกั้นคำสั่ง `UPDATE` และ `DELETE` ในระดับ PostgreSQL:
+    ```sql
+    CREATE OR REPLACE FUNCTION prevent_consent_audit_log_mutation()
+    RETURNS TRIGGER AS $$
+    BEGIN
+      RAISE EXCEPTION 'DATABASE INTEGRITY VIOLATION: ConsentAuditLog is strictly APPEND-ONLY. UPDATE and DELETE are prohibited.';
+    END;
+    $$ LANGUAGE plpgsql;
+
+    CREATE TRIGGER trg_consent_audit_log_immutable
+    BEFORE UPDATE OR DELETE ON "ConsentAuditLog"
+    FOR EACH ROW EXECUTE FUNCTION prevent_consent_audit_log_mutation();
+    ```
+  - **Role Privilege Separation:**
+    * `app_user` (Application): ได้รับสิทธิ์ `SELECT`, `INSERT` เท่านั้น (ถูก `REVOKE UPDATE, DELETE ON "ConsentAuditLog"`)
+    * `migration_role` (CI/CD / Schema Push): สำหรับรัน DDL migrations
+    * `audit_reader`: Read-only สำหรับการตรวจสอบ compliance
+    * `db_owner / superuser`: ควบคุมแยกต่างหากผ่าน Infrastructure Access Policy นอกเหนือจากตัวแอพพลิเคชัน
+
+### 2.3 Consent State Lifecycle & DB CHECK Constraints
+ตาราง `ConsentRecord` บังคับความถูกต้องของวงจรชีวิตข้อมูล (Lifecycle State Invariant) ด้วย Database CHECK Constraint:
+```sql
+ALTER TABLE "ConsentRecord" ADD CONSTRAINT "chk_consent_record_state_lifecycle" CHECK (
+  (status = 'GIVEN' AND "consentedAt" IS NOT NULL AND "withdrawnAt" IS NULL AND "revokedAt" IS NULL) OR
+  (status = 'WITHDRAWN' AND "consentedAt" IS NOT NULL AND "withdrawnAt" IS NOT NULL AND "revokedAt" IS NULL) OR
+  (status = 'REVOKED' AND "revokedAt" IS NOT NULL)
+);
 ```
-┌──────────────────────────────────────────────────────────────────────────────────┐
-│                   School Operation Privacy Governance Platform                   │
-├──────────────────────────────────────────────────────────────────────────────────┤
-│ 1. Policy Management Domain                                                      │
-│    ├── PolicyDocument (Immutable, Versioned, Partial Unique Index isCurrent)     │
-│    ├── Canonical Content Hash (SHA-256 Normalized Text Engine)                   │
-│    └── PolicyAcknowledgment (Snapshot Version & Hash per User Acknowledgment)    │
-├──────────────────────────────────────────────────────────────────────────────────┤
-│ 2. Processing Governance & ROPA Domain                                           │
-│    ├── ProcessingActivity (ROPA Core: Controller, DPO, Subject, Recipients)      │
-│    ├── ProcessingPurpose (Immutable Business Key + Purpose ID)                   │
-│    └── ProcessingDataCategoryPolicy (Mapping Category + LegalBasis + Section 26) │
-├──────────────────────────────────────────────────────────────────────────────────┤
-│ 3. Contextual Consent Management Domain                                          │
-│    ├── ConsentRecord (Current State per User + Purpose ID, GIVEN/WITHDRAWN/REVOKED)│
-│    ├── Explicit Form Versioning (consentFormVersion vs privacyNoticeVersion)     │
-│    └── Strict Legal Withdrawal Engine                                            │
-├──────────────────────────────────────────────────────────────────────────────────┤
-│ 4. Immutable Audit & Incident Traceability Domain                                │
-│    ├── Database-Level Trigger Enforcement (Revoke/Block UPDATE & DELETE)         │
-│    ├── Request/Transaction Correlation ID Traceability                           │
-│    └── Explicit Actor, Action, Subject & Snapshot Evidence                       │
-└──────────────────────────────────────────────────────────────────────────────────┘
+
+**State Transition Rules:**
+* เมื่อผู้ใช้ให้ความยินยอมใหม่ (`WITHDRAWN` $\rightarrow$ `GIVEN`):
+  ระบบต้อง Reset:
+  `status = GIVEN`, `consentedAt = new Date()`, `withdrawnAt = null`, `revokedAt = null`, `consentFormVersion = currentFormVersion`, `privacyNoticeVersion = currentNoticeVersion`
+
+### 2.4 Section 26 Consistency Invariant
+ในตาราง `ProcessingDataCategoryPolicy`:
+```sql
+ALTER TABLE "ProcessingDataCategoryPolicy" ADD CONSTRAINT "chk_section26_consistency" CHECK (
+  ("dataCategory" NOT IN ('SENSITIVE_HEALTH', 'SENSITIVE_BIOMETRIC') AND "section26Condition" IS NULL) OR
+  ("dataCategory" IN ('SENSITIVE_HEALTH', 'SENSITIVE_BIOMETRIC') AND "section26Condition" IS NOT NULL)
+);
 ```
+
+### 2.5 Audit Log Snapshot Independence (No FK Cascade Hazard)
+ฟิลด์อ้างอิงใน `ConsentAuditLog` (`purposeId`, `policyDocumentId`, `consentRecordId`) **จงใจไม่สร้าง Foreign Key Relation แบบ Cascade กับตารางต้นทาง** เพื่อป้องกันความเสี่ยงที่การแก้ไข/ลบ/ย้าย Business Entity ในอนาคตจะส่งผลกระทบต่อความสมบูรณ์ของหลักฐาน Audit History ย้อนหลัง
+
+### 2.6 หลักฐานการรับทราบต้องไม่สูญหาย (`PolicyAcknowledgment.onDelete: Restrict`)
+ความสัมพันธ์ระหว่าง `User` และ `PolicyAcknowledgment` ถูกเปลี่ยนเป็น **`onDelete: Restrict`** เพื่อป้องกันไม่ให้การลบบัญชีผู้ใช้ทำลายหลักฐานทางกฎหมายว่าเคยมีการรับทราบนโยบายฉบับใด (ระบบต้องใช้แนวทาง User Deactivation / Soft Anonymization แทน Hard Deletion)
 
 ---
 
-## 3. กฎเหล็กเชิงสถาปัตยกรรม (Architectural Invariants)
-
-1. **DB-Level Immutability Invariant:** ตาราง `ConsentAuditLog` ต้องถูกบังคับด้วย Database Trigger ในระดับ PostgreSQL ห้ามให้มีการแก้ไข (`UPDATE`) หรือลบ (`DELETE`) แถวข้อมูลในตารางนี้เด็ดขาด ไม่ว่าจะผ่าน Application, Prisma, Admin Role หรือ Manual SQL Execution
-2. **Partial Unique Current Policy Invariant:** ฟิลด์ `isCurrent` บน `PolicyDocument` ต้องถูกควบคุมด้วย Partial Unique Index:
-   `CREATE UNIQUE INDEX unique_current_policy_per_type ON "PolicyDocument" ("type") WHERE "isCurrent" = true;`
-   และการเผยแพร่นโยบายใหม่ (Publishing) ต้องกระทำภายใน Database Transaction เดียวกันเสมอ
-3. **Foreign Key Integrity Invariant:** `ConsentRecord` ต้องผูก Foreign Key กับ `ProcessingPurpose.id` (ไม่ใช่ Business Code ที่อาจถูก Migrate) โดย `ProcessingPurpose.code` ต้องถูกกำหนดให้เป็น **Immutable Business Key** ห้ามแก้ไขหลังจากถูกสร้าง
-4. **Strict Semantic Differentiation:**
-   - `WITHDRAWN`: เจ้าของข้อมูลส่วนบุคคล (User) ใช้สิทธิถอนความยินยอมด้วยความสมัครใจ
-   - `REVOKED`: ระบบ (System) หรือผู้ควบคุมข้อมูล (Admin/Controller) สั่งเพิกถอนสถานะความยินยอมอันเนื่องมาจากเหตุทางกฎหมาย การปรับโครงสร้าง หรือการระงับบัญชี
-5. **No PII in Metadata Invariant:** ห้ามจัดเก็บข้อมูลระบุตัวตน (PII), เบอร์โทร, LINE ID หรือ Sensitive Data ในฟิลด์ Metadata โดยเด็ดขาด Metadata อนุญาตให้เก็บเฉพาะ Operational Context เช่น `{ clientTimezone, flowOrigin }`
-
----
-
-## 4. ข้อกำหนดฐานข้อมูล (Prisma Schema Specification)
+## 3. ข้อกำหนดฐานข้อมูลฉบับสมบูรณ์ (Prisma Schema Specification)
 
 ```prisma
 // ==========================================
@@ -148,12 +174,16 @@ enum AuditActorType {
 }
 
 enum WithdrawalReasonCode {
-  USER_PREFERENCE
-  NO_LONGER_USING_FEATURE
-  DATA_MINIMIZATION_REQUEST
-  ADMINISTRATIVE_DISCONTINUATION
-  SYSTEM_MIGRATION
-  LEGAL_REVOCATION
+  USER_CHOICE                       // ผู้ใช้เลือกถอนความยินยอมตามสิทธิ
+  NO_LONGER_USING_FEATURE           // ไม่ประสงค์ใช้งานฟีเจอร์เสริมนั้นต่อ
+  DATA_MINIMIZATION_PREFERENCE      // ประสงค์จำกัดปริมาณข้อมูลส่วนบุคคล
+}
+
+enum RevocationReasonCode {
+  ADMINISTRATIVE_DISCONTINUATION    // โรงเรียนยกเลิกการให้บริการฟีเจอร์หรือการเชื่อมต่อ
+  SYSTEM_MIGRATION                  // มีการเปลี่ยนระบบงานหรือโครงสร้างฐานข้อมูล
+  STATUTORY_LEGAL_ORDER             // มีคำสั่งตามกฎหมายหรือระเบียบทางราชการ
+  ACCOUNT_DECOMMISSIONED            // บัญชีผู้ใช้พ้นสภาพการปฏิบัติหน้าที่
 }
 
 enum RetentionRuleType {
@@ -203,7 +233,7 @@ model PolicyAcknowledgment {
   ipAddress               String?
   userAgent               String?
 
-  user                    User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user                    User                    @relation(fields: [userId], references: [id], onDelete: Restrict)
   policyDocument          PolicyDocument          @relation(fields: [policyDocumentId], references: [id], onDelete: Restrict)
 
   @@unique([userId, policyDocumentId])
@@ -222,14 +252,14 @@ model ProcessingActivity {
   description             String?                 @db.Text
   controllerName          String                  @default("โรงเรียนกุดจับประชาสรรค์")
   dpoContact              String                  @default("kpschool_dpo@obec.moe.go.th")
-  dataSubjectCategory     String                  // "ข้าราชการครู บุคลากรทางการศึกษา และลูกจ้าง"
+  dataSubjectCategory     String                  // "ข้าราชการครู บุคลากรทางการศึกษา และลูกจ้าง" (Presentation Metadata)
   retentionRuleType       RetentionRuleType       @default(EVENT_BASED)
   retentionDurationMonths Int                     // e.g. 120 (10 ปี)
-  retentionAuthority      String                  // ระเบียบสำนักนายกรัฐมนตรีว่าด้วยงานสารบรรณ
+  retentionAuthority      String                  // ระเบียบสำนักนายกรัฐมนตรีว่าด้วยงานสารบรรณ (Presentation Metadata)
   disposalMethod          DisposalMethod          @default(SECURE_DESTROY)
-  recipientsSummary       String                  // สายการบังคับบัญชา, สพม.อุดรธานี, สพฐ.
+  recipientsSummary       String                  // สายการบังคับบัญชา, สพม.อุดรธานี, สพฐ. (Presentation Metadata)
   crossBorderTransfer     Boolean                 @default(false)
-  crossBorderDetails      String?                 // รายละเอียดปลายทาง/กลไกความปลอดภัย (ถ้ามี)
+  crossBorderDetails      String?                 // รายละเอียดปลายทาง/กลไกความปลอดภัย (Presentation Metadata)
   active                  Boolean                 @default(true)
   createdAt               DateTime                @default(now())
   updatedAt               DateTime                @updatedAt
@@ -261,8 +291,8 @@ model ProcessingDataCategoryPolicy {
   purposeId               String
   dataCategory            DataCategoryType
   legalBasis              LegalBasisType
-  section26Condition      Section26ConditionType?        // ระบุเฉพาะเมื่อ dataCategory เป็น Sensitive Data
-  statutoryReference      String?                        // อ้างอิงมาตรา/ระเบียบกฎหมาย เช่น ม.26(5)(ฉ)
+  section26Condition      Section26ConditionType?        // Nullable สำหรับ non-sensitive; ต้องมีค่าสำหรับ sensitive data
+  statutoryReference      String?                        // อ้างอิงระเบียบหรือมาตราทางกฎหมาย
   isMandatoryForOperation Boolean                        @default(true)
 
   purpose                 ProcessingPurpose              @relation(fields: [purposeId], references: [id], onDelete: Cascade)
@@ -277,10 +307,10 @@ model ProcessingDataCategoryPolicy {
 model ConsentRecord {
   id                      String                         @id @default(cuid())
   userId                  String
-  purposeId               String                         // FK เชื่อมตรงกับ ProcessingPurpose.id
+  purposeId               String                         // FK ชี้ ProcessingPurpose.id (Immutable ID)
   status                  ConsentStatus                  @default(GIVEN)
   consentFormVersion      String                         // เวอร์ชันข้อความคำขอความยินยอม (e.g. "v1.0")
-  privacyNoticeVersion    String?                        // เวอร์ชัน Privacy Notice ที่อ้างอิงขณะยินยอม
+  privacyNoticeVersion    String?                        // เวอร์ชัน Privacy Notice ขณะให้ความยินยอม
   consentedAt             DateTime?
   withdrawnAt             DateTime?
   revokedAt               DateTime?
@@ -291,7 +321,7 @@ model ConsentRecord {
   user                    User                           @relation(fields: [userId], references: [id], onDelete: Cascade)
   purpose                 ProcessingPurpose              @relation(fields: [purposeId], references: [id], onDelete: Restrict)
 
-  @@unique([userId, purposeId])                          // Pattern A: Current State per User + Purpose ID
+  @@unique([userId, purposeId])                          // Pattern A: Current State per User + Purpose
   @@index([userId, status])
 }
 
@@ -306,18 +336,19 @@ model ConsentAuditLog {
   eventType                      AuditEventType
   subjectType                    AuditSubjectType
   userId                         String
-  policyDocumentId               String?
+  policyDocumentId               String?                 // Snapshot Reference (No Foreign Key cascade)
   policyVersionSnapshot          String?
   contentHashSnapshot            String?
-  purposeId                      String?                 // FK Reference
-  purposeCodeSnapshot            String?                 // Snapshot Business Key
+  purposeId                      String?                 // Snapshot Reference (No Foreign Key cascade)
+  purposeCodeSnapshot            String?
   consentRecordId                String?
   consentFormVersionSnapshot     String?
   actorType                      AuditActorType          @default(USER)
   actorId                        String?
   source                         String
-  reasonCode                     WithdrawalReasonCode?
-  reasonDetail                   String?
+  withdrawalReason               WithdrawalReasonCode?   // ใช้เฉพาะเมื่อ eventType = CONSENT_WITHDRAWN
+  revocationReason               RevocationReasonCode?   // ใช้เฉพาะเมื่อ eventType = CONSENT_REVOKED
+  reasonDetail                   String?                 // คำอธิบายเพิ่มเติมตามบริบท
   occurredAt                     DateTime                @default(now())
   ipAddress                      String?
   userAgent                      String?
@@ -332,93 +363,165 @@ model ConsentAuditLog {
 
 ---
 
-## 5. แผนการบังคับใช้ระดับฐานข้อมูล (PostgreSQL Database Triggers & Security)
+## 4. ข้อกำหนดทางธุรกิจและการประมวลผล (Service Layer Specifications)
 
-### 5.1 Append-Only Enforcement SQL Migration
-ไฟล์ Migration ของ PostgreSQL จะบรรจุฟังก์ชันและ Trigger เพื่อสกัดกั้นการแก้ไขหรือลบในตาราง Audit Log:
-
-```sql
--- Create trigger function to enforce append-only invariant on ConsentAuditLog
-CREATE OR REPLACE FUNCTION prevent_consent_audit_log_mutation()
-RETURNS TRIGGER AS $$
-BEGIN
-  RAISE EXCEPTION 'DATABASE INTEGRITY VIOLATION: ConsentAuditLog is strictly APPEND-ONLY. UPDATE and DELETE operations are prohibited by institutional security policy.';
-END;
-$$ LANGUAGE plpgsql;
-
-DROP TRIGGER IF EXISTS trg_consent_audit_log_immutable ON "ConsentAuditLog";
-
-CREATE TRIGGER trg_consent_audit_log_immutable
-BEFORE UPDATE OR DELETE ON "ConsentAuditLog"
-FOR EACH ROW EXECUTE FUNCTION prevent_consent_audit_log_mutation();
-```
-
-### 5.2 Atomic Policy Publishing Strategy
-การเปลี่ยนเวอร์ชันของนโยบายจะกระทำผ่าน Transaction ใน Prisma Client:
-
+### 4.1 ฟังก์ชันการให้ความยินยอม (`createOrUpdateConsent`)
 ```typescript
-export async function publishNewPolicyDocument(data: {
-  type: PolicyType;
-  version: string;
-  title: string;
-  contentMarkdown: string;
-  contentHash: string;
-  effectiveAt: Date;
+/**
+ * บันทึกความยินยอมของผู้ใช้งาน
+ * Invariant Rule: ต้องตรวจสอบก่อนว่า Purpose นั้นเปิดให้ใช้ฐาน Consent หรือไม่
+ */
+export async function recordUserConsent(params: {
+  userId: string;
+  purposeId: string;
+  consentFormVersion: string;
+  privacyNoticeVersion: string;
+  source: string;
+  correlationId: string;
+  ipAddress?: string;
+  userAgent?: string;
 }) {
-  return await prisma.$transaction(async (tx) => {
-    // 1. ปลดสถานะ isCurrent ของเวอร์ชันเดิม
-    await tx.policyDocument.updateMany({
-      where: { type: data.type, isCurrent: true },
-      data: { isCurrent: false },
-    });
+  // 1. Resolve Purpose & Data Category Policies
+  const purpose = await prisma.processingPurpose.findUnique({
+    where: { id: params.purposeId, active: true },
+    include: { dataCategoryPolicies: true },
+  });
 
-    // 2. บันทึกและเปิดใช้งานเวอร์ชันใหม่ (Atomic Guarantee)
-    return await tx.policyDocument.create({
-      data: {
-        ...data,
-        isCurrent: true,
-        publishedAt: new Date(),
+  if (!purpose) throw new Error("Processing purpose not found or inactive");
+
+  // 2. Validate that Consent is actually a legal basis for this purpose
+  const isConsentApplicable = purpose.dataCategoryPolicies.some(
+    (p) => p.legalBasis === "CONSENT" || p.section26Condition === "EXPLICIT_CONSENT"
+  );
+  if (!isConsentApplicable) {
+    throw new Error("Consent is not an applicable legal basis for this operational purpose");
+  }
+
+  // 3. Upsert Current State in ConsentRecord with State Invariant guarantees
+  return await prisma.$transaction(async (tx) => {
+    const record = await tx.consentRecord.upsert({
+      where: {
+        userId_purposeId: {
+          userId: params.userId,
+          purposeId: params.purposeId,
+        },
+      },
+      create: {
+        userId: params.userId,
+        purposeId: params.purposeId,
+        status: "GIVEN",
+        consentedAt: new Date(),
+        withdrawnAt: null,
+        revokedAt: null,
+        consentFormVersion: params.consentFormVersion,
+        privacyNoticeVersion: params.privacyNoticeVersion,
+        source: params.source,
+      },
+      update: {
+        status: "GIVEN",
+        consentedAt: new Date(),
+        withdrawnAt: null,
+        revokedAt: null,
+        consentFormVersion: params.consentFormVersion,
+        privacyNoticeVersion: params.privacyNoticeVersion,
+        source: params.source,
       },
     });
+
+    // 4. Append Immutable Audit Log
+    await tx.consentAuditLog.create({
+      data: {
+        correlationId: params.correlationId,
+        eventType: "CONSENT_GIVEN",
+        subjectType: "CONSENT_RECORD",
+        userId: params.userId,
+        purposeId: purpose.id,
+        purposeCodeSnapshot: purpose.code,
+        consentRecordId: record.id,
+        consentFormVersionSnapshot: params.consentFormVersion,
+        actorType: "USER",
+        actorId: params.userId,
+        source: params.source,
+        ipAddress: params.ipAddress,
+        userAgent: params.userAgent,
+      },
+    });
+
+    return record;
+  });
+}
+```
+
+### 4.2 ฟังก์ชันการถอนความยินยอม (`withdrawUserConsent`)
+```typescript
+export async function withdrawUserConsent(params: {
+  userId: string;
+  purposeId: string;
+  reasonCode: WithdrawalReasonCode;
+  reasonDetail?: string;
+  source: string;
+  correlationId: string;
+  ipAddress?: string;
+  userAgent?: string;
+}) {
+  return await prisma.$transaction(async (tx) => {
+    const existing = await tx.consentRecord.findUnique({
+      where: { userId_purposeId: { userId: params.userId, purposeId: params.purposeId } },
+      include: { purpose: true },
+    });
+
+    if (!existing || existing.status !== "GIVEN") {
+      throw new Error("No active consent record found to withdraw");
+    }
+
+    const updated = await tx.consentRecord.update({
+      where: { id: existing.id },
+      data: {
+        status: "WITHDRAWN",
+        withdrawnAt: new Date(),
+        revokedAt: null,
+      },
+    });
+
+    await tx.consentAuditLog.create({
+      data: {
+        correlationId: params.correlationId,
+        eventType: "CONSENT_WITHDRAWN",
+        subjectType: "CONSENT_RECORD",
+        userId: params.userId,
+        purposeId: existing.purpose.id,
+        purposeCodeSnapshot: existing.purpose.code,
+        consentRecordId: updated.id,
+        consentFormVersionSnapshot: existing.consentFormVersion,
+        actorType: "USER",
+        actorId: params.userId,
+        withdrawalReason: params.reasonCode,
+        reasonDetail: params.reasonDetail,
+        source: params.source,
+        ipAddress: params.ipAddress,
+        userAgent: params.userAgent,
+      },
+    });
+
+    return updated;
   });
 }
 ```
 
 ---
 
-## 6. ข้อกำหนด UX & Just-in-Time Flow
+## 5. การตรวจสอบและอนุมัติ (Architecture Freeze Gate Checklist)
 
-### 6.1 หน้าสมัครสมาชิก (`/login` Register Tab)
-- **แยก Notice ออกจาก Agreement ชัดเจน:**
-  * การแจ้งตามมาตรา 23 (Privacy Notice): แสดงลิงก์และกล่องรับทราบ `[ ] ข้าพเจ้าได้อ่านและรับทราบ ประกาศการคุ้มครองข้อมูลส่วนบุคคล (Privacy Notice v1.0)`
-  * ข้อกำหนดการใช้บริการ (Terms of Use): แสดงลิงก์และกล่องยอมรับ `[ ] ข้าพเจ้ายอมรับ เงื่อนไขการใช้งานระบบสารสนเทศตามระเบียบโรงเรียน (Terms of Use)`
-- **ไม่ผูก Consent ที่ไม่จำเป็น:** ไม่มีการใส่ Checkbox ขอความยินยอมข้อมูลสุขภาพ, ลายเซ็น หรือ LINE ในหน้านี้
-- เมื่อผู้ใช้กดยืนยัน ระบบจะสร้างบัญชีและบันทึก `PolicyAcknowledgment` 2 รายการ (Notice + Terms) พร้อมบันทึก Snapshot เวอร์ชันและ Hash
+| ข้อกำหนด | กลไกควบคุม (Enforcement Mechanism) | สถานะ |
+| :--- | :--- | :--- |
+| **1. Prisma Version & Partial Index** | Prisma `^7.8.0` + Migration DDL `CREATE UNIQUE INDEX ... WHERE isCurrent = true` | ✅ VERIFIED |
+| **2. DB Role & Trigger Wording** | Append-only ผ่าน Trigger + `REVOKE UPDATE, DELETE` สำหรับ app role | ✅ VERIFIED |
+| **3. Separation of Reason Enums** | แยก `WithdrawalReasonCode` (User) ออกจาก `RevocationReasonCode` (Admin/System) | ✅ VERIFIED |
+| **4. State Invariant CHECK Constraint** | PostgreSQL `chk_consent_record_state_lifecycle` และ State Reset Rules | ✅ VERIFIED |
+| **5. Section 26 Category Constraint** | PostgreSQL `chk_section26_consistency` ห้ามใส่ condition ม.26 กับข้อมูลทั่วไป | ✅ VERIFIED |
+| **6. Legal Scope of Withdrawal** | สเปกระบุชัดว่าระงับเฉพาะ Consent processing ไม่กระทบภารกิจรัฐ/กฎหมาย | ✅ VERIFIED |
+| **7. Policy Evidence Retention** | `PolicyAcknowledgment.onDelete: Restrict` ห้ามทำลายหลักฐานเมื่อผู้ใช้ถูกลบ | ✅ VERIFIED |
+| **8. Decoupled Audit Snapshot** | ไม่ผูก Foreign Key Cascade ในตาราง `ConsentAuditLog` | ✅ VERIFIED |
+| **9. Purpose Legal Basis Validation** | Service Layer ตรวจสอบ `legalBasis === CONSENT` ก่อนอนุญาตให้บันทึก | ✅ VERIFIED |
 
-### 6.2 การขอความยินยอมตามบริบท (Contextual Just-in-Time Consents)
-- **การแจ้งเตือนผ่าน LINE:** เมื่อผู้ใช้เข้าไปเชื่อมต่อ LINE ในหน้าตั้งค่า ระบบจะแสดง Consent Form เฉพาะสำหรับ `PURPOSE_LINE_NOTIF`
-- **การสแกนใบหน้า (Biometrics):** เมื่อผู้ใช้เข้าสู่ระบบลงเวลาและเลือกเปิดใช้การตรวจจับใบหน้า ระบบจะแสดง Consent Form เฉพาะสำหรับ `PURPOSE_BIOMETRIC_ATTENDANCE`
-- **การลาป่วยและใบรับรองแพทย์:** ไม่ขอ Consent ซ้ำซ้อน แต่แสดงข้อความแจ้งความโปร่งใส (Notice at Collection) ในหน้าอัปโหลดเอกสาร ระบุว่าประมวลผลข้อมูลตามระเบียบสำนักนายกรัฐมนตรีฯ และ ม.26(5)(ฉ)
-
-### 6.3 ศูนย์จัดการความเป็นส่วนตัวของผู้ใช้ (Privacy Self-Service at `/settings/privacy`)
-- ผู้ใช้สามารถเปิดดู:
-  1. นโยบายที่เคยรับทราบ และวันที่รับทราบ
-  2. รายการความยินยอมที่เคยให้ไว้ พร้อมปุ่ม **"ถอนความยินยอม (Withdraw)"**
-- เมื่อผู้ใช้กดถอนความยินยอม:
-  1. ระบบอัปเดต `ConsentRecord.status = WITHDRAWN`, `withdrawnAt = new Date()`
-  2. ระบบหยุดเฉพาะฟังก์ชันที่ใช้ฐาน Consent (เช่น ยกเลิกการส่งข้อความเข้า LINE)
-  3. ฟังก์ชันราชการหลัก (การลา, งานสารบรรณ, การลงเวลาปกติ) ยังคงทำงานได้ตามกฎหมาย
-  4. บันทึก Transaction ลง `ConsentAuditLog` ด้วย `eventType = CONSENT_WITHDRAWN` และสร้าง `correlationId` สำหรับสอบย้อนรอย
-
----
-
-## 7. แผนการตรวจสอบและยืนยันผล (Verification & Test Matrix)
-
-1. **Database Trigger Verification:**
-   - เขียน Unit/Integration Test สั่งคำสั่ง `prisma.consentAuditLog.delete()` และ `update()` เพื่อยืนยันว่า PostgreSQL Trigger โยน Exception และปฏิเสธการแก้ไข 100%
-2. **Partial Unique Index Verification:**
-   - ทดสอบ Insert `PolicyDocument` 2 แถวที่มี `type` เดียวกันและ `isCurrent = true` เพื่อยืนยันว่า Database Constraint ปฏิเสธการบันทึก
-3. **Correlation ID & Audit Tracing:**
-   - ยืนยันว่าทุกการ Acknowledge หรือ Consent Mutation มี `correlationId` ส่งต่อตั้งแต่ Request Context จนถึง Audit Log
-4. **Legal Scope Verification:**
-   - ทดสอบถอนความยินยอม `PURPOSE_LINE_NOTIF` แล้วทดลองยื่นใบลาป่วย ยืนยันว่าระบบยังสามารถบันทึกคำขอลาและแนบใบรับรองแพทย์ได้ตามปกติ
+**Architecture Freeze Determination: READY FOR IMPLEMENTATION PLAN**
