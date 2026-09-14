@@ -642,7 +642,18 @@ export function validateConsentApplicability(dataCategoryPolicies: Array<{
   legalBasis: string;
   section26Condition: string | null;
 }>): boolean {
-  const isApplicable = dataCategoryPolicies.some((p) => {
+  if (!dataCategoryPolicies || dataCategoryPolicies.length === 0) {
+    throw new Error("Processing purpose has no configured data category policies");
+  }
+
+  const hasNonConsentBasis = dataCategoryPolicies.some((p) => p.legalBasis !== "CONSENT");
+  if (hasNonConsentBasis) {
+    throw new Error(
+      "Scope violation: Purpose contains non-consent legal bases. Consent cannot be recorded for purposes governed by statutory obligations or public task."
+    );
+  }
+
+  const allCategoriesConsentEligible = dataCategoryPolicies.every((p) => {
     const isSensitive = p.dataCategory === "SENSITIVE_HEALTH" || p.dataCategory === "SENSITIVE_BIOMETRIC";
     if (isSensitive) {
       return p.legalBasis === "CONSENT" && p.section26Condition === "EXPLICIT_CONSENT";
@@ -650,8 +661,8 @@ export function validateConsentApplicability(dataCategoryPolicies: Array<{
     return p.legalBasis === "CONSENT" && p.section26Condition === null;
   });
 
-  if (!isApplicable) {
-    throw new Error("Consent is not an applicable legal basis for this operational purpose");
+  if (!allCategoriesConsentEligible) {
+    throw new Error("Consent is not an applicable legal basis for all data categories under this purpose");
   }
   return true;
 }

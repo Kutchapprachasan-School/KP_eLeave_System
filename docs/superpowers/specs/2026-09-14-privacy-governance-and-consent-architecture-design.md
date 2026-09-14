@@ -425,8 +425,21 @@ export async function recordUserConsent(params: {
 
   if (!purpose) throw new Error("Processing purpose not found or inactive");
 
-  // 2. Validate that Consent is actually an applicable legal basis for this purpose according to data category rules
-  const isConsentApplicable = purpose.dataCategoryPolicies.some((p) => {
+  // 2. Validate that Consent is strictly the applicable legal basis for ALL data categories in this purpose.
+  // Invariant: Consent must NEVER be used to authorize or pollute processing governed by statutory obligations or public task.
+  if (!purpose.dataCategoryPolicies || purpose.dataCategoryPolicies.length === 0) {
+    throw new Error(`Processing purpose '${purpose.code}' has no configured data category policies`);
+  }
+
+  const hasNonConsentBasis = purpose.dataCategoryPolicies.some((p) => p.legalBasis !== "CONSENT");
+  if (hasNonConsentBasis) {
+    throw new Error(
+      `Scope violation: Processing purpose '${purpose.code}' contains non-consent legal bases. ` +
+      `Consent cannot be recorded for purposes governed by statutory obligations or public task.`
+    );
+  }
+
+  const allCategoriesConsentEligible = purpose.dataCategoryPolicies.every((p) => {
     const isSensitive = p.dataCategory === "SENSITIVE_HEALTH" || p.dataCategory === "SENSITIVE_BIOMETRIC";
     if (isSensitive) {
       // Sensitive data requires BOTH legalBasis === "CONSENT" AND section26Condition === "EXPLICIT_CONSENT"
@@ -435,8 +448,9 @@ export async function recordUserConsent(params: {
     // General data requires legalBasis === "CONSENT" and section26Condition === null
     return p.legalBasis === "CONSENT" && p.section26Condition === null;
   });
-  if (!isConsentApplicable) {
-    throw new Error("Consent is not an applicable legal basis for this operational purpose");
+
+  if (!allCategoriesConsentEligible) {
+    throw new Error(`Consent is not an applicable legal basis for all data categories under purpose '${purpose.code}'`);
   }
 
   // 3. Upsert Current State in ConsentRecord with State Invariant guarantees
