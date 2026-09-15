@@ -2,7 +2,6 @@
 
 import React, { useEffect, useState, use } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { 
   ArrowLeft, 
   CheckCircle2, 
@@ -12,12 +11,16 @@ import {
   ShieldCheck, 
   Loader2, 
   Save, 
-  RotateCcw,
-  Sparkles,
-  History,
-  FileText
+  Sparkles, 
+  History, 
+  FileText,
+  BookOpen
 } from "lucide-react";
-import { getSubmissionDetailsAction, updateItemManualOverrideAction } from "@/app/actions/omr";
+import { 
+  getSubmissionDetailsAction, 
+  updateItemManualOverrideAction,
+  updateSubjectiveScoreAction 
+} from "@/app/actions/omr";
 import { useSession } from "@/lib/auth-client";
 
 export default function TeacherReviewStudioPage({ params }: { params: Promise<{ id: string }> }) {
@@ -29,7 +32,11 @@ export default function TeacherReviewStudioPage({ params }: { params: Promise<{ 
   const [submission, setSubmission] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [updatingItemNo, setUpdatingItemNo] = useState<number | null>(null);
+  const [savingSubjective, setSavingSubjective] = useState(false);
   const [feedbackMsg, setFeedbackMsg] = useState<string | null>(null);
+
+  // Subjective scores form state
+  const [subjectiveScores, setSubjectiveScores] = useState<Record<string, number>>({});
 
   useEffect(() => {
     async function loadData() {
@@ -37,6 +44,13 @@ export default function TeacherReviewStudioPage({ params }: { params: Promise<{ 
         setLoading(true);
         const data = await getSubmissionDetailsAction(submissionId);
         setSubmission(data);
+        if (data?.subjectiveScores) {
+          const loaded: Record<string, number> = {};
+          for (const [k, v] of Object.entries(data.subjectiveScores)) {
+            loaded[k] = Number(v);
+          }
+          setSubjectiveScores(loaded);
+        }
       } catch (err) {
         console.error("Failed to load submission:", err);
       } finally {
@@ -52,13 +66,12 @@ export default function TeacherReviewStudioPage({ params }: { params: Promise<{ 
     if (!session?.user?.id) return;
     try {
       setUpdatingItemNo(itemNo);
-      const updated = await updateItemManualOverrideAction({
+      await updateItemManualOverrideAction({
         submissionId,
         itemNo,
         overrideChoice: choice,
         performedByUserId: session.user.id
       });
-      // Reload full details
       const refreshed = await getSubmissionDetailsAction(submissionId);
       setSubmission(refreshed);
       setFeedbackMsg(`บันทึกการแก้ไขข้อ ${itemNo} เป็นตัวเลือก ${choice || "ไม่ตอบ"} เรียบร้อย`);
@@ -68,6 +81,31 @@ export default function TeacherReviewStudioPage({ params }: { params: Promise<{ 
       alert("เกิดข้อผิดพลาดในการแก้ไข: " + (err.message || "Unknown error"));
     } finally {
       setUpdatingItemNo(null);
+    }
+  };
+
+  const handleSaveSubjectiveScores = async () => {
+    if (!session?.user?.id) return;
+    try {
+      setSavingSubjective(true);
+      const updated = await updateSubjectiveScoreAction({
+        submissionId,
+        subjectiveScores,
+        performedByUserId: session.user.id
+      });
+      setSubmission((prev: any) => ({
+        ...prev,
+        subjectiveScore: updated.subjectiveScore,
+        subjectiveScores: updated.subjectiveScores,
+        netScore: updated.netScore
+      }));
+      setFeedbackMsg("บันทึกคะแนนอัตนัยและคำนวณคะแนนสุทธิเรียบร้อยแล้ว");
+      setTimeout(() => setFeedbackMsg(null), 3000);
+    } catch (err: any) {
+      console.error("Failed to save subjective scores:", err);
+      alert("เกิดข้อผิดพลาดในการบันทึกคะแนนอัตนัย: " + (err.message || "Unknown error"));
+    } finally {
+      setSavingSubjective(false);
     }
   };
 
@@ -96,6 +134,8 @@ export default function TeacherReviewStudioPage({ params }: { params: Promise<{ 
   }
 
   const paper = submission.examPaper;
+  const subjectiveItems = paper?.subjectiveItems || [];
+  const hasSubjective = subjectiveItems.length > 0;
   const answerKey = paper?.answerKeys?.find((k: any) => k.versionCode === submission.versionCode);
   const keyMap = new Map<number, string[]>();
   if (answerKey) {
@@ -103,6 +143,8 @@ export default function TeacherReviewStudioPage({ params }: { params: Promise<{ 
       keyMap.set(it.itemNo, it.correctChoices);
     }
   }
+
+  const totalPossible = Number(paper?.maxScore || 0) + Number(paper?.subjectiveMaxScore || 0);
 
   return (
     <div className="max-w-6xl mx-auto space-y-6 pb-16">
@@ -118,7 +160,7 @@ export default function TeacherReviewStudioPage({ params }: { params: Promise<{ 
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
               <Edit3 className="w-6 h-6 text-purple-600 dark:text-purple-400" />
-              ศูนย์ตรวจทานคำตอบ & แก้ไขคะแนน (Teacher Review Studio)
+              ศูนย์ตรวจทานคำตอบ & ให้คะแนนอัตนัย (Review Studio)
             </h1>
             <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
               {paper?.subjectCode} {paper?.subjectName} • รหัสนักเรียน: {submission.studentId}
@@ -127,7 +169,7 @@ export default function TeacherReviewStudioPage({ params }: { params: Promise<{ 
         </div>
 
         {feedbackMsg && (
-          <div className="px-4 py-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 text-xs font-semibold flex items-center gap-2 animate-fade-in">
+          <div className="px-4 py-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 text-xs font-semibold flex items-center gap-2 animate-in fade-in">
             <CheckCircle2 className="w-4 h-4 text-emerald-600" />
             <span>{feedbackMsg}</span>
           </div>
@@ -136,10 +178,10 @@ export default function TeacherReviewStudioPage({ params }: { params: Promise<{ 
 
       {/* 2-Column Asymmetric Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Column (2 Cols): Interactive Question Review Grid */}
+        {/* Left Column (2 Cols): Review Grid & Subjective Score Entry */}
         <div className="lg:col-span-2 space-y-6">
           {/* Top Score Banner Card */}
-          <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white/60 dark:border-slate-800 rounded-3xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] space-y-4">
+          <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white/60 dark:border-slate-800 rounded-3xl p-6 shadow-sm space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-4">
               <div>
                 <div className="text-xs text-slate-500">ข้อมูลนักเรียนและใบคำตอบ</div>
@@ -152,41 +194,119 @@ export default function TeacherReviewStudioPage({ params }: { params: Promise<{ 
               </div>
 
               <div className="text-right">
-                <div className="text-xs text-slate-500">คะแนนสุทธิ (Net Score)</div>
+                <div className="text-xs text-slate-500">คะแนนรวมสุทธิ (Net Score)</div>
                 <div className="text-3xl font-extrabold text-emerald-600 dark:text-emerald-400">
-                  {Number(submission.netScore)} <span className="text-sm font-semibold text-slate-400">/ {Number(paper?.maxScore)}</span>
+                  {Number(submission.netScore)} <span className="text-sm font-semibold text-slate-400">/ {totalPossible}</span>
                 </div>
               </div>
             </div>
 
             {/* Score Breakdown Pills */}
-            <div className="grid grid-cols-4 gap-2 text-center text-xs">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs">
+              <div className="p-2.5 rounded-xl bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800 text-purple-700 dark:text-purple-300 font-bold">
+                <div className="text-[10px] text-purple-600/80">คะแนนปรนัย</div>
+                <div className="text-base">{Number(submission.rawScore)} / {Number(paper?.maxScore)}</div>
+              </div>
+              {hasSubjective && (
+                <div className="p-2.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 font-bold">
+                  <div className="text-[10px] text-indigo-600/80">คะแนนอัตนัย</div>
+                  <div className="text-base">{Number(submission.subjectiveScore || 0)} / {Number(paper?.subjectiveMaxScore || 0)}</div>
+                </div>
+              )}
               <div className="p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 font-bold">
-                <div className="text-[10px] text-emerald-600/80">ตอบถูก</div>
+                <div className="text-[10px] text-emerald-600/80">ปรนัยตอบถูก</div>
                 <div className="text-base">{submission.totalCorrect} ข้อ</div>
               </div>
               <div className="p-2.5 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 font-bold">
-                <div className="text-[10px] text-red-600/80">ตอบผิด</div>
+                <div className="text-[10px] text-red-600/80">ปรนัยตอบผิด</div>
                 <div className="text-base">{submission.totalIncorrect} ข้อ</div>
-              </div>
-              <div className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold">
-                <div className="text-[10px] text-slate-500">ไม่ตอบ (Blank)</div>
-                <div className="text-base">{submission.totalBlanks} ข้อ</div>
-              </div>
-              <div className="p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300 font-bold">
-                <div className="text-[10px] text-amber-600/80">ฝนซ้ำ / แปลก</div>
-                <div className="text-base">{submission.totalMultiple} ข้อ</div>
               </div>
             </div>
           </div>
 
-          {/* Interactive Items Table */}
-          <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white/60 dark:border-slate-800 rounded-3xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] space-y-4">
+          {/* Section 2: Subjective Scoring Form (If Paper Has Subjective Items) */}
+          {hasSubjective && (
+            <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-2 border-indigo-200 dark:border-indigo-900/60 rounded-3xl p-6 shadow-sm space-y-4">
+              <div className="flex items-center justify-between border-b border-indigo-100 dark:border-indigo-900/60 pb-3">
+                <div className="flex items-center gap-2">
+                  <BookOpen className="w-5 h-5 text-indigo-600" />
+                  <h2 className="text-base font-bold text-slate-900 dark:text-white">
+                    ตอนที่ 2: บันทึกคะแนนข้อสอบอัตนัย (เขียนตอบ)
+                  </h2>
+                </div>
+                <span className="text-xs font-bold text-indigo-600 bg-indigo-50 dark:bg-indigo-950/60 px-2.5 py-1 rounded-full">
+                  เต็ม {Number(paper.subjectiveMaxScore)} คะแนน
+                </span>
+              </div>
+
+              <div className="space-y-3">
+                {subjectiveItems.map((sItem: any) => {
+                  const key = String(sItem.itemNo);
+                  const currentScore = subjectiveScores[key] !== undefined ? subjectiveScores[key] : (submission.subjectiveScores?.[key] || 0);
+
+                  return (
+                    <div
+                      key={sItem.itemNo}
+                      className="p-3.5 rounded-2xl bg-indigo-50/30 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
+                    >
+                      <div className="flex-1">
+                        <div className="font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                          <span>ข้อที่ {sItem.itemNo}: {sItem.title}</span>
+                          <span className="text-indigo-600 font-mono">(เต็ม {Number(sItem.maxScore)} คะแนน)</span>
+                        </div>
+                        {sItem.rubricDetail && (
+                          <div className="text-[11px] text-slate-500 mt-0.5 italic">
+                            เกณฑ์: {sItem.rubricDetail}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-2 self-end sm:self-center">
+                        <span className="text-slate-500 font-semibold">คะแนนที่ได้:</span>
+                        <input
+                          type="number"
+                          min="0"
+                          max={Number(sItem.maxScore)}
+                          step="0.5"
+                          value={currentScore}
+                          onChange={(e) => {
+                            const val = Math.max(0, Math.min(Number(sItem.maxScore), Number(e.target.value)));
+                            setSubjectiveScores((prev) => ({ ...prev, [key]: val }));
+                          }}
+                          className="w-20 h-9 px-2 rounded-xl border border-indigo-300 dark:border-indigo-700 bg-white dark:bg-slate-800 text-center font-bold text-sm text-indigo-900 dark:text-indigo-200"
+                        />
+                        <span className="text-slate-400 font-mono">/ {Number(sItem.maxScore)}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="flex justify-end pt-2">
+                <button
+                  type="button"
+                  disabled={savingSubjective}
+                  onClick={handleSaveSubjectiveScores}
+                  className="h-10 px-5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md shadow-indigo-500/25 flex items-center gap-2 active:scale-95 transition"
+                >
+                  {savingSubjective ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Save className="w-4 h-4" />
+                  )}
+                  บันทึกคะแนนอัตนัย
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Interactive Multiple Choice Items Table */}
+          <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white/60 dark:border-slate-800 rounded-3xl p-6 shadow-sm space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="text-sm font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2">
-                <FileText className="w-4 h-4 text-purple-600" /> ตรวจทานรายข้อ (คลิกปุ่มเพื่อแก้ไขผลตอบทันที)
+                <FileText className="w-4 h-4 text-purple-600" /> ตรวจทานข้อสอบปรนัย (คลิกปุ่มเพื่อแก้ไขตัวเลือก)
               </h2>
-              <span className="text-xs text-slate-400">คำนวณคะแนนสุทธิอัตโนมัติ</span>
+              <span className="text-xs text-slate-400">คำนวณคะแนนใหม่ทันที</span>
             </div>
 
             <div className="space-y-2">
@@ -214,7 +334,6 @@ export default function TeacherReviewStudioPage({ params }: { params: Promise<{ 
                         ข้อ {item.itemNo}.
                       </span>
 
-                      {/* Status Icon */}
                       {item.isCorrect ? (
                         <span className="p-1 rounded-lg bg-emerald-100 dark:bg-emerald-900/60 text-emerald-600 dark:text-emerald-300">
                           <CheckCircle2 className="w-4 h-4" />
@@ -280,13 +399,13 @@ export default function TeacherReviewStudioPage({ params }: { params: Promise<{ 
         {/* Right Column (1 Col): Audit & Guidelines */}
         <div className="space-y-6">
           {/* Audit Trail Card */}
-          <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white/60 dark:border-slate-800 rounded-3xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] space-y-4">
+          <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white/60 dark:border-slate-800 rounded-3xl p-6 shadow-sm space-y-4">
             <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2">
               <History className="w-4 h-4 text-purple-600" />
               ประวัติการแก้ไขและบันทึก (Audit Log)
             </h3>
             <p className="text-xs text-slate-500 leading-relaxed">
-              ทุกการแก้ไขตัวเลือกคะแนนโดยครูผู้สอน จะถูกบันทึกลงฐานข้อมูลแบบไม่สามารถลบหรือดัดแปลงได้ (Immutable Audit Trail)
+              ทุกการแก้ไขตัวเลือกและคะแนนอัตนัยโดยครูผู้สอน จะถูกบันทึกลงฐานข้อมูลแบบไม่สามารถลบหรือดัดแปลงได้
             </p>
             <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 text-xs space-y-2">
               <div className="flex justify-between text-slate-500">
@@ -309,7 +428,7 @@ export default function TeacherReviewStudioPage({ params }: { params: Promise<{ 
           </div>
 
           {/* Guidelines */}
-          <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white/60 dark:border-slate-800 rounded-3xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] space-y-3 text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+          <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white/60 dark:border-slate-800 rounded-3xl p-6 shadow-sm space-y-3 text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
             <h4 className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2">
               <ShieldCheck className="w-4 h-4 text-purple-600" /> หลักเกณฑ์การพิจารณาคะแนน
             </h4>
@@ -317,7 +436,7 @@ export default function TeacherReviewStudioPage({ params }: { params: Promise<{ 
               • หากนักเรียนลบคำตอบเดิมไม่สะอาด แต่ฝนคำตอบใหม่เข้มชัดเจน ครูสามารถคลิกแก้ไขเป็นตัวเลือกที่ถูกต้องได้
             </p>
             <p>
-              • หากนักเรียนมีเจตนาฝนหลายข้อพร้อมกัน ระบบจะถือเป็นข้อผิด (0 คะแนน) ตามระเบียบการสอบวัดผล
+              • คะแนนอัตนัยจะถูกตรวจสอบ Invariant ขอบเขตล่าง (≥ 0) และขอบเขตบน (≤ คะแนนเต็มแต่ละข้อ) ทั้งในฝั่ง Client และ Database
             </p>
           </div>
         </div>

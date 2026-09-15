@@ -1,8 +1,11 @@
 "use server";
 
-import { getCurrentPolicy, publishPolicyDocument, acknowledgePolicy } from "@/lib/privacy/policy-service";
-import { prisma } from "@/lib/db";
-import { PolicyType } from "@prisma/client";
+import { getCurrentPolicy, publishPolicyDocument, acknowledgePolicy } from "../../lib/privacy/policy-service.ts";
+import { recordUserConsent, withdrawUserConsent } from "../../lib/privacy/consent-service.ts";
+import { getPublicRopaSummary } from "../../lib/privacy/ropa-service.ts";
+import { prisma } from "../../lib/db.ts";
+import { PolicyType, WithdrawalReasonCode } from "@prisma/client";
+import crypto from "crypto";
 
 const DEFAULT_NOTICE = `
 # ประกาศการคุ้มครองข้อมูลส่วนบุคคล (Privacy Notice)
@@ -125,3 +128,266 @@ export async function recordRegistrationPolicyAcknowledgments(params: { userId?:
     return { success: false, error: error.message };
   }
 }
+
+async function getClientRequestMeta() {
+  let ipAddress: string | undefined;
+  let userAgent: string | undefined;
+  try {
+    const mod = await import("next/headers");
+    const headersList = await mod.headers();
+    ipAddress = headersList.get("x-forwarded-for") || headersList.get("x-real-ip") || undefined;
+    if (ipAddress && ipAddress.includes(",")) {
+      ipAddress = ipAddress.split(",")[0].trim();
+    }
+    userAgent = headersList.get("user-agent") || undefined;
+  } catch {
+    ipAddress = "127.0.0.1";
+    userAgent = "App Runtime";
+  }
+  return { ipAddress, userAgent };
+}
+
+/**
+ * Checks if the given user has acknowledged the latest versions of Notice & Terms.
+ * Used by PolicyUpdateNotifier to display a non-coercive notification banner in layout.
+ */
+export async function checkUserPolicyStatusAction(userId: string) {
+  try {
+    const { notice, terms } = await fetchCurrentPolicies();
+
+    let unacknowledgedNotice: any = null;
+    let unacknowledgedTerms: any = null;
+
+    if (notice) {
+      const ack = await prisma.policyAcknowledgment.findUnique({
+        where: {
+          userId_policyDocumentId: {
+            userId,
+            policyDocumentId: notice.id,
+          },
+        },
+      });
+      if (!ack) {
+        unacknowledgedNotice = notice;
+      }
+    }
+
+    if (terms) {
+      const ack = await prisma.policyAcknowledgment.findUnique({
+        where: {
+          userId_policyDocumentId: {
+            userId,
+            policyDocumentId: terms.id,
+          },
+        },
+      });
+      if (!ack) {
+        unacknowledgedTerms = terms;
+      }
+    }
+
+    const hasUnacknowledged = !!(unacknowledgedNotice || unacknowledgedTerms);
+    return {
+      success: true,
+      hasUnacknowledged,
+      pendingNotice: unacknowledgedNotice,
+      pendingTerms: unacknowledgedTerms,
+    };
+  } catch (error: any) {
+    console.error("Error checking user policy status:", error);
+    return { success: false, hasUnacknowledged: false, error: error.message };
+  }
+}
+
+/**
+ * Acknowledges a specific policy document for the logged-in user.
+ */
+export async function acknowledgeUserPolicyAction(params: {
+  userId: string;
+  policyDocumentId: string;
+  source?: string;
+}) {
+  try {
+    const { ipAddress, userAgent } = await getClientRequestMeta();
+    const ack = await acknowledgePolicy({
+      userId: params.userId,
+      policyDocumentId: params.policyDocumentId,
+      source: params.source || "ACTIVE_APP_BANNER",
+      ipAddress,
+      userAgent,
+    });
+    return { success: true, acknowledgmentId: ack.id };
+  } catch (error: any) {
+    console.error("Failed to acknowledge policy:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Fetches user privacy overview: acknowledgments, active consents, and available consent purposes.
+ */
+export async function getUserPrivacyOverviewAction(userId: string) {
+  try {
+    const acknowledgments = await prisma.policyAcknowledgment.findMany({
+      where: { userId },
+      include: {
+        policyDocument: {
+          select: {
+            id: true,
+            type: true,
+            version: true,
+            title: true,
+            effectiveAt: true,
+            publishedAt: true,
+          },
+        },
+      },
+      orderBy: { acknowledgedAt: "desc" },
+    });
+
+    const consents = await prisma.consentRecord.findMany({
+      where: { userId },
+      include: {
+        purpose: {
+          include: {
+            activity: true,
+            dataCategoryPolicies: true,
+          },
+        },
+      },
+      orderBy: { updatedAt: "desc" },
+    });
+
+    // Fetch all active purposes that require/support consent
+    const allActivities = await prisma.processingActivity.findMany({
+      where: { active: true },
+      include: {
+        purposes: {
+          where: { active: true },
+          include: {
+            dataCategoryPolicies: true,
+          },
+        },
+      },
+    });
+
+    const consentPurposes: Array<{
+      id: string;
+      code: string;
+      name: string;
+      description: string | null;
+      activityName: string;
+      categories: string[];
+    }> = [];
+
+    for (const act of allActivities) {
+      for (const pur of act.purposes) {
+        const isConsentOnly = pur.dataCategoryPolicies.length > 0 &&
+          pur.dataCategoryPolicies.every((p) => p.legalBasis === "CONSENT");
+        if (isConsentOnly) {
+          consentPurposes.push({
+            id: pur.id,
+            code: pur.code,
+            name: pur.name,
+            description: pur.description,
+            activityName: act.name,
+            categories: pur.dataCategoryPolicies.map((p) => p.dataCategory),
+          });
+        }
+      }
+    }
+
+    return {
+      success: true,
+      acknowledgments,
+      consents,
+      consentPurposes,
+    };
+  } catch (error: any) {
+    console.error("Error fetching user privacy overview:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Withdraws user consent for a specific purpose.
+ */
+export async function withdrawUserConsentAction(params: {
+  userId: string;
+  purposeId: string;
+  reasonCode: WithdrawalReasonCode;
+  reasonDetail?: string;
+}) {
+  try {
+    const { ipAddress, userAgent } = await getClientRequestMeta();
+    const correlationId = `wit_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
+    
+    const record = await withdrawUserConsent({
+      userId: params.userId,
+      purposeId: params.purposeId,
+      reasonCode: params.reasonCode,
+      reasonDetail: params.reasonDetail,
+      source: "PRIVACY_CENTER",
+      correlationId,
+      ipAddress,
+      userAgent,
+    });
+
+    return { success: true, record };
+  } catch (error: any) {
+    console.error("Error withdrawing user consent:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Grants or updates user consent for a specific purpose.
+ */
+export async function grantUserConsentAction(params: {
+  userId: string;
+  purposeId: string;
+  consentFormVersion?: string;
+}) {
+  try {
+    const { ipAddress, userAgent } = await getClientRequestMeta();
+    const correlationId = `gnt_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
+    const { notice } = await fetchCurrentPolicies();
+
+    const record = await recordUserConsent({
+      userId: params.userId,
+      purposeId: params.purposeId,
+      consentFormVersion: params.consentFormVersion || "1.0",
+      privacyNoticeVersion: notice ? notice.version : "1.0",
+      source: "PRIVACY_CENTER",
+      correlationId,
+      ipAddress,
+      userAgent,
+    });
+
+    return { success: true, record };
+  } catch (error: any) {
+    console.error("Error granting user consent:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Fetches public institutional privacy disclosure data (Privacy Notice, Terms, and full ROPA summary).
+ */
+export async function getPublicPrivacyInfoAction() {
+  try {
+    const { notice, terms } = await fetchCurrentPolicies();
+    const ropaActivities = await getPublicRopaSummary();
+
+    return {
+      success: true,
+      notice,
+      terms,
+      ropaActivities,
+    };
+  } catch (error: any) {
+    console.error("Error fetching public privacy info:", error);
+    return { success: false, error: error.message };
+  }
+}
+

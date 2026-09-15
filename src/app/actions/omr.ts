@@ -1,18 +1,26 @@
 "use server";
 
-import { prisma } from "@/lib/db";
+import { prisma } from "../../lib/db.ts";
+import crypto from "crypto";
+import { ExamItemStatus, SubmissionSyncStatus, RegradeJobStatus } from "@prisma/client";
+import { ensureStandardTemplatesAction } from "../../lib/services/omrTemplateService.ts";
+import { RecycleBinService } from "../../services/recycle-bin/recycle-bin.service.ts";
+
 function safeRevalidatePath(path: string) {
   try {
-    // Dynamic import/require for Next.js runtime
     const { revalidatePath } = require("next/cache");
     revalidatePath(path);
   } catch {
     // No-op during isolated unit testing
   }
 }
-import crypto from "crypto";
-import { ExamItemStatus, SubmissionSyncStatus } from "@prisma/client";
-import { ensureStandardTemplatesAction } from "@/lib/services/omrTemplateService";
+
+export type SubjectiveItemInput = {
+  itemNo: number;
+  title: string;
+  maxScore: number;
+  rubricDetail?: string;
+};
 
 export type CreateExamPaperInput = {
   subjectCode: string;
@@ -26,6 +34,19 @@ export type CreateExamPaperInput = {
   maxScore: number;
   passScore: number;
   createdById: string;
+  subjectiveItems?: SubjectiveItemInput[];
+};
+
+export type UpdateExamPaperInput = {
+  subjectCode?: string;
+  subjectName?: string;
+  academicYear?: number;
+  term?: number;
+  gradeLevel?: string;
+  title?: string;
+  maxScore?: number;
+  passScore?: number;
+  subjectiveItems?: SubjectiveItemInput[];
 };
 
 export type AnswerKeyItemInput = {
@@ -62,14 +83,23 @@ export type IngestSubmissionInput = {
   items: IngestItemInput[];
 };
 
+export interface UserContext {
+  userId: string;
+  userRole?: string;
+}
+
 /**
- * 1. Create or ensure an ExamPaper
+ * 1. Create ExamPaper with flexible item counts (1-50) and normalized Subjective items
  */
 export async function createExamPaperAction(data: CreateExamPaperInput) {
-  // Ensure default templates exist
   await ensureStandardTemplatesAction();
 
-  const templateCode = data.templateCode || (data.totalItems && data.totalItems <= 20 ? "KP-OMR-A4-20" : "KP-OMR-A4-50");
+  const totalItems = data.totalItems || 50;
+  if (totalItems < 1 || totalItems > 50) {
+    throw new Error("จำนวนข้อสอบปรนัยต้องอยู่ระหว่าง 1 ถึง 50 ข้อ");
+  }
+
+  const templateCode = data.templateCode || (totalItems <= 20 ? "KP-OMR-A4-20" : "KP-OMR-A4-50");
   const template = await prisma.examTemplate.findFirst({
     where: { code: templateCode, isDeprecated: false },
     orderBy: { version: "desc" }
@@ -79,20 +109,47 @@ export async function createExamPaperAction(data: CreateExamPaperInput) {
     throw new Error(`ไม่พบแม่แบบกระดาษคำตอบรหัส ${templateCode}`);
   }
 
-  const paper = await prisma.examPaper.create({
-    data: {
-      subjectCode: data.subjectCode,
-      subjectName: data.subjectName,
-      academicYear: data.academicYear,
-      term: data.term,
-      gradeLevel: data.gradeLevel,
-      title: data.title,
-      templateId: template.id,
-      totalItems: data.totalItems || (templateCode === "KP-OMR-A4-20" ? 20 : 50),
-      maxScore: data.maxScore,
-      passScore: data.passScore,
-      createdById: data.createdById
+  const subjectiveItems = data.subjectiveItems || [];
+  let subjectiveMaxScore = 0;
+  for (const item of subjectiveItems) {
+    if (item.maxScore <= 0) {
+      throw new Error(`คะแนนเต็มข้ออัตนัยที่ ${item.itemNo} ต้องมากกว่า 0`);
     }
+    subjectiveMaxScore += Number(item.maxScore);
+  }
+
+  const paper = await prisma.$transaction(async (tx) => {
+    const createdPaper = await tx.examPaper.create({
+      data: {
+        subjectCode: data.subjectCode,
+        subjectName: data.subjectName,
+        academicYear: data.academicYear,
+        term: data.term,
+        gradeLevel: data.gradeLevel,
+        title: data.title,
+        templateId: template.id,
+        totalItems,
+        maxScore: data.maxScore,
+        passScore: data.passScore,
+        totalSubjectiveItems: subjectiveItems.length,
+        subjectiveMaxScore,
+        createdById: data.createdById
+      }
+    });
+
+    if (subjectiveItems.length > 0) {
+      await tx.examSubjectiveItem.createMany({
+        data: subjectiveItems.map((item, idx) => ({
+          examPaperId: createdPaper.id,
+          itemNo: item.itemNo || (idx + 1),
+          title: item.title,
+          maxScore: item.maxScore,
+          rubricDetail: item.rubricDetail || null
+        }))
+      });
+    }
+
+    return createdPaper;
   });
 
   safeRevalidatePath("/academic/exam");
@@ -100,7 +157,85 @@ export async function createExamPaperAction(data: CreateExamPaperInput) {
 }
 
 /**
- * 2. Configure Answer Key for an Exam Paper with strict DB integrity validation
+ * 2. Update ExamPaper metadata and subjective items
+ */
+export async function updateExamPaperAction(
+  paperId: string,
+  data: UpdateExamPaperInput,
+  userContext: UserContext
+) {
+  const paper = await prisma.examPaper.findUnique({
+    where: { id: paperId }
+  });
+
+  if (!paper) {
+    throw new Error("ไม่พบชุดข้อสอบ");
+  }
+
+  const isAdmin = userContext.userRole === "ADMIN" || userContext.userRole === "SUPERADMIN";
+  if (!isAdmin && paper.createdById !== userContext.userId) {
+    throw new Error("ท่านไม่มีสิทธิ์แก้ไขชุดข้อสอบของผู้อื่น");
+  }
+
+  const subjectiveItems = data.subjectiveItems;
+  let subjectiveMaxScore: number | undefined = undefined;
+  if (subjectiveItems !== undefined) {
+    subjectiveMaxScore = 0;
+    for (const item of subjectiveItems) {
+      if (item.maxScore <= 0) {
+        throw new Error(`คะแนนเต็มข้ออัตนัยที่ ${item.itemNo} ต้องมากกว่า 0`);
+      }
+      subjectiveMaxScore += Number(item.maxScore);
+    }
+  }
+
+  const updated = await prisma.$transaction(async (tx) => {
+    const paperUpdateData: any = {};
+    if (data.subjectCode !== undefined) paperUpdateData.subjectCode = data.subjectCode;
+    if (data.subjectName !== undefined) paperUpdateData.subjectName = data.subjectName;
+    if (data.academicYear !== undefined) paperUpdateData.academicYear = data.academicYear;
+    if (data.term !== undefined) paperUpdateData.term = data.term;
+    if (data.gradeLevel !== undefined) paperUpdateData.gradeLevel = data.gradeLevel;
+    if (data.title !== undefined) paperUpdateData.title = data.title;
+    if (data.maxScore !== undefined) paperUpdateData.maxScore = data.maxScore;
+    if (data.passScore !== undefined) paperUpdateData.passScore = data.passScore;
+
+    if (subjectiveItems !== undefined) {
+      paperUpdateData.totalSubjectiveItems = subjectiveItems.length;
+      paperUpdateData.subjectiveMaxScore = subjectiveMaxScore;
+
+      // Replace subjective items
+      await tx.examSubjectiveItem.deleteMany({
+        where: { examPaperId: paperId }
+      });
+
+      if (subjectiveItems.length > 0) {
+        await tx.examSubjectiveItem.createMany({
+          data: subjectiveItems.map((item, idx) => ({
+            examPaperId: paperId,
+            itemNo: item.itemNo || (idx + 1),
+            title: item.title,
+            maxScore: item.maxScore,
+            rubricDetail: item.rubricDetail || null
+          }))
+        });
+      }
+    }
+
+    const res = await tx.examPaper.update({
+      where: { id: paperId },
+      data: paperUpdateData
+    });
+
+    return res;
+  });
+
+  safeRevalidatePath("/academic/exam");
+  return updated;
+}
+
+/**
+ * 3. Configure/Update Answer Key with strict DB integrity validation
  */
 export async function configureAnswerKeyAction(data: ConfigureAnswerKeyInput) {
   const paper = await prisma.examPaper.findUnique({
@@ -111,7 +246,6 @@ export async function configureAnswerKeyAction(data: ConfigureAnswerKeyInput) {
     throw new Error("ไม่พบชุดข้อสอบที่ระบุ");
   }
 
-  // Validate item bounds and completeness
   if (data.items.length !== paper.totalItems) {
     throw new Error(`จำนวนเฉลย (${data.items.length} ข้อ) ต้องตรงกับจำนวนข้อสอบทั้งหมด (${paper.totalItems} ข้อ)`);
   }
@@ -134,7 +268,6 @@ export async function configureAnswerKeyAction(data: ConfigureAnswerKeyInput) {
   }
 
   return await prisma.$transaction(async (tx) => {
-    // 1. Upsert parent answer key
     const answerKey = await tx.examAnswerKey.upsert({
       where: {
         examPaperId_versionCode: {
@@ -149,12 +282,10 @@ export async function configureAnswerKeyAction(data: ConfigureAnswerKeyInput) {
       }
     });
 
-    // 2. Clear old items
     await tx.examAnswerKeyItem.deleteMany({
       where: { answerKeyId: answerKey.id }
     });
 
-    // 3. Create items
     await tx.examAnswerKeyItem.createMany({
       data: sortedItems.map(item => ({
         answerKeyId: answerKey.id,
@@ -170,73 +301,735 @@ export async function configureAnswerKeyAction(data: ConfigureAnswerKeyInput) {
 }
 
 /**
- * 3. Generate Printed Sheets (Pre-slugged or Generic Blank) with Zero-PII Tokens
+ * 4. Update Answer Key with Version Snapshot (Decoupled Key Mutation)
  */
-export async function generatePrintedSheetsAction(params: {
+export async function updateAnswerKeyWithVersionAction(params: {
   examPaperId: string;
-  students: {
-    studentId: string;
-    studentName?: string;
-    classroom?: string;
-    seatNo?: number;
-  }[];
+  versionCode: string;
+  items: AnswerKeyItemInput[];
+  changedById: string;
+  reason?: string;
 }) {
   const paper = await prisma.examPaper.findUnique({
     where: { id: params.examPaperId }
   });
 
   if (!paper) {
-    throw new Error("ไม่พบชุดข้อสอบที่ระบุ");
+    throw new Error("ไม่พบชุดข้อสอบ");
   }
 
-  const generated = await prisma.$transaction(async (tx) => {
-    const results = [];
-    for (const s of params.students) {
-      // Generate compact, unguessable opaque CUID2 token: "ckp_" + 20 random hex chars
-      const sheetToken = "ckp_" + crypto.randomBytes(10).toString("hex");
-
-      const sheet = await tx.examPrintedSheet.upsert({
-        where: {
-          examPaperId_studentId_attemptNo: {
-            examPaperId: params.examPaperId,
-            studentId: s.studentId,
-            attemptNo: 1
-          }
-        },
-        update: {
-          studentName: s.studentName,
-          classroom: s.classroom,
-          seatNo: s.seatNo
-        },
-        create: {
-          sheetToken,
-          examPaperId: params.examPaperId,
-          studentId: s.studentId,
-          studentName: s.studentName,
-          classroom: s.classroom,
-          seatNo: s.seatNo,
-          attemptNo: 1
-        }
-      });
-      results.push(sheet);
+  if (paper.createdById !== params.changedById) {
+    const user = await prisma.user.findUnique({
+      where: { id: params.changedById },
+      select: { role: true }
+    });
+    const isAdmin = user?.role === "ADMIN" || user?.role === "SUPERADMIN";
+    if (!isAdmin) {
+      throw new Error("ท่านไม่มีสิทธิ์แก้ไขเฉลยคำตอบของผู้อื่น");
     }
-    return results;
-  }, { maxWait: 10000, timeout: 20000 });
+  }
 
-  return generated;
+  // 🛡️ Rev 8.3 Concurrency Guard: ห้ามแก้เฉลยซ้อนหากยังมี Re-grade Job ทำงานอยู่
+  const activeJob = await prisma.examRegradeJob.findFirst({
+    where: {
+      examPaperId: params.examPaperId,
+      status: { in: [RegradeJobStatus.PENDING, RegradeJobStatus.PROCESSING] }
+    }
+  });
+  if (activeJob) {
+    throw new Error("ไม่สามารถแก้ไขเฉลยได้ เนื่องจากกำลังอยู่ระหว่างการตรวจซ้ำ (Re-grade Job กำลังทำงาน) กรุณารอให้งานเสร็จสิ้นก่อน");
+  }
+
+  // 1. Configure the answer key
+  await configureAnswerKeyAction({
+    examPaperId: params.examPaperId,
+    versionCode: params.versionCode,
+    items: params.items
+  });
+
+  // 2. Create immutable Version Snapshot
+  const latestVersion = await prisma.examAnswerKeyVersion.findFirst({
+    where: { examPaperId: params.examPaperId },
+    orderBy: { version: "desc" }
+  });
+  const nextVersion = (latestVersion?.version || 0) + 1;
+
+  const versionSnapshot = await prisma.examAnswerKeyVersion.create({
+    data: {
+      examPaperId: params.examPaperId,
+      version: nextVersion,
+      keyPayload: params.items as any,
+      totalItems: paper.totalItems,
+      maxScore: paper.maxScore,
+      changedById: params.changedById,
+      reason: params.reason || `ปรับปรุงเฉลยเวอร์ชัน ${nextVersion}`
+    }
+  });
+
+  // 3. Log Audit trail
+  await prisma.examAuditLog.create({
+    data: {
+      examPaperIdSnapshot: params.examPaperId,
+      action: "ANSWER_KEY_MUTATION",
+      performedByUserId: params.changedById,
+      details: {
+        version: nextVersion,
+        versionCode: params.versionCode,
+        totalItems: paper.totalItems,
+        reason: params.reason || null
+      }
+    }
+  });
+
+  // 4. Automatically create Regrade Job with rigid snapshot boundary tuple
+  const regradeJob = await createRegradeJobAction(
+    params.examPaperId,
+    versionSnapshot.id,
+    params.changedById
+  );
+
+  return {
+    success: true,
+    version: nextVersion,
+    snapshotId: versionSnapshot.id,
+    regradeJobId: regradeJob.id,
+    affectedSubmissionsCount: regradeJob.totalSubmissions
+  };
 }
 
 /**
- * 4. Ingest Exam Submission with 64-bit Advisory Lock & Atomic Score Recalculation
+ * 5.1 Create Regrade Job with Rigid Snapshot Boundary Tuple
+ */
+export async function createRegradeJobAction(
+  examPaperId: string,
+  targetKeyVersionId: string,
+  userId?: string
+) {
+  // Concurrency Guard: ห้ามสร้าง Job ซ้ำถ้ามี Job ค้างอยู่
+  const activeJob = await prisma.examRegradeJob.findFirst({
+    where: {
+      examPaperId,
+      status: { in: [RegradeJobStatus.PENDING, RegradeJobStatus.PROCESSING] }
+    }
+  });
+
+  if (activeJob) {
+    throw new Error("AN_ACTIVE_REGRADE_JOB_IS_ALREADY_IN_PROGRESS");
+  }
+
+  // Freeze dataset boundary tuple (createdAt, id) ของ Submission ตัวสุดท้าย
+  const latestSubmission = await prisma.examSubmission.findFirst({
+    where: { examPaperId, isLatestAttempt: true },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    select: { id: true, createdAt: true }
+  });
+
+  const snapshotEndCreatedAt = latestSubmission?.createdAt ?? null;
+  const snapshotEndId = latestSubmission?.id ?? null;
+
+  let totalSubmissions = 0;
+  if (snapshotEndCreatedAt && snapshotEndId) {
+    totalSubmissions = await prisma.examSubmission.count({
+      where: {
+        examPaperId,
+        isLatestAttempt: true,
+        OR: [
+          { createdAt: { lt: snapshotEndCreatedAt } },
+          { createdAt: snapshotEndCreatedAt, id: { lte: snapshotEndId } }
+        ]
+      }
+    });
+  }
+
+  const isFinishedImmediately = totalSubmissions === 0;
+
+  return await prisma.examRegradeJob.create({
+    data: {
+      examPaperId,
+      targetKeyVersionId,
+      status: isFinishedImmediately ? RegradeJobStatus.COMPLETED : RegradeJobStatus.PENDING,
+      totalSubmissions,
+      snapshotEndCreatedAt,
+      snapshotEndId,
+      completedAt: isFinishedImmediately ? new Date() : null,
+      createdById: userId
+    }
+  });
+}
+
+/**
+ * 5.2 Process Regrade Job Chunk with Row-Level Fenced Writes & Deterministic Boundary Completion
+ */
+export async function processRegradeJobChunkAction(jobId: string, workerToken?: string) {
+  const currentToken = workerToken || crypto.randomUUID();
+
+  // ATOMIC CLAIM / LEASE RENEWAL PHASE
+  const claimResult: any[] = await prisma.$queryRaw`
+    UPDATE "ExamRegradeJob"
+    SET status = 'PROCESSING'::"RegradeJobStatus",
+        "workerToken" = ${currentToken},
+        "leaseExpiresAt" = NOW() + INTERVAL '2 minutes',
+        "startedAt" = COALESCE("startedAt", NOW())
+    WHERE id = ${jobId}
+      AND (
+        status = 'PENDING'::"RegradeJobStatus" OR
+        (status = 'PROCESSING'::"RegradeJobStatus" AND ("leaseExpiresAt" < NOW() OR "workerToken" = ${currentToken}))
+      )
+    RETURNING *;
+  `;
+
+  if (!claimResult || claimResult.length === 0) {
+    return { success: false, claimed: false, reason: "JOB_LOCKED_BY_ANOTHER_WORKER_OR_LEASE_ACTIVE" };
+  }
+
+  const job = claimResult[0];
+
+  if (job.totalSubmissions === 0 || !job.snapshotEndCreatedAt) {
+    await prisma.examRegradeJob.update({
+      where: { id: jobId },
+      data: { status: RegradeJobStatus.COMPLETED, completedAt: new Date() }
+    });
+    return { success: true, completed: true, processedCount: 0, workerToken: currentToken };
+  }
+
+  // QUERY SUBMISSIONS WITH RIGID CLOSED SNAPSHOT TUPLE & MONOTONIC CURSOR
+  const submissions: any[] = await prisma.$queryRaw`
+    SELECT s.id, s."createdAt", s."studentId", s."rawScore", s."subjectiveScore", s."versionCode"
+    FROM "ExamSubmission" s
+    WHERE s."examPaperId" = ${job.examPaperId}
+      AND s."isLatestAttempt" = true
+      AND (
+        (s."createdAt" < ${job.snapshotEndCreatedAt}::timestamp) OR
+        (s."createdAt" = ${job.snapshotEndCreatedAt}::timestamp AND s.id <= ${job.snapshotEndId})
+      )
+      AND (
+        ${job.cursorCreatedAt}::timestamp IS NULL OR
+        (s."createdAt" > ${job.cursorCreatedAt}::timestamp) OR
+        (s."createdAt" = ${job.cursorCreatedAt}::timestamp AND s.id > ${job.cursorId})
+      )
+    ORDER BY s."createdAt" ASC, s.id ASC
+    LIMIT ${job.batchSize};
+  `;
+
+  const isFinished = submissions.length < job.batchSize;
+
+  if (submissions.length === 0) {
+    await prisma.examRegradeJob.update({
+      where: { id: jobId },
+      data: { status: RegradeJobStatus.COMPLETED, completedAt: new Date() }
+    });
+    return { success: true, completed: true, processedCount: 0, workerToken: currentToken };
+  }
+
+  const lastItem = submissions[submissions.length - 1];
+  const newProcessedCount = job.processedSubmissions + submissions.length;
+
+  // Retrieve Target Key Version & Paper for calculation
+  const keyVersion = await prisma.examAnswerKeyVersion.findUnique({
+    where: { id: job.targetKeyVersionId },
+    include: {
+      examPaper: {
+        include: {
+          answerKeys: {
+            include: { items: true }
+          }
+        }
+      }
+    }
+  });
+
+  if (!keyVersion) {
+    throw new Error("Target ExamAnswerKeyVersion not found");
+  }
+
+  const paper = keyVersion.examPaper;
+  const targetVersionNumber = keyVersion.version;
+
+  // Fetch leaf item submissions for batch
+  const subIds = submissions.map((s: any) => s.id);
+  const leafItems = await prisma.examItemSubmission.findMany({
+    where: { submissionId: { in: subIds } }
+  });
+  const leafBySubId = new Map<string, typeof leafItems>();
+  for (const item of leafItems) {
+    const list = leafBySubId.get(item.submissionId) || [];
+    list.push(item);
+    leafBySubId.set(item.submissionId, list);
+  }
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      for (const sub of submissions) {
+        const answerKey = paper.answerKeys.find(k => k.versionCode === sub.versionCode);
+        const keyMap = new Map<number, { correctChoices: string[]; points: number; penaltyPoints: number }>();
+        if (answerKey) {
+          for (const kItem of answerKey.items) {
+            keyMap.set(kItem.itemNo, {
+              correctChoices: kItem.correctChoices,
+              points: Number(kItem.points),
+              penaltyPoints: Number(kItem.penaltyPoints)
+            });
+          }
+        }
+
+        let totalCorrect = 0;
+        let totalIncorrect = 0;
+        let totalBlanks = 0;
+        let totalMultiple = 0;
+        let rawScore = 0;
+        let penaltyScore = 0;
+
+        const subLeaves = leafBySubId.get(sub.id) || [];
+        const leafUpdates = [];
+
+        for (const item of subLeaves) {
+          const key = keyMap.get(item.itemNo);
+          const choice = item.overrideChoice || item.effectiveChoice;
+          let isCorrect = false;
+          let scoreEarned = 0;
+          let status = item.status;
+
+          if (!choice) {
+            status = ExamItemStatus.BLANK;
+            totalBlanks++;
+          } else if (key) {
+            if (key.correctChoices.includes(choice)) {
+              status = ExamItemStatus.CORRECT;
+              scoreEarned = key.points;
+              isCorrect = true;
+              totalCorrect++;
+              rawScore += key.points;
+            } else {
+              status = ExamItemStatus.INCORRECT;
+              totalIncorrect++;
+              penaltyScore += key.penaltyPoints;
+            }
+          }
+
+          if (item.isOverridden) {
+            status = ExamItemStatus.MANUALLY_OVERRIDDEN;
+          }
+
+          leafUpdates.push(
+            tx.examItemSubmission.update({
+              where: { id: item.id },
+              data: {
+                effectiveChoice: choice,
+                isCorrect,
+                scoreEarned,
+                status
+              }
+            })
+          );
+        }
+        await Promise.all(leafUpdates);
+
+        const calculatedRaw = Math.min(Number(paper.maxScore), Math.max(0, rawScore - penaltyScore));
+        const subjScore = Number(sub.subjectiveScore || 0);
+        const totalMax = Number(paper.maxScore) + Number(paper.subjectiveMaxScore || 0);
+        const netScore = Math.min(totalMax, Math.max(0, calculatedRaw + subjScore));
+
+        // 🔴 FIX #1: Row-Level Fenced Write บน ExamSubmission แต่ละรายการ
+        const fencedSubUpdate: any[] = await tx.$queryRaw`
+          UPDATE "ExamSubmission" s
+          SET "rawScore" = ${calculatedRaw},
+              "netScore" = ${netScore},
+              "totalCorrect" = ${totalCorrect},
+              "totalIncorrect" = ${totalIncorrect},
+              "totalBlanks" = ${totalBlanks},
+              "totalMultiple" = ${totalMultiple},
+              "gradingVersion" = ${targetVersionNumber},
+              "gradingVersionId" = ${job.targetKeyVersionId},
+              "updatedAt" = NOW()
+          WHERE s.id = ${sub.id}
+            AND EXISTS (
+              SELECT 1 FROM "ExamRegradeJob" j
+              WHERE j.id = ${jobId}
+                AND j."workerToken" = ${currentToken}
+                AND j."leaseExpiresAt" >= NOW()
+            )
+          RETURNING s.id;
+        `;
+
+        if (!fencedSubUpdate || fencedSubUpdate.length === 0) {
+          throw new Error("SUBMISSION_FENCED_WRITE_FAILED_LEASE_EXPIRED");
+        }
+      }
+
+      // Fenced Write ขั้นตอนสุดท้ายบน ExamRegradeJob
+      const fencedJobUpdate: any[] = await tx.$queryRaw`
+        UPDATE "ExamRegradeJob"
+        SET "processedSubmissions" = ${newProcessedCount},
+            "cursorCreatedAt" = ${lastItem.createdAt},
+            "cursorId" = ${lastItem.id},
+            "leaseExpiresAt" = NOW() + INTERVAL '2 minutes',
+            "status" = CASE WHEN ${isFinished} THEN 'COMPLETED'::"RegradeJobStatus" ELSE 'PROCESSING'::"RegradeJobStatus" END,
+            "completedAt" = CASE WHEN ${isFinished} THEN NOW() ELSE NULL END
+        WHERE id = ${jobId} 
+          AND "workerToken" = ${currentToken} 
+          AND "leaseExpiresAt" >= NOW()
+        RETURNING id;
+      `;
+
+      if (!fencedJobUpdate || fencedJobUpdate.length === 0) {
+        throw new Error("JOB_FENCED_WRITE_FAILED_LEASE_EXPIRED");
+      }
+    }, { maxWait: 15000, timeout: 30000 });
+
+    return {
+      success: true,
+      completed: isFinished,
+      processedCount: submissions.length,
+      workerToken: currentToken
+    };
+  } catch (error: any) {
+    if (
+      error.message === "SUBMISSION_FENCED_WRITE_FAILED_LEASE_EXPIRED" ||
+      error.message === "JOB_FENCED_WRITE_FAILED_LEASE_EXPIRED"
+    ) {
+      return { success: false, claimed: false, reason: "WORKER_LEASE_EXPIRED_TRANSACTION_ROLLED_BACK" };
+    }
+    throw error;
+  }
+}
+
+/**
+ * 5.3 Backward-compatible Chunked Re-grade Action
+ */
+export async function regradeSubmissionsChunkAction(params: {
+  examPaperId: string;
+  version: number;
+  batchSize?: number;
+  offset?: number;
+  performedByUserId: string;
+}) {
+  // Find or create active regrade job for this paper
+  const keyVersion = await prisma.examAnswerKeyVersion.findFirst({
+    where: { examPaperId: params.examPaperId, version: params.version }
+  });
+
+  if (!keyVersion) {
+    throw new Error("ไม่พบเวอร์ชันเฉลยที่ระบุ");
+  }
+
+  let job = await prisma.examRegradeJob.findFirst({
+    where: {
+      examPaperId: params.examPaperId,
+      targetKeyVersionId: keyVersion.id,
+      status: { in: [RegradeJobStatus.PENDING, RegradeJobStatus.PROCESSING] }
+    }
+  });
+
+  if (!job) {
+    job = await createRegradeJobAction(params.examPaperId, keyVersion.id, params.performedByUserId);
+  }
+
+  const result = await processRegradeJobChunkAction(job.id);
+  return {
+    processedCount: result.processedCount || 0,
+    hasMore: !result.completed,
+    nextOffset: (params.offset || 0) + (result.processedCount || 0)
+  };
+}
+
+/**
+ * 6. Update Subjective Scores for a Submission (Strict Mathematical Bounds)
+ */
+export async function updateSubjectiveScoreAction(params: {
+  submissionId: string;
+  subjectiveScores: Record<string, number>;
+  performedByUserId: string;
+}) {
+  const submission = await prisma.examSubmission.findUnique({
+    where: { id: params.submissionId },
+    include: {
+      examPaper: {
+        include: {
+          subjectiveItems: true
+        }
+      }
+    }
+  });
+
+  if (!submission) {
+    throw new Error("ไม่พบผลการตรวจข้อสอบ");
+  }
+
+  const paper = submission.examPaper;
+  const subjectiveItems = paper.subjectiveItems;
+
+  let totalSubjective = 0;
+  const validatedScores: Record<string, number> = {};
+
+  for (const item of subjectiveItems) {
+    const key = String(item.itemNo);
+    const scoreVal = params.subjectiveScores[key] !== undefined ? Number(params.subjectiveScores[key]) : 0;
+    const max = Number(item.maxScore);
+
+    if (isNaN(scoreVal) || scoreVal < 0) {
+      throw new Error(`คะแนนข้อที่ ${item.itemNo} ต้องไม่ติดลบ`);
+    }
+    if (scoreVal > max) {
+      throw new Error(`คะแนนข้อที่ ${item.itemNo} (${scoreVal}) ต้องไม่เกินคะแนนเต็ม (${max})`);
+    }
+
+    validatedScores[key] = scoreVal;
+    totalSubjective += scoreVal;
+  }
+
+  const maxSubjAllowed = Number(paper.subjectiveMaxScore || 0);
+  if (totalSubjective > maxSubjAllowed) {
+    throw new Error(`คะแนนอัตนัยรวม (${totalSubjective}) เกินคะแนนเต็มอัตนัยที่กำหนด (${maxSubjAllowed})`);
+  }
+
+  const raw = Number(submission.rawScore);
+  const totalMax = Number(paper.maxScore) + maxSubjAllowed;
+  const netScore = Math.min(totalMax, Math.max(0, raw + totalSubjective));
+
+  const updated = await prisma.examSubmission.update({
+    where: { id: params.submissionId },
+    data: {
+      subjectiveScore: totalSubjective,
+      subjectiveScores: validatedScores,
+      netScore
+    }
+  });
+
+  await prisma.examAuditLog.create({
+    data: {
+      examPaperIdSnapshot: paper.id,
+      submissionIdSnapshot: submission.id,
+      action: "SUBJECTIVE_SCORE_UPDATE",
+      performedByUserId: params.performedByUserId,
+      details: {
+        previousSubjectiveScore: Number(submission.subjectiveScore || 0),
+        newSubjectiveScore: totalSubjective,
+        previousNetScore: Number(submission.netScore),
+        newNetScore: netScore,
+        scores: validatedScores
+      }
+    }
+  });
+
+  return updated;
+}
+
+/**
+ * 7. Soft Delete Exam Paper (via RecycleBinService)
+ */
+export async function softDeleteExamPaperAction(
+  paperId: string,
+  userContext: { userId: string; userRole: string },
+  reason?: string
+) {
+  const result = await RecycleBinService.softDelete({
+    type: "EXAM_PAPER",
+    id: paperId,
+    reason,
+    user: userContext
+  });
+
+  safeRevalidatePath("/academic/exam");
+  return result;
+}
+
+/**
+ * 8. Restore Exam Paper (via RecycleBinService with originalTitle preservation)
+ */
+export async function restoreExamPaperAction(
+  paperId: string,
+  userContext: { userId: string; userRole: string }
+) {
+  const result = await RecycleBinService.restore({
+    type: "EXAM_PAPER",
+    id: paperId,
+    user: userContext
+  });
+
+  safeRevalidatePath("/academic/exam");
+  return result;
+}
+
+/**
+ * 9. Query Exam Papers for Teacher / Admin Dashboard
+ * 🛡️ Query-Level Answer Key Redaction: Admin query omits answerKeys completely.
+ */
+export async function listExamPapersAction(userContext?: UserContext) {
+  const isAdmin = userContext?.userRole === "ADMIN" || userContext?.userRole === "SUPERADMIN";
+
+  if (isAdmin) {
+    // Admin query: Strictly OMIT answerKeys
+    return await prisma.examPaper.findMany({
+      where: { isDeleted: false },
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        subjectCode: true,
+        subjectName: true,
+        academicYear: true,
+        term: true,
+        gradeLevel: true,
+        title: true,
+        totalItems: true,
+        maxScore: true,
+        passScore: true,
+        totalSubjectiveItems: true,
+        subjectiveMaxScore: true,
+        createdById: true,
+        createdAt: true,
+        updatedAt: true,
+        template: true,
+        createdBy: {
+          select: { id: true, name: true, email: true }
+        },
+        _count: {
+          select: {
+            printedSheets: true,
+            submissions: true
+          }
+        }
+      }
+    });
+  }
+
+  // Teacher query: Scoped to self
+  const teacherWhere: any = { isDeleted: false };
+  if (userContext?.userId) {
+    teacherWhere.createdById = userContext.userId;
+  }
+
+  return await prisma.examPaper.findMany({
+    where: teacherWhere,
+    orderBy: { createdAt: "desc" },
+    include: {
+      template: true,
+      subjectiveItems: {
+        orderBy: { itemNo: "asc" }
+      },
+      answerKeys: {
+        select: {
+          id: true,
+          versionCode: true,
+          _count: { select: { items: true } }
+        }
+      },
+      createdBy: {
+        select: { id: true, name: true, email: true }
+      },
+      _count: {
+        select: {
+          printedSheets: true,
+          submissions: true
+        }
+      }
+    }
+  });
+}
+
+/**
+ * 10. Query single Exam Paper Details
+ * 🛡️ Security Check: If requester is not creator, answerKeys are omitted.
+ */
+export async function getExamPaperDetailsAction(paperId: string, userContext?: UserContext) {
+  const base = await prisma.examPaper.findUnique({
+    where: { id: paperId },
+    select: { id: true, createdById: true }
+  });
+  if (!base) return null;
+
+  const isOwner = userContext ? userContext.userId === base.createdById : true;
+
+  const paper = await prisma.examPaper.findUnique({
+    where: { id: paperId },
+    include: {
+      template: true,
+      subjectiveItems: {
+        orderBy: { itemNo: "asc" }
+      },
+      keyVersions: isOwner ? {
+        orderBy: { version: "desc" },
+        take: 5
+      } : false,
+      answerKeys: isOwner ? {
+        include: { items: { orderBy: { itemNo: "asc" } } }
+      } : false,
+      createdBy: {
+        select: { id: true, name: true, email: true }
+      },
+      submissions: {
+        where: { isLatestAttempt: true },
+        orderBy: [{ classroom: "asc" }, { seatNo: "asc" }, { studentId: "asc" }],
+        take: 50,
+      },
+      regradeJobs: {
+        orderBy: { createdAt: "desc" },
+        take: 1
+      },
+      _count: {
+        select: { printedSheets: true, submissions: true }
+      }
+    }
+  });
+
+  if (!paper) return null;
+
+  return {
+    ...paper,
+    answerKeys: (paper as any).answerKeys || [],
+    keyVersions: (paper as any).keyVersions || [],
+    regradeJobs: (paper as any).regradeJobs || []
+  };
+}
+
+/**
+ * 11. Query single Submission for Teacher Review Studio
+ */
+export async function getSubmissionDetailsAction(submissionId: string, userContext?: UserContext) {
+  const submission = await prisma.examSubmission.findUnique({
+    where: { id: submissionId },
+    include: {
+      examPaper: {
+        include: {
+          template: true,
+          subjectiveItems: { orderBy: { itemNo: "asc" } },
+          answerKeys: {
+            include: { items: { orderBy: { itemNo: "asc" } } }
+          }
+        }
+      },
+      itemSubmissions: {
+        orderBy: { itemNo: "asc" }
+      },
+      scannedByUser: {
+        select: { id: true, name: true, email: true }
+      }
+    }
+  });
+
+  if (!submission) return null;
+
+  if (userContext && userContext.userId !== submission.examPaper.createdById) {
+    return {
+      ...submission,
+      examPaper: {
+        ...submission.examPaper,
+        answerKeys: []
+      }
+    };
+  }
+
+  return submission;
+}
+
+/**
+ * 12. Ingest Exam Submission
  */
 export async function ingestExamSubmissionAction(input: IngestSubmissionInput) {
   return await prisma.$transaction(async (tx) => {
-    // 1. Probabilistic 64-bit Advisory Lock via hashtextextended
     await tx.$executeRaw`
       SELECT pg_advisory_xact_lock(hashtextextended(${input.examPaperId} || ':' || ${input.studentId}, 0));
     `;
 
-    // 2. Idempotency Check: Return existing submission if clientScanId already synced
     const existing = await tx.examSubmission.findUnique({
       where: { clientScanId: input.clientScanId },
       include: { itemSubmissions: true }
@@ -247,7 +1040,6 @@ export async function ingestExamSubmissionAction(input: IngestSubmissionInput) {
 
     const attemptNo = input.attemptNo || 1;
 
-    // 3. Unset previous latest attempt for this student
     await tx.examSubmission.updateMany({
       where: {
         examPaperId: input.examPaperId,
@@ -257,12 +1049,15 @@ export async function ingestExamSubmissionAction(input: IngestSubmissionInput) {
       data: { isLatestAttempt: false }
     });
 
-    // 4. Calculate overall confidence average
     const totalConf = input.items.reduce((acc, curr) => acc + (curr.confidenceScore || 0), 0);
     const confidenceAvg = input.items.length > 0 ? totalConf / input.items.length : 1.0;
     const hasAnomalies = input.items.some(i => i.confidenceScore < 0.65 || i.detectedChoices.length > 1);
 
-    // 5. Create ExamSubmission container
+    const latestKeyVersion = await tx.examAnswerKeyVersion.findFirst({
+      where: { examPaperId: input.examPaperId },
+      orderBy: { version: "desc" }
+    });
+
     const submission = await tx.examSubmission.create({
       data: {
         clientScanId: input.clientScanId,
@@ -275,12 +1070,14 @@ export async function ingestExamSubmissionAction(input: IngestSubmissionInput) {
         attemptNo,
         isLatestAttempt: true,
         rawScore: 0,
+        subjectiveScore: 0,
         netScore: 0,
         totalCorrect: 0,
         totalIncorrect: 0,
         totalBlanks: 0,
         totalMultiple: 0,
-        gradingVersion: 1,
+        gradingVersion: latestKeyVersion?.version || 1,
+        gradingVersionId: latestKeyVersion?.id || null,
         confidenceAvg,
         hasAnomalies,
         isVerifiedByTeacher: false,
@@ -290,7 +1087,6 @@ export async function ingestExamSubmissionAction(input: IngestSubmissionInput) {
       }
     });
 
-    // 6. Fetch Answer Key for scoring
     const answerKey = await tx.examAnswerKey.findFirst({
       where: {
         examPaperId: input.examPaperId,
@@ -310,7 +1106,6 @@ export async function ingestExamSubmissionAction(input: IngestSubmissionInput) {
       }
     }
 
-    // 7. Create ExamItemSubmission leaf rows & compute item-level status
     let totalCorrect = 0;
     let totalIncorrect = 0;
     let totalBlanks = 0;
@@ -366,12 +1161,13 @@ export async function ingestExamSubmissionAction(input: IngestSubmissionInput) {
       data: itemCreations
     });
 
-    // 8. Update Derived Materialized Cache on ExamSubmission
-    const netScore = Math.max(0, rawScore - penaltyScore);
+    const calculatedRaw = Math.max(0, rawScore - penaltyScore);
+    const netScore = calculatedRaw;
+
     const updated = await tx.examSubmission.update({
       where: { id: submission.id },
       data: {
-        rawScore,
+        rawScore: calculatedRaw,
         netScore,
         totalCorrect,
         totalIncorrect,
@@ -381,7 +1177,6 @@ export async function ingestExamSubmissionAction(input: IngestSubmissionInput) {
       include: { itemSubmissions: true }
     });
 
-    // 9. Append Audit Log
     await tx.examAuditLog.create({
       data: {
         examPaperIdSnapshot: input.examPaperId,
@@ -403,11 +1198,10 @@ export async function ingestExamSubmissionAction(input: IngestSubmissionInput) {
 }
 
 /**
- * 5. Recalculate Submission Scores from Leaf Items
+ * 13. Recalculate Submission Scores from Leaf Items
  */
 export async function recalculateSubmissionScoreAction(submissionId: string, performedByUserId: string) {
   return await prisma.$transaction(async (tx) => {
-    // 1. Acquire Row Lock
     await tx.$executeRaw`
       SELECT id FROM "ExamSubmission" WHERE id = ${submissionId} FOR UPDATE;
     `;
@@ -449,6 +1243,7 @@ export async function recalculateSubmissionScoreAction(submissionId: string, per
     let rawScore = 0;
     let penaltyScore = 0;
 
+    const itemUpdates = [];
     for (const item of submission.itemSubmissions) {
       const key = keyMap.get(item.itemNo);
       const choice = item.overrideChoice || item.effectiveChoice;
@@ -477,23 +1272,29 @@ export async function recalculateSubmissionScoreAction(submissionId: string, per
         status = ExamItemStatus.MANUALLY_OVERRIDDEN;
       }
 
-      await tx.examItemSubmission.update({
-        where: { id: item.id },
-        data: {
-          effectiveChoice: choice,
-          isCorrect,
-          scoreEarned,
-          status
-        }
-      });
+      itemUpdates.push(
+        tx.examItemSubmission.update({
+          where: { id: item.id },
+          data: {
+            effectiveChoice: choice,
+            isCorrect,
+            scoreEarned,
+            status
+          }
+        })
+      );
     }
+    await Promise.all(itemUpdates);
 
-    const netScore = Math.max(0, rawScore - penaltyScore);
+    const calculatedRaw = Math.min(Number(submission.examPaper.maxScore), Math.max(0, rawScore - penaltyScore));
+    const subjScore = Number(submission.subjectiveScore || 0);
+    const totalMax = Number(submission.examPaper.maxScore) + Number(submission.examPaper.subjectiveMaxScore || 0);
+    const netScore = Math.min(totalMax, Math.max(0, calculatedRaw + subjScore));
 
     const updated = await tx.examSubmission.update({
       where: { id: submissionId },
       data: {
-        rawScore,
+        rawScore: calculatedRaw,
         netScore,
         totalCorrect,
         totalIncorrect,
@@ -519,202 +1320,11 @@ export async function recalculateSubmissionScoreAction(submissionId: string, per
     });
 
     return updated;
-  }, { maxWait: 10000, timeout: 20000 });
+  }, { maxWait: 15000, timeout: 30000 });
 }
 
 /**
- * 6. Academic Item Analysis (Difficulty p, Discrimination r, Reliability KR-20)
- */
-export async function getExamItemAnalysisAction(examPaperId: string) {
-  const paper = await prisma.examPaper.findUnique({
-    where: { id: examPaperId },
-    include: {
-      submissions: {
-        where: { isLatestAttempt: true },
-        include: { itemSubmissions: true }
-      }
-    }
-  });
-
-  if (!paper) {
-    throw new Error("ไม่พบข้อมูลการสอบที่ระบุ");
-  }
-
-  const submissions = paper.submissions;
-  const N = submissions.length;
-
-  if (N === 0) {
-    return {
-      examPaperId,
-      totalStudents: 0,
-      itemStats: [],
-      meanScore: 0,
-      variance: 0,
-      kr20: 0,
-      disclaimer: "ยังไม่มีข้อมูลกระดาษคำตอบที่สแกนในระบบ"
-    };
-  }
-
-  // Sort submissions by netScore descending
-  const sortedSubmissions = [...submissions].sort(
-    (a, b) => Number(b.netScore) - Number(a.netScore)
-  );
-
-  const scores = sortedSubmissions.map(s => Number(s.netScore));
-  const meanScore = scores.reduce((a, b) => a + b, 0) / N;
-  const variance = scores.reduce((a, b) => a + Math.pow(b - meanScore, 2), 0) / (N > 1 ? N - 1 : 1);
-
-  // 27% High and Low group sizing
-  const groupRatio = N >= 30 ? 0.27 : 0.50;
-  const groupSize = Math.max(1, Math.round(groupRatio * N));
-  const highGroup = sortedSubmissions.slice(0, groupSize);
-  const lowGroup = sortedSubmissions.slice(N - groupSize);
-
-  const totalItems = paper.totalItems;
-  const itemStats = [];
-  let sumPq = 0;
-
-  for (let itemNo = 1; itemNo <= totalItems; itemNo++) {
-    // Count correct answers in high group (R_H) and low group (R_L)
-    const rH = highGroup.filter(sub => {
-      const item = sub.itemSubmissions.find(i => i.itemNo === itemNo);
-      return item && item.isCorrect;
-    }).length;
-
-    const rL = lowGroup.filter(sub => {
-      const item = sub.itemSubmissions.find(i => i.itemNo === itemNo);
-      return item && item.isCorrect;
-    }).length;
-
-    // Difficulty Index: p = (R_H + R_L) / (N_H + N_L)
-    const p = (rH + rL) / (2 * groupSize);
-    // Discrimination Index: r = (R_H - R_L) / N_H
-    const r = (rH - rL) / groupSize;
-
-    const q = 1.0 - p;
-    sumPq += p * q;
-
-    // Qualitative interpretations according to OBEC standards
-    let difficultyRating = "พอเหมาะ";
-    if (p >= 0.8) difficultyRating = "ง่ายเกินไป";
-    else if (p < 0.2) difficultyRating = "ยากเกินไป";
-
-    let discriminationRating = "ดีมาก";
-    if (r < 0.2) discriminationRating = "จำแนกไม่ได้ (ปรับปรุง/ตัดทิ้ง)";
-    else if (r < 0.3) discriminationRating = "พอใช้";
-    else if (r < 0.4) discriminationRating = "ดี";
-
-    itemStats.push({
-      itemNo,
-      difficultyIndex: Number(p.toFixed(3)),
-      difficultyRating,
-      discriminationIndex: Number(r.toFixed(3)),
-      discriminationRating,
-      correctCount: submissions.filter(s => s.itemSubmissions.some(i => i.itemNo === itemNo && i.isCorrect)).length
-    });
-  }
-
-  // Reliability: KR-20 formula
-  let kr20 = 0;
-  if (totalItems > 1 && variance > 0) {
-    kr20 = (totalItems / (totalItems - 1)) * (1.0 - sumPq / variance);
-  }
-
-  return {
-    examPaperId,
-    totalStudents: N,
-    meanScore: Number(meanScore.toFixed(2)),
-    variance: Number(variance.toFixed(2)),
-    kr20: Number(kr20.toFixed(3)),
-    reliabilityStatus: kr20 >= 0.70 ? "ผ่านเกณฑ์มาตรฐานความเชื่อมั่น" : "ควรปรับปรุงข้อสอบ",
-    itemStats,
-    disclaimer: N < 30 ? "คำเตือน: จำนวนตัวอย่างน้อยกว่า 30 แผ่น ควรประเมินผลอย่างระมัดระวัง" : null
-  };
-}
-
-/**
- * 7. Query Exam Papers for Teacher Dashboard
- */
-export async function listExamPapersAction() {
-  return await prisma.examPaper.findMany({
-    orderBy: { createdAt: "desc" },
-    include: {
-      template: true,
-      answerKeys: {
-        select: {
-          id: true,
-          versionCode: true,
-          _count: { select: { items: true } }
-        }
-      },
-      createdBy: {
-        select: { id: true, name: true, email: true }
-      },
-      _count: {
-        select: {
-          printedSheets: true,
-          submissions: true
-        }
-      }
-    }
-  });
-}
-
-/**
- * 8. Query single Exam Paper Details with answer keys and recent submissions
- */
-export async function getExamPaperDetailsAction(paperId: string) {
-  return await prisma.examPaper.findUnique({
-    where: { id: paperId },
-    include: {
-      template: true,
-      answerKeys: {
-        include: { items: { orderBy: { itemNo: "asc" } } }
-      },
-      createdBy: {
-        select: { id: true, name: true, email: true }
-      },
-      submissions: {
-        where: { isLatestAttempt: true },
-        orderBy: [{ classroom: "asc" }, { seatNo: "asc" }, { studentId: "asc" }],
-        include: {
-          itemSubmissions: { orderBy: { itemNo: "asc" } }
-        }
-      },
-      _count: {
-        select: { printedSheets: true, submissions: true }
-      }
-    }
-  });
-}
-
-/**
- * 9. Query single Submission for Teacher Review Studio
- */
-export async function getSubmissionDetailsAction(submissionId: string) {
-  return await prisma.examSubmission.findUnique({
-    where: { id: submissionId },
-    include: {
-      examPaper: {
-        include: {
-          template: true,
-          answerKeys: {
-            include: { items: { orderBy: { itemNo: "asc" } } }
-          }
-        }
-      },
-      itemSubmissions: {
-        orderBy: { itemNo: "asc" }
-      },
-      scannedByUser: {
-        select: { id: true, name: true, email: true }
-      }
-    }
-  });
-}
-
-/**
- * 10. Manual Override of an Item Answer by Teacher
+ * 14. Manual Override of an Item Answer by Teacher
  */
 export async function updateItemManualOverrideAction(params: {
   submissionId: string;
@@ -747,7 +1357,6 @@ export async function updateItemManualOverrideAction(params: {
     }
   });
 
-  // Log Audit trail
   await prisma.examAuditLog.create({
     data: {
       examPaperIdSnapshot: (await prisma.examSubmission.findUnique({ where: { id: params.submissionId }, select: { examPaperId: true } }))?.examPaperId || "",
@@ -763,7 +1372,166 @@ export async function updateItemManualOverrideAction(params: {
     }
   });
 
-  // Recalculate submission scores
   return await recalculateSubmissionScoreAction(params.submissionId, params.performedByUserId);
 }
 
+/**
+ * 15. Generate Printed Sheets (Pre-slugged or Generic Blank)
+ */
+export async function generatePrintedSheetsAction(params: {
+  examPaperId: string;
+  students: {
+    studentId: string;
+    studentName?: string;
+    classroom?: string;
+    seatNo?: number;
+  }[];
+}) {
+  const paper = await prisma.examPaper.findUnique({
+    where: { id: params.examPaperId }
+  });
+
+  if (!paper) {
+    throw new Error("ไม่พบชุดข้อสอบที่ระบุ");
+  }
+
+  const generated = await prisma.$transaction(async (tx) => {
+    const results = [];
+    for (const s of params.students) {
+      const sheetToken = "ckp_" + crypto.randomBytes(10).toString("hex");
+
+      const sheet = await tx.examPrintedSheet.upsert({
+        where: {
+          examPaperId_studentId_attemptNo: {
+            examPaperId: params.examPaperId,
+            studentId: s.studentId,
+            attemptNo: 1
+          }
+        },
+        update: {
+          studentName: s.studentName,
+          classroom: s.classroom,
+          seatNo: s.seatNo
+        },
+        create: {
+          sheetToken,
+          examPaperId: params.examPaperId,
+          studentId: s.studentId,
+          studentName: s.studentName,
+          classroom: s.classroom,
+          seatNo: s.seatNo,
+          attemptNo: 1
+        }
+      });
+      results.push(sheet);
+    }
+    return results;
+  }, { maxWait: 10000, timeout: 20000 });
+
+  return generated;
+}
+
+/**
+ * 16. Item Difficulty & Discrimination Analysis
+ */
+export async function calculateExamItemAnalysisAction(examPaperId: string) {
+  const paper = await prisma.examPaper.findUnique({
+    where: { id: examPaperId }
+  });
+
+  if (!paper) {
+    throw new Error("ไม่พบชุดข้อสอบ");
+  }
+
+  const submissions = await prisma.examSubmission.findMany({
+    where: {
+      examPaperId,
+      isLatestAttempt: true
+    },
+    include: {
+      itemSubmissions: true
+    },
+    orderBy: { netScore: "desc" }
+  });
+
+  const N = submissions.length;
+  if (N === 0) {
+    return {
+      examPaperId,
+      totalStudents: 0,
+      meanScore: 0,
+      variance: 0,
+      kr20: 0,
+      itemStats: [],
+      message: "ยังไม่มีผลการตรวจสำหรับชุดข้อสอบนี้"
+    };
+  }
+
+  const groupSize = Math.max(1, Math.round(N * 0.27));
+  const highGroup = submissions.slice(0, groupSize);
+  const lowGroup = submissions.slice(Math.max(0, N - groupSize));
+
+  const totalScores = submissions.map(s => Number(s.netScore));
+  const sumScores = totalScores.reduce((a, b) => a + b, 0);
+  const meanScore = sumScores / N;
+  const variance = totalScores.reduce((acc, curr) => acc + Math.pow(curr - meanScore, 2), 0) / N;
+
+  const totalItems = paper.totalItems;
+  const itemStats = [];
+  let sumPq = 0;
+
+  for (let itemNo = 1; itemNo <= totalItems; itemNo++) {
+    const totalCorrectAll = submissions.filter(s =>
+      s.itemSubmissions.some(i => i.itemNo === itemNo && i.isCorrect)
+    ).length;
+
+    const p = totalCorrectAll / N;
+    const q = 1 - p;
+    sumPq += (p * q);
+
+    const highCorrect = highGroup.filter(s =>
+      s.itemSubmissions.some(i => i.itemNo === itemNo && i.isCorrect)
+    ).length;
+    const lowCorrect = lowGroup.filter(s =>
+      s.itemSubmissions.some(i => i.itemNo === itemNo && i.isCorrect)
+    ).length;
+
+    const r = (highCorrect - lowCorrect) / groupSize;
+
+    let difficultyRating = "ยากพอเหมาะ";
+    if (p > 0.8) difficultyRating = "ง่ายเกินไป";
+    else if (p < 0.2) difficultyRating = "ยากเกินไป";
+
+    let discriminationRating = "ดีมาก";
+    if (r < 0.2) discriminationRating = "จำแนกไม่ได้ (ปรับปรุง/ตัดทิ้ง)";
+    else if (r < 0.3) discriminationRating = "พอใช้";
+    else if (r < 0.4) discriminationRating = "ดี";
+
+    itemStats.push({
+      itemNo,
+      difficultyIndex: Number(p.toFixed(3)),
+      difficultyRating,
+      discriminationIndex: Number(r.toFixed(3)),
+      discriminationRating,
+      correctCount: totalCorrectAll
+    });
+  }
+
+  let kr20 = 0;
+  if (totalItems > 1 && variance > 0) {
+    kr20 = (totalItems / (totalItems - 1)) * (1.0 - sumPq / variance);
+  }
+
+  return {
+    examPaperId,
+    totalStudents: N,
+    meanScore: Number(meanScore.toFixed(2)),
+    variance: Number(variance.toFixed(2)),
+    kr20: Number(kr20.toFixed(3)),
+    reliabilityStatus: kr20 >= 0.70 ? "ผ่านเกณฑ์มาตรฐานความเชื่อมั่น" : "ควรปรับปรุงข้อสอบ",
+    itemStats,
+    disclaimer: N < 30 ? "คำเตือน: จำนวนตัวอย่างน้อยกว่า 30 แผ่น ควรประเมินผลอย่างระมัดระวัง" : null
+  };
+}
+
+export const getExamItemAnalysisAction = calculateExamItemAnalysisAction;

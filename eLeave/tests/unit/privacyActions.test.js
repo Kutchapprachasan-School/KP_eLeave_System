@@ -1,6 +1,6 @@
-import { describe, it } from 'node:test';
+import { describe, it, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { prisma } from '../../../src/lib/db.ts';
+import { prisma, pool } from '../../../src/lib/db.ts';
 
 const { fetchCurrentPolicies, recordRegistrationPolicyAcknowledgments } = await import('../../../src/app/actions/privacy_actions.ts');
 
@@ -32,5 +32,14 @@ describe('privacy_actions', () => {
       where: { userId: testUser.id },
     });
     assert.ok(acks.length >= 2, 'Should have at least 2 policy acknowledgments');
+  });
+
+  after(async () => {
+    try {
+      if (pool) await pool.end();
+      await prisma.$disconnect();
+    } catch {
+      // ignore
+    }
   });
 });

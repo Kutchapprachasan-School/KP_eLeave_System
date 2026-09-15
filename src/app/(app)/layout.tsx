@@ -42,12 +42,16 @@ import {
   Layers,
   Wallet,
   Vote,
-  ScanLine
+  ScanLine,
+  ShieldCheck,
+  GraduationCap,
+  Sparkles
 } from "lucide-react";
 import { hasRepairPermission, hasFacilityPermission } from "@/lib/permissions";
 import { getNotifications } from "@/app/actions/admin";
 import { getMyPendingRoutingCount } from "@/app/actions/incoming";
 import { getSystemSettings } from "@/app/actions/settings";
+import { PolicyUpdateNotifier } from "@/components/privacy/PolicyUpdateNotifier";
 
 function ToolbarButtons({ isAdmin, isApprover }: { isAdmin: boolean; isApprover: boolean }) {
   const { theme, setTheme } = useTheme();
@@ -751,7 +755,11 @@ function AppContent({ children }: { children: React.ReactNode }) {
   const showStudentAffairs = enableStudentAffairs || isAdmin;
   const showStudentCouncil = enableStudentCouncil || isAdmin;
   const isAcademicPlanningAllowed = isAdmin || (user?.id && academicPlanningAllowedUserIds.includes(user.id));
-  const showAcademicPlanning = enableAcademicPlanning && isAcademicPlanningAllowed;
+  const showAcademicPlanning = (enableAcademicPlanning || isAdmin) && isAcademicPlanningAllowed;
+  const showTimetable = enableTimetable || isAdmin;
+  const showSubstitute = enableSubstitute || isAdmin;
+  const showSupervision = enableSupervision || isAdmin;
+  const showExam = enableExam || isAdmin;
 
   // Sub-items for Leave System (ระบบการลา)
   const leaveSubItems = showLeave
@@ -825,31 +833,38 @@ function AppContent({ children }: { children: React.ReactNode }) {
       ]
     : [];
 
-  const timetableSubItems = enableTimetable
+  const timetableSubItems = showTimetable
     ? [
         { href: "/academic/timetable", label: "จัดตารางสอนออนไลน์", icon: Calendar },
         { href: "/academic/timetable?view=matrix", label: "ตารางสอนรวมรายห้อง/ครู", icon: FileText },
       ]
     : [];
 
-  const substituteSubItems = enableSubstitute
+  const substituteSubItems = showSubstitute
     ? [
         { href: "/academic/substitute", label: "จัดครูสอนแทนออนไลน์", icon: ArrowRightLeft },
         { href: "/academic/substitute?view=history", label: "บันทึกและประวัติสอนแทน", icon: ClipboardList },
       ]
     : [];
 
-  const supervisionSubItems = enableSupervision
+  const supervisionSubItems = showSupervision
     ? [
         { href: "/academic/supervision", label: "นิเทศการสอนออนไลน์", icon: CheckSquare },
         { href: "/academic/supervision?view=summary", label: "สรุปผลและรายงานนิเทศ", icon: FileSpreadsheet },
       ]
     : [];
 
-  const examSubItems = enableExam
+  const omrSubItems = showExam
+    ? [
+        { href: "/academic/exam/omr", label: "ศูนย์ตรวจข้อสอบ OMR", icon: ScanLine },
+        { href: "/academic/exam/scan", label: "สแกนตรวจข้อสอบ (กล้อง)", icon: Sparkles },
+        { href: "/academic/exam/omr/create", label: "สร้างชุดข้อสอบ & เฉลย", icon: Plus },
+      ]
+    : [];
+
+  const examSubItems = showExam
     ? [
         { href: "/academic/exam", label: "จัดตารางสอบ & ผังที่นั่ง", icon: FileText },
-        { href: "/academic/exam/omr", label: "ตรวจข้อสอบ OMR อัตโนมัติ", icon: ScanLine },
       ]
     : [];
 
@@ -952,6 +967,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
     if (path.startsWith("/logs") && !activePerms.logs?.includes(key)) return false;
     if (path.startsWith("/users") && !activePerms.users?.includes(key)) return false;
     if (path.startsWith("/settings")) {
+      if (path.startsWith("/settings/privacy")) return true;
       const section = searchParams?.get("section");
       if (section === "manual-import" && activePerms.manual_import?.includes(key)) {
         return true;
@@ -1129,18 +1145,33 @@ function AppContent({ children }: { children: React.ReactNode }) {
           </div>
 
           {/* Section 3: วิชาการ */}
-          {(academicPlanningSubItems.length > 0 || timetableSubItems.length > 0 || substituteSubItems.length > 0 || supervisionSubItems.length > 0 || examSubItems.length > 0 || (enableAcademicSettings && isAdmin)) && (
+          {(academicPlanningSubItems.length > 0 || timetableSubItems.length > 0 || substituteSubItems.length > 0 || supervisionSubItems.length > 0 || examSubItems.length > 0 || omrSubItems.length > 0 || showExam || showTimetable || showSubstitute || showSupervision || isAdmin) && (
             <div className="space-y-1.5">
               <div className="px-3 pb-0.5 text-[11.5px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
                 วิชาการ
               </div>
 
-              {/* ศูนย์วางแผนวิชาการ */}
-              {academicPlanningSubItems.length > 0 && (
+              {/* ศูนย์งานวิชาการ */}
+              {renderNavItem({ href: "/academic", label: "ศูนย์งานวิชาการ", icon: GraduationCap })}
+
+              {/* ระบบตรวจข้อสอบ OMR */}
+              {omrSubItems.length > 0 && (
                 <CollapsibleGroup
-                  title="ศูนย์วางแผนวิชาการ"
-                  icon={Layers}
-                  items={academicPlanningSubItems}
+                  title="ระบบตรวจข้อสอบ OMR"
+                  icon={ScanLine}
+                  items={omrSubItems}
+                  pathname={pathname}
+                  searchParams={searchParams}
+                  renderNavItem={renderNavItem}
+                />
+              )}
+
+              {/* ระบบจัดตารางสอบ */}
+              {examSubItems.length > 0 && (
+                <CollapsibleGroup
+                  title="ระบบจัดตารางสอบ"
+                  icon={FileText}
+                  items={examSubItems}
                   pathname={pathname}
                   searchParams={searchParams}
                   renderNavItem={renderNavItem}
@@ -1183,12 +1214,12 @@ function AppContent({ children }: { children: React.ReactNode }) {
                 />
               )}
 
-              {/* ระบบจัดตารางสอบ */}
-              {examSubItems.length > 0 && (
+              {/* ศูนย์วางแผนวิชาการ */}
+              {academicPlanningSubItems.length > 0 && (
                 <CollapsibleGroup
-                  title="ระบบจัดตารางสอบ"
-                  icon={FileText}
-                  items={examSubItems}
+                  title="ศูนย์วางแผนวิชาการ"
+                  icon={Layers}
+                  items={academicPlanningSubItems}
                   pathname={pathname}
                   searchParams={searchParams}
                   renderNavItem={renderNavItem}
@@ -1262,7 +1293,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
             </div>
           )}
 
-          <div className="pt-2">
+          <div className="pt-2 space-y-1">
             <Link href="/profile">
               <div className={`relative flex items-center gap-2.5 px-3 py-2 rounded-xl text-[13px] font-medium transition-all duration-200 group overflow-hidden ${
                 pathname === "/profile" 
@@ -1274,6 +1305,19 @@ function AppContent({ children }: { children: React.ReactNode }) {
                 )}
                 <UserCircle className={`w-4 h-4 transition-transform duration-200 ${pathname === "/profile" ? "scale-110" : "group-hover:scale-110"}`} />
                 <span className="flex-1 truncate">{t("profile")}</span>
+              </div>
+            </Link>
+            <Link href="/settings/privacy">
+              <div className={`relative flex items-center gap-2.5 px-3 py-2 rounded-xl text-[13px] font-medium transition-all duration-200 group overflow-hidden ${
+                pathname === "/settings/privacy" 
+                  ? "text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/10 font-bold" 
+                  : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-800/50"
+              }`}>
+                {pathname === "/settings/privacy" && (
+                  <motion.div layoutId="activeNav" className="absolute left-0 top-1/4 bottom-1/4 w-1 bg-indigo-500 rounded-r-full" />
+                )}
+                <ShieldCheck className={`w-4 h-4 transition-transform duration-200 ${pathname === "/settings/privacy" ? "scale-110" : "group-hover:scale-110"}`} />
+                <span className="flex-1 truncate">{lang === "en" ? "Privacy & PDPA" : "ความเป็นส่วนตัว & PDPA"}</span>
               </div>
             </Link>
           </div>
@@ -1384,6 +1428,8 @@ function AppContent({ children }: { children: React.ReactNode }) {
           </div>
         </Link>
       </div>
+
+      {user?.id && <PolicyUpdateNotifier userId={user.id} />}
     </div>
   );
 }

@@ -1,6 +1,6 @@
-import { describe, it } from 'node:test';
+import { describe, it, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { prisma } from '../../../src/lib/db.ts';
+import { prisma, pool } from '../../../src/lib/db.ts';
 
 import {
   createExamPaperAction,
@@ -201,5 +201,14 @@ describe('Academic OMR End-to-End Workflow & Integrity Pipeline', () => {
 
     // Item 1 was answered correctly by both students (p = 1.0, discrimination = 0)
     assert.equal(analysis.itemStats[0].correctCount, 2);
+  });
+
+  after(async () => {
+    try {
+      await pool.end();
+      await prisma.$disconnect();
+    } catch {
+      // ignore
+    }
   });
 });

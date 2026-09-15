@@ -1,10 +1,10 @@
 async function getPrisma(override?: any) {
   if (override) return override;
   try {
-    const mod = await import("@/lib/db");
+    const mod = await import("../../lib/db.ts");
     return mod.prisma;
   } catch {
-    const mod = await import("../../lib/db");
+    const mod = await import("@/lib/db.ts");
     return mod.prisma;
   }
 }
@@ -12,13 +12,13 @@ async function getPrisma(override?: any) {
 async function getAttachmentLifecycle(override?: any) {
   if (override) return override;
   try {
-    return await import("@/services/storage/attachment-lifecycle.service");
+    return await import("../storage/attachment-lifecycle.service.ts");
   } catch {
-    return await import("../storage/attachment-lifecycle.service");
+    return await import("@/services/storage/attachment-lifecycle.service.ts");
   }
 }
 
-export type RecycleBinItemType = "CERTIFICATE" | "DOCUMENT" | "LEAVE";
+export type RecycleBinItemType = "CERTIFICATE" | "DOCUMENT" | "LEAVE" | "EXAM_PAPER";
 
 export interface UserContext {
   userId: string;
@@ -234,6 +234,23 @@ export function evaluateRecycleBinPermission(
     return { allowed: false, reason: "ท่านไม่มีสิทธิ์จัดการเกียรติบัตรของผู้อื่น" };
   }
 
+  if (type === "EXAM_PAPER") {
+    if (action === "PURGE") {
+      // Hard purge is strictly Admin-only
+      if (!isAdmin) {
+        return { allowed: false, reason: "การลบข้อสอบถาวร (Purge) ทำได้เฉพาะผู้ดูแลระบบเท่านั้น" };
+      }
+      return { allowed: true };
+    }
+
+    // Soft-delete and Restore: Teacher creator or Admin
+    if (isAdmin || (itemOwnerId && itemOwnerId === user.userId)) {
+      return { allowed: true };
+    }
+
+    return { allowed: false, reason: "ท่านไม่มีสิทธิ์จัดการชุดข้อสอบของผู้อื่น" };
+  }
+
   return { allowed: false, reason: "ประเภทรายการไม่ถูกต้อง" };
 }
 
@@ -349,6 +366,53 @@ export class RecycleBinService {
           refundedQuotaDays: refundedDays,
         };
       });
+    }
+
+    if (type === "EXAM_PAPER") {
+      return await prisma.$transaction(async (tx: any) => {
+        const paper = await tx.examPaper.findUnique({
+          where: { id },
+          select: { id: true, createdById: true, isDeleted: true, purgeAt: true, title: true, subjectCode: true },
+        });
+
+        if (!paper) return { success: false, error: "ไม่พบชุดข้อสอบ" };
+
+        const perm = evaluateRecycleBinPermission("DELETE", "EXAM_PAPER", user, paper.createdById);
+        if (!perm.allowed) return { success: false, error: perm.reason };
+
+        if (paper.isDeleted) {
+          return { success: true, message: "ALREADY_DELETED", purgeAt: paper.purgeAt || staticPurgeAt };
+        }
+
+        await tx.examPaper.update({
+          where: { id },
+          data: {
+            isDeleted: true,
+            deletedAt: now,
+            deletedById: user.userId,
+            purgeAt: staticPurgeAt,
+          },
+        });
+
+        await tx.examAuditLog.create({
+          data: {
+            examPaperIdSnapshot: paper.id,
+            action: "PAPER_SOFT_DELETED",
+            performedByUserId: user.userId,
+            details: {
+              reason: reason || "ย้ายชุดข้อสอบลงถังขยะ",
+              title: paper.title,
+              subjectCode: paper.subjectCode,
+              purgeAt: staticPurgeAt.toISOString(),
+            },
+          },
+        });
+
+        return {
+          success: true,
+          purgeAt: staticPurgeAt,
+        };
+      }, { maxWait: 15000, timeout: 30000 });
     }
 
     return { success: false, error: "Invalid item type" };
@@ -622,6 +686,77 @@ export class RecycleBinService {
       });
     }
 
+    if (type === "EXAM_PAPER") {
+      return await prisma.$transaction(async (tx: any) => {
+        const paper = await tx.examPaper.findUnique({
+          where: { id },
+          select: { id: true, createdById: true, isDeleted: true, title: true, subjectCode: true, academicYear: true, term: true },
+        });
+
+        if (!paper) return { success: false, error: "ไม่พบชุดข้อสอบ" };
+
+        const perm = evaluateRecycleBinPermission("RESTORE", "EXAM_PAPER", user, paper.createdById);
+        if (!perm.allowed) return { success: false, error: perm.reason };
+
+        if (!paper.isDeleted) {
+          return { success: true, message: "ALREADY_ACTIVE" };
+        }
+
+        // Conflict check: Active paper with same subjectCode, academicYear, term, title for this teacher
+        const existingActive = await tx.examPaper.findFirst({
+          where: {
+            createdById: paper.createdById,
+            isDeleted: false,
+            subjectCode: paper.subjectCode,
+            academicYear: paper.academicYear,
+            term: paper.term,
+            title: paper.title,
+            id: { not: id },
+          },
+        });
+
+        let restoredTitle = paper.title;
+        let conflictRenamed = false;
+        if (existingActive) {
+          conflictRenamed = true;
+          const now = new Date();
+          const dateFormatted = `${now.getDate().toString().padStart(2, '0')}/${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear() + 543} ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+          restoredTitle = `${paper.title} (กู้คืนเมื่อ ${dateFormatted})`;
+        }
+
+        await tx.examPaper.update({
+          where: { id },
+          data: {
+            title: restoredTitle,
+            isDeleted: false,
+            deletedAt: null,
+            deletedById: null,
+            purgeAt: null,
+          },
+        });
+
+        await tx.examAuditLog.create({
+          data: {
+            examPaperIdSnapshot: paper.id,
+            action: conflictRenamed ? "PAPER_RESTORED_CONFLICT_RENAMED" : "PAPER_RESTORED",
+            performedByUserId: user.userId,
+            details: {
+              originalTitle: paper.title,
+              restoredTitle: restoredTitle,
+              conflictRenamed,
+              subjectCode: paper.subjectCode,
+            },
+          },
+        });
+
+        return {
+          success: true,
+          message: conflictRenamed ? `กู้คืนชุดข้อสอบสำเร็จ (เปลี่ยนชื่อเป็น "${restoredTitle}" เพื่อป้องกันชื่อซ้ำ)` : "กู้คืนชุดข้อสอบสำเร็จ",
+          newDocNo: paper.subjectCode,
+        };
+      }, { maxWait: 15000, timeout: 30000 });
+    }
+
     return { success: false, error: "Invalid item type" };
   }
 
@@ -686,6 +821,20 @@ export class RecycleBinService {
 
         await tx.leaveRequest.delete({ where: { id } });
         return { success: true, releasedAttachmentCount: releasedCount };
+      });
+    }
+
+    if (type === "EXAM_PAPER") {
+      return await prisma.$transaction(async (tx: any) => {
+        const paper = await tx.examPaper.findUnique({
+          where: { id },
+          select: { id: true, createdById: true },
+        });
+
+        if (!paper) return { success: false, error: "ไม่พบชุดข้อสอบ" };
+
+        await tx.examPaper.delete({ where: { id } });
+        return { success: true };
       });
     }
 
@@ -919,6 +1068,49 @@ export class RecycleBinService {
           status: l.status,
           createdById: l.userId,
           createdByName: l.user?.name || undefined,
+        });
+      }
+    }
+
+    // 3. Fetch Exam Papers (Admin sees all, Teacher sees own)
+    if (!type || type === "EXAM_PAPER") {
+      const examWhere: any = { isDeleted: true };
+      if (!isAdmin && userId) {
+        examWhere.createdById = userId;
+      }
+      if (search) {
+        examWhere.OR = [
+          { title: { contains: search, mode: "insensitive" } },
+          { subjectCode: { contains: search, mode: "insensitive" } },
+          { subjectName: { contains: search, mode: "insensitive" } },
+        ];
+      }
+
+      const papers = await prisma.examPaper.findMany({
+        where: examWhere,
+        include: {
+          createdBy: { select: { name: true } },
+          deletedBy: { select: { name: true } },
+        },
+        orderBy: { deletedAt: "desc" },
+      });
+
+      for (const p of papers) {
+        const purgeDate = p.purgeAt || calculateStaticPurgeDate(p.deletedAt || now);
+        results.push({
+          id: p.id,
+          type: "EXAM_PAPER",
+          title: `[${p.subjectCode}] ${p.subjectName} - ${p.title}`,
+          docNo: p.subjectCode,
+          originalDate: p.createdAt,
+          deletedAt: p.deletedAt || now,
+          purgeAt: purgeDate,
+          deletedById: p.deletedById || undefined,
+          deletedByName: p.deletedBy?.name || undefined,
+          daysRemaining: calculateDaysRemaining(purgeDate, now),
+          status: "DELETED",
+          createdById: p.createdById,
+          createdByName: p.createdBy?.name || undefined,
         });
       }
     }

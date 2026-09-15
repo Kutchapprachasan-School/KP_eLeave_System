@@ -847,7 +847,7 @@ test('Recycle Bin, Chrono Guard & Verified Font Studio Invariants Suite', async 
   // Test 74: Certificate Restore Timeline Tail (latestActiveDate Active Filter)
   // -------------------------------------------------------------
   await t.test('74. Certificate Restore Timeline Tail: latestActiveDate strictly ignores deleted records in trash', async () => {
-    const today = new Date('2026-09-13T00:00:00Z');
+    const today = new Date();
     const activeDate = new Date('2026-09-10T00:00:00Z');
     const deletedFutureDate = new Date('2026-09-25T00:00:00Z'); // Deleted record with future date in trash
 

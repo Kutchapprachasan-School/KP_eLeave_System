@@ -69,7 +69,10 @@ model User {
   policyAcknowledgments      PolicyAcknowledgment[]
   consentRecords             ConsentRecord[]
   examPapersCreated          ExamPaper[]           @relation("ExamCreatedBy")
+  deletedExamPapers          ExamPaper[]           @relation("ExamDeletedByUser")
+  keyVersionsChanged         ExamAnswerKeyVersion[] @relation("KeyVersionChangedBy")
   scannedSubmissions         ExamSubmission[]      @relation("ExamScannedBy")
+  regradeJobsCreated         ExamRegradeJob[]      @relation("ExamRegradeJobCreator")
 }
 
 model Session {
@@ -2107,33 +2110,81 @@ model ExamTemplate {
 // 2. EXAM PAPER & PRINTED SHEET REGISTRY
 // ─────────────────────────────────────────────────────────────────────────────
 model ExamPaper {
-  id              String             @id @default(cuid())
-  subjectCode     String             // e.g. "ว23101"
-  subjectName     String             // e.g. "วิทยาศาสตร์ 5"
-  academicYear    Int                // e.g. 2026
-  term            Int                // 1 หรือ 2
-  gradeLevel      String             // e.g. "ม.3"
-  title           String             // e.g. "สอบกลางภาคเรียนที่ 1/2569"
+  id                   String                 @id @default(cuid())
+  subjectCode          String                 // e.g. "ว23101"
+  subjectName          String                 // e.g. "วิทยาศาสตร์ 5"
+  academicYear         Int                    // e.g. 2026
+  term                 Int                    // 1 หรือ 2
+  gradeLevel           String                 // e.g. "ม.3"
+  title                String                 // e.g. "สอบกลางภาคเรียนที่ 1/2569"
   
-  templateId      String
-  template        ExamTemplate       @relation(fields: [templateId], references: [id], onDelete: Restrict)
+  templateId           String
+  template             ExamTemplate           @relation(fields: [templateId], references: [id], onDelete: Restrict)
   
-  totalItems      Int                @default(50)
-  maxScore        Decimal            @db.Decimal(6, 2)
-  passScore       Decimal            @db.Decimal(6, 2)
+  totalItems           Int                    @default(50)
+  maxScore             Decimal                @db.Decimal(6, 2)
+  passScore            Decimal                @db.Decimal(6, 2)
+
+  totalSubjectiveItems Int                    @default(0)
+  subjectiveMaxScore   Decimal                @default(0.00) @db.Decimal(6, 2)
   
-  createdById     String
-  createdBy       User               @relation("ExamCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  createdById          String
+  createdBy            User                   @relation("ExamCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
   
-  answerKeys      ExamAnswerKey[]
-  printedSheets   ExamPrintedSheet[]
-  submissions     ExamSubmission[]
+  isDeleted            Boolean                @default(false)
+  deletedAt            DateTime?
+  deletedById          String?
+  deletedBy            User?                  @relation("ExamDeletedByUser", fields: [deletedById], references: [id], onDelete: SetNull)
+  purgeAt              DateTime?
+
+  answerKeys           ExamAnswerKey[]
+  keyVersions          ExamAnswerKeyVersion[]
+  subjectiveItems      ExamSubjectiveItem[]
+  printedSheets        ExamPrintedSheet[]
+  submissions          ExamSubmission[]
+  regradeJobs          ExamRegradeJob[]
   
-  createdAt       DateTime           @default(now())
-  updatedAt       DateTime           @updatedAt
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
 
   @@index([subjectCode, academicYear, term])
-  @@index([createdById])
+  @@index([createdById, isDeleted])
+  @@index([isDeleted, purgeAt])
+}
+
+model ExamSubjectiveItem {
+  id           String     @id @default(cuid())
+  examPaperId  String
+  examPaper    ExamPaper  @relation(fields: [examPaperId], references: [id], onDelete: Cascade)
+  itemNo       Int        // 1..totalSubjectiveItems
+  title        String     // คำถาม / คำชี้แจง
+  maxScore     Decimal    @db.Decimal(5, 2)
+  rubricDetail String?    // เกณฑ์คะแนน
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@unique([examPaperId, itemNo], map: "uk_subjective_item_paper_no")
+  @@index([examPaperId])
+}
+
+model ExamAnswerKeyVersion {
+  id          String     @id @default(cuid())
+  examPaperId String
+  examPaper   ExamPaper  @relation(fields: [examPaperId], references: [id], onDelete: Cascade)
+  version     Int        // 1, 2, 3...
+  keyPayload  Json       // Snapshot of answers [{ itemNo: 1, correctChoices: ["A"], points: 1.0 }, ...]
+  totalItems  Int
+  maxScore    Decimal    @db.Decimal(6, 2)
+  changedById String
+  changedBy   User       @relation("KeyVersionChangedBy", fields: [changedById], references: [id], onDelete: Restrict)
+  reason      String?
+  createdAt   DateTime   @default(now())
+
+  submissions ExamSubmission[]
+  regradeJobs ExamRegradeJob[]
+
+  @@unique([examPaperId, version], map: "uk_paper_key_version")
+  @@index([examPaperId])
 }
 
 model ExamPrintedSheet {
@@ -2205,12 +2256,16 @@ model ExamSubmission {
   
   // ⚠️ DERIVED MATERIALIZED SNAPSHOT ONLY: Updated exclusively via recalculateSubmissionScore
   rawScore            Decimal              @db.Decimal(6, 2)
+  subjectiveScore     Decimal              @default(0.00) @db.Decimal(6, 2)
+  subjectiveScores    Json?                // Map of itemNo -> score
   netScore            Decimal              @db.Decimal(6, 2)
   totalCorrect        Int                  @default(0)
   totalIncorrect      Int                  @default(0)
   totalBlanks         Int                  @default(0)
   totalMultiple       Int                  @default(0)
   gradingVersion      Int                  @default(1)
+  gradingVersionId    String?
+  gradingKeyVersion   ExamAnswerKeyVersion? @relation(fields: [gradingVersionId], references: [id], onDelete: SetNull)
   
   confidenceAvg       Decimal              @db.Decimal(4, 3)
   hasAnomalies        Boolean              @default(false)
@@ -2233,6 +2288,8 @@ model ExamSubmission {
   @@index([examPaperId, classroom])
   @@index([scannedByUserId])
   @@index([syncStatus])
+  @@index([gradingVersionId])
+  @@index([examPaperId, isLatestAttempt, createdAt, id], map: "ExamSubmission_paper_latest_created_id_idx")
 }
 
 // ⭐ SINGLE SOURCE OF TRUTH (Leaf Item Scores)
@@ -2266,9 +2323,9 @@ model ExamAuditLog {
   examPaperIdSnapshot  String       // Pure Snapshot Scalar
   submissionIdSnapshot String?      // Pure Snapshot Scalar
   
-  action               String       // "SCAN_INGEST", "MANUAL_OVERRIDE", "RECALCULATE_SCORES"
+  action               String       // "SCAN_INGEST", "MANUAL_OVERRIDE", "RECALCULATE_SCORES", "ANSWER_KEY_MUTATION", "PAPER_RESTORED"
   performedByUserId    String       // User ID Snapshot
-  details              Json         // Diff: { itemNo, oldChoice, newChoice, oldScore, newScore }
+  details              Json         // Diff / Snapshot details
   ipAddress            String?
   userAgent            String?
   createdAt            DateTime     @default(now())
@@ -2276,5 +2333,44 @@ model ExamAuditLog {
   @@index([examPaperIdSnapshot, createdAt], map: "idx_audit_paper_created")
   @@index([performedByUserId], map: "idx_audit_user")
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 6. ASYNCHRONOUS REGRADE JOB & CONCURRENCY LEASE
+// ─────────────────────────────────────────────────────────────────────────────
+enum RegradeJobStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  SUPERSEDED
+}
+
+model ExamRegradeJob {
+  id                   String               @id @default(cuid())
+  examPaperId          String
+  examPaper            ExamPaper            @relation(fields: [examPaperId], references: [id], onDelete: Cascade)
+  targetKeyVersionId   String
+  targetKeyVersion     ExamAnswerKeyVersion @relation(fields: [targetKeyVersionId], references: [id], onDelete: Cascade)
+  status               RegradeJobStatus     @default(PENDING)
+  workerToken          String?
+  leaseExpiresAt       DateTime?
+  totalSubmissions     Int                  @default(0)
+  processedSubmissions Int                  @default(0)
+  snapshotEndCreatedAt DateTime?
+  snapshotEndId        String?
+  cursorCreatedAt      DateTime?
+  cursorId             String?
+  batchSize            Int                  @default(50)
+  errorMessage         String?
+  createdById          String?
+  createdBy            User?                @relation("ExamRegradeJobCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  startedAt            DateTime?
+  completedAt          DateTime?
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+
+  @@index([examPaperId, status])
+}
+
 
 

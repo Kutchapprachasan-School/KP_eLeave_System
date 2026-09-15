@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/db";
+import { prisma } from "../db.ts";
 import { ExamSheetType } from "@prisma/client";
 
 export interface BubbleCoordinate {

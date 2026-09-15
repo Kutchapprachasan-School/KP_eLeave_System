@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import Link from "next/link";
 import { 
   FileText, 
   Sparkles, 
@@ -13,7 +14,8 @@ import {
   Clock, 
   Download,
   Plus,
-  RefreshCw
+  RefreshCw,
+  ScanLine
 } from "lucide-react";
 import { ExamService } from "@/lib/services/examService";
 
@@ -70,6 +72,14 @@ export default function AcademicExamPage() {
             <option value="MIDTERM">การสอบกลางภาคเรียน</option>
             <option value="FINAL">การสอบปลายภาคเรียน</option>
           </select>
+
+          <Link
+            href="/academic/exam/omr"
+            className="px-3.5 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs shadow-md transition flex items-center gap-1.5"
+          >
+            <ScanLine className="w-3.5 h-3.5 text-purple-200" />
+            ศูนย์ตรวจข้อสอบ OMR
+          </Link>
 
           <button
             onClick={handleGenerateExamSlots}
@@ -144,6 +154,7 @@ export default function AcademicExamPage() {
                   <th className="p-3">ชั้นเรียนสอบ</th>
                   <th className="p-3">ห้องสอบ</th>
                   <th className="p-3">ครูผู้คุมสอบ</th>
+                  <th className="p-3 text-center">กระดาษคำตอบ OMR</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
@@ -157,6 +168,15 @@ export default function AcademicExamPage() {
                     <td className="p-3 font-bold text-purple-600">{slot.targetClassrooms?.join(", ")}</td>
                     <td className="p-3 font-semibold text-emerald-600">{slot.assignedRoom}</td>
                     <td className="p-3 text-slate-600 dark:text-slate-300">{slot.supervisors?.join(", ")}</td>
+                    <td className="p-3 text-center">
+                      <Link
+                        href={`/academic/exam/omr/create?subjectCode=${slot.subjectCode}&subjectName=${encodeURIComponent(slot.subjectName)}&classroom=${encodeURIComponent(slot.targetClassrooms?.join(",") || "")}&academicYear=2569&term=${examType === "MIDTERM" ? 1 : 2}&title=${encodeURIComponent(`สอบ${examType === "MIDTERM" ? "กลางภาค" : "ปลายภาค"}วิชา${slot.subjectName}`)}`}
+                        className="px-2.5 py-1.5 rounded-xl bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/50 font-bold text-[11px] transition inline-flex items-center gap-1.5 border border-purple-200 dark:border-purple-800/40 shadow-xs"
+                      >
+                        <Sparkles className="w-3 h-3 text-purple-500" />
+                        สร้างกระดาษคำตอบ OMR
+                      </Link>
+                    </td>
                   </tr>
                 ))}
               </tbody>
