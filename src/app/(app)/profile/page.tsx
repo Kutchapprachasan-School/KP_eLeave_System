@@ -185,8 +185,8 @@ export default function ProfilePage() {
       await updateProfile({ name, email, subjectGroup, address, phoneNumber, level });
       await refetch();
       showToast("success", t("profileUpdateSuccess"));
-    } catch (error) {
-      showToast("error", t("profileUpdateError"));
+    } catch (error: any) {
+      showToast("error", error?.message || t("profileUpdateError"));
     } finally {
       setSavingProfile(false);
     }

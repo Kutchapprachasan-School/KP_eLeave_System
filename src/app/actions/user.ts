@@ -186,11 +186,32 @@ export async function updateProfile(data: {
     }
   }
 
+  let normalizedEmail: string | undefined = undefined;
+  if (data.email !== undefined) {
+    const trimmed = data.email.trim().toLowerCase();
+    if (trimmed) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(trimmed)) {
+        throw new Error("รูปแบบอีเมลไม่ถูกต้อง");
+      }
+      const existingUser = await prisma.user.findFirst({
+        where: {
+          email: trimmed,
+          id: { not: session.user.id }
+        }
+      });
+      if (existingUser) {
+        throw new Error(`อีเมล "${trimmed}" มีผู้ใช้งานในระบบแล้ว`);
+      }
+      normalizedEmail = trimmed;
+    }
+  }
+
   const updatedUser = await prisma.user.update({
     where: { id: session.user.id },
     data: {
       name: data.name,
-      email: data.email !== undefined ? data.email : undefined,
+      ...(normalizedEmail !== undefined && { email: normalizedEmail }),
       subjectGroup: data.subjectGroup,
       lineUserId: data.lineUserId,
       image: finalImageUrl !== undefined ? finalImageUrl : undefined,
@@ -201,6 +222,22 @@ export async function updateProfile(data: {
       level: data.level !== undefined ? data.level : undefined,
     }
   });
+
+  if (normalizedEmail) {
+    try {
+      await prisma.account.updateMany({
+        where: {
+          userId: session.user.id,
+          providerId: "credential"
+        },
+        data: {
+          accountId: normalizedEmail
+        }
+      });
+    } catch (e) {
+      console.warn("[updateProfile] Account credential sync fallback:", e);
+    }
+  }
 
   revalidatePath("/profile");
   return { success: true };
