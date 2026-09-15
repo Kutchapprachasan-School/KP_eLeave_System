@@ -362,6 +362,12 @@ export default async function PublicPrivacyPage() {
                     </span>
                   </div>
                   <div>
+                    <span className="text-slate-400 block text-xs">ชื่อระบบสารสนเทศ:</span>
+                    <span className="text-slate-700 dark:text-slate-300">
+                      {settings?.subheader || "ระบบบริหารจัดการสถานศึกษา"}
+                    </span>
+                  </div>
+                  <div>
                     <span className="text-slate-400 block text-xs">หน่วยงานต้นสังกัด:</span>
                     <span className="text-slate-700 dark:text-slate-300">
                       {settings?.affiliation || "สำนักงานเขตพื้นที่การศึกษามัธยมศึกษาอุดรธานี"}
@@ -370,7 +376,7 @@ export default async function PublicPrivacyPage() {
                   <div>
                     <span className="text-slate-400 block text-xs">ผู้แทนโดยชอบธรรม:</span>
                     <span className="text-slate-700 dark:text-slate-300">
-                      ผู้อำนวยการโรงเรียนกุดจับประชาสรรค์
+                      ผู้อำนวยการ{settings?.schoolName || "โรงเรียนกุดจับประชาสรรค์"}
                     </span>
                   </div>
                 </div>
@@ -384,20 +390,26 @@ export default async function PublicPrivacyPage() {
                   <Mail className="w-5 h-5" />
                 </div>
                 <h3 className="text-lg font-bold text-slate-900 dark:text-white">
-                  เจ้าหน้าที่คุ้มครองข้อมูลส่วนบุคคล (DPO)
+                  เจ้าหน้าที่คุ้มครองข้อมูลส่วนบุคคล (DPO) / สารสนเทศ
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                  Data Protection Officer ประจำสถานศึกษา
+                  Data Protection Officer และผู้ดูแลระบบสารสนเทศประจำสถานศึกษา
                 </p>
 
                 <div className="mt-4 space-y-2.5 text-xs sm:text-sm">
                   <div>
+                    <span className="text-slate-400 block text-xs">เจ้าหน้าที่ผู้รับผิดชอบ:</span>
+                    <span className="font-medium text-slate-800 dark:text-slate-200">
+                      {settings?.adminName || "เจ้าหน้าที่สารสนเทศและคุ้มครองข้อมูลส่วนบุคคล"}
+                    </span>
+                  </div>
+                  <div>
                     <span className="text-slate-400 block text-xs">ช่องทางติดต่อทางอิเล็กทรอนิกส์:</span>
                     <a
-                      href={`mailto:${ropaSummary?.[0]?.dpoContact || "kpschool_dpo@obec.moe.go.th"}`}
+                      href={`mailto:${settings?.adminEmail || ropaSummary?.[0]?.dpoContact || "kpschool_dpo@obec.moe.go.th"}`}
                       className="font-semibold text-teal-600 dark:text-teal-400 hover:underline flex items-center gap-1 mt-0.5"
                     >
-                      {ropaSummary?.[0]?.dpoContact || "kpschool_dpo@obec.moe.go.th"}
+                      {settings?.adminEmail || ropaSummary?.[0]?.dpoContact || "kpschool_dpo@obec.moe.go.th"}
                       <ExternalLink className="w-3.5 h-3.5" />
                     </a>
                   </div>
@@ -405,7 +417,7 @@ export default async function PublicPrivacyPage() {
                     <span className="text-slate-400 block text-xs">การใช้สิทธิของเจ้าของข้อมูล (DSR):</span>
                     <span className="text-slate-700 dark:text-slate-300">
                       เจ้าของข้อมูลส่วนบุคคลสามารถใช้สิทธิขอเข้าถึง ขอแก้ไข ขอคัดค้าน หรือขอให้ระงับการใช้ข้อมูล
-                      ได้โดยติดต่อผ่านทาง DPO ของสถานศึกษา
+                      ได้โดยติดต่อผ่านทางเจ้าหน้าที่สารสนเทศ / DPO ของสถานศึกษา
                     </span>
                   </div>
                 </div>

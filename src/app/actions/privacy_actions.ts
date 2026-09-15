@@ -621,6 +621,17 @@ export async function getPublicPrivacyData() {
   if (!settings) {
     settings = await prisma.systemSettings.findFirst();
   }
+
+  // Query registered administrator to provide dynamic IT / DPO contact email
+  const adminUser = await prisma.user.findFirst({
+    where: { role: "ADMIN" },
+    orderBy: { createdAt: "asc" },
+    select: { email: true, name: true }
+  });
+
+  const adminEmail = adminUser?.email || "kpschool_dpo@obec.moe.go.th";
+  const adminName = adminUser?.name || "เจ้าหน้าที่สารสนเทศและคุ้มครองข้อมูลส่วนบุคคล";
+
   const safeSettings = settings
     ? {
         schoolName: settings.schoolName,
@@ -628,6 +639,8 @@ export async function getPublicPrivacyData() {
         affiliation: settings.affiliation,
         logoUrl: settings.logoUrl,
         footerText: settings.footerText,
+        adminEmail,
+        adminName,
       }
     : {
         schoolName: "โรงเรียนกุดจับประชาสรรค์",
@@ -635,10 +648,24 @@ export async function getPublicPrivacyData() {
         affiliation: "สำนักงานเขตพื้นที่การศึกษามัธยมศึกษาอุดรธานี",
         logoUrl: "",
         footerText: "",
+        adminEmail,
+        adminName,
       };
 
+  // Dynamically resolve template variables so notice matches active school settings and admin email
+  const resolvedNotice = notice
+    ? {
+        ...notice,
+        contentMarkdown: notice.contentMarkdown
+          .replaceAll("kpschool_dpo@obec.moe.go.th", adminEmail)
+          .replaceAll("โรงเรียนกุดจับประชาสรรค์", safeSettings.schoolName)
+          .replaceAll("สำนักงานเขตพื้นที่การศึกษามัธยมศึกษาอุดรธานี", safeSettings.affiliation)
+          .replaceAll("KP e-Leave & School Operations Platform", `${safeSettings.schoolName} (${safeSettings.subheader || "ระบบบริหารจัดการสถานศึกษา"})`),
+      }
+    : null;
+
   return {
-    notice,
+    notice: resolvedNotice,
     ropaSummary,
     settings: safeSettings,
   };
