@@ -1,148 +1,208 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { ShieldCheck, ArrowRight, X } from "lucide-react";
+import React, { useState, useEffect, useCallback } from "react";
+import { Shield, Info, X, ExternalLink } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { checkUserPolicyStatusAction, acknowledgeUserPolicyAction } from "@/app/actions/privacy_actions";
+import {
+  checkUserPolicyAcknowledgmentStatus,
+  acknowledgePolicyForCurrentUser,
+} from "@/app/actions/privacy_actions";
 import { PolicyModal } from "./PolicyModal";
 
-interface PolicyUpdateNotifierProps {
-  userId: string;
+interface PolicyDoc {
+  id: string;
+  type: string;
+  version: string;
+  title: string;
+  contentMarkdown: string;
+  contentHash: string;
+  effectiveAt: string | Date;
 }
 
-export function PolicyUpdateNotifier({ userId }: PolicyUpdateNotifierProps) {
-  const [status, setStatus] = useState<{
-    hasUnacknowledged: boolean;
-    pendingNotice: any;
-    pendingTerms: any;
-  } | null>(null);
+interface AckStatus {
+  noticeNeedsAck: boolean;
+  termsNeedsAck: boolean;
+  currentNotice?: any;
+  currentTerms?: any;
+  previousNoticeMarkdown?: string;
+  previousTermsMarkdown?: string;
+  previousNoticeVersion?: string;
+  previousTermsVersion?: string;
+}
 
-  const [activeModalPolicy, setActiveModalPolicy] = useState<{
-    doc: any;
-    type: "NOTICE" | "TERMS";
-  } | null>(null);
+export function PolicyUpdateNotifier() {
+  const [status, setStatus] = useState<AckStatus | null>(null);
+  const [dismissed, setDismissed] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const [isDismissed, setIsDismissed] = useState(false);
+  const fetchStatus = useCallback(async () => {
+    try {
+      if (typeof window !== "undefined") {
+        const isDismissed = sessionStorage.getItem("policy_banner_dismissed") === "true";
+        if (isDismissed) {
+          setDismissed(true);
+          return;
+        }
+      }
+      const res = await checkUserPolicyAcknowledgmentStatus();
+      if (res) {
+        setStatus(res);
+      }
+    } catch (err) {
+      console.error("Failed to fetch policy acknowledgment status:", err);
+    }
+  }, []);
 
   useEffect(() => {
-    if (!userId) return;
-    checkUserPolicyStatusAction(userId)
-      .then((res) => {
-        if (res.success && res.hasUnacknowledged) {
-          setStatus({
-            hasUnacknowledged: res.hasUnacknowledged,
-            pendingNotice: res.pendingNotice,
-            pendingTerms: res.pendingTerms,
-          });
-        }
-      })
-      .catch((err) => console.error("Error loading policy status:", err));
-  }, [userId]);
+    fetchStatus();
+  }, [fetchStatus]);
 
-  if (!status || !status.hasUnacknowledged || isDismissed) return null;
-
-  const currentPending = status.pendingNotice || status.pendingTerms;
-  if (!currentPending) return null;
-
-  const policyType = status.pendingNotice ? "NOTICE" : "TERMS";
-
-  const handleOpenReview = () => {
-    setActiveModalPolicy({
-      doc: currentPending,
-      type: policyType,
-    });
+  const handleDismiss = () => {
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem("policy_banner_dismissed", "true");
+    }
+    setDismissed(true);
   };
+
+  const activePolicy: PolicyDoc | null = status?.noticeNeedsAck
+    ? status.currentNotice
+    : status?.termsNeedsAck
+    ? status.currentTerms
+    : null;
+
+  const activeType: "NOTICE" | "TERMS" | null = status?.noticeNeedsAck
+    ? "NOTICE"
+    : status?.termsNeedsAck
+    ? "TERMS"
+    : null;
+
+  const previousVersionMarkdown =
+    activeType === "NOTICE"
+      ? status?.previousNoticeMarkdown
+      : activeType === "TERMS"
+      ? status?.previousTermsMarkdown
+      : undefined;
+
+  const previousVersion =
+    activeType === "NOTICE"
+      ? status?.previousNoticeVersion
+      : activeType === "TERMS"
+      ? status?.previousTermsVersion
+      : undefined;
 
   const handleAccept = async () => {
-    if (!activeModalPolicy) return;
+    if (!activePolicy || isSubmitting) return;
+    setIsSubmitting(true);
     try {
-      await acknowledgeUserPolicyAction({
-        userId,
-        policyDocumentId: activeModalPolicy.doc.id,
-        source: "APP_UPDATE_BANNER",
-      });
-
-      // Check if there is another unacknowledged policy, or close
-      if (activeModalPolicy.type === "NOTICE" && status.pendingTerms) {
-        setActiveModalPolicy({
-          doc: status.pendingTerms,
-          type: "TERMS",
-        });
-        setStatus((prev) => prev ? { ...prev, pendingNotice: null } : null);
-      } else {
-        setActiveModalPolicy(null);
-        setStatus(null);
+      const res = await acknowledgePolicyForCurrentUser(activePolicy.id);
+      if (res.success) {
+        setIsModalOpen(false);
+        // Refresh status to see if the next document (e.g. terms) needs acknowledgment
+        const nextStatus = await checkUserPolicyAcknowledgmentStatus();
+        setStatus(nextStatus);
       }
-    } catch (e) {
-      console.error("Error acknowledging updated policy:", e);
+    } catch (err) {
+      console.error("Failed to acknowledge policy:", err);
+    } finally {
+      setIsSubmitting(false);
     }
   };
+
+  if (dismissed || !activePolicy || !activeType) {
+    return null;
+  }
+
+  const title =
+    activeType === "NOTICE"
+      ? `แจ้งการปรับปรุงประกาศการคุ้มครองข้อมูลส่วนบุคคล (ฉบับที่ ${activePolicy.version})`
+      : `แจ้งการปรับปรุงเงื่อนไขการใช้งานระบบสารสนเทศ (ฉบับที่ ${activePolicy.version})`;
+
+  const description =
+    activeType === "NOTICE"
+      ? "ระบบได้ปรับปรุงประกาศการคุ้มครองข้อมูลส่วนบุคคลเพื่อให้สอดคล้องกับมาตรฐานความปลอดภัยและ PDPA"
+      : "ระบบได้ปรับปรุงเงื่อนไขและข้อตกลงการใช้งานระบบสารสนเทศ";
 
   return (
     <>
       <AnimatePresence>
-        <motion.div
-          initial={{ opacity: 0, y: 50, scale: 0.95 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: 50, scale: 0.95 }}
-          className="fixed bottom-20 md:bottom-6 right-4 md:right-6 z-50 max-w-md bg-white dark:bg-slate-900 rounded-2xl p-4 shadow-2xl border border-purple-200 dark:border-purple-900/50 flex items-start gap-3.5 backdrop-blur-md"
-        >
-          <div className="w-10 h-10 rounded-xl bg-purple-100 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400 flex items-center justify-center shrink-0 mt-0.5">
-            <ShieldCheck className="w-5 h-5" />
-          </div>
+        {!dismissed && (
+          <motion.div
+            initial={{ opacity: 0, y: 30, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 20, scale: 0.95 }}
+            transition={{ duration: 0.3, ease: "easeOut" }}
+            className="fixed bottom-20 lg:bottom-5 right-4 lg:right-5 z-40 max-w-sm w-[calc(100%-2rem)] sm:w-96 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-purple-200 dark:border-purple-900/50 p-4 overflow-hidden"
+            role="region"
+            aria-label="Policy Update Notification"
+          >
+            {/* Header / Dismiss */}
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-purple-100 dark:bg-purple-900/40 text-purple-600 dark:text-purple-400 flex items-center justify-center shrink-0">
+                  <Shield className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-slate-900 dark:text-white leading-tight">
+                    {title}
+                  </h4>
+                  <span className="inline-flex items-center gap-1 text-[11px] font-medium text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/60 px-2 py-0.5 rounded-full mt-1 border border-purple-200/50 dark:border-purple-800/50">
+                    <Info className="w-3 h-3" />
+                    ฉบับที่ {activePolicy.version}
+                  </span>
+                </div>
+              </div>
+              <button
+                onClick={handleDismiss}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                title="ไว้ภายหลัง"
+                aria-label="ไว้ภายหลัง"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
 
-          <div className="flex-1 min-w-0 pr-2">
-            <h4 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-              แจ้งปรับปรุงประกาศนโยบาย
-              <span className="text-[10px] font-semibold bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 px-1.5 py-0.5 rounded-full">
-                v{currentPending.version}
-              </span>
-            </h4>
-            <p className="text-xs text-slate-600 dark:text-slate-300 mt-1 line-clamp-2">
-              มีการปรับปรุง {currentPending.title} กรุณาเปิดอ่านและรับทราบเพื่อการใช้งานระบบที่สอดคล้องกับ PDPA
+            {/* Description */}
+            <p className="text-xs text-slate-600 dark:text-slate-400 mt-2.5 leading-relaxed">
+              {description}
             </p>
 
-            <div className="flex items-center gap-2 mt-3">
+            {/* Action Buttons */}
+            <div className="flex items-center justify-end gap-2 mt-3.5 pt-2.5 border-t border-slate-100 dark:border-slate-800/80">
               <button
                 type="button"
-                onClick={handleOpenReview}
-                className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-purple-600 to-indigo-600 text-white text-xs font-semibold hover:opacity-95 transition-opacity flex items-center gap-1 shadow-sm"
-              >
-                เปิดอ่านและรับทราบ
-                <ArrowRight className="w-3.5 h-3.5" />
-              </button>
-              <button
-                type="button"
-                onClick={() => setIsDismissed(true)}
-                className="px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                onClick={handleDismiss}
+                className="px-3 py-1.5 text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
               >
                 ไว้ภายหลัง
               </button>
+              <button
+                type="button"
+                onClick={() => setIsModalOpen(true)}
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold text-white bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 rounded-xl shadow-md shadow-purple-500/20 active:scale-[0.98] transition-all cursor-pointer"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                เปิดอ่านและรับทราบ
+              </button>
             </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => setIsDismissed(true)}
-            className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors p-1"
-            title="ปิดการแจ้งเตือนนี้"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </motion.div>
+          </motion.div>
+        )}
       </AnimatePresence>
 
-      {activeModalPolicy && (
+      {/* Full Policy Modal */}
+      {isModalOpen && activePolicy && (
         <PolicyModal
-          isOpen={!!activeModalPolicy}
-          onClose={() => setActiveModalPolicy(null)}
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
           onAccept={handleAccept}
-          title={activeModalPolicy.doc.title}
-          version={activeModalPolicy.doc.version}
-          effectiveDate={activeModalPolicy.doc.effectiveAt}
-          contentHash={activeModalPolicy.doc.contentHash}
-          contentMarkdown={activeModalPolicy.doc.contentMarkdown}
-          type={activeModalPolicy.type}
+          title={activePolicy.title}
+          version={activePolicy.version}
+          effectiveDate={activePolicy.effectiveAt}
+          contentHash={activePolicy.contentHash}
+          contentMarkdown={activePolicy.contentMarkdown}
+          previousVersionMarkdown={previousVersionMarkdown}
+          previousVersion={previousVersion}
+          type={activeType}
         />
       )}
     </>

@@ -1429,7 +1429,8 @@ function AppContent({ children }: { children: React.ReactNode }) {
         </Link>
       </div>
 
-      {user?.id && <PolicyUpdateNotifier userId={user.id} />}
+      {/* Non-coercive Policy Update Notification Banner */}
+      <PolicyUpdateNotifier />
     </div>
   );
 }

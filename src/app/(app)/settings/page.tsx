@@ -2389,6 +2389,13 @@ export default function SettingsPage() {
       href: "/settings/privacy"
     });
   }
+  coreSystemItems.push({
+    id: "privacy",
+    icon: <ShieldCheck className="w-5 h-5 text-teal-600" />,
+    title: lang === "en" ? "Privacy Self-Service Center" : "ศูนย์คุ้มครองข้อมูลส่วนบุคคล & ความยินยอม",
+    description: lang === "en" ? "Manage consent and view acknowledged policies" : "จัดการความยินยอมและตรวจสอบประวัติการยอมรับนโยบาย PDPA",
+    href: "/settings/privacy",
+  });
 
   // --- 2. การตั้งค่าระบบการลา (Leave Subsystem Settings) ---
   const leaveSystemItems: MenuItem[] = [];
@@ -2452,6 +2459,7 @@ export default function SettingsPage() {
 
     }
 
+
   }
 
   // Inspector sees approval + leave-rules + backup + manual-import (if permitted)
@@ -2483,6 +2491,7 @@ export default function SettingsPage() {
       inspectorItems.push({ id: "manual-import", icon: <Plus className="w-5 h-5 text-purple-500" />, title: lang === "en" ? "Manual Leave Entry" : "กรอกข้อมูลใบลาด้วยตนเอง", description: lang === "en" ? "Manually record leave history" : "บันทึกประวัติการลาของบุคลากรย้อนหลังด้วยตนเอง" });
 
     }
+
 
   }
 
@@ -2520,6 +2529,8 @@ export default function SettingsPage() {
 
     "repair-settings": lang === "en" ? "Repair System Settings" : "ตั้งค่าระบบแจ้งซ่อม",
 
+    privacy: lang === "en" ? "Privacy Self-Service Center" : "ศูนย์คุ้มครองข้อมูลส่วนบุคคล & ความยินยอม",
+
   };
 
   // --- Menu Item Component ---
@@ -2536,7 +2547,7 @@ export default function SettingsPage() {
         }
       }}
 
-      className="w-full flex items-center gap-4 px-4 py-4 rounded-2xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:bg-gray-50 dark:hover:bg-gray-800/70 hover:border-gray-200 dark:hover:border-gray-700 transition-all duration-200 group text-left"
+      className="w-full flex items-center gap-4 px-4 py-4 rounded-2xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:bg-gray-50 dark:hover:bg-gray-800/70 hover:border-gray-200 dark:hover:border-gray-700 transition-all duration-200 group text-left cursor-pointer"
 
     >
 
@@ -8702,39 +8713,65 @@ function doPost(e) {
   const renderMenuList = () => {
 
     if (isInspector) {
-
       return (
+        <div className="space-y-6">
+          {coreSystemItems.length > 0 && (
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 pl-2 mb-3">
+                {lang === "en" ? "Global System Settings" : "การตั้งค่าภาพรวมทั้งระบบ"}
+              </p>
+              <div className="space-y-2">
+                {coreSystemItems.map((item) => (
+                  <MenuItemRow key={item.id} item={item} onClick={() => setActiveSection(item.id)} />
+                ))}
+              </div>
+            </div>
+          )}
 
-        <div className="space-y-2">
-
-          {inspectorItems.map((item) => (
-
-            <MenuItemRow key={item.id} item={item} onClick={() => setActiveSection(item.id)} />
-
-          ))}
-
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 pl-2 mb-3 flex items-center gap-1.5">
+              <CalendarDays className="w-3.5 h-3.5" />
+              {lang === "en" ? "Leave Subsystem Settings" : "ตั้งค่าระบบการลา (Leave System)"}
+            </p>
+            <div className="space-y-2">
+              {inspectorItems.map((item) => (
+                <MenuItemRow key={item.id} item={item} onClick={() => setActiveSection(item.id)} />
+              ))}
+            </div>
+          </div>
         </div>
-
       );
-
     }
 
     if (isHRHead) {
-
       return (
+        <div className="space-y-6">
+          {coreSystemItems.length > 0 && (
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 pl-2 mb-3">
+                {lang === "en" ? "Global System Settings" : "การตั้งค่าภาพรวมทั้งระบบ"}
+              </p>
+              <div className="space-y-2">
+                {coreSystemItems.map((item) => (
+                  <MenuItemRow key={item.id} item={item} onClick={() => setActiveSection(item.id)} />
+                ))}
+              </div>
+            </div>
+          )}
 
-        <div className="space-y-2">
-
-          {hrHeadItems.map((item) => (
-
-            <MenuItemRow key={item.id} item={item} onClick={() => setActiveSection(item.id)} />
-
-          ))}
-
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 pl-2 mb-3 flex items-center gap-1.5">
+              <CalendarDays className="w-3.5 h-3.5" />
+              {lang === "en" ? "Leave Subsystem Settings" : "ตั้งค่าระบบการลา (Leave System)"}
+            </p>
+            <div className="space-y-2">
+              {hrHeadItems.map((item) => (
+                <MenuItemRow key={item.id} item={item} onClick={() => setActiveSection(item.id)} />
+              ))}
+            </div>
+          </div>
         </div>
-
       );
-
     }
 
     return (
