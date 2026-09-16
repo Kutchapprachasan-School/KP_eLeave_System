@@ -95,11 +95,17 @@ export async function createExamPaperAction(data: CreateExamPaperInput) {
   await ensureStandardTemplatesAction();
 
   const totalItems = data.totalItems || 50;
-  if (totalItems < 1 || totalItems > 50) {
-    throw new Error("จำนวนข้อสอบปรนัยต้องอยู่ระหว่าง 1 ถึง 50 ข้อ");
+  if (totalItems < 1 || totalItems > 100) {
+    throw new Error("จำนวนข้อสอบปรนัยต้องอยู่ระหว่าง 1 ถึง 100 ข้อ");
   }
 
-  const templateCode = data.templateCode || (totalItems <= 20 ? "KP-OMR-A4-20" : "KP-OMR-A4-50");
+  const templateCode = data.templateCode || (
+    totalItems <= 20 
+      ? "KP-OMR-A4-20" 
+      : totalItems <= 50 
+      ? "KP-OMR-A4-50" 
+      : "KP-OMR-A4-100"
+  );
   const template = await prisma.examTemplate.findFirst({
     where: { code: templateCode, isDeprecated: false },
     orderBy: { version: "desc" }

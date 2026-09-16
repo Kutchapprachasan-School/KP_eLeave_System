@@ -135,7 +135,7 @@ function CreateExamPaperForm() {
   }, [editPaperId, session?.user?.id]);
 
   const handleTotalItemsChange = (newCount: number) => {
-    const clamped = Math.min(50, Math.max(1, newCount));
+    const clamped = Math.min(100, Math.max(1, newCount || 1));
     setTotalItems(clamped);
     if (!isEditMode) {
       setMaxScore(clamped);
@@ -181,22 +181,45 @@ function CreateExamPaperForm() {
   };
 
   // Subjective Handlers
-  const handleAddSubjectiveItem = () => {
+  const handleAddSubjectiveItem = (score: number = 5, customTitle?: string) => {
+    setHasSubjective(true);
     setSubjectiveItems((prev) => [
       ...prev,
       {
         itemNo: prev.length + 1,
-        title: `ข้อที่ ${prev.length + 1}`,
-        maxScore: 5,
+        title: customTitle || `ข้อที่ ${prev.length + 1}`,
+        maxScore: score,
         rubricDetail: ""
       }
     ]);
   };
 
+  const handleAddMultipleSubjective = (count: number, scorePerItem: number) => {
+    setHasSubjective(true);
+    setSubjectiveItems((prev) => {
+      const currentLength = prev.length;
+      const newItems: SubjectiveRow[] = [];
+      for (let i = 1; i <= count; i++) {
+        const itemNo = currentLength + i;
+        newItems.push({
+          itemNo,
+          title: `ข้อที่ ${itemNo}`,
+          maxScore: scorePerItem,
+          rubricDetail: ""
+        });
+      }
+      return [...prev, ...newItems];
+    });
+  };
+
   const handleRemoveSubjectiveItem = (idx: number) => {
     setSubjectiveItems((prev) => {
       const filtered = prev.filter((_, i) => i !== idx);
-      return filtered.map((item, i) => ({ ...item, itemNo: i + 1 }));
+      const reindexed = filtered.map((item, i) => ({ ...item, itemNo: i + 1 }));
+      if (reindexed.length === 0) {
+        setHasSubjective(false);
+      }
+      return reindexed;
     });
   };
 
@@ -355,10 +378,10 @@ function CreateExamPaperForm() {
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
               <FileText className="w-6 h-6 text-purple-600 dark:text-purple-400" />
-              {isEditMode ? "แก้ไขชุดข้อสอบ & อัปเดตเฉลย" : "สร้างชุดข้อสอบ & กำหนดเฉลย (Rev. 8.2)"}
+              {isEditMode ? "แก้ไขชุดข้อสอบ & อัปเดตเฉลย" : "สร้างชุดข้อสอบ & กำหนดเฉลย (กำหนดข้อได้สูงสุด 100 ข้อ)"}
             </h1>
             <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-              กำหนดข้อสอบปรนัย (1–50 ข้อ) และตอนที่ 2 ข้อสอบอัตนัย พร้อมระบบเฉลย Snapshot Versioning
+              กำหนดข้อสอบปรนัย (1–100 ข้อ) และตอนที่ 2 ข้อสอบอัตนัยในหน้าเดียวกัน พร้อมระบบเฉลย Snapshot Versioning
             </p>
           </div>
         </div>
@@ -411,7 +434,7 @@ function CreateExamPaperForm() {
       <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Left Column (2 Cols): Answer Key Editor & Subjective Section 2 */}
         <div className="lg:col-span-2 space-y-6">
-          {/* 1. Answer Key Grid (Section 1) */}
+          {/* 1. Answer Key Grid (Section 1: ปรนัย) */}
           <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white/60 dark:border-slate-800 rounded-3xl p-6 shadow-sm space-y-6">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-800 pb-4">
               <div>
@@ -419,39 +442,53 @@ function CreateExamPaperForm() {
                   <CheckSquare className="w-4 h-4 text-purple-600" /> ตอนที่ 1: เฉลยปรนัย ({totalItems} ข้อ)
                 </h2>
                 <div className="text-xs text-slate-400 mt-0.5">
-                  คลิกเลือกตัวเลือกที่ถูกต้อง (คลิกขวาเพื่อเลือกหลายตัวเลือก)
+                  คลิกเลือกตัวเลือกที่ถูกต้อง (คลิกขวาเพื่อเลือกหลายตัวเลือก) • ปรับจำนวนข้อได้ที่แผงด้านขวา (1–100 ข้อ)
                 </div>
               </div>
 
               {/* Quick Pattern Buttons */}
-              <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl text-xs font-semibold">
-                <span className="text-slate-400 px-2">ลัด:</span>
+              <div className="flex flex-wrap items-center gap-1.5 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl text-xs font-semibold">
+                <span className="text-slate-400 px-1.5">ลัด:</span>
                 <button
                   type="button"
                   onClick={() => handleQuickPattern("A")}
-                  className="px-2 py-1 rounded-lg hover:bg-white dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200"
+                  className="px-2 py-1 rounded-lg hover:bg-white dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition cursor-pointer"
                 >
                   ทั้งหมด A
                 </button>
                 <button
                   type="button"
                   onClick={() => handleQuickPattern("B")}
-                  className="px-2 py-1 rounded-lg hover:bg-white dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200"
+                  className="px-2 py-1 rounded-lg hover:bg-white dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition cursor-pointer"
                 >
                   ทั้งหมด B
                 </button>
                 <button
                   type="button"
+                  onClick={() => handleQuickPattern("C")}
+                  className="px-2 py-1 rounded-lg hover:bg-white dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition cursor-pointer"
+                >
+                  ทั้งหมด C
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleQuickPattern("D")}
+                  className="px-2 py-1 rounded-lg hover:bg-white dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition cursor-pointer"
+                >
+                  ทั้งหมด D
+                </button>
+                <button
+                  type="button"
                   onClick={() => handleQuickPattern("CYCLE")}
-                  className="px-2 py-1 rounded-lg hover:bg-white dark:hover:bg-slate-700 text-purple-600 dark:text-purple-400 font-bold"
+                  className="px-2 py-1 rounded-lg hover:bg-white dark:hover:bg-slate-700 text-purple-600 dark:text-purple-400 font-bold transition cursor-pointer"
                 >
                   สลับ A-B-C-D
                 </button>
               </div>
             </div>
 
-            {/* Answer Key Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-3">
+            {/* Responsive Answer Key Grid: 1 col on mobile, 2 cols on small, 3 cols on md, 4 cols on xl */}
+            <div className={`grid grid-cols-1 sm:grid-cols-2 ${totalItems > 40 ? "md:grid-cols-3 xl:grid-cols-4" : "md:grid-cols-2"} gap-x-4 gap-y-2.5 max-h-[640px] overflow-y-auto pr-1`}>
               {Array.from({ length: totalItems }, (_, idx) => {
                 const itemNo = idx + 1;
                 const currentChoices = answerKey[itemNo] || [];
@@ -459,13 +496,13 @@ function CreateExamPaperForm() {
                 return (
                   <div
                     key={itemNo}
-                    className="flex items-center justify-between p-2 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/60 dark:border-slate-700/60 text-xs"
+                    className="flex items-center justify-between p-2 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/60 dark:border-slate-700/60 text-xs hover:border-purple-300 transition"
                   >
-                    <span className="font-bold text-slate-700 dark:text-slate-300 w-8">
-                      ข้อ {itemNo}.
+                    <span className="font-bold text-slate-700 dark:text-slate-300 w-9 truncate">
+                      {itemNo}.
                     </span>
 
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1">
                       {["A", "B", "C", "D"].map((c) => {
                         const isSelected = currentChoices.includes(c);
                         return (
@@ -478,7 +515,7 @@ function CreateExamPaperForm() {
                               handleToggleChoice(itemNo, c);
                             }}
                             title="คลิกซ้าย: เลือกเดี่ยว | คลิกขวา: เลือกหลายตัวเลือก"
-                            className={`w-7 h-7 rounded-full font-bold transition-all flex items-center justify-center ${
+                            className={`w-6.5 h-6.5 rounded-full font-bold transition-all flex items-center justify-center cursor-pointer text-xs ${
                               isSelected
                                 ? "bg-purple-600 text-white shadow-xs scale-105"
                                 : "bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-300 border border-slate-300 dark:border-slate-600 hover:border-purple-400"
@@ -495,92 +532,142 @@ function CreateExamPaperForm() {
             </div>
           </div>
 
-          {/* 2. Subjective Section 2 (ตอนที่ 2 ข้อสอบอัตนัย) */}
+          {/* 2. Subjective Section 2 (ตอนที่ 2 ข้อสอบอัตนัย บนหน้าเดียวกัน) */}
           <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white/60 dark:border-slate-800 rounded-3xl p-6 shadow-sm space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-800 pb-3">
               <div className="flex items-center gap-2">
-                <BookOpen className="w-4 h-4 text-indigo-600" />
-                <h2 className="text-base font-bold text-slate-900 dark:text-white">
-                  ตอนที่ 2: ข้อสอบอัตนัย (เขียนตอบ)
-                </h2>
+                <BookOpen className="w-5 h-5 text-indigo-600" />
+                <div>
+                  <h2 className="text-base font-bold text-slate-900 dark:text-white">
+                    ตอนที่ 2: ข้อสอบอัตนัย (เขียนตอบ)
+                  </h2>
+                  <p className="text-xs text-slate-400">
+                    ตั้งค่าคำถามอัตนัย คะแนนเต็ม และเกณฑ์การตรวจในหน้าเดียวกัน ({hasSubjective ? `${subjectiveItems.length} ข้อ รวม ${totalSubjectiveScore} คะแนน` : "ปิดใช้งานอยู่"})
+                  </p>
+                </div>
               </div>
-              <label className="flex items-center gap-2 text-xs font-semibold cursor-pointer select-none">
+
+              <label className="flex items-center gap-2 text-xs font-semibold cursor-pointer select-none bg-slate-100 dark:bg-slate-800/80 px-3 py-1.5 rounded-xl">
                 <input
                   type="checkbox"
                   checked={hasSubjective}
                   onChange={(e) => {
                     setHasSubjective(e.target.checked);
                     if (e.target.checked && subjectiveItems.length === 0) {
-                      handleAddSubjectiveItem();
+                      handleAddSubjectiveItem(5);
                     }
                   }}
-                  className="rounded border-slate-300 text-purple-600 focus:ring-purple-500 w-4 h-4"
+                  className="rounded border-slate-300 text-purple-600 focus:ring-purple-500 w-4 h-4 cursor-pointer"
                 />
-                <span>เปิดใช้งานข้อสอบอัตนัย</span>
+                <span className="text-slate-700 dark:text-slate-200 font-bold">เปิดใช้งานข้อสอบอัตนัย</span>
               </label>
             </div>
 
             {hasSubjective && (
               <div className="space-y-4 animate-in fade-in">
+                {/* Quick Add Presets */}
+                <div className="flex flex-wrap items-center gap-2 p-2.5 bg-indigo-50/50 dark:bg-indigo-950/30 rounded-2xl border border-indigo-100 dark:border-indigo-900/40 text-xs">
+                  <span className="text-indigo-900 dark:text-indigo-300 font-bold text-[11px]">เพิ่มด่วน:</span>
+                  <button
+                    type="button"
+                    onClick={() => handleAddSubjectiveItem(5)}
+                    className="px-2.5 py-1 rounded-xl bg-white dark:bg-slate-800 hover:bg-indigo-100 dark:hover:bg-slate-700 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 text-[11px] font-semibold transition cursor-pointer"
+                  >
+                    + 1 ข้อ (5 คะแนน)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleAddSubjectiveItem(10)}
+                    className="px-2.5 py-1 rounded-xl bg-white dark:bg-slate-800 hover:bg-indigo-100 dark:hover:bg-slate-700 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 text-[11px] font-semibold transition cursor-pointer"
+                  >
+                    + 1 ข้อ (10 คะแนน)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleAddMultipleSubjective(2, 5)}
+                    className="px-2.5 py-1 rounded-xl bg-white dark:bg-slate-800 hover:bg-indigo-100 dark:hover:bg-slate-700 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 text-[11px] font-semibold transition cursor-pointer"
+                  >
+                    + 2 ข้อ (ข้อละ 5 คะแนน)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleAddMultipleSubjective(2, 10)}
+                    className="px-2.5 py-1 rounded-xl bg-white dark:bg-slate-800 hover:bg-indigo-100 dark:hover:bg-slate-700 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 text-[11px] font-semibold transition cursor-pointer"
+                  >
+                    + 2 ข้อ (ข้อละ 10 คะแนน)
+                  </button>
+                </div>
+
                 {subjectiveItems.map((sItem, sIdx) => (
                   <div
                     key={sIdx}
-                    className="p-3.5 rounded-2xl bg-indigo-50/40 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/60 space-y-3"
+                    className="p-4 rounded-2xl bg-indigo-50/40 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/60 space-y-3"
                   >
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-indigo-900 dark:text-indigo-300">
-                        ข้อที่ {sItem.itemNo}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold px-2 py-0.5 rounded-lg bg-indigo-200/80 dark:bg-indigo-900 text-indigo-900 dark:text-indigo-200 font-mono">
+                          ข้อที่ {sItem.itemNo}
+                        </span>
+                        <span className="text-xs font-semibold text-slate-500">
+                          (ข้อสอบอัตนัย)
+                        </span>
+                      </div>
                       <button
                         type="button"
                         onClick={() => handleRemoveSubjectiveItem(sIdx)}
-                        className="text-rose-500 hover:text-rose-700 p-1 rounded-lg"
+                        className="text-rose-500 hover:text-rose-700 p-1 rounded-lg transition cursor-pointer"
+                        title="ลบข้อนี้"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                       <div className="sm:col-span-3">
                         <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
-                          คำชี้แจง / คำถาม
+                          คำชี้แจง / คำถามข้อสอบอัตนัย <span className="text-rose-500">*</span>
                         </label>
                         <input
                           type="text"
                           required
-                          placeholder="เช่น จงอธิบายกระบวนการสังเคราะห์ด้วยแสง..."
+                          placeholder="เช่น ให้นักเรียนอธิบายขั้นตอนกระบวนการสังเคราะห์ด้วยแสง พร้อมยกตัวอย่าง..."
                           value={sItem.title}
                           onChange={(e) => handleUpdateSubjectiveItem(sIdx, "title", e.target.value)}
-                          className="w-full h-9 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs"
+                          className="w-full h-9 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20"
                         />
                       </div>
 
                       <div className="sm:col-span-1">
                         <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
-                          คะแนนเต็ม
+                          คะแนนเต็มข้อนี้ <span className="text-rose-500">*</span>
                         </label>
-                        <input
-                          type="number"
-                          min="0.5"
-                          step="0.5"
-                          required
-                          value={sItem.maxScore}
-                          onChange={(e) => handleUpdateSubjectiveItem(sIdx, "maxScore", Number(e.target.value))}
-                          className="w-full h-9 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-bold font-mono"
-                        />
+                        <div className="relative">
+                          <input
+                            type="number"
+                            min="0.5"
+                            step="0.5"
+                            required
+                            value={sItem.maxScore}
+                            onChange={(e) => handleUpdateSubjectiveItem(sIdx, "maxScore", Number(e.target.value))}
+                            className="w-full h-9 pl-3 pr-8 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-bold font-mono text-slate-900 dark:text-white"
+                          />
+                          <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 font-semibold pointer-events-none">
+                            คะแนน
+                          </span>
+                        </div>
                       </div>
                     </div>
 
                     <div>
                       <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
-                        เกณฑ์การให้คะแนน (Rubric Detail)
+                        เกณฑ์การให้คะแนนแบบละเอียด (Rubric Detail)
                       </label>
                       <input
                         type="text"
-                        placeholder="เช่น อธิบายครบถ้วน 5 คะแนน, อธิบายบางส่วน 3 คะแนน"
+                        placeholder="เช่น อธิบายครบ 3 ประเด็นได้เต็ม, อธิบายได้ 2 ประเด็นได้ 3 คะแนน, ตอบไม่ตรงประเด็นได้ 0"
                         value={sItem.rubricDetail}
                         onChange={(e) => handleUpdateSubjectiveItem(sIdx, "rubricDetail", e.target.value)}
-                        className="w-full h-8 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-[11px] text-slate-500"
+                        className="w-full h-8 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-[11px] text-slate-600 dark:text-slate-300"
                       />
                     </div>
                   </div>
@@ -588,10 +675,10 @@ function CreateExamPaperForm() {
 
                 <button
                   type="button"
-                  onClick={handleAddSubjectiveItem}
-                  className="w-full h-9 rounded-xl border border-dashed border-indigo-300 dark:border-indigo-800 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 text-xs font-semibold flex items-center justify-center gap-1.5 transition"
+                  onClick={() => handleAddSubjectiveItem(5)}
+                  className="w-full h-10 rounded-2xl border border-dashed border-indigo-300 dark:border-indigo-800 hover:bg-indigo-50/70 dark:hover:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer"
                 >
-                  <Plus className="w-3.5 h-3.5" /> เพิ่มข้อสอบอัตนัย
+                  <Plus className="w-4 h-4" /> เพิ่มข้อสอบอัตนัย
                 </button>
               </div>
             )}
@@ -639,7 +726,7 @@ function CreateExamPaperForm() {
                 <select
                   value={gradeLevel}
                   onChange={(e) => setGradeLevel(e.target.value)}
-                  className="w-full h-10 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-semibold"
+                  className="w-full h-10 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-semibold cursor-pointer"
                 >
                   <option value="ม.1">ม.1</option>
                   <option value="ม.2">ม.2</option>
@@ -669,7 +756,7 @@ function CreateExamPaperForm() {
                 <select
                   value={term}
                   onChange={(e) => setTerm(Number(e.target.value))}
-                  className="w-full h-10 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-semibold"
+                  className="w-full h-10 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-semibold cursor-pointer"
                 >
                   <option value={1}>1</option>
                   <option value={2}>2</option>
@@ -692,29 +779,39 @@ function CreateExamPaperForm() {
               />
             </div>
 
-            {/* Flexible Total Items Selector (1 - 50 items) */}
+            {/* Flexible Total Items Selector (1 - 100 items) */}
             <div>
-              <div className="flex items-center justify-between mb-1">
+              <div className="flex items-center justify-between mb-1.5">
                 <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                  จำนวนข้อสอบปรนัย (1–50 ข้อ)
+                  จำนวนข้อสอบปรนัย (1–100 ข้อ)
                 </label>
-                <span className="text-[11px] font-bold text-purple-600 font-mono">{totalItems} ข้อ</span>
+                <div className="flex items-center gap-1">
+                  <input
+                    type="number"
+                    min="1"
+                    max="100"
+                    value={totalItems}
+                    onChange={(e) => handleTotalItemsChange(Number(e.target.value))}
+                    className="w-16 h-8 px-2 rounded-lg border border-purple-300 dark:border-purple-700 bg-purple-50/50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 font-bold font-mono text-center text-xs"
+                  />
+                  <span className="text-xs font-bold text-slate-500">ข้อ</span>
+                </div>
               </div>
 
               {/* Quick Presets */}
-              <div className="grid grid-cols-5 gap-1 mb-2">
-                {[20, 22, 25, 30, 50].map((preset) => (
+              <div className="grid grid-cols-4 gap-1 mb-2">
+                {[20, 25, 30, 40, 50, 60, 80, 100].map((preset) => (
                   <button
                     key={preset}
                     type="button"
                     onClick={() => handleTotalItemsChange(preset)}
-                    className={`h-8 rounded-lg font-bold text-[11px] border transition ${
+                    className={`h-7 rounded-lg font-bold text-[11px] border transition cursor-pointer ${
                       totalItems === preset
-                        ? "border-purple-600 bg-purple-100 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300"
-                        : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50"
+                        ? "border-purple-600 bg-purple-100 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300 shadow-2xs"
+                        : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"
                     }`}
                   >
-                    {preset}
+                    {preset} ข้อ
                   </button>
                 ))}
               </div>
@@ -722,7 +819,7 @@ function CreateExamPaperForm() {
               <input
                 type="range"
                 min="1"
-                max="50"
+                max="100"
                 value={totalItems}
                 onChange={(e) => handleTotalItemsChange(Number(e.target.value))}
                 className="w-full accent-purple-600 cursor-pointer"
@@ -740,7 +837,7 @@ function CreateExamPaperForm() {
                   min="1"
                   value={maxScore}
                   onChange={(e) => setMaxScore(Number(e.target.value))}
-                  className="w-full h-10 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-bold"
+                  className="w-full h-10 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-bold font-mono"
                 />
               </div>
 
@@ -753,26 +850,30 @@ function CreateExamPaperForm() {
                   min="1"
                   value={passScore}
                   onChange={(e) => setPassScore(Number(e.target.value))}
-                  className="w-full h-10 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-bold text-emerald-600"
+                  className="w-full h-10 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-bold font-mono text-emerald-600"
                 />
               </div>
             </div>
 
-            {/* Summary Box */}
+            {/* Live Summary Box */}
             <div className="p-3.5 rounded-2xl bg-purple-50/60 dark:bg-purple-950/30 border border-purple-100 dark:border-purple-900/40 text-xs space-y-1.5">
               <div className="flex justify-between text-slate-700 dark:text-slate-300 font-semibold">
-                <span>คะแนนปรนัย:</span>
-                <span>{Number(maxScore)} คะแนน</span>
+                <span>คะแนนปรนัย ({totalItems} ข้อ):</span>
+                <span className="font-mono">{Number(maxScore)} คะแนน</span>
               </div>
               {hasSubjective && (
                 <div className="flex justify-between text-indigo-700 dark:text-indigo-300 font-semibold">
                   <span>คะแนนอัตนัย ({subjectiveItems.length} ข้อ):</span>
-                  <span>{totalSubjectiveScore} คะแนน</span>
+                  <span className="font-mono">{totalSubjectiveScore} คะแนน</span>
                 </div>
               )}
-              <div className="flex justify-between text-purple-900 dark:text-purple-200 font-bold border-t border-purple-200 dark:border-purple-800/60 pt-1">
+              <div className="flex justify-between text-purple-900 dark:text-purple-200 font-bold border-t border-purple-200 dark:border-purple-800/60 pt-1.5 text-sm">
                 <span>คะแนนรวมทั้งสิ้น:</span>
-                <span>{totalPaperScore} คะแนน</span>
+                <span className="font-mono">{totalPaperScore} คะแนน</span>
+              </div>
+              <div className="flex justify-between text-emerald-600 dark:text-emerald-400 font-semibold text-[11px]">
+                <span>เกณฑ์คะแนนผ่าน:</span>
+                <span className="font-mono">{passScore} คะแนน</span>
               </div>
             </div>
 
@@ -780,7 +881,7 @@ function CreateExamPaperForm() {
             <button
               type="submit"
               disabled={saving || regrading}
-              className="w-full h-12 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold text-xs shadow-lg shadow-purple-500/25 active:scale-[0.98] transition-all flex items-center justify-center gap-2 mt-4"
+              className="w-full h-12 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold text-xs shadow-lg shadow-purple-500/25 active:scale-[0.98] transition-all flex items-center justify-center gap-2 mt-4 cursor-pointer disabled:opacity-50"
             >
               {saving ? (
                 <>
@@ -812,3 +913,4 @@ export default function CreateExamPaperPage() {
     </Suspense>
   );
 }
+

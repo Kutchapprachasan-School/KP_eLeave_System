@@ -199,3 +199,38 @@ export function generate20ItemGridMetadata(): TemplateGridMetadata {
     questionBlocks
   };
 }
+
+/**
+ * Generate normalized coordinate grid for 100-Item Standard Sheet (4 columns of 25)
+ */
+export function generate100ItemGridMetadata(): TemplateGridMetadata {
+  const metadata = generate50ItemGridMetadata();
+  const choices = ["A", "B", "C", "D"];
+  const choiceStepU = 0.038;
+  const rowStepV = 0.024;
+  const startV = 0.325;
+  const bubbleR = 9 / metadata.canvasWidth;
+
+  const colStartUs = [0.10, 0.33, 0.56, 0.79];
+
+  const questionBlocks: QuestionCoordinate[] = [];
+  for (let i = 1; i <= 100; i++) {
+    const colIdx = Math.floor((i - 1) / 25);
+    const rowIdx = (i - 1) % 25;
+    const v = startV + rowIdx * rowStepV;
+    const baseU = colStartUs[colIdx];
+    const bubbles: BubbleCoordinate[] = choices.map((c, cIdx) => ({
+      choice: c,
+      u: baseU + cIdx * choiceStepU,
+      v,
+      radius: bubbleR
+    }));
+    questionBlocks.push({ itemNo: i, bubbles });
+  }
+
+  return {
+    ...metadata,
+    questionBlocks
+  };
+}
+

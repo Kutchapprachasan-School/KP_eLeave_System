@@ -1,6 +1,7 @@
 import { prisma } from "../db.ts";
 import { ExamSheetType } from "@prisma/client";
 import {
+  generate100ItemGridMetadata,
   generate50ItemGridMetadata,
   generate20ItemGridMetadata,
   DEFAULT_CALIBRATION_PARAMS
@@ -13,6 +14,16 @@ export * from "../omr/omrTemplateGeometry.ts";
  */
 export async function ensureStandardTemplatesAction() {
   const templates = [
+    {
+      code: "KP-OMR-A4-100",
+      version: 1,
+      name: "แบบฟอร์มกระดาษคำตอบ 100 ข้อ มาตรฐาน 2569",
+      sheetType: ExamSheetType.SHEET_100_ITEMS,
+      canvasWidth: 1654,
+      canvasHeight: 2339,
+      gridMetadata: generate100ItemGridMetadata() as any,
+      calibrationDefaults: DEFAULT_CALIBRATION_PARAMS
+    },
     {
       code: "KP-OMR-A4-50",
       version: 1,
