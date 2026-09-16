@@ -798,22 +798,52 @@ function CreateExamPaperForm() {
                 </div>
               </div>
 
-              {/* Quick Presets */}
-              <div className="grid grid-cols-4 gap-1 mb-2">
-                {[20, 25, 30, 40, 50, 60, 80, 100].map((preset) => (
-                  <button
-                    key={preset}
-                    type="button"
-                    onClick={() => handleTotalItemsChange(preset)}
-                    className={`h-7 rounded-lg font-bold text-[11px] border transition cursor-pointer ${
-                      totalItems === preset
-                        ? "border-purple-600 bg-purple-100 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300 shadow-2xs"
-                        : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"
-                    }`}
-                  >
-                    {preset} ข้อ
-                  </button>
-                ))}
+              {/* 4 OMR Tiers Quick Selection */}
+              <div className="mb-2">
+                <div className="text-[11px] font-bold text-slate-500 mb-1">
+                  รูปแบบแม่แบบมาตรฐาน 4 ระดับ (ZipGrade-Grade):
+                </div>
+                <div className="grid grid-cols-4 gap-1.5 mb-2">
+                  {[
+                    { count: 20, label: "20 ข้อ", sub: "สแกนไวสุด" },
+                    { count: 50, label: "50 ข้อ", sub: "มาตรฐาน" },
+                    { count: 75, label: "75 ข้อ", sub: "วิชาหลัก" },
+                    { count: 100, label: "100 ข้อ", sub: "ข้อสอบใหญ่" }
+                  ].map((tier) => (
+                    <button
+                      key={tier.count}
+                      type="button"
+                      onClick={() => handleTotalItemsChange(tier.count)}
+                      className={`p-1.5 rounded-xl border text-center transition cursor-pointer ${
+                        totalItems === tier.count
+                          ? "border-purple-600 bg-purple-100 text-purple-900 dark:bg-purple-950/60 dark:text-purple-200 shadow-xs ring-2 ring-purple-500/20"
+                          : "border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300"
+                      }`}
+                    >
+                      <div className="text-[12px] font-bold">{tier.label}</div>
+                      <div className="text-[9px] text-slate-500 truncate">{tier.sub}</div>
+                    </button>
+                  ))}
+                </div>
+
+                {/* Additional Quick Presets */}
+                <div className="flex items-center gap-1 overflow-x-auto pb-1">
+                  <span className="text-[10px] text-slate-400 shrink-0">กำหนดเอง:</span>
+                  {[10, 15, 25, 30, 40, 60, 80].map((preset) => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => handleTotalItemsChange(preset)}
+                      className={`px-2 py-0.5 rounded-md text-[10px] font-mono font-semibold border transition cursor-pointer shrink-0 ${
+                        totalItems === preset
+                          ? "border-purple-500 bg-purple-50 text-purple-700 font-bold"
+                          : "border-slate-200 text-slate-500 hover:bg-slate-100"
+                      }`}
+                    >
+                      {preset}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               <input
@@ -824,6 +854,32 @@ function CreateExamPaperForm() {
                 onChange={(e) => handleTotalItemsChange(Number(e.target.value))}
                 className="w-full accent-purple-600 cursor-pointer"
               />
+
+              {/* Template Tier Information Card */}
+              <div className="mt-2.5 p-2.5 rounded-xl bg-purple-50/70 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800/50 flex items-start gap-2.5">
+                <div className="p-1.5 rounded-lg bg-purple-600 text-white shrink-0 mt-0.5">
+                  <Layers className="w-3.5 h-3.5" />
+                </div>
+                <div className="text-[11px] leading-relaxed">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-purple-950 dark:text-purple-200">
+                      แม่แบบที่จับคู่: {totalItems <= 20 ? "KP-OMR-A4-20" : totalItems <= 50 ? "KP-OMR-A4-50" : totalItems <= 75 ? "KP-OMR-A4-75" : "KP-OMR-A4-100"}
+                    </span>
+                    <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-purple-200/80 dark:bg-purple-800/60 text-purple-800 dark:text-purple-200">
+                      {totalItems <= 20 ? "Tier 1: ≤ 20 ข้อ" : totalItems <= 50 ? "Tier 2: 21–50 ข้อ" : totalItems <= 75 ? "Tier 3: 51–75 ข้อ" : "Tier 4: 76–100 ข้อ"}
+                    </span>
+                  </div>
+                  <div className="text-purple-700 dark:text-purple-300 mt-0.5">
+                    {totalItems <= 20
+                      ? "ฟองคำตอบใหญ่พิเศษ สแกนติดเร็วสุดเสี้ยววินาที รองรับการพิมพ์ 2 ชุดในแผ่น A4 เดียว (Half-A4) หรือรวมอัตนัยในหน้าเดียว"
+                      : totalItems <= 50
+                      ? "มาตรฐาน 2 คอลัมน์ x 25 ข้อ สวยงาม สมดุลย์ เหมาะกับสอบเก็บคะแนนและสอบกลาง/ปลายภาค"
+                      : totalItems <= 75
+                      ? "3 คอลัมน์ x 25 ข้อ คมชัดสูง ช่องวงกลมโปร่งกว่าแบบ 100 ข้อ สแกนติดง่ายสำหรับวิชาหลัก 60–75 ข้อ"
+                      : "4 คอลัมน์ x 25 ข้อ ความหนาแน่นสูง สำหรับชุดข้อสอบขนาดใหญ่ O-NET และแบบทดสอบมาตรฐาน"}
+                  </div>
+                </div>
+              </div>
             </div>
 
             {/* Scores */}

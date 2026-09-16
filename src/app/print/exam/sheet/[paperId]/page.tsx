@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Printer, ArrowLeft, Loader2, ShieldCheck, CheckSquare, Plus, FileText } from "lucide-react";
-import { OmrAnswerSheet, PrintedSheetItem } from "@/components/omr/OmrAnswerSheetPrintLayout";
+import { OmrAnswerSheet, OmrTwoUpA4Sheet, PrintedSheetItem } from "@/components/omr/OmrAnswerSheetPrintLayout";
 
 export default function PrintExamSheetsPage() {
   const params = useParams();
@@ -15,6 +15,7 @@ export default function PrintExamSheetsPage() {
   const [paper, setPaper] = useState<any>(null);
   const [sheets, setSheets] = useState<PrintedSheetItem[]>([]);
   const [isPreSlugged, setIsPreSlugged] = useState(true);
+  const [isHalfSheet, setIsHalfSheet] = useState(false);
   const [extraBlankCount, setExtraBlankCount] = useState(3);
 
   useEffect(() => {
@@ -96,15 +97,36 @@ export default function PrintExamSheetsPage() {
             <div>
               <h1 className="text-base font-bold text-slate-800 flex items-center gap-2">
                 <FileText className="w-5 h-5 text-purple-600" />
-                พิมพ์กระดาษคำตอบ OMR (KP-OMR-A4-50)
+                พิมพ์กระดาษคำตอบ OMR ({paper.totalItems <= 20 ? "KP-OMR-A4-20" : paper.totalItems <= 50 ? "KP-OMR-A4-50" : paper.totalItems <= 75 ? "KP-OMR-A4-75" : "KP-OMR-A4-100"})
               </h1>
               <div className="text-xs text-slate-500">
-                {paper.subjectCode} {paper.subjectName} • {paper.title} ({allSheetsToPrint.length} แผ่น)
+                {paper.subjectCode} {paper.subjectName} • {paper.title} ({allSheetsToPrint.length} ชุด)
+                {paper.totalItems <= 20 && isHalfSheet ? " • โหมด 2 ชุดต่อ 1 แผ่น A4" : ""}
               </div>
             </div>
           </div>
 
           <div className="flex items-center gap-3">
+            {/* Toggle Half-A4 Mode (Available for <= 20 items) */}
+            {paper.totalItems <= 20 && (
+              <label
+                className={`flex items-center gap-2 text-xs font-semibold px-3 py-2 rounded-xl border cursor-pointer transition ${
+                  isHalfSheet
+                    ? "bg-purple-100 text-purple-900 border-purple-400 font-bold shadow-xs"
+                    : "bg-slate-100 text-slate-700 border-slate-300 hover:bg-slate-200"
+                }`}
+                title="พิมพ์ 2 ชุดใน 1 แผ่น A4 แล้วตัดตามรอยประ ช่วยประหยัดกระดาษได้ 50%"
+              >
+                <input
+                  type="checkbox"
+                  checked={isHalfSheet}
+                  onChange={(e) => setIsHalfSheet(e.target.checked)}
+                  className="w-4 h-4 rounded text-purple-600 focus:ring-purple-500"
+                />
+                📑 พิมพ์ 2 ชุด/A4 (Half-A4)
+              </label>
+            )}
+
             {/* Toggle Pre-slugged vs Blank */}
             <label className="flex items-center gap-2 text-xs font-semibold text-slate-700 bg-slate-100 px-3 py-2 rounded-xl border border-slate-300 cursor-pointer">
               <input
@@ -143,25 +165,56 @@ export default function PrintExamSheetsPage() {
 
       {/* Printable Sheet Container */}
       <main className="max-w-[210mm] mx-auto my-6 print:m-0 print:max-w-none space-y-6 print:space-y-0">
-        {allSheetsToPrint.map((sheet, index) => (
-          <div
-            key={sheet.sheetToken}
-            className="w-[210mm] h-[297mm] shadow-xl print:shadow-none bg-white mx-auto print:mx-0 page-break"
-            style={{ pageBreakAfter: "always", breakAfter: "page" }}
-          >
-            <OmrAnswerSheet
-              paperTitle={paper.title}
-              subjectCode={paper.subjectCode}
-              subjectName={paper.subjectName}
-              academicYear={paper.academicYear}
-              term={paper.term}
-              gradeLevel={paper.gradeLevel}
-              totalItems={paper.totalItems}
-              sheet={sheet}
-              isPreSlugged={isPreSlugged && sheet.studentId !== "00000"}
-            />
-          </div>
-        ))}
+        {isHalfSheet && paper.totalItems <= 20 ? (
+          /* Half-A4 Mode: 2 Sheets per physical A4 Page */
+          Array.from({ length: Math.ceil(allSheetsToPrint.length / 2) }, (_, i) => {
+            const topSheet = allSheetsToPrint[i * 2];
+            const bottomSheet = allSheetsToPrint[i * 2 + 1] || null;
+            return (
+              <div
+                key={`half-pair-${i}`}
+                className="w-[210mm] h-[297mm] shadow-xl print:shadow-none bg-white mx-auto print:mx-0 page-break"
+                style={{ pageBreakAfter: "always", breakAfter: "page" }}
+              >
+                <OmrTwoUpA4Sheet
+                  paperTitle={paper.title}
+                  subjectCode={paper.subjectCode}
+                  subjectName={paper.subjectName}
+                  academicYear={paper.academicYear}
+                  term={paper.term}
+                  gradeLevel={paper.gradeLevel}
+                  totalItems={paper.totalItems}
+                  subjectiveItems={paper.subjectiveItems || []}
+                  sheetTop={topSheet}
+                  sheetBottom={bottomSheet}
+                  isPreSlugged={isPreSlugged}
+                />
+              </div>
+            );
+          })
+        ) : (
+          /* Standard Full-A4 Mode */
+          allSheetsToPrint.map((sheet, index) => (
+            <div
+              key={sheet.sheetToken}
+              className="w-[210mm] h-[297mm] shadow-xl print:shadow-none bg-white mx-auto print:mx-0 page-break"
+              style={{ pageBreakAfter: "always", breakAfter: "page" }}
+            >
+              <OmrAnswerSheet
+                paperTitle={paper.title}
+                subjectCode={paper.subjectCode}
+                subjectName={paper.subjectName}
+                academicYear={paper.academicYear}
+                term={paper.term}
+                gradeLevel={paper.gradeLevel}
+                totalItems={paper.totalItems}
+                subjectiveItems={paper.subjectiveItems || []}
+                sheet={sheet}
+                isPreSlugged={isPreSlugged && sheet.studentId !== "00000"}
+              />
+            </div>
+          ))
+        )}
       </main>
 
       {/* Embedded Print CSS */}

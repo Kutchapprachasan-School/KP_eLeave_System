@@ -104,6 +104,8 @@ export async function createExamPaperAction(data: CreateExamPaperInput) {
       ? "KP-OMR-A4-20" 
       : totalItems <= 50 
       ? "KP-OMR-A4-50" 
+      : totalItems <= 75
+      ? "KP-OMR-A4-75"
       : "KP-OMR-A4-100"
   );
   const template = await prisma.examTemplate.findFirst({

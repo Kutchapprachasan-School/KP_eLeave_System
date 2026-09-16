@@ -170,16 +170,15 @@ export function generate50ItemGridMetadata(): TemplateGridMetadata {
 }
 
 /**
- * Generate normalized coordinate grid for 20-Item Standard Sheet (1 column of 20)
+ * Generate normalized coordinate grid for 20-Item Standard Sheet (1 column of 20, extra spacious)
  */
 export function generate20ItemGridMetadata(): TemplateGridMetadata {
   const metadata = generate50ItemGridMetadata();
-  // Filter only items 1 to 20
   const choices = ["A", "B", "C", "D"];
-  const choiceStepU = 0.07;
-  const rowStepV = 0.028;
-  const startV = 0.32;
-  const bubbleR = 14 / metadata.canvasWidth;
+  const choiceStepU = 0.055;
+  const rowStepV = 0.026;
+  const startV = 0.33;
+  const bubbleR = 13 / metadata.canvasWidth;
 
   const questionBlocks: QuestionCoordinate[] = [];
   for (let i = 1; i <= 20; i++) {
@@ -187,7 +186,41 @@ export function generate20ItemGridMetadata(): TemplateGridMetadata {
     const v = startV + rowIdx * rowStepV;
     const bubbles: BubbleCoordinate[] = choices.map((c, cIdx) => ({
       choice: c,
-      u: 0.38 + cIdx * choiceStepU,
+      u: 0.18 + cIdx * choiceStepU,
+      v,
+      radius: bubbleR
+    }));
+    questionBlocks.push({ itemNo: i, bubbles });
+  }
+
+  return {
+    ...metadata,
+    questionBlocks
+  };
+}
+
+/**
+ * Generate normalized coordinate grid for 75-Item Standard Sheet (3 columns of 25)
+ */
+export function generate75ItemGridMetadata(): TemplateGridMetadata {
+  const metadata = generate50ItemGridMetadata();
+  const choices = ["A", "B", "C", "D"];
+  const choiceStepU = 0.046;
+  const rowStepV = 0.024;
+  const startV = 0.325;
+  const bubbleR = 10.5 / metadata.canvasWidth;
+
+  const colStartUs = [0.13, 0.44, 0.74];
+
+  const questionBlocks: QuestionCoordinate[] = [];
+  for (let i = 1; i <= 75; i++) {
+    const colIdx = Math.floor((i - 1) / 25);
+    const rowIdx = (i - 1) % 25;
+    const v = startV + rowIdx * rowStepV;
+    const baseU = colStartUs[colIdx];
+    const bubbles: BubbleCoordinate[] = choices.map((c, cIdx) => ({
+      choice: c,
+      u: baseU + cIdx * choiceStepU,
       v,
       radius: bubbleR
     }));
@@ -232,5 +265,15 @@ export function generate100ItemGridMetadata(): TemplateGridMetadata {
     ...metadata,
     questionBlocks
   };
+}
+
+/**
+ * Helper to resolve the appropriate TemplateGridMetadata based on total item count
+ */
+export function getTemplateGridForItems(totalItems: number): TemplateGridMetadata {
+  if (totalItems <= 20) return generate20ItemGridMetadata();
+  if (totalItems <= 50) return generate50ItemGridMetadata();
+  if (totalItems <= 75) return generate75ItemGridMetadata();
+  return generate100ItemGridMetadata();
 }
 

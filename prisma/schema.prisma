@@ -2063,6 +2063,7 @@ model ConsentAuditLog {
 enum ExamSheetType {
   SHEET_20_ITEMS
   SHEET_50_ITEMS
+  SHEET_75_ITEMS
   SHEET_100_ITEMS
   CUSTOM
 }

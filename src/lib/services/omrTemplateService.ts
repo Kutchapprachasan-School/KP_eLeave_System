@@ -2,6 +2,7 @@ import { prisma } from "../db.ts";
 import { ExamSheetType } from "@prisma/client";
 import {
   generate100ItemGridMetadata,
+  generate75ItemGridMetadata,
   generate50ItemGridMetadata,
   generate20ItemGridMetadata,
   DEFAULT_CALIBRATION_PARAMS
@@ -22,6 +23,16 @@ export async function ensureStandardTemplatesAction() {
       canvasWidth: 1654,
       canvasHeight: 2339,
       gridMetadata: generate100ItemGridMetadata() as any,
+      calibrationDefaults: DEFAULT_CALIBRATION_PARAMS
+    },
+    {
+      code: "KP-OMR-A4-75",
+      version: 1,
+      name: "แบบฟอร์มกระดาษคำตอบ 75 ข้อ มาตรฐาน 2569",
+      sheetType: ExamSheetType.SHEET_75_ITEMS,
+      canvasWidth: 1654,
+      canvasHeight: 2339,
+      gridMetadata: generate75ItemGridMetadata() as any,
       calibrationDefaults: DEFAULT_CALIBRATION_PARAMS
     },
     {

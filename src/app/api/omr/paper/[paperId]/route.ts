@@ -17,6 +17,9 @@ export async function GET(
       where: { id: paperId },
       include: {
         template: true,
+        subjectiveItems: {
+          orderBy: { itemNo: "asc" }
+        },
         answerKeys: {
           select: {
             id: true,

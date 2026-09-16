@@ -17,7 +17,7 @@ import {
   RotateCcw
 } from "lucide-react";
 import { processOmrSheet, OmrScanResult, RawImageData } from "@/lib/omr/omrEngine";
-import { generate50ItemGridMetadata, generate20ItemGridMetadata, TemplateGridMetadata } from "@/lib/omr/omrTemplateGeometry";
+import { getTemplateGridForItems, TemplateGridMetadata } from "@/lib/omr/omrTemplateGeometry";
 import { ingestExamSubmissionAction } from "@/app/actions/omr";
 import { useSession } from "@/lib/auth-client";
 
@@ -43,10 +43,15 @@ export function OmrCameraScanner({ paperId, totalItems = 50, onScanComplete }: O
   const [savedSubmission, setSavedSubmission] = useState<any | null>(null);
   const [ingestLoading, setIngestLoading] = useState(false);
 
-  // Template metadata
-  const templateGrid: TemplateGridMetadata = totalItems === 20 
-    ? generate20ItemGridMetadata() 
-    : generate50ItemGridMetadata();
+  // Template metadata based on 4-Tier OMR architecture (20, 50, 75, 100 items)
+  const templateGrid: TemplateGridMetadata = getTemplateGridForItems(totalItems);
+  const templateLabel = totalItems <= 20
+    ? "20 ข้อ (สแกนเร็วสุด)"
+    : totalItems <= 50
+    ? "50 ข้อ (มาตรฐาน)"
+    : totalItems <= 75
+    ? "75 ข้อ (วิชาหลัก 3 คอลัมน์)"
+    : "100 ข้อ (ความหนาแน่นสูง)";
 
   // Play audio chime
   const playChime = useCallback((success: boolean) => {
@@ -273,6 +278,9 @@ export function OmrCameraScanner({ paperId, totalItems = 50, onScanComplete }: O
           <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
           <span className="text-xs font-bold tracking-wider uppercase text-emerald-400">
             {streamActive ? "LIVE HUD ACTIVE" : "CAMERA STANDBY"}
+          </span>
+          <span className="hidden sm:inline-block text-[11px] bg-white/10 backdrop-blur-md border border-white/20 text-purple-300 font-mono px-2 py-0.5 rounded-full">
+            {templateLabel}
           </span>
         </div>
 
