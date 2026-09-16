@@ -1052,10 +1052,13 @@ model FacilityReservation {
   status           ReservationStatus               @default(PENDING)
   currentStep      Int                             @default(1)
   totalSteps       Int                             @default(2)
+  revisionNo       Int                             @default(1)
   rejectionReason  String?
   attachments      Json?
   approvalSteps    FacilityApprovalStep[]
   assignments      ReservationResourceAssignment[]
+  revisions        FacilityReservationRevision[]
+  postMissionReport FacilityPostMissionReport?
   roomDetails      RoomReservationDetail?
   vehicleDetails   VehicleReservationDetail?
   createdAt              DateTime                        @default(now())
@@ -1077,6 +1080,14 @@ model ReservationResourceAssignment {
   resource        FacilityResource?    @relation(fields: [resourceId], references: [id], onDelete: Cascade)
   driverProfileId String?
   driverProfile   DriverProfile?       @relation(fields: [driverProfileId], references: [id], onDelete: Cascade)
+  
+  // Qualification Snapshots
+  driverLicenseSnapshot           String?
+  driverLicenseExpirySnapshot     DateTime?
+  qualificationVerifiedAt         DateTime?
+  qualificationStatusAtAssignment String?   @default("VALID")
+  assignedByUserId                String?
+
   startAt         DateTime
   endAt           DateTime
   status          ReservationStatus    @default(PENDING)
@@ -1091,6 +1102,7 @@ model FacilityApprovalStep {
   id             String              @id @default(cuid())
   reservationId  String
   reservation    FacilityReservation @relation(fields: [reservationId], references: [id], onDelete: Cascade)
+  revisionNo     Int                 @default(1)
   stepNo         Int
   roleRequired   String
   title          String
@@ -1099,10 +1111,11 @@ model FacilityApprovalStep {
   approver       User?               @relation("FacilityApprovalApprover", fields: [approverUserId], references: [id])
   comment        String?             @db.Text
   actedAt        DateTime?
+  idempotencyKey String?             @db.VarChar(128)
   createdAt      DateTime            @default(now())
   updatedAt      DateTime            @updatedAt
 
-  @@unique([reservationId, stepNo])
+  @@unique([reservationId, revisionNo, stepNo])
   @@index([approverUserId, status])
 }
 
@@ -1132,6 +1145,52 @@ model VehicleReservationDetail {
   endMileage         Float?
   fuelCost           Float?
   tripNotes          String?             @db.Text
+}
+
+model FacilityReservationRevision {
+  id                String              @id @default(cuid())
+  reservationId     String
+  reservation       FacilityReservation @relation(fields: [reservationId], references: [id], onDelete: Cascade)
+  revisionNo        Int
+  snapshotPayload   Json
+  submittedByUserId String
+  submittedAt       DateTime            @default(now())
+  revisionReason    String?             @db.Text
+  createdAt         DateTime            @default(now())
+
+  @@unique([reservationId, revisionNo])
+  @@index([reservationId])
+}
+
+model FacilityPostMissionReport {
+  id                     String              @id @default(cuid())
+  reservationId          String              @unique
+  reservation            FacilityReservation @relation(fields: [reservationId], references: [id], onDelete: Restrict)
+  startMileage           Float?
+  endMileage             Float?
+  distanceKm             Float?
+  fuelCost               Decimal?            @db.Decimal(10, 2)
+  fuelReceiptKey         String?
+  incidentNotes          String?             @db.Text
+  vehicleConditionRating Int?
+  roomCleanlinessRating  Int?
+  reportedByUserId       String
+  reportedAt             DateTime            @default(now())
+  verifiedByUserId       String?
+  verifiedAt             DateTime?
+  createdAt              DateTime            @default(now())
+  updatedAt              DateTime            @updatedAt
+}
+
+model FacilitySettings {
+  id                    String   @id @default("default")
+  guidelinesHtml        String?  @db.Text
+  hotlinePhone          String?  @default("042-261234")
+  driverAssignerUserIds String   @default("")
+  driverPoolUserIds     String   @default("")
+  approverStep1UserIds  String   @default("")
+  approverStep2UserIds  String   @default("")
+  updatedAt             DateTime @updatedAt
 }
 
 model SignatureTokenLog {
@@ -2276,6 +2335,22 @@ model ExamSubmission {
   
   scannedImageKey     String?              // Pure ASCII Storage Key
   syncStatus          SubmissionSyncStatus @default(SYNCED)
+
+  // Raw Image Chain of Custody & Detection Metadata
+  rawImageHash        String?              // SHA-256 of master original
+  processedImageHash  String?              // SHA-256 of normalized perspective image
+  rawStorageKey       String?              // Storage Key for WORM Archival Master
+  processedStorageKey String?              // Storage Key for WebP Detection/Preview
+  detectorVersion     String?              @default("REV_9.0_HYBRID")
+  thresholdProfile    String?              @default("STANDARD_A4")
+  ingestedAt          DateTime             @default(now())
+
+  // Student Identity & Historical Snapshots
+  studentCodeSnapshot String?
+  classSnapshot       String?
+  examRosterId        String?
+  studentIdentityStatus StudentIdentityStatus @default(IDENTIFIED)
+  mappingReason       String?
   
   itemSubmissions     ExamItemSubmission[]
   scannedAt           DateTime             @default(now())
@@ -2304,6 +2379,8 @@ model ExamItemSubmission {
   fillRatios          Json
   confidenceScore     Decimal            @db.Decimal(4, 3)
   
+  overrideVersion     Int                @default(0)
+  detectionStatus     DetectionStatus    @default(SINGLE_MARK)
   overrideChoice      String?            // Manual Override by Teacher
   effectiveChoice     String?            // Source of Truth for recalculation
   isOverridden        Boolean            @default(false)
@@ -2312,8 +2389,87 @@ model ExamItemSubmission {
   scoreEarned         Decimal            @db.Decimal(4, 2) @default(0)
   status              ExamItemStatus     @default(CORRECT)
 
+  overrides           ExamItemOverride[]
+
   @@unique([submissionId, itemNo], map: "uk_item_submission_item_no")
   @@index([submissionId])
+}
+
+model ExamItemOverride {
+  id               String             @id @default(cuid())
+  submissionItemId String
+  submissionItem   ExamItemSubmission @relation(fields: [submissionItemId], references: [id], onDelete: Restrict)
+  sequenceNo       BigInt
+  previousChoice   String?
+  overrideChoice   String
+  reason           String             @db.Text
+  actorUserId      String
+  requestId        String
+  createdAt        DateTime           @default(now())
+
+  @@unique([submissionItemId, sequenceNo])
+  @@index([submissionItemId, createdAt])
+  @@index([actorUserId, createdAt])
+}
+
+model AuditEvent {
+  id                      String   @id @default(cuid())
+  entityType              String
+  entityId                String
+  action                  String
+  actorUserId             String
+  actorNameSnapshot       String
+  actorRoleSnapshot       String
+  actorDepartmentSnapshot String?
+  requestId               String
+  correlationId           String
+  source                  String   @default("WEB_PORTAL")
+  previousState           Json?
+  newState                Json?
+  metadata                Json?
+  createdAt               DateTime @default(now())
+
+  @@index([entityType, entityId, createdAt])
+  @@index([actorUserId, createdAt])
+  @@index([correlationId])
+}
+
+enum OutboxEventStatus {
+  PENDING
+  PROCESSED
+  FAILED
+}
+
+model OutboxEvent {
+  id            String            @id @default(cuid())
+  aggregateType String
+  aggregateId   String
+  eventType     String
+  payload       Json
+  status        OutboxEventStatus @default(PENDING)
+  retryCount    Int               @default(0)
+  errorMessage  String?
+  createdAt     DateTime          @default(now())
+  processedAt   DateTime?
+
+  @@index([status, createdAt])
+}
+
+enum StudentIdentityStatus {
+  IDENTIFIED
+  UNMAPPED
+  AMBIGUOUS
+  BLANK
+  UNRESOLVED
+  PHANTOM
+}
+
+enum DetectionStatus {
+  SINGLE_MARK
+  MULTIPLE_MARKS
+  NO_MARK
+  AMBIGUOUS
+  LOW_CONFIDENCE
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

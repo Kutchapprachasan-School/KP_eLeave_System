@@ -364,4 +364,163 @@ export class FacilityReservationService {
     }
     return { cancelledCount: count };
   }
+
+  /**
+   * Resubmits a rejected reservation under a new revision with immutable snapshot preservation.
+   */
+  resubmitRevision(reservationId, options = {}) {
+    const res = this.reservations.find(r => r.reservationId === reservationId || r.id === reservationId);
+    if (!res) throw new Error("ไม่พบคำขอจอง");
+    if (res.status !== "REJECTED") throw new Error("สามารถส่งใหม่ (Re-submit) ได้เฉพาะคำขอที่ถูกปฏิเสธแล้วเท่านั้น");
+
+    if (!res.revisions) res.revisions = [];
+
+    // 1. Snapshot previous revision
+    const currentRevNo = res.revisionNo || 1;
+    res.revisions.push({
+      id: `rev-${res.reservationId}-${currentRevNo}`,
+      reservationId: res.reservationId,
+      revisionNo: currentRevNo,
+      snapshotPayload: JSON.parse(JSON.stringify(res)),
+      submittedByUserId: options.submittedByUserId || res.reservedByUserId,
+      submittedAt: new Date().toISOString(),
+      revisionReason: options.revisionReason || "แก้ไขรายละเอียดตามข้อเสนอแนะและส่งใหม่"
+    });
+
+    // 2. Increment revision
+    res.revisionNo = currentRevNo + 1;
+    res.status = "PENDING";
+    res.currentStep = 1;
+    res.rejectionReason = null;
+
+    if (options.newStartAt) res.startAt = options.newStartAt;
+    if (options.newEndAt) res.endAt = options.newEndAt;
+
+    // 3. Reset approval steps for new revision
+    res.approvalSteps = [
+      {
+        stepNo: 1,
+        revisionNo: res.revisionNo,
+        roleRequired: res.consumerModule === "VEHICLE" ? "HEAD_VEHICLE" : "HEAD_FACILITY",
+        title: res.consumerModule === "VEHICLE" ? "การจัดสรรรถและพนักงานขับรถ" : "การตรวจสอบสถานที่และโสตฯ",
+        status: "PENDING"
+      },
+      {
+        stepNo: 2,
+        revisionNo: res.revisionNo,
+        roleRequired: "DIRECTOR",
+        title: "การอนุมัติขั้นสุดท้ายของผู้อำนวยการโรงเรียน",
+        status: "PENDING"
+      }
+    ];
+
+    res.assignments?.forEach(a => {
+      a.status = "PENDING";
+      if (options.newStartAt) a.startAt = options.newStartAt;
+      if (options.newEndAt) a.endAt = options.newEndAt;
+    });
+
+    return res;
+  }
+
+  /**
+   * Atomic CAS with in-transaction RBAC verification.
+   */
+  approveStepWithRbacCas(options) {
+    const { reservationId, expectedRevisionNo, stepNo, actorUserId, actorRole, idempotencyKey, comment } = options;
+    const res = this.reservations.find(r => r.reservationId === reservationId || r.id === reservationId);
+    if (!res) throw new Error("ไม่พบคำขอจอง");
+
+    // 1. Enforce Revision Consistency
+    if (expectedRevisionNo !== (res.revisionNo || 1)) {
+      throw new Error(`Revision mismatch: expected ${expectedRevisionNo}, found ${res.revisionNo || 1}`);
+    }
+
+    // 2. Enforce Step Consistency
+    if (res.currentStep !== stepNo) {
+      throw new Error(`Step mismatch: current step is ${res.currentStep}, requested step ${stepNo}`);
+    }
+
+    const step = res.approvalSteps?.find(s => s.stepNo === stepNo && (s.revisionNo || 1) === (res.revisionNo || 1));
+    if (!step || step.status !== "PENDING") {
+      throw new Error(`Step ${stepNo} is not in PENDING status for revision ${res.revisionNo || 1}`);
+    }
+
+    // 3. In-Transaction RBAC Verification
+    if (stepNo === 1) {
+      const allowedRoles = ["HEAD_FACILITY", "HEAD_VEHICLE", "ADMIN"];
+      if (!allowedRoles.includes(actorRole)) {
+        throw new Error("HTTP 403: Forbidden - Insufficient permissions to review Step 1");
+      }
+    } else if (stepNo === 2) {
+      const allowedRoles = ["DIRECTOR", "ADMIN"];
+      if (!allowedRoles.includes(actorRole)) {
+        throw new Error("HTTP 403: Forbidden - Insufficient permissions to approve Step 2");
+      }
+    }
+
+    // 4. Execute CAS Update
+    step.status = "APPROVED";
+    step.approverUserId = actorUserId;
+    step.comment = comment;
+    step.actedAt = new Date().toISOString();
+    step.idempotencyKey = idempotencyKey;
+
+    if (stepNo === 1) {
+      res.currentStep = 2;
+    } else if (stepNo === 2) {
+      res.status = "APPROVED";
+      res.assignments?.forEach(a => { a.status = "APPROVED"; });
+    }
+
+    return res;
+  }
+
+  /**
+   * Centralized Core Fields Guard on COMPLETED reservations.
+   */
+  updateReservationCore(reservationId, updates) {
+    const res = this.reservations.find(r => r.reservationId === reservationId || r.id === reservationId);
+    if (!res) throw new Error("ไม่พบคำขอจอง");
+
+    if (res.status === "COMPLETED") {
+      const coreFields = ["resourceId", "startAt", "endAt", "reservedByUserId", "consumerModule", "title", "purpose", "revisionNo"];
+      const touchesCore = Object.keys(updates).some(k => coreFields.includes(k));
+      if (touchesCore) {
+        throw new Error("Core fields of COMPLETED reservations are strictly immutable. Post-mission records must be appended via FacilityPostMissionReport.");
+      }
+    }
+
+    Object.assign(res, updates);
+    return res;
+  }
+
+  /**
+   * Submits decoupled Post-Mission report for a completed or returning mission.
+   */
+  submitPostMissionReport(reservationId, reportData) {
+    const res = this.reservations.find(r => r.reservationId === reservationId || r.id === reservationId);
+    if (!res) throw new Error("ไม่พบคำขอจอง");
+
+    res.postMissionReport = {
+      id: `pmr-${res.reservationId}`,
+      reservationId: res.reservationId,
+      startMileage: reportData.startMileage,
+      endMileage: reportData.endMileage,
+      distanceKm: reportData.endMileage && reportData.startMileage ? reportData.endMileage - reportData.startMileage : null,
+      fuelCost: reportData.fuelCost,
+      fuelReceiptKey: reportData.fuelReceiptKey,
+      incidentNotes: reportData.incidentNotes,
+      reportedByUserId: reportData.reportedByUserId,
+      reportedAt: new Date().toISOString()
+    };
+
+    if (res.status === "IN_USE" || res.status === "APPROVED") {
+      res.status = "COMPLETED";
+      res.assignments?.forEach(a => { a.status = "COMPLETED"; });
+    }
+
+    return res;
+  }
 }
+

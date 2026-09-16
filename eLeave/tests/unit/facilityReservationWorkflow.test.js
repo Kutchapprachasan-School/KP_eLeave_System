@@ -86,8 +86,8 @@ test('FacilityWorkflow - 2-tier approval lifecycle with snapshot steps', () => {
     resourceId: 'res-room-audi',
     reservedByUserId: 'teacher-1',
     title: 'อบรมวิชาการ',
-    startAt: '2026-09-15T09:00:00Z',
-    endAt: '2026-09-15T12:00:00Z',
+    startAt: new Date(Date.now() + 86400000 * 3).toISOString(),
+    endAt: new Date(Date.now() + 86400000 * 3 + 3600000 * 3).toISOString(),
     consumerModule: 'MEETING_ROOM'
   });
 

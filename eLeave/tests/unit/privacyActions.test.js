@@ -4,10 +4,25 @@ import { prisma, pool } from '../../../src/lib/db.ts';
 
 const { fetchCurrentPolicies, recordRegistrationPolicyAcknowledgments } = await import('../../../src/app/actions/privacy_actions.ts');
 
+const createdTestUserIds = [];
+
 describe('privacy_actions', () => {
   after(async () => {
-    await prisma.$disconnect();
-    await pool.end();
+    try {
+      if (createdTestUserIds.length > 0) {
+        await prisma.policyAcknowledgment.deleteMany({
+          where: { userId: { in: createdTestUserIds } },
+        });
+        await prisma.user.deleteMany({
+          where: { id: { in: createdTestUserIds } },
+        });
+      }
+    } catch (err) {
+      console.error('Error cleaning up test users in privacyActions.test.js:', err);
+    } finally {
+      await prisma.$disconnect();
+      await pool.end();
+    }
   });
 
   it('fetchCurrentPolicies should return notice and terms', async () => {
@@ -29,6 +44,7 @@ describe('privacy_actions', () => {
         createdAt: new Date(),
       },
     });
+    createdTestUserIds.push(testUser.id);
 
     const result = await recordRegistrationPolicyAcknowledgments({ email: testUser.email });
     assert.strictEqual(result.success, true);
@@ -49,6 +65,7 @@ describe('privacy_actions', () => {
         createdAt: new Date(Date.now() - 10 * 60 * 1000), // 10 minutes ago (> 5m threshold)
       },
     });
+    createdTestUserIds.push(oldUser.id);
 
     const result = await recordRegistrationPolicyAcknowledgments({ email: oldUser.email });
     assert.strictEqual(result.success, false);

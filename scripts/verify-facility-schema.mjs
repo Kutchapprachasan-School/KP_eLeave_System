@@ -21,7 +21,13 @@ const REQUIRED_TABLES = [
   "ReservationResourceAssignment",
   "FacilityApprovalStep",
   "RoomReservationDetail",
-  "VehicleReservationDetail"
+  "VehicleReservationDetail",
+  "FacilityReservationRevision",
+  "FacilityPostMissionReport",
+  "FacilitySettings",
+  "AuditEvent",
+  "OutboxEvent",
+  "ExamItemOverride"
 ];
 
 async function verify() {
