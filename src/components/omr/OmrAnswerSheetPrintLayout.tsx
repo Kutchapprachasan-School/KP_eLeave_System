@@ -68,21 +68,21 @@ function MultipleChoiceColumn({
   return (
     <div className="border border-black p-1.5 rounded bg-white">
       {showHeaders && (
-        <div className="flex justify-between items-center text-[9px] font-bold text-slate-700 border-b border-slate-300 pb-1 mb-1 px-1">
-          <span className="truncate">{colTitle}</span>
-          <div className="flex gap-2.5 sm:gap-3.5 pr-1 font-mono">
-            <span>(A)</span>
-            <span>(B)</span>
-            <span>(C)</span>
-            <span>(D)</span>
+        <div className="flex items-center gap-2.5 text-[9px] font-bold text-slate-700 border-b border-slate-300 pb-1 mb-1 px-1">
+          <span className="w-6 text-right pr-1 truncate">{colTitle}</span>
+          <div className="flex gap-2.5 sm:gap-3 pr-1 font-mono">
+            <span className="w-4 text-center">(A)</span>
+            <span className="w-4 text-center">(B)</span>
+            <span className="w-4 text-center">(C)</span>
+            <span className="w-4 text-center">(D)</span>
           </div>
         </div>
       )}
 
       <div className="space-y-0.5">
         {items.map((itemNo) => (
-          <div key={itemNo} className={`flex justify-between items-center text-[10px] px-1 ${itemPadding}`}>
-            <span className="w-5 font-bold font-mono text-slate-700 text-right pr-1.5">
+          <div key={itemNo} className={`flex items-center gap-2.5 text-[10px] px-1 ${itemPadding}`}>
+            <span className="w-6 font-bold font-mono text-slate-700 text-right pr-1">
               {itemNo}.
             </span>
             <div className="flex gap-2.5 sm:gap-3 pr-1">
@@ -120,12 +120,10 @@ export function OmrAnswerSheet({
   const digits = (sheet.studentId || "").padStart(5, "0").slice(-5).split("");
   const hasSubjective = subjectiveItems.length > 0;
 
-  // Rule A: <= 20 items (Section 2 fits on Page 1 next to column 1, or Page 1 has spacious layout)
-  const isTier20 = totalItems <= 20;
-  // Rule B: <= 25 items + subjective (fits on page 1)
-  const isRuleB = !isTier20 && totalItems <= 25 && hasSubjective;
-  // Rule C: > 25 items + subjective (requires Page 2 Duplex)
-  const isRuleC = !isTier20 && totalItems > 25 && hasSubjective;
+  // Tier 1 (KP-OMR-A4-25): <= 25 items (1-page full layout with large subjective area)
+  const isTier25 = totalItems <= 25;
+  // Tier 2+: > 25 items + subjective (requires Page 2 Duplex)
+  const isRuleC = !isTier25 && hasSubjective;
 
   const totalSubjectiveScore = subjectiveItems.reduce((acc, cur) => acc + Number(cur.maxScore || 0), 0);
 
@@ -285,8 +283,8 @@ export function OmrAnswerSheet({
 
           {/* Questions Grid: Dynamic Tiers (20, 50, 75, 100) */}
           <div className="my-1">
-            {/* TIER 1: <= 20 Items */}
-            {isTier20 ? (
+            {/* TIER 1: <= 25 Items (KP-OMR-A4-25) */}
+            {isTier25 ? (
               <div className="grid grid-cols-12 gap-5">
                 {/* Column 1: Items 1 - 20 (Left col-span-5) */}
                 <div className={hasSubjective ? "col-span-5" : "col-span-6"}>
@@ -636,19 +634,19 @@ function HalfSheetCard({
           </div>
         </div>
 
-        {/* Multiple Choice 20 Items (2 Columns of 10) */}
+        {/* Multiple Choice Items (Supports 20 or 25 Items in 2 Columns) */}
         <div className="col-span-8 grid grid-cols-2 gap-2">
           <MultipleChoiceColumn
             startItem={1}
-            endItem={10}
-            colTitle="ข้อ 1 - 10"
+            endItem={totalItems <= 20 ? 10 : Math.min(13, totalItems)}
+            colTitle={`ข้อ 1 - ${totalItems <= 20 ? 10 : Math.min(13, totalItems)}`}
             bubbleSize="w-3.5 h-3.5 text-[7.5px]"
             itemPadding="py-0"
           />
           <MultipleChoiceColumn
-            startItem={11}
-            endItem={Math.min(20, totalItems)}
-            colTitle={`ข้อ 11 - ${Math.min(20, totalItems)}`}
+            startItem={totalItems <= 20 ? 11 : 14}
+            endItem={totalItems}
+            colTitle={`ข้อ ${totalItems <= 20 ? 11 : 14} - ${totalItems}`}
             bubbleSize="w-3.5 h-3.5 text-[7.5px]"
             itemPadding="py-0"
           />
@@ -657,7 +655,7 @@ function HalfSheetCard({
 
       {/* Footer */}
       <div className="border-t border-slate-300 pt-0.5 flex justify-between items-center text-[8px] text-slate-500">
-        <span>กุดจับประชาสรรค์ • Half-A4 Mode (20 Items)</span>
+        <span>กุดจับประชาสรรค์ • Half-A4 Mode ({totalItems <= 20 ? "20 Items" : "25 Items"})</span>
         <span>ช่องคะแนน: ปรนัย [ _____ ] {hasSubjective && "อัตนัย [ _____ ]"}</span>
       </div>
     </div>

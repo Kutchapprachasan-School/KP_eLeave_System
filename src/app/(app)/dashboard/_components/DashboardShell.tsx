@@ -10,6 +10,7 @@ type Props = {
   leaveView: React.ReactNode;
   repairView: React.ReactNode | null;
   documentView?: React.ReactNode | null;
+  facilityView?: React.ReactNode | null;
 };
 
 export default function DashboardShell({
@@ -18,6 +19,7 @@ export default function DashboardShell({
   leaveView,
   repairView,
   documentView,
+  facilityView,
 }: Props) {
   const router = useRouter();
   const [activeSystem, setActiveSystem] = useState(initialSystem);
@@ -33,6 +35,7 @@ export default function DashboardShell({
   const getTitle = () => {
     if (activeSystem === "repair") return "ภาพรวมระบบแจ้งซ่อม";
     if (activeSystem === "document") return "ภาพรวมระบบงานสารบรรณ";
+    if (activeSystem === "facility") return "ภาพรวมระบบทรัพยากรส่วนกลาง";
     return "แดชบอร์ดหลัก";
   };
 
@@ -62,6 +65,8 @@ export default function DashboardShell({
         ? repairView
         : activeSystem === "document" && documentView
         ? documentView
+        : activeSystem === "facility" && facilityView
+        ? facilityView
         : leaveView}
     </div>
   );

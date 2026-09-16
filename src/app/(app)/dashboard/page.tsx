@@ -9,6 +9,7 @@ import DashboardShell from "./_components/DashboardShell";
 import LeaveDashboardClient from "./_components/LeaveDashboardClient";
 import RepairDashboardView, { type RepairDashStats } from "./_components/RepairDashboardView";
 import DocumentDashboardView from "./_components/DocumentDashboardView";
+import FacilityDashboardView from "./_components/FacilityDashboardView";
 
 export const dynamic = "force-dynamic";
 
@@ -45,6 +46,7 @@ export default async function DashboardPage({
 
   // Safe-access settings with fallback defaults
   const enableRepair = systemSettings?.enableRepair ?? false;
+  const enableFacility = systemSettings?.enableFacility ?? true;
 
   // Derive repair dashboard permissions safely
   const currentUser = session.user as any;
@@ -61,6 +63,9 @@ export default async function DashboardPage({
     { id: "document", label: "ระบบงานสารบรรณ", icon: "FileText" as const },
     ...(canViewRepairDash
       ? [{ id: "repair", label: "ระบบแจ้งซ่อม", icon: "Wrench" as const }]
+      : []),
+    ...(enableFacility
+      ? [{ id: "facility", label: "ทรัพยากรส่วนกลาง", icon: "Building2" as const }]
       : []),
   ];
 
@@ -93,6 +98,7 @@ export default async function DashboardPage({
       availableSystems={availableSystems}
       leaveView={<LeaveDashboardClient />}
       documentView={<DocumentDashboardView />}
+      facilityView={<FacilityDashboardView />}
       repairView={
         repairStats ? (
           <RepairDashboardView stats={repairStats} canViewCost={canViewCost} />

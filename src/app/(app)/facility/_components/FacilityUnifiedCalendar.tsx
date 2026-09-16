@@ -47,7 +47,7 @@ export default function FacilityUnifiedCalendar({
   onSelectReservation
 }: FacilityUnifiedCalendarProps) {
   // 1. Controls State
-  const [viewMode, setViewMode] = useState<CalendarViewMode>("WEEK"); // Default is WEEK as required!
+  const [viewMode, setViewMode] = useState<CalendarViewMode>("MONTH"); // Default is MONTH with day drilldown!
   const [resourceFilter, setResourceFilter] = useState<ResourceFilter>("ALL"); // Default is ALL
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
   const [searchQuery, setSearchQuery] = useState("");
@@ -448,20 +448,25 @@ export default function FacilityUnifiedCalendar({
               return (
                 <div
                   key={dayIsoStr}
-                  className={`min-h-[110px] p-2 rounded-2xl border transition flex flex-col ${
+                  onClick={() => {
+                    setCurrentDate(date);
+                    setViewMode("DAY");
+                  }}
+                  title={`คลิกเพื่อดูตารางรายชั่วโมงวันที่ ${toThaiDateString(date)}`}
+                  className={`min-h-[110px] p-2 rounded-2xl border transition flex flex-col cursor-pointer hover:border-indigo-400 dark:hover:border-indigo-500 hover:shadow-xs group ${
                     !isCurrentMonth
                       ? "opacity-40 bg-slate-50/30 dark:bg-slate-900/20 border-slate-100 dark:border-slate-800"
                       : isToday
                       ? "bg-indigo-50/40 dark:bg-indigo-950/20 border-indigo-300 dark:border-indigo-700/60 shadow-2xs"
-                      : "bg-slate-50/50 dark:bg-slate-800/30 border-slate-200/80 dark:border-slate-800 hover:border-slate-300"
+                      : "bg-slate-50/50 dark:bg-slate-800/30 border-slate-200/80 dark:border-slate-800 hover:bg-white dark:hover:bg-slate-800/60"
                   }`}
                 >
                   <div className="flex items-center justify-between mb-1">
-                    <span className={`text-xs font-bold font-mono ${isToday ? "text-indigo-600 dark:text-indigo-400" : "text-slate-700 dark:text-slate-300"}`}>
+                    <span className={`text-xs font-bold font-mono group-hover:text-indigo-600 transition ${isToday ? "text-indigo-600 dark:text-indigo-400" : "text-slate-700 dark:text-slate-300"}`}>
                       {date.getDate()}
                     </span>
                     {items.length > 0 && (
-                      <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200">
+                      <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 group-hover:bg-indigo-100 group-hover:text-indigo-700 transition">
                         {items.length}
                       </span>
                     )}
@@ -474,7 +479,10 @@ export default function FacilityUnifiedCalendar({
                       return (
                         <div
                           key={item.id}
-                          onClick={() => onSelectReservation && onSelectReservation(item)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (onSelectReservation) onSelectReservation(item);
+                          }}
                           className={`px-1.5 py-0.5 rounded text-[10px] truncate font-medium cursor-pointer transition ${
                             isRoom
                               ? "bg-indigo-100/80 dark:bg-indigo-950/70 text-indigo-900 dark:text-indigo-200 hover:bg-indigo-200"
@@ -505,6 +513,20 @@ export default function FacilityUnifiedCalendar({
       {/* ========================================================= */}
       {viewMode === "DAY" && (
         <div className="space-y-4">
+          <div className="flex items-center justify-between bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 rounded-2xl px-4 py-2.5">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-indigo-950 dark:text-indigo-200">
+                📅 ตารางรายชั่วโมง: วันที่ {toThaiDateString(currentDate)}
+              </span>
+            </div>
+            <button
+              onClick={() => setViewMode("MONTH")}
+              className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-200 flex items-center gap-1 transition cursor-pointer"
+            >
+              ← กลับสู่ปฏิทินรายเดือน
+            </button>
+          </div>
+
           {filteredResources.length === 0 ? (
             <div className="p-12 text-center bg-white dark:bg-slate-900 rounded-3xl border border-dashed border-slate-200 dark:border-slate-800 text-slate-400 text-sm">
               ไม่พบทรัพยากรตามเงื่อนไขที่ค้นหา

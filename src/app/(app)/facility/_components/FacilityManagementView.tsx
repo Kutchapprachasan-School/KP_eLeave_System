@@ -31,6 +31,7 @@ import {
   UnifiedModalBody,
   UnifiedModalFooter
 } from "@/components/shared-ui/school-ops";
+import FacilitySettingsConfigTab from "./FacilitySettingsConfigTab";
 
 interface FacilityManagementViewProps {
   resources: any[];
@@ -217,35 +218,52 @@ export default function FacilityManagementView({
     }
   };
 
-  const filteredResources = resources.filter((r) => r.type === resourceType);
+  const [activeTab, setActiveTab] = useState<"MEETING_ROOM" | "VEHICLE" | "SETTINGS">("MEETING_ROOM");
+  const filteredResources = resources.filter((r) => r.type === activeTab);
 
   return (
     <div className="space-y-6">
       {/* Category Switcher */}
-      <div className="flex items-center gap-2 p-1.5 bg-slate-100 dark:bg-slate-800/80 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 max-w-md">
+      <div className="flex items-center gap-2 p-1.5 bg-slate-100 dark:bg-slate-800/80 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 max-w-xl">
         <button
-          onClick={() => setResourceType("MEETING_ROOM")}
-          className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer ${
-            resourceType === "MEETING_ROOM"
+          onClick={() => { setActiveTab("MEETING_ROOM"); setResourceType("MEETING_ROOM"); }}
+          className={`flex-1 py-2.5 px-3.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer ${
+            activeTab === "MEETING_ROOM"
               ? "bg-white dark:bg-slate-900 text-indigo-700 dark:text-indigo-400 shadow-xs"
               : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
           }`}
         >
           <Building className="w-4 h-4" />
-          ห้องประชุมและอาคาร
+          ห้องประชุม
         </button>
         <button
-          onClick={() => setResourceType("VEHICLE")}
-          className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer ${
-            resourceType === "VEHICLE"
+          onClick={() => { setActiveTab("VEHICLE"); setResourceType("VEHICLE"); }}
+          className={`flex-1 py-2.5 px-3.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer ${
+            activeTab === "VEHICLE"
               ? "bg-white dark:bg-slate-900 text-emerald-700 dark:text-emerald-400 shadow-xs"
               : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
           }`}
         >
           <Bus className="w-4 h-4" />
-          รถโรงเรียนและยานพาหนะ
+          รถโรงเรียน
+        </button>
+        <button
+          onClick={() => setActiveTab("SETTINGS")}
+          className={`flex-1 py-2.5 px-3.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer ${
+            activeTab === "SETTINGS"
+              ? "bg-white dark:bg-slate-900 text-purple-700 dark:text-purple-400 shadow-xs"
+              : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
+          }`}
+        >
+          <Settings className="w-4 h-4" />
+          ตั้งค่าผู้อนุมัติ & คนขับ
         </button>
       </div>
+
+      {activeTab === "SETTINGS" ? (
+        <FacilitySettingsConfigTab onSaved={onRefresh} />
+      ) : (
+        <>
 
       {/* Quick Add Resource Card */}
       <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white/60 dark:border-slate-800 rounded-3xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] space-y-4">
@@ -428,6 +446,8 @@ export default function FacilityManagementView({
             )}
           </div>
         </div>
+      )}
+      </>
       )}
 
       {/* Edit Modal */}

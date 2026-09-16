@@ -477,4 +477,50 @@ describe('🏛️ Forensic Architecture Invariants & Data Integrity Test Suite',
       assert.ok(range.endUtc.includes('2026-12-31T16:59:59'));
     });
   });
+
+  // ===========================================================================
+  // 9. IMAGE SECURITY & DUAL-TIER STORAGE PIPELINE
+  // ===========================================================================
+  describe('Image Security & Dual-Tier Storage Pipeline', () => {
+    it('9.1 Should validate PNG and JPEG magic bytes and reject script buffers', async () => {
+      const { validateImageMagicBytes } = await import('../../../src/lib/omr/omrForensicPolicy.ts');
+
+      // Valid PNG
+      const pngHeader = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d]);
+      const pngRes = validateImageMagicBytes(pngHeader);
+      assert.strictEqual(pngRes.format, 'png');
+
+      // Valid JPEG
+      const jpegHeader = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01]);
+      const jpegRes = validateImageMagicBytes(jpegHeader);
+      assert.strictEqual(jpegRes.format, 'jpeg');
+
+      // Reject script or shell disguised as image
+      const badBuffer = Buffer.from('<?php echo "evil"; ?>');
+      assert.throws(() => {
+        validateImageMagicBytes(badBuffer);
+      }, /File security violation/);
+    });
+
+    it('9.2 Should process raw buffer into dual-tier storage artifacts (WORM archive & WebP 8-bit preview)', async () => {
+      const { createDualTierImageMetadata } = await import('../../../src/lib/omr/omrForensicPolicy.ts');
+
+      // Standard valid 1x1 PNG image buffer
+      const testImageBuffer = Buffer.from([
+        0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d,
+        0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+        0x08, 0x06, 0x00, 0x00, 0x00, 0x1f, 0x15, 0xc4, 0x89, 0x00, 0x00, 0x00,
+        0x0a, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9c, 0x63, 0x00, 0x01, 0x00, 0x00,
+        0x05, 0x00, 0x01, 0x0d, 0x0a, 0x2d, 0xb4, 0x00, 0x00, 0x00, 0x00, 0x49,
+        0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82
+      ]);
+
+      const result = await createDualTierImageMetadata(testImageBuffer, 'scan_test_12345');
+      assert.ok(result.rawImageHash, 'Must have rawImageHash');
+      assert.ok(result.processedImageHash, 'Must have processedImageHash');
+      assert.strictEqual(result.rawStorageKey, 'omr/archive/scan_test_12345.raw');
+      assert.strictEqual(result.processedStorageKey, 'omr/preview/scan_test_12345.webp');
+      assert.ok(result.processedBuffer.length > 0, 'Processed WebP buffer must exist');
+    });
+  });
 });

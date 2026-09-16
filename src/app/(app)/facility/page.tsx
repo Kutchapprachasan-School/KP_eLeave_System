@@ -14,7 +14,8 @@ import {
   getFacilityResourcesAction,
   getFacilityReservationsAction,
   getDriverProfilesAction,
-  getCurrentFacilityUserRoleAction
+  getCurrentFacilityUserRoleAction,
+  getFacilitySettingsAction
 } from "@/app/actions/facility";
 
 import FacilityBookingForm from "./_components/FacilityBookingForm";
@@ -22,6 +23,7 @@ import FacilityUnifiedCalendar from "./_components/FacilityUnifiedCalendar";
 import FacilityHistoryView from "./_components/FacilityHistoryView";
 import FacilityApprovalView from "./_components/FacilityApprovalView";
 import FacilityManagementView from "./_components/FacilityManagementView";
+import FacilityGuidelinesBanner from "./_components/FacilityGuidelinesBanner";
 import { type FacilityView, formatISODateInput, type ModuleMode } from "./_components/facility-shared";
 
 function FacilityPortalContent() {
@@ -38,6 +40,7 @@ function FacilityPortalContent() {
   const [myReservations, setMyReservations] = useState<any[]>([]);
   const [drivers, setDrivers] = useState<any[]>([]);
   const [userRoleInfo, setUserRoleInfo] = useState<any>(null);
+  const [facilitySettings, setFacilitySettings] = useState<any>(null);
 
   // Selected slot from calendar to populate booking form
   const [selectedSlot, setSelectedSlot] = useState<{
@@ -52,12 +55,13 @@ function FacilityPortalContent() {
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
-      const [resList, allBookings, myBookings, driverList, roleInfo] = await Promise.all([
+      const [resList, allBookings, myBookings, driverList, roleInfo, settings] = await Promise.all([
         getFacilityResourcesAction().catch(() => []),
         getFacilityReservationsAction().catch(() => []),
         getFacilityReservationsAction({ onlyMine: true }).catch(() => []),
         getDriverProfilesAction().catch(() => []),
-        getCurrentFacilityUserRoleAction().catch(() => null)
+        getCurrentFacilityUserRoleAction().catch(() => null),
+        getFacilitySettingsAction().catch(() => null)
       ]);
 
       setResources(resList || []);
@@ -65,6 +69,7 @@ function FacilityPortalContent() {
       setMyReservations(myBookings || []);
       setDrivers(driverList || []);
       setUserRoleInfo(roleInfo);
+      setFacilitySettings(settings);
     } catch (err: any) {
       console.error("Failed to load facility data:", err);
       showToast("error", "ไม่สามารถดึงข้อมูลระบบได้: " + err.message);
@@ -199,6 +204,12 @@ function FacilityPortalContent() {
           </button>
         </div>
       </div>
+
+      {/* Hotline & Regulations Banner */}
+      <FacilityGuidelinesBanner
+        hotlinePhone={facilitySettings?.hotlinePhone}
+        guidelinesHtml={facilitySettings?.guidelinesHtml}
+      />
 
       {/* Sub-Views Routing */}
       {loading && resources.length === 0 ? (

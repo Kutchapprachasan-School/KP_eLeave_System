@@ -21,6 +21,7 @@ import {
 import { useToast } from "@/components/toast-provider";
 import { reserveFacilityAction } from "@/app/actions/facility";
 import { formatISODateInput, type ModuleMode } from "./facility-shared";
+import RoomBlueprintCards from "./RoomBlueprintCards";
 
 interface FacilityBookingFormProps {
   resources: any[];
@@ -421,34 +422,22 @@ export default function FacilityBookingForm({ resources, onSuccess, initialSelec
                     รายละเอียดการจัดห้องและอุปกรณ์
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">
-                        รูปแบบการจัดผังห้อง
-                      </label>
-                      <select
-                        value={layoutType}
-                        onChange={(e) => setLayoutType(e.target.value)}
-                        className="w-full h-10 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs"
-                      >
-                        <option value="THEATER">เธียเตอร์ (Theater / เก้าอี้แถวเรียง)</option>
-                        <option value="CLASSROOM">ห้องเรียน (Classroom / โต๊ะพร้อมเก้าอี้)</option>
-                        <option value="U_SHAPE">ตัวยู (U-Shape / ประชุมกลุ่มแลกเปลี่ยน)</option>
-                        <option value="BOARDROOM">บอร์ดรูม (Boardroom / คณะกรรมการ)</option>
-                      </select>
-                    </div>
+                  {/* Blueprint Layout Selection (6 Graphic Cards) */}
+                  <RoomBlueprintCards
+                    selected={layoutType}
+                    onSelect={(val) => setLayoutType(val)}
+                  />
 
-                    <div className="flex items-center pt-5">
-                      <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-700 dark:text-slate-300">
-                        <input
-                          type="checkbox"
-                          checked={requireAirCon}
-                          onChange={(e) => setRequireAirCon(e.target.checked)}
-                          className="w-4 h-4 rounded text-indigo-600 border-slate-300 focus:ring-indigo-500"
-                        />
-                        เปิดเครื่องปรับอากาศ (Air Conditioning)
-                      </label>
-                    </div>
+                  <div className="flex items-center pt-1">
+                    <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-700 dark:text-slate-300">
+                      <input
+                        type="checkbox"
+                        checked={requireAirCon}
+                        onChange={(e) => setRequireAirCon(e.target.checked)}
+                        className="w-4 h-4 rounded text-indigo-600 border-slate-300 focus:ring-indigo-500"
+                      />
+                      เปิดเครื่องปรับอากาศ (Air Conditioning)
+                    </label>
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

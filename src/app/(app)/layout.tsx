@@ -815,11 +815,11 @@ function AppContent({ children }: { children: React.ReactNode }) {
   // Sub-items for Facility System (ระบบจองทรัพยากรกลาง)
   const facilitySubItems = enableFacility
     ? [
-        { href: "/general/facility?view=request", label: "ยื่นจองทรัพยากร", icon: Plus },
-        { href: "/general/facility?view=calendar", label: "ปฏิทินการใช้ทรัพยากร", icon: Calendar },
+        { href: "/general/facility", label: "ปฏิทิน & ยื่นจองทรัพยากร", icon: Calendar },
         { href: "/general/facility?view=history", label: "ประวัติและคำขอของฉัน", icon: History },
         ...(isFacilityApprover ? [{ href: "/general/facility?view=approval", label: "ศูนย์พิจารณาอนุมัติ", icon: CheckSquare }] : []),
         ...(isFacilityManager ? [{ href: "/general/facility?view=crud", label: "จัดการข้อมูลทรัพยากร", icon: Settings }] : []),
+        { href: "/general/facility/reports", label: "รายงานสถิติการใช้งาน", icon: FileSpreadsheet },
       ]
     : [];
 
@@ -918,7 +918,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
          (item.href.startsWith("/general/facility") && (pathname === "/facility" || pathname === "/academic/facility"))) &&
         (searchParams?.get(item.href.split("?")[1].split("=")[0]) === item.href.split("?")[1].split("=")[1] ||
          (item.href.endsWith("view=request") && !searchParams?.get("view")))
-      : (pathname === item.href || (item.href === "/hr/leave/request" && pathname === "/request") || (item.href === "/hr/leave/history" && pathname === "/history") || (item.href === "/hr/leave/approvals" && pathname === "/approvals") || (item.href === "/hr/leave/reports" && pathname === "/reports") || (item.href === "/hr/attendance" && pathname === "/attendance") || (item.href === "/hr/competency" && pathname === "/academic/competency") || (item.href === "/general/facility" && (pathname === "/academic/facility" || pathname === "/facility")));
+      : (pathname === item.href || (item.href === "/hr/leave/request" && pathname === "/request") || (item.href === "/hr/leave/history" && pathname === "/history") || (item.href === "/hr/leave/approvals" && pathname === "/approvals") || (item.href === "/hr/leave/reports" && pathname === "/reports") || (item.href === "/hr/attendance" && pathname === "/attendance") || (item.href === "/hr/competency" && pathname === "/academic/competency") || (item.href === "/general/facility" && (pathname === "/academic/facility" || pathname === "/facility" || pathname === "/general/facility") && (!searchParams?.get("view") || searchParams?.get("view") === "request" || searchParams?.get("view") === "calendar")));
 
     const isActive = isExactMatch || (item.href.startsWith("/settings") && !item.href.includes("?") && pathname.startsWith("/settings") && !searchParams?.get("section"));
     const Icon = item.icon;

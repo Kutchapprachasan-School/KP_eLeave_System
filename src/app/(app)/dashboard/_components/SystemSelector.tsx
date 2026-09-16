@@ -1,12 +1,13 @@
 "use client";
 import { useState, useRef, useEffect } from "react";
-import { CalendarDays, Wrench, FileText, ChevronDown } from "lucide-react";
+import { CalendarDays, Wrench, FileText, Building2, ChevronDown } from "lucide-react";
 
-export type SystemOption = { id: string; label: string; icon: "CalendarDays" | "Wrench" | "FileText" };
+export type SystemOption = { id: string; label: string; icon: "CalendarDays" | "Wrench" | "FileText" | "Building2" };
 const ICONS: Record<string, React.ReactNode> = {
   CalendarDays: <CalendarDays className="w-4 h-4" />,
   Wrench: <Wrench className="w-4 h-4" />,
   FileText: <FileText className="w-4 h-4" />,
+  Building2: <Building2 className="w-4 h-4" />,
 };
 
 export default function SystemSelector({

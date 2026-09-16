@@ -1481,3 +1481,115 @@ export async function getCurrentFacilityUserRoleAction() {
     canManageVehicles: role === "ADMIN" || role === "HEAD_VEHICLE"
   };
 }
+
+/**
+ * 7. Get Facility System Settings (Hotline, Guidelines, Approvers, Driver Pool)
+ */
+export async function getFacilitySettingsAction() {
+  try {
+    let settings = await prisma.facilitySettings.findUnique({
+      where: { id: "default" }
+    });
+
+    if (!settings) {
+      settings = await prisma.facilitySettings.create({
+        data: {
+          id: "default",
+          hotlinePhone: "042-261234",
+          guidelinesHtml: `<h3>ระเบียบและแนวปฏิบัติการใช้ทรัพยากรส่วนกลาง</h3>
+<ul>
+  <li>การจองห้องประชุมควรยื่นล่วงหน้าอย่างน้อย 1 วันทำการ</li>
+  <li>การขอใช้รถส่วนกลางสำหรับการเดินทางไปราชการต้องได้รับการอนุมัติจากผู้มีอำนาจตามระเบียบ</li>
+  <li>หลังสิ้นสุดภารกิจ ขอความร่วมมือผู้ใช้บริการ/พนักงานขับรถส่งแบบรายงานหลังเสร็จสิ้นภารกิจ (Post-Mission Report)</li>
+  <li>กรณีต้องการยกเลิกคำขอ กรุณากดยกเลิกล่วงหน้าเพื่อให้ผู้อื่นสามารถจองต่อได้</li>
+</ul>`,
+          driverAssignerUserIds: "",
+          driverPoolUserIds: "",
+          approverStep1UserIds: "",
+          approverStep2UserIds: ""
+        }
+      });
+    }
+
+    return settings;
+  } catch (error: any) {
+    console.error("Error getting facility settings:", error);
+    return {
+      id: "default",
+      hotlinePhone: "042-261234",
+      guidelinesHtml: "",
+      driverAssignerUserIds: "",
+      driverPoolUserIds: "",
+      approverStep1UserIds: "",
+      approverStep2UserIds: "",
+      updatedAt: new Date()
+    };
+  }
+}
+
+/**
+ * 8. Update Facility System Settings
+ */
+export async function updateFacilitySettingsAction(data: {
+  hotlinePhone?: string;
+  guidelinesHtml?: string;
+  driverAssignerUserIds?: string;
+  driverPoolUserIds?: string;
+  approverStep1UserIds?: string;
+  approverStep2UserIds?: string;
+}) {
+  const user = await getSessionUser();
+  if (!user) throw new Error("Unauthorized");
+
+  const canManage = hasFacilityPermission(user, "facility:resource.manage");
+  if (!canManage) {
+    throw new Error("ไม่มีสิทธิ์แก้ไขการตั้งค่าทรัพยากรส่วนกลาง (ต้องมีสิทธิ์ facility:resource.manage หรือแอดมิน)");
+  }
+
+  const updated = await prisma.facilitySettings.upsert({
+    where: { id: "default" },
+    update: {
+      ...(data.hotlinePhone !== undefined ? { hotlinePhone: data.hotlinePhone } : {}),
+      ...(data.guidelinesHtml !== undefined ? { guidelinesHtml: data.guidelinesHtml } : {}),
+      ...(data.driverAssignerUserIds !== undefined ? { driverAssignerUserIds: data.driverAssignerUserIds } : {}),
+      ...(data.driverPoolUserIds !== undefined ? { driverPoolUserIds: data.driverPoolUserIds } : {}),
+      ...(data.approverStep1UserIds !== undefined ? { approverStep1UserIds: data.approverStep1UserIds } : {}),
+      ...(data.approverStep2UserIds !== undefined ? { approverStep2UserIds: data.approverStep2UserIds } : {})
+    },
+    create: {
+      id: "default",
+      hotlinePhone: data.hotlinePhone || "042-261234",
+      guidelinesHtml: data.guidelinesHtml || "",
+      driverAssignerUserIds: data.driverAssignerUserIds || "",
+      driverPoolUserIds: data.driverPoolUserIds || "",
+      approverStep1UserIds: data.approverStep1UserIds || "",
+      approverStep2UserIds: data.approverStep2UserIds || ""
+    }
+  });
+
+  revalidatePath("/general/facility");
+  revalidatePath("/facility");
+  revalidatePath("/settings");
+
+  return updated;
+}
+
+/**
+ * 9. Get Eligible Users for Facility Approvers & Drivers
+ */
+export async function getFacilityEligibleUsersAction() {
+  const users = await prisma.user.findMany({
+    where: { isApproved: true },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      position: true,
+      role: true
+    },
+    orderBy: { name: "asc" }
+  });
+  return users;
+}
+
+
