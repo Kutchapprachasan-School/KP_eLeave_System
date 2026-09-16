@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { 
   Building, 
   Bus, 
@@ -25,14 +25,46 @@ import { formatISODateInput, type ModuleMode } from "./facility-shared";
 interface FacilityBookingFormProps {
   resources: any[];
   onSuccess?: () => void;
+  initialSelection?: {
+    resourceId?: string;
+    resourceType?: ModuleMode;
+    startDate?: string;
+    startTime?: string;
+    endDate?: string;
+    endTime?: string;
+  } | null;
 }
 
-export default function FacilityBookingForm({ resources, onSuccess }: FacilityBookingFormProps) {
+export default function FacilityBookingForm({ resources, onSuccess, initialSelection }: FacilityBookingFormProps) {
   const { showToast } = useToast();
 
   const [resourceType, setResourceType] = useState<ModuleMode>("MEETING_ROOM");
   const [selectedResourceId, setSelectedResourceId] = useState<string>("");
   const [submitting, setSubmitting] = useState(false);
+
+  // Synchronize initialSelection when passed from calendar slot selection
+  useEffect(() => {
+    if (initialSelection) {
+      if (initialSelection.resourceType) {
+        setResourceType(initialSelection.resourceType);
+      }
+      if (initialSelection.resourceId) {
+        setSelectedResourceId(initialSelection.resourceId);
+      }
+      if (initialSelection.startDate) {
+        setStartDate(initialSelection.startDate);
+      }
+      if (initialSelection.endDate) {
+        setEndDate(initialSelection.endDate);
+      }
+      if (initialSelection.startTime) {
+        setStartTime(initialSelection.startTime);
+      }
+      if (initialSelection.endTime) {
+        setEndTime(initialSelection.endTime);
+      }
+    }
+  }, [initialSelection]);
 
   // Form Fields
   const [title, setTitle] = useState("");

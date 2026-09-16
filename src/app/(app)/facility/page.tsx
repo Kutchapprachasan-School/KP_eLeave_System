@@ -3,18 +3,13 @@
 import React, { useState, useEffect, Suspense, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { 
-  Building, 
-  Bus, 
   Calendar, 
-  FileText, 
   History, 
   ShieldCheck, 
   Settings, 
-  Plus,
-  RefreshCw
+  RefreshCw 
 } from "lucide-react";
 import { useToast } from "@/components/toast-provider";
-import { SubsystemHeader, PRIMARY_ACTION_BUTTON_CLASSES } from "@/components/shared-ui/school-ops";
 import {
   getFacilityResourcesAction,
   getFacilityReservationsAction,
@@ -27,7 +22,7 @@ import FacilityUnifiedCalendar from "./_components/FacilityUnifiedCalendar";
 import FacilityHistoryView from "./_components/FacilityHistoryView";
 import FacilityApprovalView from "./_components/FacilityApprovalView";
 import FacilityManagementView from "./_components/FacilityManagementView";
-import { type FacilityView } from "./_components/facility-shared";
+import { type FacilityView, formatISODateInput, type ModuleMode } from "./_components/facility-shared";
 
 function FacilityPortalContent() {
   const searchParams = useSearchParams();
@@ -43,6 +38,16 @@ function FacilityPortalContent() {
   const [myReservations, setMyReservations] = useState<any[]>([]);
   const [drivers, setDrivers] = useState<any[]>([]);
   const [userRoleInfo, setUserRoleInfo] = useState<any>(null);
+
+  // Selected slot from calendar to populate booking form
+  const [selectedSlot, setSelectedSlot] = useState<{
+    resourceId?: string;
+    resourceType?: ModuleMode;
+    startDate?: string;
+    startTime?: string;
+    endDate?: string;
+    endTime?: string;
+  } | null>(null);
 
   const loadData = useCallback(async () => {
     try {
@@ -79,40 +84,121 @@ function FacilityPortalContent() {
   const isPrivileged = userRoleInfo?.canManage || userRoleInfo?.isAdmin || userRoleInfo?.isDirector || false;
   const pendingApprovalsCount = reservations.filter((r) => r.status === "PENDING").length;
 
+  // Handler when user clicks a slot on the calendar
+  const handleSelectSlot = (resource: any, date: Date, hour?: number) => {
+    const dateStr = formatISODateInput(date);
+    let startTimeStr = "09:00";
+    let endTimeStr = "12:00";
+    if (typeof hour === "number") {
+      startTimeStr = `${String(hour).padStart(2, "0")}:00`;
+      endTimeStr = `${String(hour + 1).padStart(2, "0")}:00`;
+    }
+
+    setSelectedSlot({
+      resourceId: resource?.id,
+      resourceType: resource?.type,
+      startDate: dateStr,
+      endDate: dateStr,
+      startTime: startTimeStr,
+      endTime: endTimeStr
+    });
+
+    // If currently on other tab, navigate to request
+    if (currentView !== "request" && currentView !== "calendar") {
+      navigateToView("request");
+    }
+
+    // Smooth scroll down to booking form
+    setTimeout(() => {
+      const el = document.getElementById("facility-booking-form-container");
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    }, 100);
+  };
+
   return (
     <div className="min-h-screen bg-slate-50/60 dark:bg-slate-950 p-3 md:p-6 lg:p-8 space-y-6 text-slate-900 dark:text-slate-100 max-w-7xl mx-auto font-sans">
       
-      {/* Subsystem Header */}
-      <SubsystemHeader
-        title="ระบบจองห้องประชุมและยานพาหนะโรงเรียน"
-        subtitle="ระบบบริการจองทรัพยากรส่วนกลางออนไลน์ สะดวก รวดเร็ว พร้อมตรวจสอบคิวว่างทันที"
-        categoryTitle="ระบบบริหารทรัพยากรสถานศึกษา"
-        subsystem="facility_room"
-        versionBadge="v7.4 Unified Hub"
-        roleBadge={userRoleInfo?.role}
-        icon={Building}
-        actions={
-          <div className="flex items-center gap-2">
-            {currentView !== "request" && (
-              <button
-                onClick={() => navigateToView("request")}
-                className={PRIMARY_ACTION_BUTTON_CLASSES}
-              >
-                <Plus className="w-4 h-4" />
-                ยื่นคำขอจองใหม่
-              </button>
-            )}
+      {/* Sleek Subsystem Navigation Tabs */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white/60 dark:border-slate-800 rounded-2xl p-2 sm:p-2.5 shadow-[0_4px_20px_rgb(0,0,0,0.03)]">
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
+          <button
+            onClick={() => navigateToView("request")}
+            className={`px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap ${
+              currentView === "request" || currentView === "calendar"
+                ? "bg-indigo-600 text-white shadow-xs"
+                : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white"
+            }`}
+          >
+            <Calendar className="w-4 h-4" />
+            <span>ปฏิทิน & ยื่นจองทรัพยากร</span>
+          </button>
 
+          <button
+            onClick={() => navigateToView("history")}
+            className={`px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap ${
+              currentView === "history"
+                ? "bg-indigo-600 text-white shadow-xs"
+                : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white"
+            }`}
+          >
+            <History className="w-4 h-4" />
+            <span>ประวัติคำขอของฉัน</span>
+            {myReservations.length > 0 && (
+              <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold ${
+                currentView === "history" ? "bg-white/20 text-white" : "bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300"
+              }`}>
+                {myReservations.length}
+              </span>
+            )}
+          </button>
+
+          {isPrivileged && (
             <button
-              onClick={loadData}
-              className="p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition"
-              title="รีเฟรชข้อมูลทั้งหมด"
+              onClick={() => navigateToView("approval")}
+              className={`px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap ${
+                currentView === "approval"
+                  ? "bg-indigo-600 text-white shadow-xs"
+                  : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white"
+              }`}
             >
-              <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin text-indigo-600" : ""}`} />
+              <ShieldCheck className="w-4 h-4" />
+              <span>พิจารณาอนุมัติ</span>
+              {pendingApprovalsCount > 0 && (
+                <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-rose-500 text-white font-mono font-bold animate-pulse">
+                  {pendingApprovalsCount}
+                </span>
+              )}
             </button>
-          </div>
-        }
-      />
+          )}
+
+          {isPrivileged && (
+            <button
+              onClick={() => navigateToView("crud")}
+              className={`px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap ${
+                currentView === "crud"
+                  ? "bg-indigo-600 text-white shadow-xs"
+                  : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white"
+              }`}
+            >
+              <Settings className="w-4 h-4" />
+              <span>จัดการข้อมูลทรัพยากร</span>
+            </button>
+          )}
+        </div>
+
+        {/* Right Action: Refresh */}
+        <div className="flex items-center gap-2 justify-end">
+          <button
+            onClick={loadData}
+            className="p-2 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition cursor-pointer"
+            title="รีเฟรชข้อมูลทั้งหมด"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin text-indigo-600" : ""}`} />
+          </button>
+        </div>
+      </div>
 
       {/* Sub-Views Routing */}
       {loading && resources.length === 0 ? (
@@ -122,33 +208,49 @@ function FacilityPortalContent() {
         </div>
       ) : (
         <>
-          {/* VIEW 1: REQUEST FORM (DEFAULT LANDING PAGE) */}
-          {currentView === "request" && (
-            <FacilityBookingForm
-              resources={resources}
-              onSuccess={() => {
-                loadData();
-                navigateToView("history");
-              }}
-            />
-          )}
+          {/* COMBINED VIEW: CALENDAR ON TOP + BOOKING FORM DIRECTLY UNDERNEATH */}
+          {(currentView === "request" || currentView === "calendar") && (
+            <div className="space-y-8">
+              {/* 1. Resource Calendar on Top */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                      <Calendar className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+                      ปฏิทินการใช้ทรัพยากรส่วนกลาง
+                    </h2>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                      ตรวจสอบสถานะและช่วงเวลาว่างของห้องประชุมและรถโรงเรียนแบบเรียลไทม์ (คลิกเพื่อจองคิวที่ต้องการ)
+                    </p>
+                  </div>
+                </div>
 
-          {/* VIEW 2: UNIFIED CALENDAR */}
-          {currentView === "calendar" && (
-            <FacilityUnifiedCalendar
-              resources={resources}
-              reservations={reservations}
-              onSelectSlot={() => {
-                navigateToView("request");
-              }}
-              onSelectReservation={(item) => {
-                if (item.reservedByUserId === userRoleInfo?.userId) {
-                  navigateToView("history");
-                } else if (isPrivileged) {
-                  navigateToView("approval");
-                }
-              }}
-            />
+                <FacilityUnifiedCalendar
+                  resources={resources}
+                  reservations={reservations}
+                  onSelectSlot={handleSelectSlot}
+                  onSelectReservation={(item) => {
+                    if (item.reservedByUserId === userRoleInfo?.userId) {
+                      navigateToView("history");
+                    } else if (isPrivileged) {
+                      navigateToView("approval");
+                    }
+                  }}
+                />
+              </div>
+
+              {/* 2. Booking Form Directly Underneath */}
+              <div id="facility-booking-form-container" className="pt-4 border-t border-slate-200/60 dark:border-slate-800">
+                <FacilityBookingForm
+                  resources={resources}
+                  initialSelection={selectedSlot}
+                  onSuccess={() => {
+                    loadData();
+                    navigateToView("history");
+                  }}
+                />
+              </div>
+            </div>
           )}
 
           {/* VIEW 3: MY BOOKINGS HISTORY */}
