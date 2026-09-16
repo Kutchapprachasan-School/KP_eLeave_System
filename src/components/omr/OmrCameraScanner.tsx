@@ -15,6 +15,7 @@ import {
   ShieldCheck,
   X,
   RotateCcw
+} from "lucide-react";
 import { processOmrSheet, OmrScanResult, RawImageData } from "@/lib/omr/omrEngine";
 import { generate50ItemGridMetadata, generate20ItemGridMetadata, TemplateGridMetadata } from "@/lib/omr/omrTemplateGeometry";
 import { ingestExamSubmissionAction } from "@/app/actions/omr";
