@@ -880,7 +880,7 @@ export async function listExamPapersAction(userContext?: UserContext) {
         updatedAt: true,
         template: true,
         createdBy: {
-          select: { id: true, name: true, email: true }
+          select: { id: true, name: true, email: true, subjectGroup: true }
         },
         _count: {
           select: {
@@ -914,7 +914,7 @@ export async function listExamPapersAction(userContext?: UserContext) {
         }
       },
       createdBy: {
-        select: { id: true, name: true, email: true }
+        select: { id: true, name: true, email: true, subjectGroup: true }
       },
       _count: {
         select: {
