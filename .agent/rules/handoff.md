@@ -43,6 +43,12 @@ git checkout dev
 > 1. **Vercel** จะเริ่ม Build และ Deploy ระบบจริงขึ้น Production อัตโนมัติ
 > 2. **GitHub Actions Workflow** [`.github/workflows/mirror-to-school.yml`](file:///g:/My%20Drive/01%20Web%20app/01%20ระบบการลา/.github/workflows/mirror-to-school.yml) จะทำการ Sync โค้ดไปยัง `school/main` โดยอัตโนมัติ
 
+### 📌 กฎข้อที่ 3: การกำกับ Version และ Revision ของแผนงาน (Plan Versioning & Revision Protocol)
+> *"การปรับแผนแต่ละครั้งให้เอาเป็น Version หรือ Rev ในแต่ละการปรับแผนเสมอ"*
+- **ทุกแผนงานการพัฒนา (`implementation_plan.md`):** ต้องมีเลข Version / Rev กำกับเสมอ เช่น `v1.0 (Rev. 0)` สำหรับแผนตั้งต้น และ `v1.1 (Rev. 1)`, `v1.2 (Rev. 2)` สำหรับการแก้ไข
+- **ต้องมีตาราง Revision History:** สรุปประวัติการแก้ไขไว้บนสุดของเอกสาร (Changelog: เพิ่มอะไร, แก้ไขอะไร, ล็อกอะไร)
+- **ห้ามแก้ไขแผนงานโดยไม่ระบุ Version / Revision อย่างเด็ดขาด** (ดูรายละเอียดใน [`.agent/rules/plan-versioning.md`](file:///g:/My%20Drive/01%20Web%20app/01%20ระบบการลา/.agent/rules/plan-versioning.md))
+
 ---
 
 ## 2. กฎความปลอดภัยของฐานข้อมูล Production (Database & Migration Protocol)

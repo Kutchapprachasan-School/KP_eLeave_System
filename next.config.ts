@@ -2,6 +2,14 @@ import type { NextConfig } from "next";
 import path from "path";
 
 const nextConfig: NextConfig = {
+  allowedDevOrigins: [
+    "10.64.145.188",
+    "10.64.145.96",
+    "10.64.145.*",
+    "192.168.137.*",
+    "localhost",
+    "127.0.0.1",
+  ],
   serverExternalPackages: ["sharp"],
   typescript: {
     ignoreBuildErrors: true,
