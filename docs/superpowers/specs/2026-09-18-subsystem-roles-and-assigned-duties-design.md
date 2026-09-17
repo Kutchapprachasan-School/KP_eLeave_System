@@ -1,9 +1,9 @@
-# Subsystem Roles, Assigned Duties & Teacher Capability Architecture Design
+# Subsystem Roles, Assigned Duties & Teacher Capability Architecture Design (Rev 2 - Forensic Hardened)
 
-**Document ID:** `SPEC-2026-09-18-ROLES-DUTIES-01`  
+**Document ID:** `SPEC-2026-09-18-ROLES-DUTIES-02`  
 **Date:** 2026-09-18  
-**Status:** `APPROVED_DESIGN`  
-**Author:** Pair Programming (User & Antigravity)  
+**Status:** `APPROVED_DESIGN_REV2`  
+**Author:** Pair Programming (Senior Forensic Architecture)  
 **Target Environments:** `dev` → `main` (Vercel & Authoritative PostgreSQL)
 
 ---
@@ -15,51 +15,72 @@ In Thai government schools under the Office of the Basic Education Commission (O
 - **Official Civil Service Positions (`position`):** `ผู้อำนวยการ`, `รองผู้อำนวยการ`, `ครู`, `ครูผู้ช่วย`, `พนักงานราชการ`, `ลูกจ้างประจำ`, `ครูอัตราจ้าง`, `นักศึกษาฝึกประสบการณ์`
 - **Academic Ranks (`level`):** `ครูชำนาญการ`, `ครูชำนาญการพิเศษ`, `ครูเชี่ยวชาญ`, `ครูเชี่ยวชาญพิเศษ`
 
-### 1.2 The Problem
-Historically in the eLeave system:
-1. Roles such as **"หัวหน้างานบุคคล"** (Head of HR) and **"ผู้ตรวจสอบ"** (Leave Inspector) were stored directly in the `User.position` field as synthetic position titles.
-2. This caused critical discrepancies:
-   - Official reports (such as personnel rosters, leave statistics tables, and Excel exports) showed "หัวหน้างานบุคคล" as a position, disrupting official personnel sorting tiers.
-   - Teachers performing extra administrative duties lost their official civil service title (`ครู`) in printed leave documents.
-   - There was no unified way to designate **หัวหน้าฝ่าย 4 ฝ่าย** (Academic, HR, General Affairs, Budget) or **หัวหน้ากลุ่มสาระการเรียนรู้ (8+1 กลุ่ม)** without overloading role or position fields.
-   - Subsystem permissions were fragmented across hardcoded string checks (`user.position === "หัวหน้างานบุคคล"`).
-
-### 1.3 The Solution
-Decouple **Official Position (`position`)** from **Appointed Functional Duties (`assignedDuties` / capabilities)**:
-1. All teaching staff retain their legitimate official civil service position (`ครู`, `ครูผู้ช่วย`).
-2. Special administrative duties are centrally configured in `SystemSettings` (single source of truth for the institutional hierarchy).
-3. A centralized **Capability & Permission Engine** (`getUserCapabilities`) resolves all authorization flags for all subsystems.
-4. Official prints and reports display the true position (`ครู`) with official duty qualification labels (e.g., `ปฏิบัติหน้าที่หัวหน้างานบุคคล`, `ผู้ตรวจสอบการลา`).
+### 1.2 The Forensic Architecture Hardening (Rev 2)
+Decouple **ตำแหน่งราชการ (Official Position)** + **วิทยฐานะ (Academic Level)** + **หน้าที่ที่ได้รับแต่งตั้ง (Appointed Functional Duty)**:
+1. **Normalized Assignment Table (`UserDutyAssignment`):** Eliminate unstructured comma-separated strings and unvalidated JSON blobs. Introduce relational, auditable, temporal duty assignments.
+2. **Explicit Grant & Fail-Closed Security:** No silent legacy fallback. Access is denied unless an active, unrevoked duty assignment exists.
+3. **Transaction Lock & Concurrency Control:** `SystemSettings FOR UPDATE` locks during duty mutations, validating target user status (`isApproved = true`, not disabled) atomically with audit logs.
+4. **Strict Separation of Duties (Anti-Self-Approval):** Invariants ensure `requesterId !== inspectorId`, `requesterId !== headApproverId`, and `requesterId !== execApproverId`.
+5. **Historical Signer Snapshot:** Printed and archived documents render the immutable snapshot of the signer's position, academic level, and appointed duty *at the moment of signing*, preventing current settings from altering past records.
+6. **Idempotent Migration with `--dry-run`:** Safe preflight migration CLI reporting `migrated`, `skipped`, and `ambiguous` without duplicate entries or assumptions.
+7. **Complete Audit Trail:** Every grant and revocation is immutably recorded in `SystemLog`.
+8. **Strict Typed Domain:** 4 Divisions and 8+1 Learning Areas are governed by strict enums/allowlists with Zod validation.
 
 ---
 
 ## 2. Architecture & Data Model
 
-### 2.1 SystemSettings Schema Extensions
-In `model SystemSettings` (`prisma/schema.prisma`):
+### 2.1 Schema: `model UserDutyAssignment`
+```prisma
+enum DutyType {
+  INSPECTOR
+  HR_HEAD
+  HR_STAFF
+  DIVISION_HEAD
+  DEPT_HEAD
+}
 
-| Field | Type | Default | Description |
-|---|---|---|---|
-| `hrHeadUserIds` | `String` | `""` | Comma-separated User IDs appointed as Head of HR |
-| `hrStaffUserIds` | `String` | `""` | Comma-separated User IDs appointed as HR Staff |
-| `defaultInspectorId` | `String?` | `null` | Comma-separated User IDs appointed as Leave Inspectors (multi-inspector support) |
-| `divisionHeads` | `String` | `"{}"` | JSON map of 4 main division heads: `academic`, `hr`, `general`, `budget` |
-| `departmentHeads` | `String` | `"{}"` | JSON map of 8+1 learning area department heads `{ [subjectGroup: string]: userId }` |
+model UserDutyAssignment {
+  id           String    @id @default(cuid())
+  userId       String
+  dutyType     DutyType
+  scope        String?   // DivisionType ("ACADEMIC"|"PERSONNEL"|"GENERAL"|"BUDGET") or DeptType ("THAI"|"MATH"|...)
+  assignedAt   DateTime  @default(now())
+  revokedAt    DateTime?
+  assignedById String?
+  isActive     Boolean   @default(true)
+  metadata     Json?
+  user         User      @relation("UserDutyAssignments", fields: [userId], references: [id], onDelete: Cascade)
+  assignedBy   User?     @relation("DutyAssignedByUser", fields: [assignedById], references: [id], onDelete: SetNull)
 
-### 2.2 Data Migration (Fail-Closed & Reversible)
-A preflight migration script will execute within a single transaction:
-1. **Identify Existing Synthetic Users:**
-   ```sql
-   SELECT id, name, position FROM "User" WHERE position IN ('หัวหน้างานบุคคล', 'ผู้ตรวจสอบ', 'เจ้าหน้าที่บุคคล');
-   ```
-2. **Promote to SystemSettings:**
-   - Any user with `position = 'หัวหน้างานบุคคล'` is appended to `SystemSettings.hrHeadUserIds` and `divisionHeads.hr`.
-   - Any user with `position = 'ผู้ตรวจสอบ'` is appended to `SystemSettings.defaultInspectorId`.
-   - Any user with `position = 'เจ้าหน้าที่บุคคล'` is appended to `SystemSettings.hrStaffUserIds`.
-3. **Normalize Official Positions:**
-   - Update `User.position` to `'ครู'` (or `'เจ้าหน้าที่'` for general staff).
-4. **Validation:**
-   - Verify that all promoted user IDs exist in `SystemSettings` before committing.
+  @@index([userId, dutyType, isActive])
+  @@index([dutyType, scope, isActive])
+}
+```
+
+### 2.2 Domain Enums & Allowlists
+```typescript
+export const DIVISION_DOMAIN = ["ACADEMIC", "PERSONNEL", "GENERAL", "BUDGET"] as const;
+export type DivisionType = typeof DIVISION_DOMAIN[number];
+
+export const DEPARTMENT_DOMAIN = [
+  "THAI", "MATH", "SCIENCE", "FOREIGN_LANG", 
+  "SOCIAL", "HEALTH_PE", "ART", "CAREER", "STUDENT_DEV"
+] as const;
+export type DepartmentType = typeof DEPARTMENT_DOMAIN[number];
+
+export const DEPARTMENT_LABEL_MAP: Record<DepartmentType, string> = {
+  THAI: "กลุ่มสาระการเรียนรู้ภาษาไทย",
+  MATH: "กลุ่มสาระการเรียนรู้คณิตศาสตร์",
+  SCIENCE: "กลุ่มสาระการเรียนรู้วิทยาศาสตร์และเทคโนโลยี",
+  FOREIGN_LANG: "กลุ่มสาระการเรียนรู้ภาษาต่างประเทศ",
+  SOCIAL: "กลุ่มสาระการเรียนรู้สังคมศึกษา ศาสนา และวัฒนธรรม",
+  HEALTH_PE: "กลุ่มสาระการเรียนรู้สุขศึกษาและพลศึกษา",
+  ART: "กลุ่มสาระการเรียนรู้ศิลปะ",
+  CAREER: "กลุ่มสาระการเรียนรู้การงานอาชีพ",
+  STUDENT_DEV: "กิจกรรมพัฒนาผู้เรียน"
+};
+```
 
 ---
 
@@ -73,13 +94,13 @@ export interface UserCapabilities {
   isDirector: boolean;
   isDeputyDirector: boolean;
 
-  // Appointed Functional Duties
+  // Appointed Functional Duties (From active UserDutyAssignment only)
   isInspector: boolean;
   isHRHead: boolean;
   isHRStaff: boolean;
   isDeptHead: boolean;
-  deptHeadGroups: string[];
-  divisionRoles: Array<"ACADEMIC" | "HR" | "GENERAL" | "BUDGET">;
+  deptHeadGroups: DepartmentType[];
+  divisionRoles: DivisionType[];
 
   // Subsystem Access Flags
   canInspectLeave: boolean;
@@ -93,48 +114,35 @@ export interface UserCapabilities {
 }
 ```
 
-### 3.2 Evaluation Logic
+### 3.2 Pure Evaluator Logic (Fail-Closed)
 ```typescript
 export function getUserCapabilities(
   user: { id: string; role?: string | null; position?: string | null; subjectGroup?: string | null },
-  settings: any
+  activeAssignments: Array<{ dutyType: string; scope: string | null }>,
+  settings: { finalApproverUserIds?: string | null }
 ): UserCapabilities {
   const userId = user.id;
   const pos = (user.position || "").trim();
   const role = (user.role || "").trim().toUpperCase();
 
-  // 1. Direct role & executive checks
   const isAdmin = role === "ADMIN" || pos === "แอดมิน";
-  const isFinalApprover = (settings.finalApproverUserIds || "").split(",").map((s: string) => s.trim()).includes(userId);
+  const isFinalApprover = (settings.finalApproverUserIds || "").split(",").map(s => s.trim()).includes(userId);
   const isDirector = pos === "ผู้อำนวยการ" || isFinalApprover;
   const isDeputyDirector = pos === "รองผู้อำนวยการ";
 
-  // 2. Appointed duties from settings
-  const inspectorIds = (settings.defaultInspectorId || "").split(",").map((s: string) => s.trim()).filter(Boolean);
-  const hrHeadIds = (settings.hrHeadUserIds || "").split(",").map((s: string) => s.trim()).filter(Boolean);
-  const hrStaffIds = (settings.hrStaffUserIds || "").split(",").map((s: string) => s.trim()).filter(Boolean);
+  // Explicit Assignment Resolution (Fail-Closed)
+  const isInspector = activeAssignments.some(a => a.dutyType === "INSPECTOR");
+  const isHRHead = activeAssignments.some(a => a.dutyType === "HR_HEAD" || (a.dutyType === "DIVISION_HEAD" && a.scope === "PERSONNEL"));
+  const isHRStaff = activeAssignments.some(a => a.dutyType === "HR_STAFF");
+  
+  const deptHeadGroups = activeAssignments
+    .filter(a => a.dutyType === "DEPT_HEAD" && a.scope)
+    .map(a => a.scope as DepartmentType);
+  const isDeptHead = deptHeadGroups.length > 0;
 
-  let divisionMap: Record<string, string> = {};
-  try { divisionMap = JSON.parse(settings.divisionHeads || "{}"); } catch {}
-
-  let deptMap: Record<string, string> = {};
-  try { deptMap = JSON.parse(settings.departmentHeads || "{}"); } catch {}
-
-  // Resolve duties (including legacy position fallback for backward safety)
-  const isInspector = inspectorIds.includes(userId) || pos === "ผู้ตรวจสอบ";
-  const isHRHead = hrHeadIds.includes(userId) || divisionMap.hr === userId || pos === "หัวหน้างานบุคคล";
-  const isHRStaff = hrStaffIds.includes(userId) || pos === "เจ้าหน้าที่บุคคล";
-
-  const deptHeadGroups = Object.entries(deptMap)
-    .filter(([_, headId]) => headId === userId)
-    .map(([grp]) => grp);
-  const isDeptHead = deptHeadGroups.length > 0 || pos === "หัวหน้าหมวด" || pos === "หัวหน้ากลุ่มสาระ";
-
-  const divisionRoles: Array<"ACADEMIC" | "HR" | "GENERAL" | "BUDGET"> = [];
-  if (divisionMap.academic === userId) divisionRoles.push("ACADEMIC");
-  if (divisionMap.hr === userId || isHRHead) divisionRoles.push("HR");
-  if (divisionMap.general === userId) divisionRoles.push("GENERAL");
-  if (divisionMap.budget === userId) divisionRoles.push("BUDGET");
+  const divisionRoles = activeAssignments
+    .filter(a => a.dutyType === "DIVISION_HEAD" && a.scope)
+    .map(a => a.scope as DivisionType);
 
   return {
     isAdmin,
@@ -161,61 +169,82 @@ export function getUserCapabilities(
 
 ---
 
-## 4. UI & UX Specifications
+## 4. Separation of Duties (Anti-Self-Approval)
 
-### 4.1 System Settings (`src/app/(app)/settings/page.tsx`)
-A dedicated section **"การมอบหมายบทบาทและหน้าที่พิเศษ" (Staff Roles & Appointed Duties)**:
-1. **Card 1: งานบริหารงานบุคคลและระบบการลา**
-   - **ผู้ตรวจสอบการลา (Leave Inspectors):** Multi-select searchable teacher selector with tags.
-   - **หัวหน้างานบุคคล (Head of HR):** Single-select teacher selector.
-   - **เจ้าหน้าที่งานบุคคล (HR Staff):** Multi-select teacher selector.
-2. **Card 2: หัวหน้า 4 ฝ่ายบริหารหลัก (Administrative Division Heads)**
-   - ฝ่ายบริหารงานวิชาการ ➔ Select Teacher
-   - ฝ่ายบริหารงานบุคคล ➔ Select Teacher
-   - ฝ่ายบริหารทั่วไป ➔ Select Teacher
-   - ฝ่ายบริหารแผนและงบประมาณ ➔ Select Teacher
-3. **Card 3: หัวหน้ากลุ่มสาระการเรียนรู้ (Department Heads)**
-   - 8 กลุ่มสาระฯ (วิทยาศาสตร์และเทคโนโลยี, คณิตศาสตร์, ภาษาไทย, ภาษาต่างประเทศ, สังคมศึกษาฯ, สุขศึกษาและพลศึกษา, ศิลปะ, การงานอาชีพ) + กิจกรรมพัฒนาผู้เรียน
-   - Dynamic selector for each group.
-
-### 4.2 User Management (`src/app/(app)/users/page.tsx`)
-- Display official position: `ครู`, `ครูผู้ช่วย`, `พนักงานราชการ`
-- Render badges for appointed duties:
-  - `bg-amber-50 text-amber-700` ➔ `[ผู้ตรวจสอบการลา]`
-  - `bg-emerald-50 text-emerald-700` ➔ `[หัวหน้างานบุคคล]`
-  - `bg-blue-50 text-blue-700` ➔ `[หัวหน้าฝ่ายวิชาการ]`
-  - `bg-purple-50 text-purple-700` ➔ `[หัวหน้ากลุ่มสาระ...]`
-- Duty quick-filter in the search bar.
-
-### 4.3 Official Print & PDF Layout (`src/app/print/leave/...`)
-- **Inspector Signature Box:**
-  - Name: `(ลงชื่อ) ............................ (ครูสมศรี มีสุข)`
-  - Position line: `ตำแหน่ง ครูชำนาญการพิเศษ` (Real position & level)
-  - Duty subtitle: `ผู้ตรวจสอบการลา`
-- **Head of HR Signature Box:**
-  - Name: `(ลงชื่อ) ............................ (ครูสมชาย ใจดี)`
-  - Position line: `ตำแหน่ง ครูชำนาญการพิเศษ`
-  - Duty subtitle: `ปฏิบัติหน้าที่หัวหน้างานบุคคล`
+During leave inspection and approval:
+1. **Self-Inspection Check:**
+   `if (request.userId === inspectorId) throw new Error("Violation: Requester cannot inspect own leave request");`
+   ➔ Routed to alternate inspector or director.
+2. **Self-Head Approval Check:**
+   `if (request.userId === headApproverId) throw new Error("Violation: Requester cannot act as head approver for own leave request");`
+   ➔ Routed to Director.
+3. **Self-Executive Approval Check:**
+   `if (request.userId === execApproverId) throw new Error("Violation: Requester cannot execute final approval for own leave request");`
+   ➔ Routed to designated acting director.
 
 ---
 
-## 5. Verification & Testing Invariants
+## 5. Historical Signer Snapshot Engine
 
-### 5.1 Automated Unit Tests
-A new test suite `eLeave/tests/unit/subsystemRolesCapabilities.test.js`:
-1. **Invariant 1: Rank Sorting Preservation:**
-   - Teachers acting as HR Head or Inspector MUST sort strictly as `Tier 1 (ครู)` using academic level and Thai name collation.
-2. **Invariant 2: Multi-Inspector Routing:**
-   - Leave request from Math department routes to Math inspector if designated, or falls back to general inspector.
-3. **Invariant 3: Permission Isolation:**
-   - Head of Academic division can access `/academic/exam` and `/supervision` but CANNOT approve leave in place of HR Head.
-4. **Invariant 4: Fail-Closed Protection:**
-   - Removing a user from `hrHeadUserIds` immediately revokes their HR approval capability without modifying their user record.
-5. **Invariant 5: Official Print Formatting:**
-   - Printed output renders `ตำแหน่ง ครู` + duty subtitle, never synthetic position strings.
+When leave moves through its lifecycle (`INSPECTED` / `HEAD_APPROVED` / `APPROVED`):
+The signer's official position, academic level, and active duty are recorded into `LeaveRequest.extraFields` as a sealed JSON snapshot:
+```json
+{
+  "inspectorSnapshot": {
+    "userId": "usr_123",
+    "name": "ครูสมศรี มีสุข",
+    "position": "ครู",
+    "level": "ชำนาญการพิเศษ",
+    "duty": "ผู้ตรวจสอบการลา",
+    "signedAt": "2026-09-18T08:30:00.000Z"
+  },
+  "headApproverSnapshot": {
+    "userId": "usr_456",
+    "name": "ครูสมชาย ใจดี",
+    "position": "ครู",
+    "level": "ชำนาญการพิเศษ",
+    "duty": "ปฏิบัติหน้าที่หัวหน้างานบุคคล",
+    "signedAt": "2026-09-18T09:00:00.000Z"
+  }
+}
+```
+**Print Engine Rule:**
+If snapshot exists, the print layout **strictly renders the snapshot**. It NEVER evaluates current `UserDutyAssignment` or `SystemSettings` for past approved leaves.
 
 ---
 
-## 6. Rollback & Disaster Recovery
-1. Schema additions are strictly nullable or default to empty strings (`""` / `"{}"`), incurring zero breaking changes.
-2. If rolled back, legacy position fallback in `getUserCapabilities` guarantees uninterrupted operation.
+## 6. Idempotent Migration (`scripts/run-subsystem-roles-migration.cjs`)
+
+```bash
+# Dry run mode
+node scripts/run-subsystem-roles-migration.cjs --dry-run
+
+# Live execution mode
+node scripts/run-subsystem-roles-migration.cjs --apply
+```
+- **Idempotency Invariant:** If `UserDutyAssignment` already exists for `(userId, dutyType, scope)`, skip.
+- **Ambiguity Guard:** Users with `position === "เจ้าหน้าที่บุคคล"` are flagged in the report; their position is NOT modified unless explicitly confirmed.
+- **Summary Report Output:**
+  ```text
+  [Migration Summary]
+  - Total Synthetic Users Found: 3
+  - Migrated to Assignments: 2
+  - Skipped (Already Assigned): 0
+  - Ambiguous / Flagged: 1 (usr_staff_1: 'เจ้าหน้าที่บุคคล')
+  ```
+
+---
+
+## 7. Audit Logging Invariant
+Every grant or revocation creates an audit record:
+```typescript
+await tx.systemLog.create({
+  data: {
+    actionType: isRevoke ? "DUTY_REVOKED" : "DUTY_ASSIGNED",
+    subsystem: "PERSONNEL",
+    description: `${isRevoke ? "Revoked" : "Assigned"} duty ${dutyType} (${scope || "GLOBAL"}) for user ${targetUserId}`,
+    userId: actorId,
+    metadata: { actorId, targetUserId, dutyType, scope, before, after, timestamp: new Date().toISOString() }
+  }
+});
+```
