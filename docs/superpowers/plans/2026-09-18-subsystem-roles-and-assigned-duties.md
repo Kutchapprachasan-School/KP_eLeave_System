@@ -1,10 +1,10 @@
-# Subsystem Roles, Assigned Duties & Teacher Capability Architecture Implementation Plan (Rev 4 - Definitive Forensic Architecture)
+# Subsystem Roles, Assigned Duties & Teacher Capability Architecture Implementation Plan (Rev 5 - Production Ready)
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Implement normalized `UserDutyAssignment` with direct scope columns in partial unique indexes, canonical `revokedAt IS NULL` active state (no `isActive`), deterministic multi-row lock hierarchy in `updateAppointedDuties`, transactional self-approval checks with `SECURITY_VIOLATION` audit logging, DB-level trigger protection for approved signer snapshots, and schema-validated ambiguous migration resolution.
+**Goal:** Implement normalized `UserDutyAssignment` with direct scope columns in partial unique indexes, canonical `revokedAt IS NULL` active state, deterministic multi-row lock hierarchy with `ORDER BY id ASC FOR UPDATE`, domain-bound anti-self-approval with `SECURITY_VIOLATION` audit logging, DB-level trigger protection for approved signer snapshots and deletion prevention, and strictly scoped ambiguous migration resolution.
 
-**Architecture:** Model `UserDutyAssignment` with `ScopeDivision` and `ScopeDepartment` enums in Prisma. Apply PostgreSQL partial unique indexes and bi-directional scope CHECK constraints. Implement deterministic lock hierarchy: `SystemSettings` -> sorted target `User`s -> active `UserDutyAssignment`s. Route and assert anti-self-approval in `leave.ts`. Seal dedicated snapshots on `LeaveRequest` with PostgreSQL immutability trigger.
+**Architecture:** Model `UserDutyAssignment` in Prisma and PostgreSQL. Implement deterministic lock hierarchy: `SystemSettings` -> sorted `User`s -> active `UserDutyAssignment`s. Verify anti-self-approval at query and transaction execution levels with scope matching. Seal dedicated snapshots on `LeaveRequest` with PostgreSQL update and delete triggers.
 
 **Tech Stack:** Next.js 15, TypeScript, Prisma ORM, PostgreSQL, Tailwind CSS, Lucide React, Node.js Test Runner.
 
@@ -12,8 +12,8 @@
 
 - Never use `isActive`; active assignments are strictly defined as `revokedAt IS NULL`.
 - `actorId` MUST be derived strictly from `session.user.id` on server; never accepted from client arguments.
-- Mutating assignments requires canonical lock order: `SystemSettings` -> sorted `User`s -> active `UserDutyAssignment`s.
-- `LeaveRequest.inspectorSnapshot` and `headApproverSnapshot` become permanently immutable once `status = 'APPROVED'`.
+- Mutating assignments requires canonical lock order: `SystemSettings` -> `User` (`ORDER BY id ASC FOR UPDATE`) -> `UserDutyAssignment` (`ORDER BY id ASC FOR UPDATE`).
+- `LeaveRequest` hard `DELETE` is blocked when `status = 'APPROVED'`. Signer snapshots are permanently immutable once `status = 'APPROVED'`.
 - Self-approval attempts must create a `SECURITY_VIOLATION` audit record in `SystemLog` before throwing.
 - Working directory: `C:\dev\eLeave`.
 - Node test runner: `node --experimental-strip-types --test <test_path>`.
@@ -29,7 +29,7 @@
 
 **Interfaces:**
 - Produces: `DutyType`, `ScopeDivision`, `ScopeDepartment` enums; `UserDutyAssignment` model (without `isActive`); `inspectorSnapshot` and `headApproverSnapshot` columns on `LeaveRequest`.
-- Constraints: Partial unique indexes on direct columns, bi-directional `chk_duty_scope_validity`, singleton constraints for division/dept heads, and trigger `trg_protect_leave_signer_snapshots`.
+- Constraints: Partial unique indexes on direct columns, bi-directional `chk_duty_scope_validity`, singleton constraints for division/dept heads, and triggers `trg_protect_leave_signer_snapshots` and `trg_protect_leave_approved_deletion`.
 
 - [ ] **Step 1: Write test for schema constraints and typed domains**
 
@@ -114,18 +114,18 @@ Add to `model LeaveRequest`:
 
 - [ ] **Step 3: Create and run `scripts/apply-duty-assignments-schema.mjs`**
 
-Applies SQL constraints: `chk_duty_scope_validity`, partial unique indexes `uk_active_global_user_duty`, `uk_active_division_user_duty`, `uk_active_dept_user_duty`, singleton constraints `uk_single_active_division_head`, `uk_single_active_dept_head`, and trigger `trg_protect_leave_signer_snapshots`.
+Applies SQL constraints: `chk_duty_scope_validity`, partial unique indexes `uk_active_global_user_duty`, `uk_active_division_user_duty`, `uk_active_dept_user_duty`, singleton constraints `uk_single_active_division_head`, `uk_single_active_dept_head`, and triggers `trg_protect_leave_signer_snapshots` and `trg_protect_leave_approved_deletion`.
 
 - [ ] **Step 4: Commit**
 
 ```bash
 git add prisma/schema.prisma scripts/apply-duty-assignments-schema.mjs eLeave/tests/unit/subsystemRolesSchema.test.js
-git commit -m "feat(schema): add typed UserDutyAssignment, partial unique indexes, and dedicated snapshots"
+git commit -m "feat(schema): add typed UserDutyAssignment, partial unique indexes, and snapshot triggers"
 ```
 
 ---
 
-### Task 2: Idempotent Migration CLI with Validated Ambiguity Resolution
+### Task 2: Idempotent Migration CLI with Validated Scoped Ambiguity Resolution
 
 **Files:**
 - Create: `scripts/migrate-subsystem-roles.mjs`
@@ -133,7 +133,7 @@ git commit -m "feat(schema): add typed UserDutyAssignment, partial unique indexe
 
 **Interfaces:**
 - CLI Flags: `--dry-run`, `--apply`, `--resolve-ambiguous="userId:position,..."`.
-- Enforces: Zod validation on input, idempotent execution, logs resolution audit into `SystemLog`, aborts with zero mutation if unresolved ambiguous staff exist.
+- Enforces: Target user MUST possess a synthetic position (`'หัวหน้างานบุคคล'`, `'ผู้ตรวจสอบ'`, `'เจ้าหน้าที่บุคคล'`). Zod validation on position allowlist, idempotent execution, logs resolution audit into `SystemLog`.
 
 - [ ] **Step 1: Write unit test for migration engine and ambiguity resolution**
 
@@ -142,9 +142,8 @@ git commit -m "feat(schema): add typed UserDutyAssignment, partial unique indexe
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 
-export const CIVIL_SERVICE_POSITIONS_ALLOWLIST = [
-  'ครู', 'ครูผู้ช่วย', 'พนักงานราชการ', 'ลูกจ้างประจำ', 'ลูกจ้างชั่วคราว', 'ครูอัตราจ้าง'
-];
+export const SYNTHETIC_POSITIONS_WHITELIST = ['หัวหน้างานบุคคล', 'ผู้ตรวจสอบ', 'เจ้าหน้าที่บุคคล'];
+export const CIVIL_SERVICE_POSITIONS_ALLOWLIST = ['ครู', 'ครูผู้ช่วย', 'พนักงานราชการ', 'ลูกจ้างประจำ', 'ลูกจ้างชั่วคราว', 'ครูอัตราจ้าง'];
 
 export function parseAmbiguityResolutions(rawResolutions) {
   const map = {};
@@ -187,7 +186,7 @@ Run: `node scripts/migrate-subsystem-roles.mjs --apply`
 
 ```bash
 git add scripts/migrate-subsystem-roles.mjs eLeave/tests/unit/subsystemRolesMigration.test.js
-git commit -m "feat(migration): implement idempotent CLI with schema-validated ambiguity resolution"
+git commit -m "feat(migration): implement idempotent CLI with scoped ambiguity resolution"
 ```
 
 ---
@@ -250,7 +249,7 @@ git commit -m "feat(auth): implement fail-closed capability engine with transiti
 
 ---
 
-### Task 4: Transactional Duty Management (Deterministic Row Lock Hierarchy)
+### Task 4: Transactional Duty Management (Deterministic Row Lock Hierarchy & Full State Audit)
 
 **Files:**
 - Modify: `src/app/actions/settings.ts`
@@ -258,7 +257,8 @@ git commit -m "feat(auth): implement fail-closed capability engine with transiti
 
 **Interfaces:**
 - Action: `updateAppointedDuties({ assignmentsToGrant, assignmentsToRevoke })`
-- Locks: `SystemSettings` -> sorted `User`s -> active `UserDutyAssignment`s. Derives `actorId = session.user.id`. Records `SystemLog`.
+- Locks: `SystemSettings` -> sorted `User`s (`ORDER BY id ASC FOR UPDATE`) -> active `UserDutyAssignment`s (`ORDER BY id ASC FOR UPDATE`).
+- Records: Full `before` and `after` states in `SystemLog`.
 
 - [ ] **Step 1: Write unit test for lock hierarchy and audit logging**
 
@@ -272,45 +272,59 @@ Run: `node --experimental-strip-types --test eLeave/tests/unit/dutyAuditTransact
 
 ```bash
 git add src/app/actions/settings.ts eLeave/tests/unit/dutyAuditTransactions.test.js
-git commit -m "feat(actions): implement deterministic row-lock hierarchy and transactional audit"
+git commit -m "feat(actions): implement deterministic row-lock hierarchy and full-state audit"
 ```
 
 ---
 
-### Task 5: Query-Level Anti-Self-Approval & Dedicated Signer Snapshot Sealing
+### Task 5: Domain-Bound Anti-Self-Approval & Dedicated Signer Snapshot Sealing
 
 **Files:**
 - Modify: `src/app/actions/leave.ts`
 - Test: `eLeave/tests/unit/leaveSeparationOfDuties.test.js`
 
 **Interfaces:**
-- Enforces: Query routing excludes requester (`userId: { not: request.userId }`). Runtime assertion logs `SECURITY_VIOLATION` to `SystemLog` before throwing.
+- Enforces: Query routing excludes requester. Transaction verifies: requester !== actor, actor has active duty matching request department scope. Logs `SECURITY_VIOLATION` before throwing.
 - Writes: Dedicated `inspectorSnapshot` and `headApproverSnapshot` on `LeaveRequest`.
 
-- [ ] **Step 1: Write test for separation of duties and security violation logging**
+- [ ] **Step 1: Write test for domain-bound separation of duties and security violation logging**
 
 ```javascript
 // eLeave/tests/unit/leaveSeparationOfDuties.test.js
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 
-export function routeApproverExcludingRequester(candidates, requesterId) {
-  return candidates.find(c => c.userId !== requesterId) || null;
+export function validateApproverAuthorization({ requesterId, actorId, dutyType, actorScope, requestDept }) {
+  if (requesterId === actorId) {
+    throw new Error('CRITICAL_SECURITY_VIOLATION: Requester cannot inspect or approve own leave request');
+  }
+  if (dutyType === 'DEPT_HEAD' && actorScope !== requestDept) {
+    throw new Error(`FORBIDDEN: Dept Head scope ${actorScope} does not match request dept ${requestDept}`);
+  }
+  return true;
 }
 
-describe('Anti-Self-Approval Query-Level Routing & Invariants', () => {
-  test('Department head taking leave routes to alternate or director, not self', () => {
-    const mathCandidates = [
-      { userId: 'usr_math_head', duty: 'DEPT_HEAD', scope: 'MATH' },
-      { userId: 'usr_dir', duty: 'DIRECTOR', scope: null }
-    ];
-    const approver = routeApproverExcludingRequester(mathCandidates, 'usr_math_head');
-    assert.equal(approver.userId, 'usr_dir');
+describe('Domain-Bound Anti-Self-Approval & Authorization Invariants', () => {
+  test('Throws security violation when requester attempts to approve own request', () => {
+    assert.throws(() => {
+      validateApproverAuthorization({ requesterId: 'u1', actorId: 'u1', dutyType: 'DEPT_HEAD', actorScope: 'MATH', requestDept: 'MATH' });
+    }, /CRITICAL_SECURITY_VIOLATION/);
+  });
+
+  test('Throws forbidden when department head approves a different department', () => {
+    assert.throws(() => {
+      validateApproverAuthorization({ requesterId: 'u2', actorId: 'u3', dutyType: 'DEPT_HEAD', actorScope: 'ENGLISH', requestDept: 'MATH' });
+    }, /FORBIDDEN/);
+  });
+
+  test('Succeeds when department head approves own department staff', () => {
+    const ok = validateApproverAuthorization({ requesterId: 'u2', actorId: 'u3', dutyType: 'DEPT_HEAD', actorScope: 'MATH', requestDept: 'MATH' });
+    assert.ok(ok);
   });
 });
 ```
 
-- [ ] **Step 2: Implement query-level routing, runtime security assertion, and snapshot sealing in `src/app/actions/leave.ts`**
+- [ ] **Step 2: Implement query-level routing, runtime domain assertion, and snapshot sealing in `src/app/actions/leave.ts`**
 
 - [ ] **Step 3: Update `src/app/print/leave/[id]/page.tsx` & `batch/page.tsx` to read dedicated snapshot columns**
 
@@ -323,7 +337,7 @@ Expected: All tests pass with 0 failures.
 
 ```bash
 git add src/app/actions/leave.ts src/app/print/leave/[id]/page.tsx src/app/print/leave/batch/page.tsx eLeave/tests/unit/leaveSeparationOfDuties.test.js
-git commit -m "feat(leave): enforce query-level routing, runtime security logging, and dedicated snapshot sealing"
+git commit -m "feat(leave): enforce domain-bound anti-self-approval and seal dedicated signer snapshots"
 ```
 
 ---
