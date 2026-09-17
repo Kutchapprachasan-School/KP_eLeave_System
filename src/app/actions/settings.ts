@@ -9,75 +9,79 @@ import { prisma } from "@/lib/db";
 import { headers, cookies } from "next/headers";
 
 import { revalidatePath } from "next/cache";
+import {
+  getUserCapabilities,
+  type DutyType,
+  type ScopeDivision,
+  type ScopeDepartment,
+  type UserCapabilities,
+} from "@/lib/permissions";
 
 async function getActualUser() {
-
   const session = await auth.api.getSession({
-
     headers: await headers()
-
   });
-
   if (!session?.user) throw new Error("Unauthorized");
-
   
-
   const dbUser = await prisma.user.findUnique({
-
     where: { id: session.user.id },
-
     select: { role: true, position: true }
-
   });
-
   
-
   const isActualAdmin = dbUser?.role === "ADMIN" || dbUser?.position === "แอดมิน";
-
   if (!isActualAdmin) {
-
     throw new Error("Unauthorized");
-
   }
-
   return session.user;
-
 }
 
 async function requireSuperAdmin() {
-
   const session = await getSession();
-
   if (!session?.user || (session.user.role !== "ADMIN" && (session.user as any).position !== "แอดมิน")) {
-
     throw new Error("Unauthorized");
-
   }
-
   return session;
-
 }
 
-export async function requireAdminOrHR() {
-
+export async function requireAdminOrHR(): Promise<{
+  session: any;
+  isAdmin: boolean;
+  isHR: boolean;
+  isInspector: boolean;
+  isDirector: boolean;
+  capabilities: UserCapabilities;
+}> {
   const session = await getSession();
+  const sessionUser = session?.user as any;
+  if (!sessionUser?.id) throw new Error("Unauthorized");
 
-  const user = session?.user as any;
+  const [dbUser, activeAssignments, settings] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: sessionUser.id },
+      select: { id: true, role: true, position: true, subjectGroup: true }
+    }),
+    prisma.userDutyAssignment.findMany({
+      where: { userId: sessionUser.id, revokedAt: null }
+    }),
+    prisma.systemSettings.findUnique({
+      where: { id: "default" },
+      select: { finalApproverUserIds: true }
+    })
+  ]);
 
-  if (!user) throw new Error("Unauthorized");
+  if (!dbUser) throw new Error("Unauthorized");
 
-  const isAdmin = user.role === "ADMIN" || user.position === "แอดมิน";
+  const caps = getUserCapabilities(dbUser, activeAssignments, settings || {});
+  const isAdmin = caps.isAdmin;
+  const isHR = caps.isHRHead || caps.isHRStaff;
+  const isInspector = caps.isInspector;
+  const isDirector = caps.isDirector || caps.isDeputyDirector;
 
-  const isHR = user.position === "หัวหน้างานบุคคล" || user.position === "เจ้าหน้าที่บุคคล";
+  if (!isAdmin && !isHR && !isInspector && !isDirector) {
+    throw new Error("Unauthorized");
+  }
 
-  const isInspector = user.position === "ผู้ตรวจสอบ";
-
-  const isDirector = user.position === "ผู้อำนวยการ" || user.position === "รองผู้อำนวยการ";
-
-  if (!isAdmin && !isHR && !isInspector && !isDirector) throw new Error("Unauthorized");
-
-  return { session, isAdmin, isHR, isInspector, isDirector };
-
+  return { session, isAdmin, isHR, isInspector, isDirector, capabilities: caps };
 }
 
 async function requireHROrAdmin() {
@@ -897,8 +901,160 @@ export async function clearImpersonation() {
 export async function getSimpleUsersList() {
   return prisma.user.findMany({
     where: { isApproved: true },
-    select: { id: true, username: true, name: true, position: true, email: true },
+    select: { id: true, username: true, name: true, position: true, email: true, department: true, subjectGroup: true },
     orderBy: { username: "asc" }
   });
+}
+
+export async function getActiveDutyAssignments() {
+  const session = await getSession();
+  if (!session?.user) throw new Error("Unauthorized");
+
+  return prisma.userDutyAssignment.findMany({
+    where: { revokedAt: null },
+    include: {
+      user: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          position: true,
+          department: true,
+          subjectGroup: true,
+          image: true,
+        }
+      },
+      assignedBy: {
+        select: {
+          id: true,
+          name: true,
+          position: true,
+        }
+      }
+    },
+    orderBy: [
+      { dutyType: "asc" },
+      { assignedAt: "desc" }
+    ]
+  });
+}
+
+export async function updateAppointedDuties(input: {
+  assignmentsToGrant: Array<{ userId: string; dutyType: DutyType; divisionScope?: ScopeDivision | null; departmentScope?: ScopeDepartment | null }>;
+  assignmentsToRevoke: Array<{ assignmentId: string }>;
+}) {
+  const session = await getSession();
+  if (!session?.user?.id) throw new Error("Unauthorized: Session required");
+  const actorId = session.user.id;
+
+  const dbActor = await prisma.user.findUnique({
+    where: { id: actorId },
+    select: { role: true, position: true }
+  });
+  if (dbActor?.role !== "ADMIN" && dbActor?.position !== "แอดมิน") {
+    throw new Error("Forbidden: SuperAdmin required");
+  }
+
+  const targetUserIds = [
+    ...new Set(input.assignmentsToGrant.map(g => g.userId))
+  ].sort();
+
+  const result = await prisma.$transaction(async (tx) => {
+    // LOCK 1: SystemSettings singleton
+    await tx.$executeRawUnsafe(`SELECT id FROM "SystemSettings" WHERE id = 'default' FOR UPDATE;`);
+
+    // LOCK 2: Target Users in strictly ascending order
+    if (targetUserIds.length > 0) {
+      await tx.$executeRawUnsafe(
+        `SELECT id FROM "User" WHERE id = ANY($1::text[]) ORDER BY id ASC FOR UPDATE;`,
+        targetUserIds
+      );
+    }
+
+    // LOCK 3: Active assignments in strictly ascending order
+    if (targetUserIds.length > 0) {
+      await tx.$executeRawUnsafe(
+        `SELECT id FROM "UserDutyAssignment" WHERE "userId" = ANY($1::text[]) AND "revokedAt" IS NULL ORDER BY id ASC FOR UPDATE;`,
+        targetUserIds
+      );
+    }
+
+    const now = new Date();
+
+    // Execute revocations with full state audit
+    for (const { assignmentId } of input.assignmentsToRevoke) {
+      const existing = await tx.userDutyAssignment.findUnique({ where: { id: assignmentId } });
+      if (existing && !existing.revokedAt) {
+        const updated = await tx.userDutyAssignment.update({
+          where: { id: assignmentId },
+          data: { revokedAt: now }
+        });
+
+        await tx.systemLog.create({
+          data: {
+            actionType: "DUTY_REVOKED",
+            subsystem: "PERSONNEL",
+            description: `Revoked duty ${existing.dutyType} from user ${existing.userId}`,
+            userId: actorId,
+            metadata: {
+              actorId,
+              targetUserId: existing.userId,
+              dutyType: existing.dutyType,
+              scope: existing.divisionScope || existing.departmentScope || null,
+              before: { id: existing.id, dutyType: existing.dutyType, divisionScope: existing.divisionScope, departmentScope: existing.departmentScope, revokedAt: null },
+              after: { id: updated.id, dutyType: updated.dutyType, divisionScope: updated.divisionScope, departmentScope: updated.departmentScope, revokedAt: now.toISOString() },
+              timestamp: now.toISOString()
+            }
+          }
+        });
+      }
+    }
+
+    // Execute grants with target validation and full state audit
+    for (const grant of input.assignmentsToGrant) {
+      const targetUser = await tx.user.findUnique({
+        where: { id: grant.userId },
+        select: { id: true, isApproved: true }
+      });
+      if (!targetUser || !targetUser.isApproved) {
+        throw new Error(`Target user ${grant.userId} is not approved/active`);
+      }
+
+      const created = await tx.userDutyAssignment.create({
+        data: {
+          userId: grant.userId,
+          dutyType: grant.dutyType,
+          divisionScope: grant.divisionScope ?? null,
+          departmentScope: grant.departmentScope ?? null,
+          assignedById: actorId,
+          assignedAt: now
+        }
+      });
+
+      await tx.systemLog.create({
+        data: {
+          actionType: "DUTY_ASSIGNED",
+          subsystem: "PERSONNEL",
+          description: `Assigned duty ${grant.dutyType} to user ${grant.userId}`,
+          userId: actorId,
+          metadata: {
+            actorId,
+            targetUserId: grant.userId,
+            dutyType: grant.dutyType,
+            scope: grant.divisionScope || grant.departmentScope || null,
+            before: null,
+            after: { id: created.id, dutyType: created.dutyType, divisionScope: created.divisionScope, departmentScope: created.departmentScope, assignedAt: now.toISOString() },
+            timestamp: now.toISOString()
+          }
+        }
+      });
+    }
+
+    return { success: true };
+  });
+
+  revalidatePath("/settings");
+  revalidatePath("/users");
+  return result;
 }
 
