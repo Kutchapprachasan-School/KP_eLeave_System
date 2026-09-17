@@ -91,6 +91,8 @@ model User {
   verifiedCctManifests        CctExportManifest[]         @relation("CctManifestVerifier")
   createdCctManifests         CctExportManifest[]         @relation("CctManifestCreator")
   reviewedNominations         StudentMeritNomination[]    @relation("NominationReviewer")
+  dutyAssignments             UserDutyAssignment[]        @relation("UserDutyAssignments")
+  dutiesAssigned              UserDutyAssignment[]        @relation("DutyAssignedByUser")
 }
 
 model Session {
@@ -149,9 +151,55 @@ model LeaveRequest {
   deletedBy      User?            @relation("LeaveDeletedByUser", fields: [deletedById], references: [id], onDelete: SetNull)
   purgeAt        DateTime?
   deleteReason   String?
+  inspectorSnapshot    Json?
+  headApproverSnapshot Json?
 
   @@index([isDeleted, deletedAt])
   @@index([isDeleted, purgeAt])
+}
+
+enum DutyType {
+  INSPECTOR
+  HR_HEAD
+  HR_STAFF
+  DIVISION_HEAD
+  DEPT_HEAD
+}
+
+enum ScopeDivision {
+  ACADEMIC
+  PERSONNEL
+  GENERAL
+  BUDGET
+}
+
+enum ScopeDepartment {
+  THAI
+  MATH
+  SCIENCE
+  FOREIGN_LANG
+  SOCIAL
+  HEALTH_PE
+  ART
+  CAREER
+  STUDENT_DEV
+}
+
+model UserDutyAssignment {
+  id              String           @id @default(cuid())
+  userId          String
+  dutyType        DutyType
+  divisionScope   ScopeDivision?
+  departmentScope ScopeDepartment?
+  assignedAt      DateTime         @default(now())
+  revokedAt       DateTime?
+  assignedById    String?
+  user            User             @relation("UserDutyAssignments", fields: [userId], references: [id], onDelete: Cascade)
+  assignedBy      User?            @relation("DutyAssignedByUser", fields: [assignedById], references: [id], onDelete: SetNull)
+
+  @@index([userId, dutyType, revokedAt])
+  @@index([dutyType, divisionScope, revokedAt])
+  @@index([dutyType, departmentScope, revokedAt])
 }
 
 model SystemSettings {
