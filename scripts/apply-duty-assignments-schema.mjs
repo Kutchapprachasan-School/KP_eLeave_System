@@ -97,15 +97,9 @@ async function main() {
         "userId", "dutyType", "departmentScope"
       ) WHERE "revokedAt" IS NULL AND "dutyType" = 'DEPT_HEAD';
 
+      -- Ensure multiple people can be appointed per division and department
       DROP INDEX IF EXISTS "uk_single_active_division_head";
-      CREATE UNIQUE INDEX "uk_single_active_division_head" ON "UserDutyAssignment" (
-        "dutyType", "divisionScope"
-      ) WHERE "revokedAt" IS NULL AND "dutyType" = 'DIVISION_HEAD';
-
       DROP INDEX IF EXISTS "uk_single_active_dept_head";
-      CREATE UNIQUE INDEX "uk_single_active_dept_head" ON "UserDutyAssignment" (
-        "dutyType", "departmentScope"
-      ) WHERE "revokedAt" IS NULL AND "dutyType" = 'DEPT_HEAD';
     `);
 
     // 6. Triggers for Snapshot protection and Deletion protection

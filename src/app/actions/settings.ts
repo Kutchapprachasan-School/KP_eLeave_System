@@ -901,8 +901,8 @@ export async function clearImpersonation() {
 export async function getSimpleUsersList() {
   return prisma.user.findMany({
     where: { isApproved: true },
-    select: { id: true, username: true, name: true, position: true, email: true, department: true, subjectGroup: true },
-    orderBy: { username: "asc" }
+    select: { id: true, username: true, name: true, position: true, email: true, department: true, subjectGroup: true, role: true },
+    orderBy: { name: "asc" }
   });
 }
 
@@ -1018,6 +1018,19 @@ export async function updateAppointedDuties(input: {
       });
       if (!targetUser || !targetUser.isApproved) {
         throw new Error(`Target user ${grant.userId} is not approved/active`);
+      }
+
+      const existingSame = await tx.userDutyAssignment.findFirst({
+        where: {
+          userId: grant.userId,
+          dutyType: grant.dutyType,
+          divisionScope: grant.divisionScope ?? null,
+          departmentScope: grant.departmentScope ?? null,
+          revokedAt: null
+        }
+      });
+      if (existingSame) {
+        continue;
       }
 
       const created = await tx.userDutyAssignment.create({
