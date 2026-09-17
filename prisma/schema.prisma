@@ -73,6 +73,24 @@ model User {
   keyVersionsChanged         ExamAnswerKeyVersion[] @relation("KeyVersionChangedBy")
   scannedSubmissions         ExamSubmission[]      @relation("ExamScannedBy")
   regradeJobsCreated         ExamRegradeJob[]      @relation("ExamRegradeJobCreator")
+
+  // Forensic Student Affairs Reverse Relations
+  deletedStudents             Student[]                   @relation("StudentDeleter")
+  studentStatusHistories      StudentStatusHistory[]
+  advisedEnrollments          StudentEnrollment[]         @relation("AdvisorEnrollments")
+  behaviorRecords             BehaviorRecord[]
+  createdScheduledSessions    ScheduledClassSession[]     @relation("CreatedScheduledSessions")
+  morningAttendancesRecorded  StudentMorningAttendance[]
+  periodAttendancesRecorded   StudentPeriodAttendance[]
+  verifiedMedicalCertificates StudentMedicalCertificate[] @relation("MedicalCertVerifier")
+  homeVisits                  StudentHomeVisit[]
+  sdqEvaluations              StudentSdqEvaluation[]
+  assignedCases               StudentInterventionCase[]   @relation("CaseAssignee")
+  createdCases                StudentInterventionCase[]   @relation("CaseCreator")
+  interventionActivities      InterventionActivity[]
+  verifiedCctManifests        CctExportManifest[]         @relation("CctManifestVerifier")
+  createdCctManifests         CctExportManifest[]         @relation("CctManifestCreator")
+  reviewedNominations         StudentMeritNomination[]    @relation("NominationReviewer")
 }
 
 model Session {
@@ -351,6 +369,7 @@ model CertificateIssuedItem {
   recipientName     String?
   verifyToken       String         @unique @default(cuid())
   status            String         @default("ISSUED")
+  meritNomination   StudentMeritNomination?
   createdAt         DateTime       @default(now())
 
   @@unique([year, seqNo], map: "uk_cert_item_year_seq")
@@ -785,6 +804,7 @@ model ClassRoom {
   roomNumber  Int
   name        String
   offerings   SubjectOffering[]
+  studentEnrollments StudentEnrollment[]
   createdAt   DateTime          @default(now())
   updatedAt   DateTime          @updatedAt
 
@@ -813,6 +833,7 @@ model SubjectOffering {
   academicYear Int
   term         Int
   slots        TimetableSlot[]
+  scheduledSessions ScheduledClassSession[]
   createdAt    DateTime        @default(now())
   updatedAt    DateTime        @updatedAt
 
@@ -2514,6 +2535,645 @@ model ExamRegradeJob {
 
   @@index([examPaperId, status])
 }
+
+// ============================================================================
+// 🧑‍🤝‍🧑 STUDENT AFFAIRS FORENSIC CORE (REV 3.9)
+// ============================================================================
+
+enum StudentStatus {
+  ACTIVE
+  SUSPENDED
+  TRANSFERRED
+  DROPPED_OUT
+  GRADUATED
+}
+
+enum EnrollmentStatus {
+  ENROLLED
+  TRANSFERRED_OUT
+  COMPLETED
+  DROPPED
+}
+
+enum StudentDecommissionReason {
+  DUPLICATE_RECORD_MERGE
+  COURT_OR_LEGAL_ORDER
+  DATA_MIGRATION_CLEANUP
+  SYSTEM_DECOMMISSION
+}
+
+enum StudentGender {
+  MALE
+  FEMALE
+}
+
+enum ScheduledSessionType {
+  REGULAR
+  MAKEUP
+  CANCELLED_HOLIDAY
+  CANCELLED_TEACHER_DUTY
+  CANCELLED_SCHOOL_EVENT
+}
+
+enum StudentAttendanceStatus {
+  PRESENT
+  LATE
+  ABSENT
+  LEAVE
+  ACTIVITY
+}
+
+enum AttendanceExemptionStatus {
+  NONE
+  PENDING_REVIEW
+  EXEMPTED_OFFICIAL
+  REJECTED
+}
+
+enum BehaviorLedgerType {
+  DEMERIT             // points < 0
+  MERIT               // points > 0
+  CORRECTION_CREDIT   // points > 0
+  CORRECTION_DEBIT    // points < 0
+}
+
+enum BehaviorCategory {
+  PUNCTUALITY
+  DRESS_CODE
+  ATTENDANCE
+  SUBSTANCE_ABUSE
+  VIOLENCE_BULLYING
+  GAMBLING
+  HONOR_INTEGRITY
+  VOLUNTEER_MERIT
+  ACADEMIC_EXCELLENCE
+  SPECIAL_ACHIEVEMENT
+  OTHER
+}
+
+enum EvaluatorType {
+  TEACHER
+  PARENT
+  STUDENT
+}
+
+enum SdqLevel {
+  NORMAL
+  AT_RISK
+  PROBLEM
+}
+
+enum CctPovertyLevel {
+  EXTREMELY_POOR
+  POOR
+  NOT_POOR
+}
+
+enum CasePriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum CaseStatus {
+  DRAFT
+  OPEN
+  IN_PROGRESS
+  FOLLOW_UP
+  RESOLVED
+  CLOSED
+  ESCALATED
+  CANCELLED
+}
+
+enum CaseOutcome {
+  PENDING
+  IMPROVED
+  STABLE
+  WORSENED
+}
+
+enum RiskLevel {
+  CRITICAL
+  HIGH
+  MEDIUM
+  LOW
+  NORMAL
+}
+
+enum NominationStatus {
+  PENDING_REVIEW
+  APPROVED
+  REJECTED
+  ISSUED
+}
+
+enum AttachmentEntityType {
+  HOME_VISIT
+  BEHAVIOR_EVIDENCE
+  CASE_DOC
+}
+
+enum AttachmentCategory {
+  HOME_VISIT_FAMILY
+  HOME_VISIT_HOUSE_EXTERIOR
+  HOME_VISIT_HOUSE_INTERIOR
+  BEHAVIOR_EVIDENCE
+  CASE_INTERVENTION_DOCUMENT
+}
+
+enum CctManifestStatus {
+  PENDING_UPLOAD
+  VERIFIED
+  FAILED
+}
+
+// -------------------------------------------------------------
+// 1. Identity & Enrollment History (Atomic Status Guarded)
+// -------------------------------------------------------------
+
+model Student {
+  id              String                     @id @default(cuid())
+  studentCode     String                     @unique
+  nationalId      String?
+  title           String
+  firstName       String
+  lastName        String
+  nickname        String?
+  gender          StudentGender              @default(MALE)
+  birthDate       DateTime?
+  status          StudentStatus              @default(ACTIVE)
+  
+  homeAddress     String?
+  parentName      String?
+  parentPhone     String?
+  
+  deletedAt       DateTime?
+  deletedById     String?
+  deletedBy       User?                      @relation("StudentDeleter", fields: [deletedById], references: [id], onDelete: Restrict)
+  deletionReason  StudentDecommissionReason?
+  
+  enrollments     StudentEnrollment[]
+  statusHistories StudentStatusHistory[]
+  behaviorRecords BehaviorRecord[]
+  yearlyProjections StudentYearlyBehaviorProjection[]
+  homeVisits      StudentHomeVisit[]
+  sdqEvaluations  StudentSdqEvaluation[]
+  riskAssessments StudentRiskAssessment[]
+  interventionCases StudentInterventionCase[]
+  certNominations StudentMeritNomination[]
+  medicalCertificates StudentMedicalCertificate[]
+  
+  createdAt       DateTime                   @default(now())
+  updatedAt       DateTime                   @updatedAt
+
+  @@index([status])
+  @@index([deletedAt])
+}
+
+model StudentStatusHistory {
+  id            String        @id @default(cuid())
+  studentId     String
+  student       Student       @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  fromStatus    StudentStatus
+  toStatus      StudentStatus
+  effectiveDate DateTime
+  reason        String
+  changedById   String
+  changedBy     User          @relation(fields: [changedById], references: [id], onDelete: Restrict)
+  createdAt     DateTime      @default(now())
+
+  @@index([studentId, effectiveDate])
+}
+
+model StudentEnrollment {
+  id           String           @id @default(cuid())
+  studentId    String
+  student      Student          @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  academicYear Int
+  term         Int              // CHECK IN (1, 2)
+  classRoomId  String
+  classRoom    ClassRoom        @relation(fields: [classRoomId], references: [id], onDelete: Restrict)
+  gradeLevel   Int              // CHECK BETWEEN 1 AND 6
+  roomNumber   Int              // CHECK >= 1
+  rollNumber   Int              // CHECK >= 1
+  status       EnrollmentStatus @default(ENROLLED)
+  advisorId    String?
+  advisor      User?            @relation("AdvisorEnrollments", fields: [advisorId], references: [id], onDelete: Restrict)
+  
+  morningAttendances StudentMorningAttendance[]
+  periodAttendances  StudentPeriodAttendance[]
+  riskAssessments    StudentRiskAssessment[]
+  
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  @@unique([studentId, academicYear, term], map: "uk_student_enrollment_term")
+  @@index([academicYear, term, gradeLevel, roomNumber])
+}
+
+// -------------------------------------------------------------
+// 2. Behavior Ledger & Projected Scores (Native Date & Clean Projection)
+// -------------------------------------------------------------
+
+model BehaviorRecord {
+  id                  String             @id @default(cuid())
+  studentId           String
+  student             Student            @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  academicYear        Int
+  sequenceNo          BigInt
+  type                BehaviorLedgerType
+  category            BehaviorCategory
+  points              Int                // CHECK points != 0 & sign
+  balanceAfter        Int
+  
+  businessDate        DateTime           @db.Date // Native PostgreSQL DATE
+  incidentTimestamp   DateTime
+  location            String?
+  description         String
+  
+  correctionForId     String?            // Partial unique index uk_behavior_single_correction
+  correctionFor       BehaviorRecord?    @relation("CorrectionRelation", fields: [correctionForId], references: [id], onDelete: Restrict)
+  corrections         BehaviorRecord[]   @relation("CorrectionRelation")
+  
+  reportedById        String
+  reportedBy          User               @relation(fields: [reportedById], references: [id], onDelete: Restrict)
+  
+  createdAt           DateTime           @default(now())
+
+  @@unique([studentId, academicYear, sequenceNo], map: "uk_student_behavior_seq")
+  @@index([academicYear, category])
+}
+
+model StudentYearlyBehaviorProjection {
+  id               String   @id @default(cuid())
+  studentId        String
+  student          Student  @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  academicYear     Int
+  startingScore    Int      @default(100)
+  currentScore     Int      @default(100)
+  totalDemerit     Int      @default(0)
+  totalMerit       Int      @default(0)
+  recordCount      Int      @default(0)
+  lastCalculatedAt DateTime @default(now())
+
+  @@unique([studentId, academicYear], map: "uk_student_yearly_behavior")
+  @@index([academicYear, currentScore])
+}
+
+// -------------------------------------------------------------
+// 3. Timezone-Strict Attendance & Authoritative 80% Schedule (Native Date)
+// -------------------------------------------------------------
+
+model ScheduledClassSession {
+  id                    String               @id @default(cuid())
+  offeringId            String
+  offering              SubjectOffering      @relation(fields: [offeringId], references: [id], onDelete: Restrict)
+  businessDate          DateTime             @db.Date // Native PostgreSQL DATE
+  periodNumber          Int                  // CHECK BETWEEN 1 AND 8
+  sessionType           ScheduledSessionType @default(REGULAR)
+  isEligibleDenominator Boolean              @default(true)
+  cancellationReason    String?
+  createdById           String
+  createdBy             User                 @relation("CreatedScheduledSessions", fields: [createdById], references: [id], onDelete: Restrict)
+  createdAt             DateTime             @default(now())
+
+  periodAttendances     StudentPeriodAttendance[]
+
+  @@unique([offeringId, businessDate, periodNumber], map: "uk_scheduled_class_session")
+  @@index([businessDate, offeringId])
+}
+
+model StudentMorningAttendance {
+  id            String                     @id @default(cuid())
+  enrollmentId  String
+  enrollment    StudentEnrollment          @relation(fields: [enrollmentId], references: [id], onDelete: Restrict)
+  businessDate  DateTime                   @db.Date // Native PostgreSQL DATE
+  recordedAt    DateTime                   @default(now())
+  status        StudentAttendanceStatus    @default(PRESENT)
+  medicalCertId String?
+  medicalCert   StudentMedicalCertificate? @relation(fields: [medicalCertId], references: [id], onDelete: Restrict)
+  remarks       String?
+  recordedById  String
+  recordedBy    User                       @relation(fields: [recordedById], references: [id], onDelete: Restrict)
+
+  @@unique([enrollmentId, businessDate], map: "uk_student_morning_attendance")
+  @@index([businessDate, status])
+}
+
+model StudentPeriodAttendance {
+  id                 String                    @id @default(cuid())
+  enrollmentId       String
+  enrollment         StudentEnrollment         @relation(fields: [enrollmentId], references: [id], onDelete: Restrict)
+  scheduledSessionId String
+  scheduledSession   ScheduledClassSession     @relation(fields: [scheduledSessionId], references: [id], onDelete: Restrict)
+  status             StudentAttendanceStatus   @default(PRESENT)
+  exemptionStatus    AttendanceExemptionStatus @default(NONE)
+  medicalCertId      String?
+  medicalCert        StudentMedicalCertificate? @relation(fields: [medicalCertId], references: [id], onDelete: Restrict)
+  remarks            String?
+  recordedById       String
+  recordedBy         User                      @relation(fields: [recordedById], references: [id], onDelete: Restrict)
+  recordedAt         DateTime                  @default(now())
+
+  @@unique([enrollmentId, scheduledSessionId], map: "uk_student_period_attendance")
+  @@index([scheduledSessionId, status])
+}
+
+model StudentMedicalCertificate {
+  id                 String                     @id @default(cuid())
+  studentId          String
+  student            Student                    @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  startDate          DateTime                   @db.Date // Native PostgreSQL DATE
+  endDate            DateTime                   @db.Date // Native PostgreSQL DATE
+  hospitalName       String
+  diagnosis          String?
+  storageKey         String                     // Pure ASCII canonical path
+  sha256             String                     // 64-character lowercase hex
+  byteSize           BigInt                     // CHECK > 0
+  isVerified         Boolean                    @default(false)
+  verifiedById       String?
+  verifiedBy         User?                      @relation("MedicalCertVerifier", fields: [verifiedById], references: [id], onDelete: Restrict)
+  verifiedAt         DateTime?
+  
+  morningAttendances StudentMorningAttendance[]
+  periodAttendances  StudentPeriodAttendance[]
+  createdAt          DateTime                   @default(now())
+
+  @@index([studentId, startDate, endDate])
+}
+
+// -------------------------------------------------------------
+// 4. Home Visit & SDQ (Direct Norms FK & Clean Attachments)
+// -------------------------------------------------------------
+
+model StudentHomeVisit {
+  id                  String          @id @default(cuid())
+  studentId           String
+  student             Student         @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  academicYear        Int
+  term                Int             // CHECK IN (1, 2)
+  visitRound          Int             @default(1) // CHECK BETWEEN 1 AND 10
+  visitDate           DateTime
+  
+  latitude            Float?
+  longitude           Float?
+  guardianIncomeMonth Decimal?        @db.Decimal(10, 2)
+  dependentCount      Int             @default(0)
+  
+  houseCondition      String?
+  roofMaterial        String?
+  wallMaterial        String?
+  floorMaterial       String?
+  waterSource         String?
+  toiletType          String?
+  electricitySource   String?
+  hasCar              Boolean         @default(false)
+  hasMotorcycle       Boolean         @default(false)
+  hasAirConditioner   Boolean         @default(false)
+  agriculturalLandRai Float?          @default(0)
+  
+  distanceKm          Float?
+  commuteMethod       String?
+  commuteCostPerDay   Decimal?        @db.Decimal(8, 2)
+  
+  cctEstimatedPoverty CctPovertyLevel @default(NOT_POOR)
+  cctPmtScore         Float?
+  
+  visitorTeacherId    String
+  visitorTeacher      User            @relation(fields: [visitorTeacherId], references: [id], onDelete: Restrict)
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+
+  @@unique([studentId, academicYear, term, visitRound], map: "uk_student_home_visit")
+}
+
+model SdqNormsRegistry {
+  id                  String                 @id @default(cuid())
+  instrumentVersion   String                 // "SDQ-TH-2558-V1"
+  scoringVersion      String                 // "DOH-TH-NORMS-2015"
+  evaluatorType       EvaluatorType          // TEACHER, PARENT, STUDENT
+  targetAgeMin        Int                    // 11
+  targetAgeMax        Int                    // 18
+  reverseScoredItems  Json                   // [7, 11, 14, 21, 25]
+  subscaleDefinitions Json
+  cutoffsJson         Json
+  isImmutable         Boolean                @default(false)
+  
+  evaluations         StudentSdqEvaluation[]
+  createdAt           DateTime               @default(now())
+
+  @@unique([instrumentVersion, scoringVersion, evaluatorType, targetAgeMin, targetAgeMax], map: "uk_sdq_norms")
+}
+
+model StudentSdqEvaluation {
+  id                 String           @id @default(cuid())
+  studentId          String
+  student            Student          @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  academicYear       Int
+  term               Int              // CHECK IN (1, 2)
+  evaluatorType      EvaluatorType
+  
+  normRegistryId     String
+  normRegistry       SdqNormsRegistry @relation(fields: [normRegistryId], references: [id], onDelete: Restrict)
+  
+  emotionalScore     Int              // CHECK BETWEEN 0 AND 10
+  conductScore       Int              // CHECK BETWEEN 0 AND 10
+  hyperactivityScore Int              // CHECK BETWEEN 0 AND 10
+  peerProblemScore   Int              // CHECK BETWEEN 0 AND 10
+  prosocialScore     Int              // CHECK BETWEEN 0 AND 10
+  totalDifficulties  Int              // CHECK total = sum(4 subscales)
+  
+  overallLevel       SdqLevel
+  rawAnswersJson     Json
+  evaluatorId        String
+  evaluator          User             @relation(fields: [evaluatorId], references: [id], onDelete: Restrict)
+  createdAt          DateTime         @default(now())
+
+  @@unique([studentId, academicYear, term, evaluatorType], map: "uk_student_sdq_eval")
+}
+
+// -------------------------------------------------------------
+// 5. Early Warning System & PDCA Intervention (1-to-Many Fix)
+// -------------------------------------------------------------
+
+model StudentRiskAssessment {
+  id              String                   @id @default(cuid())
+  studentId       String
+  student         Student                  @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  enrollmentId    String
+  enrollment      StudentEnrollment        @relation(fields: [enrollmentId], references: [id], onDelete: Restrict)
+  academicYear    Int
+  term            Int                      // CHECK IN (1, 2)
+  evaluationCycle String
+  riskLevel       RiskLevel
+  riskScore       Float                    // CHECK BETWEEN 0.0 AND 100.0
+  ruleVersion     String
+  signalsJson     Json
+  explanationJson Json
+  calculatedAt    DateTime                 @default(now())
+  
+  triggeredCaseId String?
+  triggeredCase   StudentInterventionCase? @relation("CaseRiskAssessments", fields: [triggeredCaseId], references: [id], onDelete: Restrict)
+
+  @@unique([enrollmentId, ruleVersion, evaluationCycle], map: "uk_student_risk_cycle")
+  @@index([academicYear, term, riskLevel])
+}
+
+model StudentInterventionCase {
+  id                   String                  @id @default(cuid())
+  caseNumber           String                  @unique
+  studentId            String
+  student              Student                 @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  title                String
+  priority             CasePriority            @default(MEDIUM)
+  status               CaseStatus              @default(OPEN)
+  triggerReason        String
+  actionPlan           String
+  targetOutcome        String
+  dueDate              DateTime?
+  
+  riskAssessments      StudentRiskAssessment[] @relation("CaseRiskAssessments")
+  
+  assignedToId         String
+  assignedTo           User                    @relation("CaseAssignee", fields: [assignedToId], references: [id], onDelete: Restrict)
+  createdById          String
+  createdBy            User                    @relation("CaseCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  
+  outcome              CaseOutcome             @default(PENDING)
+  outcomeNotes         String?
+  resolvedAt           DateTime?
+  
+  activities           InterventionActivity[]
+  createdAt            DateTime                @default(now())
+  updatedAt            DateTime                @updatedAt
+
+  @@index([status, priority])
+  @@index([assignedToId])
+}
+
+model InterventionActivity {
+  id               String                  @id @default(cuid())
+  caseId           String
+  case             StudentInterventionCase @relation(fields: [caseId], references: [id], onDelete: Restrict)
+  actionDate       DateTime
+  activityTitle    String
+  details          String
+  nextFollowUpDate DateTime?
+  recordedById     String
+  recordedBy       User                    @relation(fields: [recordedById], references: [id], onDelete: Restrict)
+  createdAt        DateTime                @default(now())
+
+  @@index([caseId, actionDate])
+}
+
+// -------------------------------------------------------------
+// 6. Custody, Audit & Manifest (Tombstone & Compensating Storage)
+// -------------------------------------------------------------
+
+model StudentAffairsAttachment {
+  id              String               @id @default(cuid())
+  entityType      AttachmentEntityType
+  entityId        String
+  category        AttachmentCategory   @default(HOME_VISIT_FAMILY)
+  storageKey      String               // Pure ASCII canonical path
+  sha256          String               // 64-character lowercase hex
+  mimeType        String
+  byteSize        BigInt               // CHECK > 0
+  objectVersion   String               @default("v1")
+  imageWidth      Int?
+  imageHeight     Int?
+  uploadedAt      DateTime             @default(now())
+  uploadedById    String
+  retentionUntil  DateTime?
+  isQuarantined   Boolean              @default(false)
+  
+  // Tombstone Invariant (Triad CHECK Enforced)
+  isTombstoned    Boolean              @default(false)
+  tombstonedAt    DateTime?
+  tombstonedById  String?
+  tombstoneReason String?
+
+  @@index([entityType, entityId])
+  @@index([category])
+}
+
+model StudentAffairsAuditLog {
+  id                String   @id @default(cuid())
+  entityType        String
+  entityId          String
+  action            String
+  actionVersion     String   @default("1.0")
+  actorId           String
+  actorIdSnapshot   String
+  actorRoleSnapshot String
+  correlationId     String
+  requestId         String?
+  source            String
+  beforeHash        String?
+  afterHash         String?
+  payload           Json?
+  ipAddress         String?
+  createdAt         DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([actorId, createdAt])
+  @@index([entityType, entityId])
+  @@index([correlationId])
+}
+
+model CctExportManifest {
+  id             String            @id @default(cuid())
+  exportCode     String            @unique
+  academicYear   Int
+  term           Int               // CHECK IN (1, 2)
+  criteriaJson   Json
+  recordCount    Int               // CHECK >= 0
+  storageKey     String
+  payloadSha256  String
+  byteSize       BigInt
+  schemaVersion  String
+  
+  idempotencyKey String            @unique
+  retryCount     Int               @default(0) // CHECK >= 0
+  status         CctManifestStatus @default(PENDING_UPLOAD)
+  verifiedAt     DateTime?
+  verifiedById   String?
+  verifiedBy     User?             @relation("CctManifestVerifier", fields: [verifiedById], references: [id], onDelete: Restrict)
+  failureReason  String?
+  
+  createdById    String
+  createdBy      User              @relation("CctManifestCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  createdAt      DateTime          @default(now())
+
+  @@index([academicYear, term, status])
+}
+
+model StudentMeritNomination {
+  id                 String                 @id @default(cuid())
+  studentId          String
+  student            Student                @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  academicYear       Int
+  term               Int
+  awardCategory      String
+  reason             String
+  meritPointsScore   Int
+  status             NominationStatus       @default(PENDING_REVIEW)
+  
+  reviewedById       String?
+  reviewedBy         User?                  @relation("NominationReviewer", fields: [reviewedById], references: [id], onDelete: Restrict)
+  reviewedAt         DateTime?
+  rejectionReason    String?
+  decisionNotes      String?
+  
+  certificateItemId  String?                @unique
+  certificateItem    CertificateIssuedItem? @relation(fields: [certificateItemId], references: [id], onDelete: Restrict)
+  createdAt          DateTime               @default(now())
+
+  @@index([academicYear, status])
+}
+
 
 
 
