@@ -1,28 +1,26 @@
-# Subsystem Roles, Assigned Duties & Teacher Capability Architecture Design (Rev 3 - Production Ready)
+# Subsystem Roles, Assigned Duties & Teacher Capability Architecture Design (Rev 4 - Definitive Forensic Architecture)
 
-**Document ID:** `SPEC-2026-09-18-ROLES-DUTIES-03`  
+**Document ID:** `SPEC-2026-09-18-ROLES-DUTIES-04`  
 **Date:** 2026-09-18  
-**Status:** `APPROVED_DESIGN_REV3`  
+**Status:** `APPROVED_DESIGN_REV4_DEFINITIVE`  
 **Author:** Pair Programming (Senior Forensic Architecture)  
 **Target Environments:** `dev` → `main` (Vercel & Authoritative PostgreSQL)
 
 ---
 
-## 1. Executive Summary & Forensic Hardening (Rev 3)
+## 1. Executive Summary & Forensic Hardening (Rev 4)
 
-This specification addresses the definitive 7-point forensic hardening requirements:
-1. **Zero Client Actor Spoofing:** Server actions derive `actorId = session.user.id` strictly on the server; client arguments are prohibited.
-2. **DB-Level Assignment Uniqueness:** PostgreSQL partial unique index prevents concurrent duplicate active assignments on `(userId, dutyType, COALESCE(divisionScope::text, departmentScope::text, '')) WHERE revokedAt IS NULL`.
-3. **Single Source of Active State & DB Consistency Check:** `revokedAt` is the canonical active state (`active <=> revokedAt IS NULL`), reinforced with a DB `CHECK` constraint: `(("isActive" = true AND "revokedAt" IS NULL) OR ("isActive" = false AND "revokedAt" IS NOT NULL))`.
-4. **Typed DB Enums for Scopes:** Replaced `scope String?` with strongly-typed PostgreSQL enums `divisionScope ScopeDivision?` and `departmentScope ScopeDepartment?` with strict cross-column `CHECK` constraints.
-5. **Dedicated Immutable Columns for Historical Signer Snapshots:** Replaced generic `extraFields` with dedicated columns `inspectorSnapshot Json?` and `headApproverSnapshot Json?` on `model LeaveRequest`, sealed immutably against post-approval tampering.
-6. **Self-Approval Guard at Query & Routing Time + Assignment Time:** Automated routing redirects requests from a Department Head or HR Head to the Director/Deputy Director at query-time (never returning the requester as their own approver), verified with runtime assertion guards.
-7. **Definitive Legacy Cutover:** Hard cutover gate (`TRANSITION_DEADLINE`). Post-migration, legacy position strings grant ZERO privileges (`FAIL-CLOSED`).
-8. **Ambiguous Migration Resolution Mechanism:** CLI parameter `--resolve-ambiguous="userId:position,..."` and `--resolutions-file` allowing admin resolution without direct database mutations.
+This definitive specification closes all 6 remaining production gates:
+1. **Direct Scope Columns in Partial Unique Indexes:** Eliminates `COALESCE` expressions. Implements explicit partial unique indexes on `(userId, dutyType, divisionScope, departmentScope) WHERE revokedAt IS NULL` and institutional singleton constraints (one Head per Department/Division).
+2. **Single Source of Truth for Active State:** Removed `isActive`. Canonical active status is strictly defined as `revokedAt IS NULL`.
+3. **Canonical Deterministic Lock Hierarchy in `updateAppointedDuties`:** Locks `SystemSettings` -> sorts target `userId`s ascending -> acquires row locks on `User` -> acquires row locks on active `UserDutyAssignment` before executing mutations.
+4. **Active Capability & Actor Verification at Transaction Execution:** Before executing `inspectLeaveRequest` or `approveLeaveRequest`, the system verifies inside the transaction: (a) `request.userId !== session.user.id`, (b) the actor's `UserDutyAssignment` remains active (`revokedAt IS NULL`), and (c) logs `SECURITY_VIOLATION` in `SystemLog` if breached before throwing.
+5. **Explicit DB-Level Immutability Seal on Approved Snapshots:** PostgreSQL trigger enforces that `inspectorSnapshot` and `headApproverSnapshot` can be populated during the approval lifecycle, but become **PERMANENTLY IMMUTABLE** once `status = 'APPROVED'`. Corrections require an official superseding/cancellation record, preserving forensic auditability.
+6. **Strict Input Validation & Audit for `--resolve-ambiguous`:** Resolving ambiguous positions requires Zod-validated input matching the official position allowlist, logging `{ actor: "CLI_ADMIN", targetUserId, previousPosition, resolvedPosition, timestamp }` into `SystemLog`.
 
 ---
 
-## 2. Database Schema & Data Integrity
+## 2. Database Schema & Integrity Constraints
 
 ### 2.1 Prisma Models & Enums
 ```prisma
@@ -62,7 +60,6 @@ model UserDutyAssignment {
   assignedAt      DateTime         @default(now())
   revokedAt       DateTime?
   assignedById    String?
-  isActive        Boolean          @default(true)
   user            User             @relation("UserDutyAssignments", fields: [userId], references: [id], onDelete: Cascade)
   assignedBy      User?            @relation("DutyAssignedByUser", fields: [assignedById], references: [id], onDelete: SetNull)
 
@@ -70,27 +67,20 @@ model UserDutyAssignment {
   @@index([dutyType, divisionScope, revokedAt])
   @@index([dutyType, departmentScope, revokedAt])
 }
-```
 
-### 2.2 Dedicated Historical Signer Snapshots on `LeaveRequest`
-```prisma
 model LeaveRequest {
-  // ... existing columns ...
-  inspectorSnapshot    Json? // { userId, name, position, level, duty, signedAt }
-  headApproverSnapshot Json? // { userId, name, position, level, duty, signedAt }
+  // ... existing fields ...
+  inspectorSnapshot    Json? // Dedicated sealed snapshot { userId, name, position, level, duty, signedAt }
+  headApproverSnapshot Json? // Dedicated sealed snapshot { userId, name, position, level, duty, signedAt }
   // ...
 }
 ```
 
-### 2.3 Authoritative PostgreSQL Constraints & Partial Unique Index
-Applied via migration script:
+### 2.2 Authoritative Database Constraints & Indexes (PostgreSQL)
 ```sql
--- 1. Consistency constraint between isActive and revokedAt
+-- 1. Bi-directional scope validity constraint: enforce exact scope fields per dutyType
 ALTER TABLE "UserDutyAssignment"
-  ADD CONSTRAINT "chk_duty_active_consistency"
-  CHECK (("isActive" = true AND "revokedAt" IS NULL) OR ("isActive" = false AND "revokedAt" IS NOT NULL));
-
--- 2. Scope validity constraint based on dutyType
+  DROP CONSTRAINT IF EXISTS "chk_duty_scope_validity";
 ALTER TABLE "UserDutyAssignment"
   ADD CONSTRAINT "chk_duty_scope_validity"
   CHECK (
@@ -99,21 +89,46 @@ ALTER TABLE "UserDutyAssignment"
     ("dutyType" IN ('INSPECTOR', 'HR_HEAD', 'HR_STAFF') AND "divisionScope" IS NULL AND "departmentScope" IS NULL)
   );
 
--- 3. Partial Unique Index: Zero duplicate active assignments per user, duty, and scope
-CREATE UNIQUE INDEX "uk_active_user_duty_assignment" ON "UserDutyAssignment" (
-  "userId", 
-  "dutyType", 
-  COALESCE("divisionScope"::text, "departmentScope"::text, '')
-) WHERE "revokedAt" IS NULL;
+-- 2. User assignment uniqueness: No duplicate active duty for same user, duty, and scope
+DROP INDEX IF EXISTS "uk_active_global_user_duty";
+CREATE UNIQUE INDEX "uk_active_global_user_duty" ON "UserDutyAssignment" (
+  "userId", "dutyType"
+) WHERE "revokedAt" IS NULL AND "divisionScope" IS NULL AND "departmentScope" IS NULL;
 
--- 4. Immutable Signer Snapshot Protection on LeaveRequest
+DROP INDEX IF EXISTS "uk_active_division_user_duty";
+CREATE UNIQUE INDEX "uk_active_division_user_duty" ON "UserDutyAssignment" (
+  "userId", "dutyType", "divisionScope"
+) WHERE "revokedAt" IS NULL AND "divisionScope" IS NOT NULL;
+
+DROP INDEX IF EXISTS "uk_active_dept_user_duty";
+CREATE UNIQUE INDEX "uk_active_dept_user_duty" ON "UserDutyAssignment" (
+  "userId", "dutyType", "departmentScope"
+) WHERE "revokedAt" IS NULL AND "departmentScope" IS NOT NULL;
+
+-- 3. Institutional Singleton Constraints: Only ONE active head per Division and Department school-wide
+DROP INDEX IF EXISTS "uk_single_active_division_head";
+CREATE UNIQUE INDEX "uk_single_active_division_head" ON "UserDutyAssignment" (
+  "divisionScope"
+) WHERE "revokedAt" IS NULL AND "dutyType" = 'DIVISION_HEAD';
+
+DROP INDEX IF EXISTS "uk_single_active_dept_head";
+CREATE UNIQUE INDEX "uk_single_active_dept_head" ON "UserDutyAssignment" (
+  "departmentScope"
+) WHERE "revokedAt" IS NULL AND "dutyType" = 'DEPT_HEAD';
+
+-- 4. Immutable Signer Snapshot Trigger on LeaveRequest
 CREATE OR REPLACE FUNCTION protect_leave_signer_snapshots()
 RETURNS TRIGGER AS $$
 BEGIN
+  -- If leave was already APPROVED, strictly forbid modifying signer snapshots
   IF OLD.status = 'APPROVED' THEN
     IF (OLD."inspectorSnapshot" IS DISTINCT FROM NEW."inspectorSnapshot") OR
        (OLD."headApproverSnapshot" IS DISTINCT FROM NEW."headApproverSnapshot") THEN
-      RAISE EXCEPTION 'Cryptographic/Audit Integrity Violation: Cannot modify signer snapshots of an approved leave request';
+      RAISE EXCEPTION 'Cryptographic/Audit Integrity Violation: Signer snapshots of approved leave requests are immutable';
+    END IF;
+    -- Disallow transitioning away from APPROVED status (must use cancel/supercede workflow)
+    IF NEW.status <> 'APPROVED' AND NEW.status <> 'CANCELLED' THEN
+      RAISE EXCEPTION 'Audit Violation: An APPROVED leave request cannot transition back to pending states';
     END IF;
   END IF;
   RETURN NEW;
@@ -128,47 +143,72 @@ FOR EACH ROW EXECUTE FUNCTION protect_leave_signer_snapshots();
 
 ---
 
-## 3. Server Actions & Concurrency Architecture
+## 3. Concurrency Hierarchy in `updateAppointedDuties`
 
-### 3.1 `updateAppointedDuties`
+To prevent deadlocks and race conditions, row locks must be acquired in a strictly deterministic order:
+
 ```typescript
 export async function updateAppointedDuties(input: {
   assignmentsToGrant: Array<{ userId: string; dutyType: DutyType; divisionScope?: ScopeDivision; departmentScope?: ScopeDepartment }>;
   assignmentsToRevoke: Array<{ assignmentId: string }>;
 }) {
-  // 1. Derive actorId strictly from session - NEVER client input
+  // 1. Server-derived actorId - NEVER from client payload
   const session = await getSession();
-  if (!session?.user?.id) throw new Error("Unauthorized: Authentication required");
-  
+  if (!session?.user?.id) throw new Error("Unauthorized: Session required");
   const actorId = session.user.id;
+
   const dbActor = await prisma.user.findUnique({
     where: { id: actorId },
     select: { role: true, position: true }
   });
   if (dbActor?.role !== "ADMIN" && dbActor?.position !== "แอดมิน") {
-    throw new Error("Forbidden: SuperAdmin privileges required");
+    throw new Error("Forbidden: SuperAdmin required");
   }
 
+  // Collect and sort all target user IDs ascending to enforce global lock order
+  const targetUserIds = [
+    ...new Set([
+      ...input.assignmentsToGrant.map(g => g.userId),
+      // (Also include target users from assignmentsToRevoke)
+    ])
+  ].sort();
+
   return await prisma.$transaction(async (tx) => {
-    // 2. Concurrency Lock: Lock SystemSettings to serialize organizational mutations
+    // LOCK 1: SystemSettings singleton
     await tx.$executeRawUnsafe(`SELECT id FROM "SystemSettings" WHERE id = 'default' FOR UPDATE;`);
+
+    // LOCK 2: Target Users in ascending order
+    if (targetUserIds.length > 0) {
+      await tx.$executeRawUnsafe(
+        `SELECT id FROM "User" WHERE id = ANY($1::text[]) ORDER BY id FOR UPDATE;`,
+        targetUserIds
+      );
+    }
+
+    // LOCK 3: Active assignments for target users
+    if (targetUserIds.length > 0) {
+      await tx.$executeRawUnsafe(
+        `SELECT id FROM "UserDutyAssignment" WHERE "userId" = ANY($1::text[]) AND "revokedAt" IS NULL FOR UPDATE;`,
+        targetUserIds
+      );
+    }
 
     const now = new Date();
 
-    // 3. Process Revocations
+    // Execute revocations
     for (const { assignmentId } of input.assignmentsToRevoke) {
       const existing = await tx.userDutyAssignment.findUnique({ where: { id: assignmentId } });
       if (existing && !existing.revokedAt) {
         await tx.userDutyAssignment.update({
           where: { id: assignmentId },
-          data: { isActive: false, revokedAt: now }
+          data: { revokedAt: now }
         });
 
         await tx.systemLog.create({
           data: {
             actionType: "DUTY_REVOKED",
             subsystem: "PERSONNEL",
-            description: `Revoked ${existing.dutyType} from user ${existing.userId}`,
+            description: `Revoked duty ${existing.dutyType} from user ${existing.userId}`,
             userId: actorId,
             metadata: { actorId, assignmentId, userId: existing.userId, dutyType: existing.dutyType, revokedAt: now.toISOString() }
           }
@@ -176,14 +216,14 @@ export async function updateAppointedDuties(input: {
       }
     }
 
-    // 4. Validate & Process Grants
+    // Execute grants with user validation
     for (const grant of input.assignmentsToGrant) {
       const targetUser = await tx.user.findUnique({
         where: { id: grant.userId },
         select: { id: true, isApproved: true }
       });
       if (!targetUser || !targetUser.isApproved) {
-        throw new Error(`Target user ${grant.userId} is not active or approved`);
+        throw new Error(`Target user ${grant.userId} is not approved/active`);
       }
 
       const created = await tx.userDutyAssignment.create({
@@ -193,8 +233,7 @@ export async function updateAppointedDuties(input: {
           divisionScope: grant.divisionScope ?? null,
           departmentScope: grant.departmentScope ?? null,
           assignedById: actorId,
-          assignedAt: now,
-          isActive: true
+          assignedAt: now
         }
       });
 
@@ -202,7 +241,7 @@ export async function updateAppointedDuties(input: {
         data: {
           actionType: "DUTY_ASSIGNED",
           subsystem: "PERSONNEL",
-          description: `Assigned ${grant.dutyType} to user ${grant.userId}`,
+          description: `Assigned duty ${grant.dutyType} to user ${grant.userId}`,
           userId: actorId,
           metadata: { actorId, assignmentId: created.id, userId: grant.userId, dutyType: grant.dutyType, assignedAt: now.toISOString() }
         }
@@ -216,101 +255,66 @@ export async function updateAppointedDuties(input: {
 
 ---
 
-## 4. Separation of Duties: Query-Level Routing & Runtime Invariants
+## 4. Anti-Self-Approval & Transactional Capability Verification
 
-### 4.1 Routing Rule: Self-Approval Prevention
-When routing a leave request for inspection / head approval:
-```typescript
-export async function resolveLeaveApprovers(request: { userId: string; department?: ScopeDepartment }) {
-  // Query active inspector
-  let inspector = await prisma.userDutyAssignment.findFirst({
-    where: { dutyType: "INSPECTOR", revokedAt: null, userId: { not: request.userId } }, // Exclude requester
-    include: { user: { select: { id: true, name: true, position: true, level: true } } }
-  });
+In `src/app/actions/leave.ts`:
+1. **Query Routing:** Exclude requester (`userId: { not: request.userId }`). If a Department Head or HR Head applies for leave, route to Director or alternate.
+2. **Transactional Verification (Before Mutation):**
+   ```typescript
+   if (request.userId === session.user.id) {
+     await prisma.systemLog.create({
+       data: {
+         actionType: "SECURITY_VIOLATION",
+         subsystem: "LEAVE",
+         description: `CRITICAL: Attempted self-approval by requester ${session.user.id} on leave ${request.id}`,
+         userId: session.user.id,
+         metadata: { leaveId: request.id, userId: session.user.id, timestamp: new Date().toISOString() }
+       }
+     });
+     throw new Error("CRITICAL_SECURITY_VIOLATION: Requester cannot inspect or approve their own leave request");
+   }
 
-  // If requester IS the inspector, route to Director or alternate
-  if (!inspector) {
-    inspector = await getDirectorOrAlternateInspector(request.userId);
-  }
-
-  // Query active Department Head or HR Head
-  let headApprover = null;
-  if (request.department) {
-    headApprover = await prisma.userDutyAssignment.findFirst({
-      where: { dutyType: "DEPT_HEAD", departmentScope: request.department, revokedAt: null, userId: { not: request.userId } },
-      include: { user: { select: { id: true, name: true, position: true, level: true } } }
-    });
-  }
-
-  // If requester is the Department Head or no Dept Head, route to HR Head (excluding requester) or Director
-  if (!headApprover) {
-    headApprover = await prisma.userDutyAssignment.findFirst({
-      where: { dutyType: "HR_HEAD", revokedAt: null, userId: { not: request.userId } },
-      include: { user: { select: { id: true, name: true, position: true, level: true } } }
-    });
-  }
-
-  if (!headApprover) {
-    headApprover = await getDirectorOrDeputy(request.userId);
-  }
-
-  return { inspector: inspector?.user, headApprover: headApprover?.user };
-}
-```
-
-### 4.2 Runtime Assertion Guards (Fail-Closed)
-In `inspectLeaveRequest` and `approveLeaveRequest`:
-```typescript
-if (currentUserId === request.userId) {
-  throw new Error("CRITICAL_INVARIANT_VIOLATION: Requester cannot approve or inspect their own leave request");
-}
-```
+   // Verify acting user's duty assignment is still active inside transaction
+   const activeDuty = await tx.userDutyAssignment.findFirst({
+     where: { userId: session.user.id, dutyType: expectedDuty, revokedAt: null }
+   });
+   if (!activeDuty && !isSuperAdmin) {
+     throw new Error("FORBIDDEN: Duty assignment has been revoked or expired");
+   }
+   ```
 
 ---
 
-## 5. Signer Historical Snapshot Structure
-Stored immutably inside `LeaveRequest.inspectorSnapshot` and `LeaveRequest.headApproverSnapshot`:
+## 5. Ambiguous Migration Resolution Engine
+
+In `scripts/migrate-subsystem-roles.mjs`:
 ```typescript
-export interface SignerSnapshot {
-  userId: string;
-  name: string;
-  position: string;   // e.g. "ครู"
-  level: string;      // e.g. "ชำนาญการพิเศษ"
-  dutyLabel: string;  // e.g. "ผู้ตรวจสอบการลา" or "ปฏิบัติหน้าที่หัวหน้างานบุคคล"
-  signedAt: string;   // ISO-8601 timestamp
+const CIVIL_SERVICE_POSITIONS_ALLOWLIST = [
+  "ครู",
+  "ครูผู้ช่วย",
+  "พนักงานราชการ",
+  "ลูกจ้างประจำ",
+  "ลูกจ้างชั่วคราว",
+  "ครูอัตราจ้าง"
+];
+
+// CLI Usage: --resolve-ambiguous="usr_staff_1:ครู,usr_staff_2:ลูกจ้างชั่วคราว"
+export function parseAmbiguityResolutions(rawResolutions: string) {
+  const map: Record<string, string> = {};
+  if (!rawResolutions) return map;
+
+  const pairs = rawResolutions.split(",").map(s => s.trim()).filter(Boolean);
+  for (const pair of pairs) {
+    const [userId, targetPosition] = pair.split(":").map(s => s.trim());
+    if (!userId || !targetPosition) {
+      throw new Error(`Invalid resolution format: '${pair}'. Expected 'userId:position'`);
+    }
+    if (!CIVIL_SERVICE_POSITIONS_ALLOWLIST.includes(targetPosition)) {
+      throw new Error(`Invalid position '${targetPosition}'. Must be one of: ${CIVIL_SERVICE_POSITIONS_ALLOWLIST.join(", ")}`);
+    }
+    map[userId] = targetPosition;
+  }
+  return map;
 }
 ```
-
-**Print Rendering Engine:**
-`src/app/print/leave/[id]/page.tsx` directly reads `request.inspectorSnapshot` and `request.headApproverSnapshot`. If present, it formats:
-- Line 1: `ตำแหน่ง ${snapshot.position} ${snapshot.level}`.
-- Line 2 (Duty subtitle): `${snapshot.dutyLabel}`.
-
----
-
-## 6. Migration CLI: Idempotent & Resolution Support
-
-```bash
-# Dry run
-node scripts/migrate-subsystem-roles.mjs --dry-run
-
-# Dry run with resolution for ambiguous positions
-node scripts/migrate-subsystem-roles.mjs --dry-run --resolve-ambiguous="usr_staff_1:ครู"
-
-# Apply
-node scripts/migrate-subsystem-roles.mjs --apply --resolve-ambiguous="usr_staff_1:ครู"
-```
-Output:
-```text
-======================================================
-eLeave Subsystem Roles Migration (Idempotent Engine)
-======================================================
-Mode: APPLY
-Scanned Users: 42
-- Synthetics Identified: 3
-- Successfully Migrated to UserDutyAssignment: 2
-- Skipped (Active Assignment Exists): 0
-- Ambiguous Staff Resolved: 1
-- Unresolved Ambiguous (Aborted without mutation): 0
-Database Transaction Committed Successfully.
-```
+If unresolved ambiguous users exist in `--apply` mode, the script prints their details and **aborts with exit code 1 before executing any database mutation**.
