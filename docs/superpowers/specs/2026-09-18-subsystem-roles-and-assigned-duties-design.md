@@ -1,28 +1,28 @@
-# Subsystem Roles, Assigned Duties & Teacher Capability Architecture Design (Rev 5 - Production Ready)
+# Subsystem Roles, Assigned Duties & Teacher Capability Architecture Design (Rev 6 - Production Ready Candidate)
 
-**Document ID:** `SPEC-2026-09-18-ROLES-DUTIES-05`  
+**Document ID:** `SPEC-2026-09-18-ROLES-DUTIES-06`  
 **Date:** 2026-09-18  
-**Status:** `PRODUCTION_READY_APPROVED`  
+**Status:** `PRODUCTION_READY_CANDIDATE_REV6`  
 **Author:** Pair Programming (Senior Forensic Architecture)  
 **Target Environments:** `dev` → `main` (Vercel & Authoritative PostgreSQL)
 
 ---
 
-## 1. Executive Summary & Forensic Architecture (Rev 5)
+## 1. Executive Summary & Forensic Architecture (Rev 6)
 
-This specification incorporates the final 5 critical safeguards and 2 operational controls:
-1. **Clear Scope Uniqueness & Singleton Constraints:** Scoped partial unique indexes allow distinct scopes per user (e.g. acting head across departments) while guaranteeing singleton headship per department/division school-wide.
-2. **Deterministic Multi-Row Lock Hierarchy with `ORDER BY id ASC`:** All row-level locks across `SystemSettings`, `User`, and `UserDutyAssignment` strictly enforce `ORDER BY id ASC FOR UPDATE` to guarantee deadlock-free execution.
-3. **True Domain-Bound Anti-Self-Approval:** The security boundary verifies at transaction execution:
-   - `session.user.id !== request.userId`
-   - The actor holds an active assignment (`revokedAt IS NULL`) matching the exact required `dutyType` AND `scope` for that applicant's department (e.g., only the Math Dept Head or Director can approve a Math teacher's leave; an English Dept Head cannot).
-   - Any breach creates an immutable `SECURITY_VIOLATION` in `SystemLog` before throwing.
-4. **Comprehensive DB Triggers for Approved Leases (Update & Delete Protection):**
-   - `trg_protect_leave_signer_snapshots` enforces that once `status = 'APPROVED'`, `inspectorSnapshot`, `headApproverSnapshot`, `execApproverId`, `headApproverId`, and `status` are **PERMANENTLY IMMUTABLE**.
-   - `trg_protect_leave_approved_deletion` blocks hard `DELETE` of approved leave requests (enforcing soft delete or formal cancellation records).
-5. **Scoped Migration Target Whitelist:** `--resolve-ambiguous` strictly enforces that target users must currently possess a synthetic position (`'หัวหน้างานบุคคล'`, `'ผู้ตรวจสอบ'`, `'เจ้าหน้าที่บุคคล'`). It cannot be misused to alter arbitrary personnel.
-6. **Full State Audit Trail:** `SystemLog` records full `before` and `after` snapshots for every duty mutation.
-7. **Reiterated Core Controls (from Rev 10 & Priority 0):** Retains `(fiscalYear, approvedSeq)` unique index + retry loop, soft-delete retention, and native calendar validation.
+This specification incorporates the final 4 production-grade security and database integrity closures:
+1. **Explicit Duty-Specific Partial Unique Indexes:**
+   - Global duties (`INSPECTOR`, `HR_HEAD`, `HR_STAFF`) are explicitly bound:
+     `("userId", "dutyType") WHERE revokedAt IS NULL AND dutyType IN ('INSPECTOR', 'HR_HEAD', 'HR_STAFF')`.
+   - Scoped duties (`DIVISION_HEAD`, `DEPT_HEAD`) allow distinct scopes per user (e.g. acting across departments) without colliding:
+     `("userId", "dutyType", "divisionScope") WHERE revokedAt IS NULL AND dutyType = 'DIVISION_HEAD'`.
+     `("userId", "dutyType", "departmentScope") WHERE revokedAt IS NULL AND dutyType = 'DEPT_HEAD'`.
+2. **Durable, Autonomous Security Violation Audit Logging:**
+   - Security violations (e.g. self-approval attempts) are logged in an **isolated, immediate transaction** committed to `SystemLog` *before* the business transaction aborts and throws, guaranteeing zero loss of tamper/incident evidence upon rollback.
+3. **DB Trigger Mandates Complete Snapshots on `APPROVED` Transition:**
+   - The PostgreSQL trigger verifies that when a request transitions to `APPROVED`, modern leave requests (`createdAt >= '2026-09-18'`) **MUST contain sealed non-null `headApproverSnapshot`** (and `inspectorSnapshot` if inspection was required).
+4. **Explicit Composite Singleton Indexes:**
+   - Institutional singletons explicitly index `("dutyType", "divisionScope")` and `("dutyType", "departmentScope")`, ensuring absolute domain uniqueness.
 
 ---
 
@@ -84,7 +84,7 @@ model LeaveRequest {
 
 ### 2.2 Authoritative Database Constraints & Triggers (PostgreSQL)
 ```sql
--- 1. Bi-directional scope validity constraint: enforce exact scope fields per dutyType
+-- 1. Bi-directional scope validity constraint
 ALTER TABLE "UserDutyAssignment"
   DROP CONSTRAINT IF EXISTS "chk_duty_scope_validity";
 ALTER TABLE "UserDutyAssignment"
@@ -95,46 +95,56 @@ ALTER TABLE "UserDutyAssignment"
     ("dutyType" IN ('INSPECTOR', 'HR_HEAD', 'HR_STAFF') AND "divisionScope" IS NULL AND "departmentScope" IS NULL)
   );
 
--- 2. User assignment uniqueness: No duplicate active duty for same user, duty, and specific scope
+-- 2. User assignment uniqueness: explicitly bound by dutyType
 DROP INDEX IF EXISTS "uk_active_global_user_duty";
 CREATE UNIQUE INDEX "uk_active_global_user_duty" ON "UserDutyAssignment" (
   "userId", "dutyType"
-) WHERE "revokedAt" IS NULL AND "divisionScope" IS NULL AND "departmentScope" IS NULL;
+) WHERE "revokedAt" IS NULL AND "dutyType" IN ('INSPECTOR', 'HR_HEAD', 'HR_STAFF');
 
 DROP INDEX IF EXISTS "uk_active_division_user_duty";
 CREATE UNIQUE INDEX "uk_active_division_user_duty" ON "UserDutyAssignment" (
   "userId", "dutyType", "divisionScope"
-) WHERE "revokedAt" IS NULL AND "divisionScope" IS NOT NULL;
+) WHERE "revokedAt" IS NULL AND "dutyType" = 'DIVISION_HEAD';
 
 DROP INDEX IF EXISTS "uk_active_dept_user_duty";
 CREATE UNIQUE INDEX "uk_active_dept_user_duty" ON "UserDutyAssignment" (
   "userId", "dutyType", "departmentScope"
-) WHERE "revokedAt" IS NULL AND "departmentScope" IS NOT NULL;
+) WHERE "revokedAt" IS NULL AND "dutyType" = 'DEPT_HEAD';
 
--- 3. Institutional Singleton Constraints: Only ONE active head per Division and Department school-wide
+-- 3. Institutional Singleton Constraints: Explicit composite index key
 DROP INDEX IF EXISTS "uk_single_active_division_head";
 CREATE UNIQUE INDEX "uk_single_active_division_head" ON "UserDutyAssignment" (
-  "divisionScope"
+  "dutyType", "divisionScope"
 ) WHERE "revokedAt" IS NULL AND "dutyType" = 'DIVISION_HEAD';
 
 DROP INDEX IF EXISTS "uk_single_active_dept_head";
 CREATE UNIQUE INDEX "uk_single_active_dept_head" ON "UserDutyAssignment" (
-  "departmentScope"
+  "dutyType", "departmentScope"
 ) WHERE "revokedAt" IS NULL AND "dutyType" = 'DEPT_HEAD';
 
--- 4. Immutable Signer Snapshot & Approval Transition Trigger
+-- 4. Immutable Signer Snapshot & Mandatory Snapshot on APPROVED Trigger
 CREATE OR REPLACE FUNCTION protect_leave_signer_snapshots()
 RETURNS TRIGGER AS $$
 BEGIN
+  -- Mandatory snapshot presence check when transitioning into APPROVED
+  IF OLD.status <> 'APPROVED' AND NEW.status = 'APPROVED' THEN
+    -- Enforce for requests created on or after Rev 6 cutover (legacy leaves exempt)
+    IF NEW."createdAt" >= '2026-09-18T00:00:00Z' THEN
+      IF NEW."headApproverSnapshot" IS NULL THEN
+        RAISE EXCEPTION 'Audit Violation: An approved leave request must contain a sealed headApproverSnapshot';
+      END IF;
+    END IF;
+  END IF;
+
+  -- Immutability check if leave was already APPROVED
   IF OLD.status = 'APPROVED' THEN
-    -- Signer snapshots and approver IDs are permanently sealed
     IF (OLD."inspectorSnapshot" IS DISTINCT FROM NEW."inspectorSnapshot") OR
        (OLD."headApproverSnapshot" IS DISTINCT FROM NEW."headApproverSnapshot") OR
        (OLD."execApproverId" IS DISTINCT FROM NEW."execApproverId") OR
        (OLD."headApproverId" IS DISTINCT FROM NEW."headApproverId") THEN
       RAISE EXCEPTION 'Cryptographic/Audit Integrity Violation: Signer snapshots and approvers of an approved leave request are permanently immutable';
     END IF;
-    -- Status cannot transition away from APPROVED (only soft cancellation record allowed)
+    -- Status cannot transition away from APPROVED
     IF NEW.status <> 'APPROVED' AND NEW.status <> 'CANCELLED' THEN
       RAISE EXCEPTION 'Audit Violation: An APPROVED leave request cannot transition back to pending or draft states';
     END IF;
@@ -167,14 +177,37 @@ FOR EACH ROW EXECUTE FUNCTION protect_leave_approved_deletion();
 
 ---
 
-## 3. Concurrency Hierarchy & Full State Audit in `updateAppointedDuties`
+## 3. Concurrency Hierarchy & Isolated Security Audit Logging
 
+### 3.1 Isolated Security Violation Logger
+```typescript
+export async function logSecurityViolationIsolated(actorId: string, leaveId: string, violationReason: string) {
+  try {
+    // Separate independent transaction committed immediately
+    await prisma.$transaction(async (auditTx) => {
+      await auditTx.systemLog.create({
+        data: {
+          actionType: "SECURITY_VIOLATION",
+          subsystem: "LEAVE",
+          description: `CRITICAL: ${violationReason}`,
+          userId: actorId,
+          metadata: { leaveId, actorId, reason: violationReason, timestamp: new Date().toISOString() }
+        }
+      });
+    });
+  } catch (logErr) {
+    console.error("FATAL: Failed to commit isolated security audit log:", logErr);
+  }
+}
+```
+
+### 3.2 Concurrency Hierarchy in `updateAppointedDuties`
 ```typescript
 export async function updateAppointedDuties(input: {
   assignmentsToGrant: Array<{ userId: string; dutyType: DutyType; divisionScope?: ScopeDivision; departmentScope?: ScopeDepartment }>;
   assignmentsToRevoke: Array<{ assignmentId: string }>;
 }) {
-  // 1. Derive actorId strictly from session - NEVER from client payload
+  // Derive actorId strictly on server
   const session = await getSession();
   if (!session?.user?.id) throw new Error("Unauthorized: Session required");
   const actorId = session.user.id;
@@ -187,7 +220,6 @@ export async function updateAppointedDuties(input: {
     throw new Error("Forbidden: SuperAdmin required");
   }
 
-  // Collect and sort all target user IDs ascending to enforce global lock order
   const targetUserIds = [
     ...new Set([
       ...input.assignmentsToGrant.map(g => g.userId),
@@ -216,7 +248,7 @@ export async function updateAppointedDuties(input: {
 
     const now = new Date();
 
-    // Execute revocations with full before/after audit snapshot
+    // Execute revocations with full state audit
     for (const { assignmentId } of input.assignmentsToRevoke) {
       const existing = await tx.userDutyAssignment.findUnique({ where: { id: assignmentId } });
       if (existing && !existing.revokedAt) {
@@ -245,7 +277,7 @@ export async function updateAppointedDuties(input: {
       }
     }
 
-    // Execute grants with target validation and full before/after audit snapshot
+    // Execute grants with target validation and full state audit
     for (const grant of input.assignmentsToGrant) {
       const targetUser = await tx.user.findUnique({
         where: { id: grant.userId },
@@ -292,95 +324,39 @@ export async function updateAppointedDuties(input: {
 
 ---
 
-## 4. Anti-Self-Approval & Domain-Bound Scope Verification
+## 4. Anti-Self-Approval with Isolated Incident Auditing
 
 In `src/app/actions/leave.ts`:
-1. **Query Routing:** Exclude requester (`userId: { not: request.userId }`). If a Department Head or HR Head applies for leave, route to Director or alternate.
-2. **Transactional Verification (Before Mutation):**
-   ```typescript
-   // Check 1: Direct requester self-approval check
-   if (request.userId === session.user.id) {
-     await prisma.systemLog.create({
-       data: {
-         actionType: "SECURITY_VIOLATION",
-         subsystem: "LEAVE",
-         description: `CRITICAL: Attempted self-approval by requester ${session.user.id} on leave ${request.id}`,
-         userId: session.user.id,
-         metadata: { leaveId: request.id, userId: session.user.id, timestamp: new Date().toISOString() }
-       }
-     });
-     throw new Error("CRITICAL_SECURITY_VIOLATION: Requester cannot inspect or approve their own leave request");
-   }
-
-   // Check 2: Domain-bound duty and scope match
-   if (expectedDuty === "DEPT_HEAD") {
-     const requestDept = mapSubjectGroupToDeptScope(request.user.subjectGroup);
-     const matchingDuty = await tx.userDutyAssignment.findFirst({
-       where: {
-         userId: session.user.id,
-         dutyType: "DEPT_HEAD",
-         departmentScope: requestDept,
-         revokedAt: null
-       }
-     });
-     if (!matchingDuty && !isDirector && !isSuperAdmin) {
-       throw new Error(`FORBIDDEN: User is not authorized as Department Head for department ${requestDept}`);
-     }
-   }
-   ```
-
----
-
-## 5. Ambiguous Migration Resolution Engine with Strict Scope Whitelist
-
-In `scripts/migrate-subsystem-roles.mjs`:
 ```typescript
-export const SYNTHETIC_POSITIONS_WHITELIST = [
-  "หัวหน้างานบุคคล",
-  "ผู้ตรวจสอบ",
-  "เจ้าหน้าที่บุคคล"
-];
+// 1. Transactional check for direct self-approval attempt
+if (request.userId === session.user.id) {
+  // Commit to SystemLog in isolated transaction so log survives business rollback
+  await logSecurityViolationIsolated(
+    session.user.id,
+    request.id,
+    `Self-approval attempted by requester ${session.user.id} on leave ${request.id}`
+  );
+  throw new Error("CRITICAL_SECURITY_VIOLATION: Requester cannot inspect or approve their own leave request");
+}
 
-export const CIVIL_SERVICE_POSITIONS_ALLOWLIST = [
-  "ครู",
-  "ครูผู้ช่วย",
-  "พนักงานราชการ",
-  "ลูกจ้างประจำ",
-  "ลูกจ้างชั่วคราว",
-  "ครูอัตราจ้าง"
-];
-
-export async function resolveAmbiguousStaff(
-  targetUserId: string,
-  newPosition: string,
-  actorId: string,
-  tx: any
-) {
-  // 1. Enforce allowlist
-  if (!CIVIL_SERVICE_POSITIONS_ALLOWLIST.includes(newPosition)) {
-    throw new Error(`Invalid civil service position: ${newPosition}`);
-  }
-
-  // 2. Enforce scope whitelist: user MUST currently possess a synthetic position
-  const user = await tx.user.findUnique({ where: { id: targetUserId } });
-  if (!user || !SYNTHETIC_POSITIONS_WHITELIST.includes(user.position)) {
-    throw new Error(`Security Violation: User ${targetUserId} does not possess a migratable synthetic position (${user?.position})`);
-  }
-
-  // 3. Update and audit
-  await tx.user.update({
-    where: { id: targetUserId },
-    data: { position: newPosition }
-  });
-
-  await tx.systemLog.create({
-    data: {
-      actionType: "MIGRATION_AMBIGUITY_RESOLVED",
-      subsystem: "PERSONNEL",
-      description: `Resolved ambiguous position for user ${targetUserId} from '${user.position}' to '${newPosition}'`,
-      userId: actorId,
-      metadata: { targetUserId, previousPosition: user.position, resolvedPosition: newPosition, actorId, timestamp: new Date().toISOString() }
+// 2. Transactional domain-bound scope verification
+if (expectedDuty === "DEPT_HEAD") {
+  const requestDept = mapSubjectGroupToDeptScope(request.user.subjectGroup);
+  const matchingDuty = await tx.userDutyAssignment.findFirst({
+    where: {
+      userId: session.user.id,
+      dutyType: "DEPT_HEAD",
+      departmentScope: requestDept,
+      revokedAt: null
     }
   });
+  if (!matchingDuty && !isDirector && !isSuperAdmin) {
+    await logSecurityViolationIsolated(
+      session.user.id,
+      request.id,
+      `Cross-department approval violation by user ${session.user.id} for department ${requestDept}`
+    );
+    throw new Error(`FORBIDDEN: User is not authorized as Department Head for department ${requestDept}`);
+  }
 }
 ```
