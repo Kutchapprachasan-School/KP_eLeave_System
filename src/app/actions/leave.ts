@@ -10,6 +10,29 @@ import { getCurrentLeaveCycle, getLeaveCycleFilter } from "@/lib/cycle";
 import { cache } from "react";
 import { z } from "zod";
 import { RecycleBinService } from "@/services/recycle-bin/recycle-bin.service";
+import {
+  getUserCapabilities,
+  mapSubjectGroupToDeptScope,
+  DEPT_SCOPE_TO_SUBJECT_GROUP,
+} from "@/lib/permissions";
+
+export async function logSecurityViolationIsolated(actorId: string, leaveId: string, violationReason: string) {
+  try {
+    await prisma.$transaction(async (auditTx) => {
+      await auditTx.systemLog.create({
+        data: {
+          actionType: "SECURITY_VIOLATION",
+          subsystem: "LEAVE",
+          description: `CRITICAL: ${violationReason}`,
+          userId: actorId,
+          metadata: { leaveId, actorId, reason: violationReason, timestamp: new Date().toISOString() }
+        }
+      });
+    });
+  } catch (logErr) {
+    console.error("FATAL: Failed to commit isolated security audit log:", logErr);
+  }
+}
 
 import {
   CANONICAL_LEAVE_TYPES,
@@ -786,20 +809,37 @@ export async function getPendingApprovals() {
   await ensureSequencesPopulated();
   const session = await getSession();
   const user = session.user as any;
+  if (!session?.user?.id) throw new Error("Unauthorized");
 
-  let whereClause: any = {};
+  const [dbUser, activeAssignments, sysSettings] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { id: true, name: true, role: true, position: true, subjectGroup: true }
+    }),
+    prisma.userDutyAssignment.findMany({
+      where: { userId: session.user.id, revokedAt: null }
+    }),
+    prisma.systemSettings.findUnique({
+      where: { id: "default" },
+      select: { finalApproverUserIds: true }
+    })
+  ]);
 
-  const isDirector = user.position === "ผู้อำนวยการ" || user.position === "รองผู้อำนวยการ";
-  const isFinalApprover = await canGiveFinalApproval(session.user.id, user.position, user.role);
-  const isAdmin = user.role === "ADMIN" || user.position === "แอดมิน";
-  const isHR = user.position === "หัวหน้างานบุคคล" || user.position === "เจ้าหน้าที่บุคคล";
-  const isInspector = user.position === "ผู้ตรวจสอบ";
+  const caps = getUserCapabilities(dbUser || user, activeAssignments, sysSettings || {});
+  const isFinalApprover = caps.isDirector || (await canGiveFinalApproval(session.user.id, user.position, user.role));
 
-  if (isAdmin || isHR || isInspector || isDirector || isFinalApprover) {
-    // Authorized roles/positions can view all pending requests
-    whereClause = {
-      status: { in: ["PENDING_HEAD", "PENDING_EXEC"] },
-    };
+  let whereClause: any = {
+    userId: { not: session.user.id }, // Anti-Self-Approval: Exclude requester's own requests
+  };
+
+  if (caps.isAdmin || caps.isDirector || caps.isDeputyDirector || caps.isHRHead || caps.isInspector || isFinalApprover) {
+    // Authorized global / executive roles can view all pending requests
+    whereClause.status = { in: ["PENDING_HEAD", "PENDING_EXEC"] };
+  } else if (caps.isDeptHead) {
+    // Department heads view PENDING_HEAD requests within their assigned department scopes
+    const allowedGroups = caps.deptHeadGroups.map(g => DEPT_SCOPE_TO_SUBJECT_GROUP[g]).filter(Boolean);
+    whereClause.status = "PENDING_HEAD";
+    whereClause.user = { subjectGroup: { in: allowedGroups } };
   } else {
     throw new Error("Unauthorized");
   }
@@ -834,45 +874,91 @@ export async function approveLeaveRequest(id: string, pdfBase64?: string, skipDr
   try {
     const session = await getSession();
     const user = session.user as any;
+    if (!session?.user?.id) return { success: false, error: "Unauthorized" };
 
     const request = await prisma.leaveRequest.findUnique({
       where: { id },
-      include: { user: { select: { name: true } } },
+      include: { user: { select: { id: true, name: true, subjectGroup: true } } },
     });
 
     if (!request) return { success: false, error: "ไม่พบข้อมูลคำขอลา" };
 
+    // Anti-self-approval enforcement
+    if (request.userId === session.user.id) {
+      await logSecurityViolationIsolated(
+        session.user.id,
+        request.id,
+        `Self-approval attempted by requester ${session.user.id} on leave ${request.id}`
+      );
+      throw new Error("CRITICAL_SECURITY_VIOLATION: Requester cannot inspect or approve their own leave request");
+    }
+
+    const [dbUser, activeAssignments, sysSettings] = await Promise.all([
+      prisma.user.findUnique({
+        where: { id: session.user.id },
+        select: { id: true, name: true, role: true, position: true, subjectGroup: true }
+      }),
+      prisma.userDutyAssignment.findMany({
+        where: { userId: session.user.id, revokedAt: null }
+      }),
+      prisma.systemSettings.findUnique({
+        where: { id: "default" },
+        select: { finalApproverUserIds: true }
+      })
+    ]);
+
+    const caps = getUserCapabilities(dbUser || user, activeAssignments, sysSettings || {});
+    const isFinalApprover = caps.isDirector || (await canGiveFinalApproval(session.user.id, user.position, user.role));
+
     let newStatus = "";
     let updateData: any = {};
+    const now = new Date();
 
-    const isFinalApprover = await canGiveFinalApproval(session.user.id, user.position, user.role);
+    if ((caps.isHRHead || caps.isAdmin || caps.isDeptHead) && request.status === "PENDING_HEAD" && !isFinalApprover) {
+      // If Department Head approving, verify domain scope
+      if (caps.isDeptHead && !caps.isHRHead && !caps.isAdmin) {
+        const requestDept = mapSubjectGroupToDeptScope(request.user?.subjectGroup);
+        if (!requestDept || !caps.deptHeadGroups.includes(requestDept)) {
+          await logSecurityViolationIsolated(
+            session.user.id,
+            request.id,
+            `Cross-department approval violation by user ${session.user.id} for department ${requestDept || "unknown"}`
+          );
+          throw new Error(`FORBIDDEN: User is not authorized as Department Head for department ${requestDept || "unknown"}`);
+        }
+      }
 
-    if (user.position === "หัวหน้างานบุคคล" && request.status === "PENDING_HEAD" && !isFinalApprover) {
       // Head approves -> move to Executive
       newStatus = "PENDING_EXEC";
-      const now = new Date();
       let extraObj: any = {};
       try {
         if (request.extraFields) extraObj = JSON.parse(request.extraFields);
       } catch {}
       extraObj.headApprovedAt = now.toISOString();
 
+      const headSnapshot = {
+        id: session.user.id,
+        name: dbUser?.name || user.name,
+        position: dbUser?.position || "ครู",
+        approvedAt: now.toISOString(),
+        dutyType: caps.isHRHead ? "HR_HEAD" : (caps.isDeptHead ? "DEPT_HEAD" : "HR_HEAD")
+      };
+
       updateData = { 
         status: newStatus, 
         headApproverId: session.user.id,
         headApprovedAt: now,
+        headApproverSnapshot: headSnapshot,
         extraFields: JSON.stringify(extraObj)
       };
     } else if (
       isFinalApprover &&
       (request.status === "PENDING_EXEC" || request.status === "PENDING_HEAD")
     ) {
-      // Director / configured final approver gives final approval (can directly approve PENDING_HEAD or PENDING_EXEC)
+      // Director / configured final approver gives final approval
       newStatus = "APPROVED";
-      
       const fy = request.fiscalYear || getFiscalYear(request.startDate);
 
-      const now = new Date();
       let extraObj: any = {};
       try {
         if (request.extraFields) extraObj = JSON.parse(request.extraFields);
@@ -882,12 +968,23 @@ export async function approveLeaveRequest(id: string, pdfBase64?: string, skipDr
       }
       extraObj.execApprovedAt = now.toISOString();
 
+      // Ensure headApproverSnapshot is NEVER null when transitioning to APPROVED (satisfies DB trigger)
+      const existingHeadSnap = (request as any).headApproverSnapshot;
+      const headSnapshot = existingHeadSnap || updateData.headApproverSnapshot || {
+        id: session.user.id,
+        name: dbUser?.name || user.name,
+        position: dbUser?.position || "ผู้อำนวยการ",
+        approvedAt: now.toISOString(),
+        dutyType: "EXECUTIVE"
+      };
+
       updateData = { 
         status: newStatus, 
         execApproverId: session.user.id,
         execApprovedAt: now,
         headApprovedAt: request.headApprovedAt || (request.status === "PENDING_HEAD" ? now : undefined),
         headApproverId: request.headApproverId || (request.status === "PENDING_HEAD" ? session.user.id : undefined),
+        headApproverSnapshot: headSnapshot,
         fiscalYear: fy,
         extraFields: JSON.stringify(extraObj)
       };
@@ -1053,14 +1150,39 @@ export async function rejectLeaveRequest(id: string, rejectReason?: string, pdfB
 
     if (!request) return { success: false, error: "ไม่พบข้อมูลคำขอลา" };
 
+    // Anti-self-rejection enforcement
+    if (request.userId === session.user.id) {
+      await logSecurityViolationIsolated(
+        session.user.id,
+        request.id,
+        `Self-rejection attempted by requester ${session.user.id} on leave ${request.id}`
+      );
+      throw new Error("CRITICAL_SECURITY_VIOLATION: Requester cannot reject their own leave request");
+    }
+
     if (!rejectReason || !rejectReason.trim()) {
       return { success: false, error: "จำเป็นต้องระบุเหตุผลในการปฏิเสธการอนุมัติ" };
     }
 
-    const isFinalApprover = await canGiveFinalApproval(session.user.id, user.position, user.role);
+    const [dbUser, activeAssignments, sysSettings] = await Promise.all([
+      prisma.user.findUnique({
+        where: { id: session.user.id },
+        select: { id: true, name: true, role: true, position: true, subjectGroup: true }
+      }),
+      prisma.userDutyAssignment.findMany({
+        where: { userId: session.user.id, revokedAt: null }
+      }),
+      prisma.systemSettings.findUnique({
+        where: { id: "default" },
+        select: { finalApproverUserIds: true }
+      })
+    ]);
+
+    const caps = getUserCapabilities(dbUser || user, activeAssignments, sysSettings || {});
+    const isFinalApprover = caps.isDirector || (await canGiveFinalApproval(session.user.id, user.position, user.role));
 
     let canReject = false;
-    if (user.position === "หัวหน้างานบุคคล" && request.status === "PENDING_HEAD" && !isFinalApprover) {
+    if ((caps.isHRHead || caps.isAdmin || caps.isDeptHead) && request.status === "PENDING_HEAD" && !isFinalApprover) {
       canReject = true;
     } else if (
       isFinalApprover &&
@@ -1074,10 +1196,10 @@ export async function rejectLeaveRequest(id: string, rejectReason?: string, pdfB
     }
 
     let updateData: any = { status: "REJECTED", rejectReason: rejectReason.trim() };
-    if (user.position === "หัวหน้างานบุคคล" && !isFinalApprover) {
-      // HR Head rejecting at PENDING_HEAD stage
+    if (!isFinalApprover) {
+      // HR Head / Dept Head rejecting at PENDING_HEAD stage
       updateData.headApproverId = session.user.id;
-    } else if (isFinalApprover) {
+    } else {
       // Director / configured final approver rejecting
       updateData.execApproverId = session.user.id;
     }
@@ -1510,71 +1632,103 @@ export async function getLeaveRequestForPrint(id: string) {
   }
 
   // 2. Fetch inspector and approver signatures
-  let headApprover = null;
-  let execApprover = null;
-  let inspector = null;
+  let headApprover: any = null;
+  let execApprover: any = null;
+  let inspector: any = null;
 
-  // Load default inspector settings
-  const sysSettings = await prisma.systemSettings.findUnique({
-    where: { id: "default" },
-    select: { defaultInspectorId: true }
-  });
-
-  if (sysSettings?.defaultInspectorId) {
-    const inspectorIds = (sysSettings?.defaultInspectorId || "").split(",").map((s: string) => s.trim()).filter(Boolean);
-    if (inspectorIds.length > 0) {
-      const defaultInspectorsList = await prisma.user.findMany({
-        where: { id: { in: inspectorIds }, isApproved: true },
-        select: { id: true, name: true, signatureUrl: true, position: true, subjectGroup: true }
+  // Check sealed snapshots first
+  if (request.inspectorSnapshot && typeof request.inspectorSnapshot === "object") {
+    const snap = request.inspectorSnapshot as any;
+    inspector = {
+      id: snap.id,
+      name: snap.name,
+      position: snap.position || "ครู",
+      signatureUrl: null,
+    };
+    if (snap.id) {
+      const u = await prisma.user.findUnique({
+        where: { id: snap.id },
+        select: { signatureUrl: true }
       });
-      // Try to find the inspector matching request applicant's subjectGroup
-      const matchingInspector = defaultInspectorsList.find(u => 
-        u.subjectGroup && request.user.subjectGroup && 
-        u.subjectGroup.trim().toLowerCase() === request.user.subjectGroup.trim().toLowerCase()
-      );
-      if (matchingInspector) {
-        inspector = matchingInspector;
-      } else {
-        // Fallback to first configured inspector that exists in DB
-        for (const id of inspectorIds) {
-          const found = defaultInspectorsList.find(u => u.id === id);
-          if (found) {
-            inspector = found;
-            break;
+      if (u?.signatureUrl) inspector.signatureUrl = u.signatureUrl;
+    }
+  }
+
+  // Load default inspector settings if no snapshot
+  if (!inspector) {
+    const sysSettings = await prisma.systemSettings.findUnique({
+      where: { id: "default" },
+      select: { defaultInspectorId: true }
+    });
+
+    if (sysSettings?.defaultInspectorId) {
+      const inspectorIds = (sysSettings?.defaultInspectorId || "").split(",").map((s: string) => s.trim()).filter(Boolean);
+      if (inspectorIds.length > 0) {
+        const defaultInspectorsList = await prisma.user.findMany({
+          where: { id: { in: inspectorIds }, isApproved: true },
+          select: { id: true, name: true, signatureUrl: true, position: true, subjectGroup: true }
+        });
+        const matchingInspector = defaultInspectorsList.find(u => 
+          u.subjectGroup && request.user.subjectGroup && 
+          u.subjectGroup.trim().toLowerCase() === request.user.subjectGroup.trim().toLowerCase()
+        );
+        if (matchingInspector) {
+          inspector = matchingInspector;
+        } else {
+          for (const id of inspectorIds) {
+            const found = defaultInspectorsList.find(u => u.id === id);
+            if (found) {
+              inspector = found;
+              break;
+            }
           }
         }
       }
     }
   }
 
-  // Fallback to inspector first, then HR Head user
+  // Fallback to active INSPECTOR duty assignment
   if (!inspector) {
-    inspector = await prisma.user.findFirst({
-      where: { position: "ผู้ตรวจสอบ", isApproved: true },
-      select: { id: true, name: true, signatureUrl: true, position: true }
+    const inspectorAssignment = await prisma.userDutyAssignment.findFirst({
+      where: { dutyType: "INSPECTOR", revokedAt: null },
+      include: { user: { select: { id: true, name: true, signatureUrl: true, position: true } } }
     });
+    if (inspectorAssignment?.user) {
+      inspector = inspectorAssignment.user;
+    }
   }
 
-  if (!inspector) {
-    inspector = await prisma.user.findFirst({
-      where: { position: "หัวหน้างานบุคคล", isApproved: true },
-      select: { id: true, name: true, signatureUrl: true, position: true }
-    });
-  }
-
-  if (request.headApproverId) {
+  // Head Approver: Use sealed snapshot if available
+  if (request.headApproverSnapshot && typeof request.headApproverSnapshot === "object") {
+    const snap = request.headApproverSnapshot as any;
+    headApprover = {
+      name: snap.name,
+      position: snap.position || "ครู",
+      signatureUrl: null,
+    };
+    if (snap.id) {
+      const u = await prisma.user.findUnique({
+        where: { id: snap.id },
+        select: { signatureUrl: true }
+      });
+      if (u?.signatureUrl) headApprover.signatureUrl = u.signatureUrl;
+    }
+  } else if (request.headApproverId) {
     headApprover = await prisma.user.findUnique({
       where: { id: request.headApproverId },
       select: { name: true, signatureUrl: true, position: true }
     });
   }
 
-  // Fallback to default HR Head if headApprover is null
+  // Fallback to active HR Head duty assignment if headApprover is null
   if (!headApprover) {
-    headApprover = await prisma.user.findFirst({
-      where: { position: "หัวหน้างานบุคคล", isApproved: true },
-      select: { name: true, signatureUrl: true, position: true }
+    const hrHeadAssignment = await prisma.userDutyAssignment.findFirst({
+      where: { dutyType: "HR_HEAD", revokedAt: null },
+      include: { user: { select: { name: true, signatureUrl: true, position: true } } }
     });
+    if (hrHeadAssignment?.user) {
+      headApprover = hrHeadAssignment.user;
+    }
   }
 
   // Hide head approver signature if request is still pending head approval
@@ -1735,9 +1889,25 @@ export async function getBatchLeaveRequestsForPrint(
   await ensureSequencesPopulated();
   const session = await getSession();
   const currentUser = session.user as any;
+  if (!session?.user?.id) throw new Error("Unauthorized");
 
   // Check permissions: Admin/HR/Exec
-  const isPrivileged = currentUser.role === "ADMIN" || ["แอดมิน", "ผู้อำนวยการ", "หัวหน้างานบุคคล"].includes(currentUser.position);
+  const [dbUser, activeAssignments, sysSettings] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { id: true, name: true, role: true, position: true, subjectGroup: true }
+    }),
+    prisma.userDutyAssignment.findMany({
+      where: { userId: session.user.id, revokedAt: null }
+    }),
+    prisma.systemSettings.findUnique({
+      where: { id: "default" },
+      select: { defaultInspectorId: true, lastLeaveMode: true, finalApproverUserIds: true }
+    })
+  ]);
+
+  const caps = getUserCapabilities(dbUser || currentUser, activeAssignments, sysSettings || {});
+  const isPrivileged = caps.isAdmin || caps.isDirector || caps.isHRHead;
   if (!isPrivileged) {
     throw new Error("Unauthorized");
   }
@@ -1754,20 +1924,30 @@ export async function getBatchLeaveRequestsForPrint(
     if (filterType === "year") {
       whereClause.startDate = { gte: fyStart, lte: fyEnd };
     } else if (filterType === "cycle1") {
-      const cycle1End = new Date(calYear, 2, 31, 23, 59, 59, 999); // Mar 31 of current year
-      whereClause.startDate = { gte: fyStart, lte: cycle1End };
+      const cycle1Start = new Date(calYear - 1, 9, 1);
+      const cycle1End = new Date(calYear, 2, 31, 23, 59, 59, 999);
+      whereClause.startDate = { gte: cycle1Start, lte: cycle1End };
     } else if (filterType === "cycle2") {
-      const cycle2Start = new Date(calYear, 3, 1); // Apr 1 of current year
-      whereClause.startDate = { gte: cycle2Start, lte: fyEnd };
+      const cycle2Start = new Date(calYear, 3, 1);
+      const cycle2End = new Date(calYear, 8, 30, 23, 59, 59, 999);
+      whereClause.startDate = { gte: cycle2Start, lte: cycle2End };
     }
-  } else if (filterType === "month" && monthVal) {
-    const calYear = monthVal >= 10 ? (year - 543 - 1) : (year - 543);
-    const startDate = new Date(calYear, monthVal - 1, 1);
-    const endDate = new Date(calYear, monthVal, 0, 23, 59, 59, 999);
-    whereClause.startDate = { gte: startDate, lte: endDate };
+  } else if (filterType === "month" && monthVal !== undefined && monthVal !== null) {
+    const calYear = year - 543;
+    const monthStart = new Date(calYear, monthVal - 1, 1);
+    const monthEnd = new Date(calYear, monthVal, 0, 23, 59, 59, 999);
+    whereClause.startDate = { gte: monthStart, lte: monthEnd };
   } else {
-    // Default sequence mode
-    whereClause.fiscalYear = year;
+    // Default fallback to fiscal year if no sequence specified
+    if ((start === undefined || start === null) && (end === undefined || end === null)) {
+      const calYear = year - 543;
+      const fyStart = new Date(calYear - 1, 9, 1);
+      const fyEnd = new Date(calYear, 8, 30, 23, 59, 59, 999);
+      whereClause.startDate = { gte: fyStart, lte: fyEnd };
+    }
+  }
+
+  if (start !== undefined && start !== null || end !== undefined && end !== null) {
     if (start !== undefined && start !== null) {
       whereClause.approvedSeq = {
         ...whereClause.approvedSeq,
@@ -1805,11 +1985,6 @@ export async function getBatchLeaveRequestsForPrint(
   });
 
   const results = [];
-  
-  const sysSettings = await prisma.systemSettings.findUnique({
-    where: { id: "default" },
-    select: { defaultInspectorId: true, lastLeaveMode: true }
-  });
   const lastLeaveMode = sysSettings?.lastLeaveMode || "SAME";
 
   let defaultInspectorsList: any[] = [];
@@ -1825,15 +2000,12 @@ export async function getBatchLeaveRequestsForPrint(
 
   let fallbackInspector: any = null;
   if (defaultInspectorsList.length === 0) {
-    fallbackInspector = await prisma.user.findFirst({
-      where: { position: "ผู้ตรวจสอบ", isApproved: true },
-      select: { id: true, name: true, signatureUrl: true, position: true, subjectGroup: true }
+    const inspectorAssignment = await prisma.userDutyAssignment.findFirst({
+      where: { dutyType: "INSPECTOR", revokedAt: null },
+      include: { user: { select: { id: true, name: true, signatureUrl: true, position: true, subjectGroup: true } } }
     });
-    if (!fallbackInspector) {
-      fallbackInspector = await prisma.user.findFirst({
-        where: { position: "หัวหน้างานบุคคล", isApproved: true },
-        select: { id: true, name: true, signatureUrl: true, position: true, subjectGroup: true }
-      });
+    if (inspectorAssignment?.user) {
+      fallbackInspector = inspectorAssignment.user;
     }
   }
 
@@ -1843,11 +2015,18 @@ export async function getBatchLeaveRequestsForPrint(
   });
 
   for (const request of requests) {
-    let headApprover = null;
-    let execApprover = null;
-    
-    let inspector = null;
-    if (defaultInspectorsList.length > 0) {
+    let headApprover: any = null;
+    let execApprover: any = null;
+    let inspector: any = null;
+
+    if (request.inspectorSnapshot && typeof request.inspectorSnapshot === "object") {
+      const snap = request.inspectorSnapshot as any;
+      inspector = { id: snap.id, name: snap.name, position: snap.position || "ครู", signatureUrl: null };
+      if (snap.id) {
+        const u = await prisma.user.findUnique({ where: { id: snap.id }, select: { signatureUrl: true } });
+        if (u?.signatureUrl) inspector.signatureUrl = u.signatureUrl;
+      }
+    } else if (defaultInspectorsList.length > 0) {
       const matchingInspector = defaultInspectorsList.find(u => 
         u.subjectGroup && request.user?.subjectGroup && 
         u.subjectGroup.trim().toLowerCase() === request.user.subjectGroup.trim().toLowerCase()
@@ -1868,7 +2047,14 @@ export async function getBatchLeaveRequestsForPrint(
       inspector = fallbackInspector;
     }
 
-    if (request.headApproverId) {
+    if (request.headApproverSnapshot && typeof request.headApproverSnapshot === "object") {
+      const snap = request.headApproverSnapshot as any;
+      headApprover = { name: snap.name, position: snap.position || "ครู", signatureUrl: null };
+      if (snap.id) {
+        const u = await prisma.user.findUnique({ where: { id: snap.id }, select: { signatureUrl: true } });
+        if (u?.signatureUrl) headApprover.signatureUrl = u.signatureUrl;
+      }
+    } else if (request.headApproverId) {
       headApprover = await prisma.user.findUnique({
         where: { id: request.headApproverId },
         select: { name: true, signatureUrl: true, position: true }
@@ -1877,10 +2063,13 @@ export async function getBatchLeaveRequestsForPrint(
 
     // Fallback to default HR Head if headApprover is null
     if (!headApprover) {
-      headApprover = await prisma.user.findFirst({
-        where: { position: "หัวหน้างานบุคคล", isApproved: true },
-        select: { name: true, signatureUrl: true, position: true }
+      const hrHeadAssignment = await prisma.userDutyAssignment.findFirst({
+        where: { dutyType: "HR_HEAD", revokedAt: null },
+        include: { user: { select: { name: true, signatureUrl: true, position: true } } }
       });
+      if (hrHeadAssignment?.user) {
+        headApprover = hrHeadAssignment.user;
+      }
     }
 
     // Hide head approver signature if request is still pending head approval
