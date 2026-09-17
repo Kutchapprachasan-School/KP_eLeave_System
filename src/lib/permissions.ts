@@ -1,12 +1,151 @@
 /**
- * Capability-based Permission Matrix for the Repair & Facility Request Systems (v7.2)
- *
- * Role → Permission mapping is defined here in ONE place.
- * All Server Actions and Services must call permission checkers — never check `user.role` directly.
+ * Unified Permissions & Capability Architecture (v8.0)
+ * 
+ * Includes:
+ * 1. Subsystem Roles, Assigned Duties & Capabilities (Fail-Closed Engine)
+ * 2. Capability-based Permission Matrix for Repair System
+ * 3. Capability-based Permission Matrix for Facility & Vehicle System
  */
 
 // ==========================================
-// REPAIR SYSTEM PERMISSIONS
+// 1. SUBSYSTEM ROLES & ASSIGNED DUTIES (REV 6)
+// ==========================================
+
+export type DutyType = 'INSPECTOR' | 'HR_HEAD' | 'HR_STAFF' | 'DIVISION_HEAD' | 'DEPT_HEAD';
+export type ScopeDivision = 'ACADEMIC' | 'PERSONNEL' | 'GENERAL' | 'BUDGET';
+export type ScopeDepartment = 
+  | 'THAI' 
+  | 'MATH' 
+  | 'SCIENCE' 
+  | 'FOREIGN_LANG' 
+  | 'SOCIAL' 
+  | 'HEALTH_PE' 
+  | 'ART' 
+  | 'CAREER' 
+  | 'STUDENT_DEV';
+
+export interface UserDutyAssignmentDTO {
+  dutyType: string;
+  divisionScope?: string | null;
+  departmentScope?: string | null;
+  revokedAt?: Date | string | null;
+}
+
+export interface UserCapabilities {
+  // Executive & Admin
+  isAdmin: boolean;
+  isDirector: boolean;
+  isDeputyDirector: boolean;
+
+  // Appointed Functional Duties (From active assignments only)
+  isInspector: boolean;
+  isHRHead: boolean;
+  isHRStaff: boolean;
+  isDeptHead: boolean;
+  deptHeadGroups: ScopeDepartment[];
+  divisionRoles: ScopeDivision[];
+
+  // Subsystem Access Flags
+  canInspectLeave: boolean;
+  canApproveLeaveHead: boolean;
+  canManageLeaveQuotas: boolean;
+  canAccessAcademic: boolean;
+  canAccessFacility: boolean;
+  canAccessBudget: boolean;
+  canManageUsers: boolean;
+  canAccessDocument: boolean;
+}
+
+export const SUBJECT_GROUP_TO_DEPT_SCOPE: Record<string, ScopeDepartment> = {
+  'วิทยาศาสตร์และเทคโนโลยี': 'SCIENCE',
+  'วิทยาศาสตร์': 'SCIENCE',
+  'คณิตศาสตร์': 'MATH',
+  'ภาษาไทย': 'THAI',
+  'ภาษาต่างประเทศ': 'FOREIGN_LANG',
+  'สังคมศึกษา ศาสนา และวัฒนธรรม': 'SOCIAL',
+  'สังคมศึกษา': 'SOCIAL',
+  'สุขศึกษาและพลศึกษา': 'HEALTH_PE',
+  'สุขศึกษา': 'HEALTH_PE',
+  'ศิลปะ': 'ART',
+  'การงานอาชีพ': 'CAREER',
+  'กิจกรรมพัฒนาผู้เรียน': 'STUDENT_DEV',
+};
+
+export const DEPT_SCOPE_TO_SUBJECT_GROUP: Record<ScopeDepartment, string> = {
+  SCIENCE: 'วิทยาศาสตร์และเทคโนโลยี',
+  MATH: 'คณิตศาสตร์',
+  THAI: 'ภาษาไทย',
+  FOREIGN_LANG: 'ภาษาต่างประเทศ',
+  SOCIAL: 'สังคมศึกษา ศาสนา และวัฒนธรรม',
+  HEALTH_PE: 'สุขศึกษาและพลศึกษา',
+  ART: 'ศิลปะ',
+  CAREER: 'การงานอาชีพ',
+  STUDENT_DEV: 'กิจกรรมพัฒนาผู้เรียน',
+};
+
+export function mapSubjectGroupToDeptScope(subjectGroup?: string | null): ScopeDepartment | null {
+  if (!subjectGroup) return null;
+  const trimmed = subjectGroup.trim();
+  return SUBJECT_GROUP_TO_DEPT_SCOPE[trimmed] || null;
+}
+
+export function getUserCapabilities(
+  user: { id?: string | null; role?: string | null; position?: string | null; subjectGroup?: string | null },
+  activeAssignments: UserDutyAssignmentDTO[] = [],
+  settings: { finalApproverUserIds?: string | null } = {}
+): UserCapabilities {
+  const userId = user.id || '';
+  const pos = (user.position || '').trim();
+  const role = (user.role || '').trim().toUpperCase();
+
+  // 1. Direct role & executive checks
+  const isAdmin = role === 'ADMIN' || pos === 'แอดมิน';
+  const finalApproverIds = (settings.finalApproverUserIds || '').split(',').map(s => s.trim()).filter(Boolean);
+  const isFinalApprover = finalApproverIds.includes(userId);
+  const isDirector = pos === 'ผู้อำนวยการ' || isFinalApprover;
+  const isDeputyDirector = pos === 'รองผู้อำนวยการ';
+
+  // 2. Active assignments check (Active <=> revokedAt is null/undefined)
+  const validActive = activeAssignments.filter(a => !a.revokedAt);
+
+  const isInspector = validActive.some(a => a.dutyType === 'INSPECTOR');
+  const isHRHead = validActive.some(a => a.dutyType === 'HR_HEAD' || (a.dutyType === 'DIVISION_HEAD' && a.divisionScope === 'PERSONNEL'));
+  const isHRStaff = validActive.some(a => a.dutyType === 'HR_STAFF');
+
+  const deptHeadGroups = validActive
+    .filter(a => a.dutyType === 'DEPT_HEAD' && a.departmentScope)
+    .map(a => a.departmentScope as ScopeDepartment);
+  const isDeptHead = deptHeadGroups.length > 0;
+
+  const divisionRoles = validActive
+    .filter(a => a.dutyType === 'DIVISION_HEAD' && a.divisionScope)
+    .map(a => a.divisionScope as ScopeDivision);
+
+  // 3. Capabilities mapping (Fail-Closed: no assignment = no duty grant)
+  return {
+    isAdmin,
+    isDirector,
+    isDeputyDirector,
+    isInspector,
+    isHRHead,
+    isHRStaff,
+    isDeptHead,
+    deptHeadGroups,
+    divisionRoles,
+    // Capabilities
+    canInspectLeave: isAdmin || isDirector || isInspector,
+    canApproveLeaveHead: isAdmin || isDirector || isHRHead || isDeptHead,
+    canManageLeaveQuotas: isAdmin || isDirector || isHRHead,
+    canAccessAcademic: isAdmin || isDirector || divisionRoles.includes('ACADEMIC'),
+    canAccessFacility: isAdmin || isDirector || divisionRoles.includes('GENERAL'),
+    canAccessBudget: isAdmin || isDirector || divisionRoles.includes('BUDGET'),
+    canManageUsers: isAdmin || isHRHead,
+    canAccessDocument: isAdmin || isDirector || divisionRoles.includes('GENERAL'),
+  };
+}
+
+// ==========================================
+// 2. REPAIR SYSTEM PERMISSIONS
 // ==========================================
 
 export type RepairPermission =
@@ -96,7 +235,7 @@ export function assertRepairPermission(
 }
 
 // ==========================================
-// FACILITY & VEHICLE SYSTEM PERMISSIONS
+// 3. FACILITY & VEHICLE SYSTEM PERMISSIONS
 // ==========================================
 
 export type FacilityPermission =
