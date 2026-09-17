@@ -8,12 +8,14 @@ import { revalidatePath } from "next/cache";
 import { Prisma } from "@prisma/client";
 import { 
   ensureSequencesPopulated, 
-  calculateLeaveDays, 
+  calculateLeaveDays
+} from "./leave";
+import {
   calculateLeaveDaysFast, 
   toLocalCustomDateString,
   CANONICAL_LEAVE_TYPES,
   LEAVE_TYPE_NAME_MAP
-} from "./leave";
+} from "@/lib/report-export";
 import { getLeaveCycleFilter } from "@/lib/cycle";
 import { withTelemetry } from "@/lib/telemetry";
 import { uploadAvatarWithFallback } from "@/services/storage/resilient-upload";

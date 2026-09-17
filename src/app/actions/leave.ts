@@ -11,11 +11,19 @@ import { cache } from "react";
 import { z } from "zod";
 import { RecycleBinService } from "@/services/recycle-bin/recycle-bin.service";
 
+import {
+  CANONICAL_LEAVE_TYPES,
+  LEAVE_TYPE_NAME_MAP,
+  toLocalCustomDateString,
+  toUtcDateString,
+  calculateLeaveDaysFast
+} from "@/lib/report-export";
+
 const getAllHolidaysMemo = cache(async () => {
   return prisma.holiday.findMany();
 });
 
-export const getTimezoneMemo = cache(async (): Promise<string> => {
+const _getTimezoneMemo = cache(async (): Promise<string> => {
   const settings = await prisma.systemSettings.findUnique({
     where: { id: "default" },
     select: { timezone: true }
@@ -23,99 +31,8 @@ export const getTimezoneMemo = cache(async (): Promise<string> => {
   return settings?.timezone || "Asia/Bangkok";
 });
 
-export const CANONICAL_LEAVE_TYPES = [
-  "SICK",           // 1. ลาป่วย
-  "PERSONAL",       // 2. ลากิจส่วนตัว
-  "VACATION",       // 3. ลาพักผ่อน
-  "MATERNITY",      // 4. ลาคลอดบุตร
-  "PATERNITY",      // 5. ลาช่วยเหลือภริยาคลอดบุตร
-  "ORDINATION",     // 6. ลาอุปสมบท/ฮัจญ์
-  "MILITARY",       // 7. ลาตรวจเลือก/เตรียมพล
-  "STUDY",          // 8. ลาศึกษาต่อ/ฝึกอบรม
-  "INTERNATIONAL",  // 9. ลาไปปฏิบัติงานต่างประเทศ
-  "SPOUSE",         // 10. ลาติดตามคู่สมรส
-  "REHABILITATION"  // 11. ลาฟื้นฟูสมรรถภาพด้านอาชีพ
-] as const;
-
-export const LEAVE_TYPE_NAME_MAP: Record<string, string> = {
-  SICK: "ลาป่วย",
-  PERSONAL: "ลากิจส่วนตัว",
-  VACATION: "ลาพักผ่อน",
-  MATERNITY: "ลาคลอดบุตร",
-  PATERNITY: "ลาช่วยเหลือภริยาคลอดบุตร",
-  ORDINATION: "ลาอุปสมบท/ฮัจญ์",
-  MILITARY: "ลาตรวจเลือก/เตรียมพล",
-  STUDY: "ลาศึกษาต่อ/ฝึกอบรม",
-  INTERNATIONAL: "ลาไปปฏิบัติงานต่างประเทศ",
-  SPOUSE: "ลาติดตามคู่สมรส",
-  REHABILITATION: "ลาฟื้นฟูสมรรถภาพด้านอาชีพ"
-};
-
-// ========= Helper: Calculate leave days excluding weekends (except maternity) =========
-export function toLocalCustomDateString(date: Date, tz: string): string {
-  const formatter = new Intl.DateTimeFormat('en-CA', {
-    timeZone: tz,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit'
-  });
-  return formatter.format(date);
-}
-
-export function toUtcDateString(date: Date): string {
-  const y = date.getUTCFullYear();
-  const m = String(date.getUTCMonth() + 1).padStart(2, "0");
-  const d = String(date.getUTCDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
-}
-
-/**
- * Fast in-memory leave days calculation using calendar date strings (YYYY-MM-DD)
- * Pure function with zero database access.
- */
-export function calculateLeaveDaysFast(
-  startDateStr: string, // YYYY-MM-DD
-  endDateStr: string,   // YYYY-MM-DD
-  type: string,
-  holidayDates: Set<string>,
-  specialWorkdayDates: Set<string>
-): number {
-  if (!startDateStr || !endDateStr) return 0;
-  if (endDateStr < startDateStr) return 0;
-
-  const [sY, sM, sD] = startDateStr.split("-").map(Number);
-  const [eY, eM, eD] = endDateStr.split("-").map(Number);
-  if (isNaN(sY) || isNaN(sM) || isNaN(sD) || isNaN(eY) || isNaN(eM) || isNaN(eD)) return 0;
-
-  const startUTC = new Date(Date.UTC(sY, sM - 1, sD));
-  const endUTC = new Date(Date.UTC(eY, eM - 1, eD));
-  if (endUTC < startUTC) return 0;
-
-  if (type === "MATERNITY") {
-    return Math.round((endUTC.getTime() - startUTC.getTime()) / 86400000) + 1;
-  }
-
-  let count = 0;
-  const current = new Date(startUTC);
-  while (current <= endUTC) {
-    const y = current.getUTCFullYear();
-    const m = String(current.getUTCMonth() + 1).padStart(2, "0");
-    const d = String(current.getUTCDate()).padStart(2, "0");
-    const dayStr = `${y}-${m}-${d}`;
-    const dayOfWeek = current.getUTCDay();
-
-    if (specialWorkdayDates.has(dayStr)) {
-      count++;
-    } else if (holidayDates.has(dayStr)) {
-      // Holiday, skip
-    } else if (dayOfWeek !== 0 && dayOfWeek !== 6) {
-      count++;
-    }
-
-    current.setUTCDate(current.getUTCDate() + 1);
-  }
-
-  return count;
+export async function getTimezoneMemo(): Promise<string> {
+  return _getTimezoneMemo();
 }
 
 export async function calculateLeaveDays(startDate: Date, endDate: Date, type: string): Promise<number> {
