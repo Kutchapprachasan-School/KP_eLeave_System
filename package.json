@@ -2,6 +2,13 @@
   "name": "suraleave",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
+  "allowScripts": {
+    "@prisma/engines": true,
+    "core-js": true,
+    "unrs-resolver": true,
+    "prisma": true
+  },
   "scripts": {
     "dev": "next dev -H 0.0.0.0 --port 3001",
     "migrate:dev": "prisma migrate dev",
