@@ -435,6 +435,7 @@ export interface UserLeaveSummaryDTO {
   userId: string;
   userName: string;
   position: string;
+  level?: string;
   subjectGroup: string;
   totalTimes: number;
   totalDays: number;
@@ -513,6 +514,7 @@ export async function getCanonicalLeaveReportDTO(
             id: true,
             name: true,
             position: true,
+            level: true,
             subjectGroup: true
           },
           orderBy: { name: "asc" }
@@ -577,6 +579,7 @@ export async function getCanonicalLeaveReportDTO(
       userId: u.id,
       userName: u.name || "-",
       position: u.position || "-",
+      level: u.level || "-",
       subjectGroup: u.subjectGroup && u.subjectGroup.trim() !== "" ? u.subjectGroup.trim() : "ไม่ระบุกลุ่มสาระ/ฝ่ายงาน",
       totalTimes: 0,
       totalDays: 0,

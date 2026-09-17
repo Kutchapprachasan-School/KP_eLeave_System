@@ -2,6 +2,7 @@ export interface UserLeaveSummaryDTO {
   userId: string;
   userName: string;
   position: string;
+  level?: string;
   subjectGroup: string;
   totalTimes: number;
   totalDays: number;
@@ -20,7 +21,7 @@ export interface LeaveReportDTO {
 
 export type ExportScope = "all" | "only_leavers";
 export type ExportFont = "Sarabun" | "Prompt" | "Noto Sans Thai" | "Kanit";
-export type ExportFontSize = "small" | "normal" | "large";
+export type ExportFontSize = "small" | "normal" | "large" | "extralarge";
 
 export interface VisibleLeaveType {
   type: string;
@@ -149,6 +150,98 @@ export interface BuildViewModelOptions {
   hideUnusedTypes: boolean;
 }
 
+// ลำดับตำแหน่งภายใน Tier 1 — ต้องมาก่อนวิทยฐานะ
+export const POSITION_RANK: Record<string, number> = {
+  "ผู้อำนวยการ": 1,
+  "รองผู้อำนวยการ": 2,
+  "ครู": 3,
+  "ครูผู้ช่วย": 4,
+};
+
+export const ACADEMIC_LEVEL_SCORES: Record<string, number> = {
+  "เชี่ยวชาญพิเศษ": 6,
+  "เชี่ยวชาญ": 5,
+  "ชำนาญการพิเศษ": 4,
+  "ชำนาญการ": 3,
+  "ครู": 2,
+  "ครูผู้ช่วย": 1,
+};
+
+export function getAcademicLevelScore(level?: string | null): number {
+  if (!level) return 0;
+  const l = level.replace(/[\u200B-\u200D\uFEFF]/g, "").replace(/\s+/g, "").trim();
+  return ACADEMIC_LEVEL_SCORES[l] ?? 0;
+}
+
+export function normalizePosition(position?: string | null): string {
+  return (position ?? "")
+    .replace(/[\u200B-\u200D\uFEFF]/g, "") // ZWSP/ZWNJ/BOM
+    .replace(/\s+/g, "")
+    .trim();
+}
+
+export function getPersonnelTier(position?: string | null): number {
+  const p = normalizePosition(position);
+  if (POSITION_RANK[p]) return 1;
+  if (p.includes("พนักงานราชการ")) return 2;
+  if (p === "ลูกจ้างประจำ") return 3;
+  if (p === "ลูกจ้างชั่วคราว" || p.includes("อัตราจ้าง") || p.includes("จ้างเหมา")) return 4;
+  // Tier 6 ต้องเช็คก่อน fallback และต้องครอบทุกคำที่ใช้จริงในระบบ
+  if (p.includes("ฝึกประสบการณ์") || p.includes("ฝึกสอน") || p.includes("นักศึกษา")) return 6;
+  return 5; // สายสนับสนุนอื่นๆ
+}
+
+export const THAI_NAME_PREFIXES = [
+  "นางสาว", "นาง", "นาย", "ว่าที่ร้อยตรี", "ว่าที่ ร.ต.",
+  "ดร.", "ผศ.", "รศ.", "ศ.", "ส.ต.ต.", "ร.ต.", "จ.ส.อ.",
+];
+
+export function normalizeThaiName(name: string): string {
+  let n = (name ?? "").replace(/[\u200B-\u200D\uFEFF]/g, "").trim().replace(/\s+/g, " ");
+  for (const p of THAI_NAME_PREFIXES) {
+    if (n.startsWith(p)) {
+      n = n.slice(p.length).trim();
+      break;
+    }
+  }
+  return n;
+}
+
+export function comparePersonnelDeterministic(a: UserLeaveSummaryDTO, b: UserLeaveSummaryDTO): number {
+  // 1) Tier
+  const tierA = getPersonnelTier(a.position), tierB = getPersonnelTier(b.position);
+  if (tierA !== tierB) return tierA - tierB;
+
+  // 2) ลำดับตำแหน่ง (Tier 1: ผอ. → รอง ผอ. → ครู → ครูผู้ช่วย)
+  if (tierA === 1) {
+    const rA = POSITION_RANK[normalizePosition(a.position)] ?? 99;
+    const rB = POSITION_RANK[normalizePosition(b.position)] ?? 99;
+    if (rA !== rB) return rA - rB;
+
+    // 3) วิทยฐานะ (สูง → ต่ำ) ภายในตำแหน่งเดียวกันเท่านั้น
+    const sA = getAcademicLevelScore(a.level), sB = getAcademicLevelScore(b.level);
+    if (sA !== sB) return sB - sA;
+  }
+
+  // 4) ชื่อ (ตัดคำนำหน้า) แบบ Thai collation
+  const cmp = normalizeThaiName(a.userName).localeCompare(normalizeThaiName(b.userName), "th");
+  if (cmp !== 0) return cmp;
+
+  // 5) Tie-break คงที่
+  return (a.userId ?? "").localeCompare(b.userId ?? "");
+}
+
+export const FONT_MIN = 8, FONT_MAX = 32, FONT_DEFAULT = 13;
+
+export function sanitizeFontSize(val: unknown): number {
+  const n =
+    typeof val === "number" ? val :
+    typeof val === "string" && /^\d+(\.\d+)?$/.test(val.trim()) ? Number(val.trim()) :
+    NaN;
+  if (!Number.isFinite(n)) return FONT_DEFAULT;          // NaN / Infinity → default
+  return Math.min(FONT_MAX, Math.max(FONT_MIN, Math.round(n))); // clamp
+}
+
 export function escapeHtml(str: any): string {
   if (str === null || str === undefined) return "";
   return String(str)
@@ -204,7 +297,7 @@ export function buildExportViewModel(
 
     let runningIndex = 1;
     for (const g of sortedGroups) {
-      const usersInGroup = map.get(g)!.sort((a, b) => a.userName.localeCompare(b.userName, "th"));
+      const usersInGroup = map.get(g)!.sort(comparePersonnelDeterministic);
       const rowsWithIndex: DisplayRow[] = [];
       const groupTotals = {
         totalTimes: 0,
@@ -235,7 +328,7 @@ export function buildExportViewModel(
       });
     }
   } else {
-    const sortedUsers = baseUsers.sort((a, b) => a.userName.localeCompare(b.userName, "th"));
+    const sortedUsers = baseUsers.sort(comparePersonnelDeterministic);
     displayRows = sortedUsers.map((u, i) => ({ ...u, index: i + 1 }));
   }
 

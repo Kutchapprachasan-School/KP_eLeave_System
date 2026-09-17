@@ -871,11 +871,6 @@ export async function approveLeaveRequest(id: string, pdfBase64?: string, skipDr
       newStatus = "APPROVED";
       
       const fy = request.fiscalYear || getFiscalYear(request.startDate);
-      const maxApproved = await prisma.leaveRequest.aggregate({
-        where: { fiscalYear: fy, status: "APPROVED" },
-        _max: { approvedSeq: true }
-      });
-      const nextApprovedSeq = (maxApproved._max.approvedSeq || 0) + 1;
 
       const now = new Date();
       let extraObj: any = {};
@@ -893,15 +888,47 @@ export async function approveLeaveRequest(id: string, pdfBase64?: string, skipDr
         execApprovedAt: now,
         headApprovedAt: request.headApprovedAt || (request.status === "PENDING_HEAD" ? now : undefined),
         headApproverId: request.headApproverId || (request.status === "PENDING_HEAD" ? session.user.id : undefined),
-        approvedSeq: nextApprovedSeq,
         fiscalYear: fy,
         extraFields: JSON.stringify(extraObj)
       };
+
+      let retries = 3;
+      let lastErr: any = null;
+      while (retries > 0) {
+        try {
+          const maxApproved = await prisma.leaveRequest.aggregate({
+            where: { fiscalYear: fy, status: "APPROVED" },
+            _max: { approvedSeq: true }
+          });
+          const nextApprovedSeq = (maxApproved._max.approvedSeq || 0) + 1;
+          updateData.approvedSeq = nextApprovedSeq;
+
+          await prisma.leaveRequest.update({ where: { id }, data: updateData });
+          lastErr = null;
+          break;
+        } catch (err: any) {
+          lastErr = err;
+          const isUniqueConflict =
+            err?.code === "P2002" ||
+            String(err?.message || "").includes("approvedSeq") ||
+            String(err?.message || "").includes("idx_leave_request_fiscal_approved_seq");
+
+          if (isUniqueConflict && retries > 1) {
+            retries--;
+            await new Promise((r) => setTimeout(r, 50 + Math.floor(Math.random() * 100)));
+            continue;
+          }
+          throw err;
+        }
+      }
+      if (lastErr) throw lastErr;
     } else {
       return { success: false, error: "ท่านไม่มีสิทธิ์ในการอนุมัติคำขอลาในสถานะนี้" };
     }
 
-    await prisma.leaveRequest.update({ where: { id }, data: updateData });
+    if (newStatus !== "APPROVED") {
+      await prisma.leaveRequest.update({ where: { id }, data: updateData });
+    }
 
     if (newStatus === "APPROVED" && !skipDriveUpload) {
       // Auto upload to Google Drive if configured

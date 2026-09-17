@@ -6,6 +6,7 @@ import { getLeaveConfigs } from "@/app/actions/settings";
 import {
   buildExportViewModel,
   escapeHtml,
+  sanitizeFontSize,
   ExportScope,
   ExportFont,
   ExportFontSize,
@@ -45,6 +46,9 @@ export default function ReportsPage() {
   const [hideUnusedTypes, setHideUnusedTypes] = useState<boolean>(true);
   const [reportFont, setReportFont] = useState<ExportFont>("Sarabun");
   const [reportFontSize, setReportFontSize] = useState<ExportFontSize>("normal");
+  const [customFontSize, setCustomFontSize] = useState<number>(13);
+  const [useCustomFontSize, setUseCustomFontSize] = useState<boolean>(false);
+  const [orientation, setOrientation] = useState<"landscape" | "portrait">("landscape");
 
   // Helper to dynamically get current BE Fiscal Year
   const getCurrentFiscalYear = () => {
@@ -186,20 +190,20 @@ export default function ReportsPage() {
           "วันที่เริ่ม": new Date(item.startDate).toLocaleDateString("th-TH"),
           "ถึงวันที่": new Date(item.endDate).toLocaleDateString("th-TH"),
           "จำนวนวัน": item.leaveDays !== undefined ? item.leaveDays : Math.ceil((new Date(item.endDate).getTime() - new Date(item.startDate).getTime()) / (1000*60*60*24)) + 1,
-          "เหตุผล": item.reason,
           "สถานะ": statusMap[item.status] || item.status,
           "วันที่ยื่น": new Date(item.createdAt).toLocaleDateString("th-TH"),
         }));
 
         const ws = XLSX.utils.json_to_sheet(formatted);
-        ws["!cols"] = [{ wch: 18 },{ wch: 25 },{ wch: 15 },{ wch: 20 },{ wch: 12 },{ wch: 14 },{ wch: 14 },{ wch: 10 },{ wch: 40 },{ wch: 15 },{ wch: 14 }];
+        ws["!cols"] = [{ wch: 18 },{ wch: 25 },{ wch: 15 },{ wch: 20 },{ wch: 12 },{ wch: 14 },{ wch: 14 },{ wch: 10 },{ wch: 15 },{ wch: 14 }];
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "รายงานการลา_ภาพรวม");
         XLSX.writeFile(wb, `รายงานการลา_ภาพรวม_${fiscalYear}_${cycle}.xlsx`);
       } else {
         // Canonical Individual Summary Report
         const { visibleTypes, displayRows, totals } = viewModel;
-        const totalCols = 4 + visibleTypes.length * 2 + 2;
+        const fixedColsCount = groupByGroup ? 4 : 5;
+        const totalCols = fixedColsCount + visibleTypes.length * 2 + 2;
 
         const titleRow = [`รายงานสรุปการลาของข้าราชการครูและบุคลากรทางการศึกษา ประจำ${canonicalReport?.cycleLabelTh || getCycleLabelTh()}`];
         const subtitleRow = [`ข้อมูล ณ วันที่ ${new Date().toLocaleDateString("th-TH")} | สังกัดโรงเรียนกุดจับประชาสรรค์ | จำนวนบุคลากร: ${displayRows.length} คน`];
@@ -210,7 +214,8 @@ export default function ReportsPage() {
           "ลำดับ",
           "ชื่อ-สกุล",
           "ตำแหน่ง",
-          "กลุ่มสาระการเรียนรู้ / ฝ่ายงาน",
+          "วิทยฐานะ",
+          ...(groupByGroup ? [] : ["กลุ่มสาระการเรียนรู้ / ฝ่ายงาน"]),
           ...visibleTypes.flatMap(t => [t.name, ""]),
           "สรุปรวมการลา",
           ""
@@ -222,6 +227,7 @@ export default function ReportsPage() {
           "",
           "",
           "",
+          ...(groupByGroup ? [] : [""]),
           ...visibleTypes.flatMap(() => ["ครั้ง", "วัน"]),
           "ครั้ง",
           "วัน"
@@ -232,7 +238,8 @@ export default function ReportsPage() {
           r.index,
           r.userName,
           r.position,
-          r.subjectGroup,
+          r.level || "-",
+          ...(groupByGroup ? [] : [r.subjectGroup]),
           ...visibleTypes.flatMap(t => [
             r.byType[t.type]?.times || 0,
             r.byType[t.type]?.days || 0
@@ -244,9 +251,7 @@ export default function ReportsPage() {
         // Total Summary Row
         const totalRow = [
           "รวมทั้งสิ้น",
-          "",
-          "",
-          "",
+          ...Array(fixedColsCount - 1).fill(""),
           ...visibleTypes.flatMap(t => [
             totals.byType[t.type]?.times || 0,
             totals.byType[t.type]?.days || 0
@@ -267,25 +272,31 @@ export default function ReportsPage() {
           { s: { r: 3, c: 2 }, e: { r: 4, c: 2 } },
           { s: { r: 3, c: 3 }, e: { r: 4, c: 3 } },
         ];
+        if (!groupByGroup) {
+          merges.push({ s: { r: 3, c: 4 }, e: { r: 4, c: 4 } });
+        }
         for (let i = 0; i < visibleTypes.length; i++) {
-          const c = 4 + i * 2;
+          const c = fixedColsCount + i * 2;
           merges.push({ s: { r: 3, c }, e: { r: 3, c: c + 1 } });
         }
-        const grandTotalCol = 4 + visibleTypes.length * 2;
+        const grandTotalCol = fixedColsCount + visibleTypes.length * 2;
         merges.push({ s: { r: 3, c: grandTotalCol }, e: { r: 3, c: grandTotalCol + 1 } });
 
         const summaryRowIdx = 5 + displayRows.length;
-        merges.push({ s: { r: summaryRowIdx, c: 0 }, e: { r: summaryRowIdx, c: 3 } });
+        merges.push({ s: { r: summaryRowIdx, c: 0 }, e: { r: summaryRowIdx, c: fixedColsCount - 1 } });
 
         ws["!merges"] = merges;
 
         // Column widths
         const colWidths = [
-          { wch: 8 },
-          { wch: 28 },
-          { wch: 20 },
-          { wch: 28 },
+          { wch: 8 },  // ลำดับ
+          { wch: 28 }, // ชื่อ-สกุล
+          { wch: 18 }, // ตำแหน่ง
+          { wch: 20 }, // วิทยฐานะ
         ];
+        if (!groupByGroup) {
+          colWidths.push({ wch: 28 }); // กลุ่มสาระ
+        }
         for (let i = 0; i < visibleTypes.length; i++) {
           colWidths.push({ wch: 9 }, { wch: 9 });
         }
@@ -416,9 +427,9 @@ export default function ReportsPage() {
       printWindow.focus();
       setTimeout(() => printWindow.print(), 400);
     } else {
-      // Canonical Individual Summary Print Layout (A4 Landscape, Official Gov Table)
+      // Canonical Individual Summary Print Layout (A4 Landscape / Portrait, Official Gov Table)
       const { visibleTypes, displayRows, groupedRows, totals } = viewModel;
-      const totalCols = (groupByGroup ? 3 : 4) + visibleTypes.length * 2 + 2;
+      const totalCols = (groupByGroup ? 4 : 5) + visibleTypes.length * 2 + 2;
 
       const fontMap: Record<ExportFont, { family: string; url: string }> = {
         "Sarabun": {
@@ -441,11 +452,18 @@ export default function ReportsPage() {
 
       const selectedFont = fontMap[reportFont] || fontMap["Sarabun"];
 
-      const sizeStyles = {
-        small: { base: "10px", cellPad: "3px 2px", headPad: "4px 3px" },
-        normal: { base: "11.5px", cellPad: "5px 3px", headPad: "6px 4px" },
-        large: { base: "13px", cellPad: "7px 4px", headPad: "8px 5px" }
-      }[reportFontSize] || { base: "11.5px", cellPad: "5px 3px", headPad: "6px 4px" };
+      const sizeStyles = useCustomFontSize
+        ? {
+            base: `${sanitizeFontSize(customFontSize)}px`,
+            cellPad: customFontSize <= 11 ? "3px 2px" : customFontSize >= 15 ? "7px 4px" : "5px 3px",
+            headPad: customFontSize <= 11 ? "4px 3px" : customFontSize >= 15 ? "8px 5px" : "6px 4px"
+          }
+        : {
+            small: { base: "10px", cellPad: "3px 2px", headPad: "4px 3px" },
+            normal: { base: "11.5px", cellPad: "5px 3px", headPad: "6px 4px" },
+            large: { base: "13px", cellPad: "7px 4px", headPad: "8px 5px" },
+            extralarge: { base: "16px", cellPad: "8px 5px", headPad: "10px 6px" }
+          }[reportFontSize] || { base: "11.5px", cellPad: "5px 3px", headPad: "6px 4px" };
 
       const superHeaderCols = visibleTypes.map(t => `
         <th colspan="2" style="border:1px solid #666;padding:${sizeStyles.headPad};text-align:center;background:#f3f4f6;font-weight:700;">
@@ -474,6 +492,7 @@ export default function ReportsPage() {
               <td style="border:1px solid #888;padding:${sizeStyles.cellPad};text-align:center;">${r.index}</td>
               <td style="border:1px solid #888;padding:${sizeStyles.cellPad};text-align:left;white-space:nowrap;font-weight:500;">${escapeHtml(r.userName)}</td>
               <td style="border:1px solid #888;padding:${sizeStyles.cellPad};text-align:left;white-space:nowrap;">${escapeHtml(r.position)}</td>
+              <td style="border:1px solid #888;padding:${sizeStyles.cellPad};text-align:left;white-space:nowrap;">${escapeHtml(r.level || "-")}</td>
               ${visibleTypes.map(t => {
                 const times = r.byType[t.type]?.times || 0;
                 const days = r.byType[t.type]?.days || 0;
@@ -495,6 +514,7 @@ export default function ReportsPage() {
             <td style="border:1px solid #888;padding:${sizeStyles.cellPad};text-align:center;">${r.index}</td>
             <td style="border:1px solid #888;padding:${sizeStyles.cellPad};text-align:left;white-space:nowrap;font-weight:500;">${escapeHtml(r.userName)}</td>
             <td style="border:1px solid #888;padding:${sizeStyles.cellPad};text-align:left;white-space:nowrap;">${escapeHtml(r.position)}</td>
+            <td style="border:1px solid #888;padding:${sizeStyles.cellPad};text-align:left;white-space:nowrap;">${escapeHtml(r.level || "-")}</td>
             <td style="border:1px solid #888;padding:${sizeStyles.cellPad};text-align:left;">${escapeHtml(r.subjectGroup)}</td>
             ${visibleTypes.map(t => {
               const times = r.byType[t.type]?.times || 0;
@@ -511,13 +531,15 @@ export default function ReportsPage() {
       }
 
       const fixedHeaderCols = groupByGroup ? `
-        <th rowspan="2" style="border:1px solid #666;padding:${sizeStyles.headPad};text-align:center;background:#f3f4f6;width:35px;">#</th>
-        <th rowspan="2" style="border:1px solid #666;padding:${sizeStyles.headPad};text-align:center;background:#f3f4f6;min-width:140px;">ชื่อ-สกุล</th>
-        <th rowspan="2" style="border:1px solid #666;padding:${sizeStyles.headPad};text-align:center;background:#f3f4f6;min-width:90px;">ตำแหน่ง</th>
+        <th rowspan="2" style="border:1px solid #666;padding:${sizeStyles.headPad};text-align:center;background:#f3f4f6;width:36px;">#</th>
+        <th rowspan="2" style="border:1px solid #666;padding:${sizeStyles.headPad};text-align:center;background:#f3f4f6;width:190px;">ชื่อ-สกุล</th>
+        <th rowspan="2" style="border:1px solid #666;padding:${sizeStyles.headPad};text-align:center;background:#f3f4f6;width:85px;">ตำแหน่ง</th>
+        <th rowspan="2" style="border:1px solid #666;padding:${sizeStyles.headPad};text-align:center;background:#f3f4f6;width:125px;">วิทยฐานะ</th>
       ` : `
-        <th rowspan="2" style="border:1px solid #666;padding:${sizeStyles.headPad};text-align:center;background:#f3f4f6;width:35px;">#</th>
-        <th rowspan="2" style="border:1px solid #666;padding:${sizeStyles.headPad};text-align:center;background:#f3f4f6;min-width:130px;">ชื่อ-สกุล</th>
-        <th rowspan="2" style="border:1px solid #666;padding:${sizeStyles.headPad};text-align:center;background:#f3f4f6;min-width:80px;">ตำแหน่ง</th>
+        <th rowspan="2" style="border:1px solid #666;padding:${sizeStyles.headPad};text-align:center;background:#f3f4f6;width:36px;">#</th>
+        <th rowspan="2" style="border:1px solid #666;padding:${sizeStyles.headPad};text-align:center;background:#f3f4f6;width:190px;">ชื่อ-สกุล</th>
+        <th rowspan="2" style="border:1px solid #666;padding:${sizeStyles.headPad};text-align:center;background:#f3f4f6;width:85px;">ตำแหน่ง</th>
+        <th rowspan="2" style="border:1px solid #666;padding:${sizeStyles.headPad};text-align:center;background:#f3f4f6;width:125px;">วิทยฐานะ</th>
         <th rowspan="2" style="border:1px solid #666;padding:${sizeStyles.headPad};text-align:center;background:#f3f4f6;min-width:120px;">กลุ่มสาระการเรียนรู้ / ฝ่ายงาน</th>
       `;
 
@@ -530,7 +552,7 @@ export default function ReportsPage() {
         `;
       }).join("");
 
-      const fixedTotalColSpan = groupByGroup ? 3 : 4;
+      const fixedTotalColSpan = groupByGroup ? 4 : 5;
 
       const fullHtml = `
         <!DOCTYPE html>
@@ -543,7 +565,7 @@ export default function ReportsPage() {
           <link href="${selectedFont.url}" rel="stylesheet">
           <style>
             * { margin: 0; padding: 0; box-sizing: border-box; }
-            @page { size: A4 landscape; margin: 8mm 8mm 10mm 8mm; }
+            @page { size: A4 ${orientation}; margin: 8mm 8mm 10mm 8mm; }
             body { 
               font-family: ${selectedFont.family}; 
               font-size: ${sizeStyles.base}; 
@@ -554,7 +576,7 @@ export default function ReportsPage() {
             .report-header { text-align: center; margin-bottom: 12px; }
             .report-title { font-size: 1.35em; font-weight: 700; margin-bottom: 2px; }
             .report-subtitle { font-size: 0.95em; color: #444; }
-            table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 1em; }
+            table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: ${orientation === "portrait" ? "0.9em" : "1em"}; }
             th, td { vertical-align: middle; }
             thead { display: table-header-group; }
             tr { page-break-inside: avoid; }
@@ -577,7 +599,7 @@ export default function ReportsPage() {
             <div class="report-title">รายงานสรุปวันลาของข้าราชการครูและบุคลากรทางการศึกษา</div>
             <div class="report-subtitle">ประจำ${escapeHtml(canonicalReport?.cycleLabelTh || getCycleLabelTh())} | โรงเรียนกุดจับประชาสรรค์</div>
             <div style="font-size:0.85em;color:#666;margin-top:2px;">
-              ข้อมูล ณ วันที่ ${new Date().toLocaleDateString("th-TH")} เวลา ${new Date().toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })} น. | จำนวนบุคลากร: ${displayRows.length} คน
+              ข้อมูล ณ วันที่ ${new Date().toLocaleDateString("th-TH", { year: "numeric", month: "long", day: "numeric" })} เวลา ${new Date().toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })} น. | จำนวนบุคลากร: ${displayRows.length} คน
             </div>
           </div>
 
@@ -668,17 +690,24 @@ export default function ReportsPage() {
     "Kanit": "report-font-kanit"
   }[reportFont] || "report-font-sarabun";
 
-  const previewFontSizeClass = {
-    small: "text-[11px]",
-    normal: "text-[13px]",
-    large: "text-[15px]"
-  }[reportFontSize] || "text-[13px]";
+  const effectiveFontSizePx = useCustomFontSize 
+    ? sanitizeFontSize(customFontSize) 
+    : { small: 10, normal: 11.5, large: 13, extralarge: 16 }[reportFontSize] || 11.5;
 
-  const previewCellPadding = {
-    small: "px-2 py-1",
-    normal: "px-2.5 py-1.5",
-    large: "px-3 py-2"
-  }[reportFontSize] || "px-2.5 py-1.5";
+  const previewFontSizeClass = useCustomFontSize
+    ? ""
+    : {
+        small: "text-[10px]",
+        normal: "text-[11.5px]",
+        large: "text-[13px]",
+        extralarge: "text-[16px]"
+      }[reportFontSize] || "text-[11.5px]";
+
+  const previewCellPadding = effectiveFontSizePx <= 10.5 
+    ? "px-2 py-1" 
+    : effectiveFontSizePx >= 15 
+    ? "px-3 py-2" 
+    : "px-2.5 py-1.5";
 
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="max-w-7xl mx-auto space-y-6">
@@ -966,37 +995,101 @@ export default function ReportsPage() {
                     </button>
                   </div>
 
-                  {/* 4. Font & Size Picker */}
+                  {/* 4. Orientation & Font Controls */}
                   <div className="space-y-1.5">
                     <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300">
-                      ฟอนต์และขนาดตัวอักษร
+                      แนวกระดาษและฟอนต์
                     </label>
-                    <div className="flex gap-2">
-                      <select
-                        value={reportFont}
-                        onChange={(e) => setReportFont(e.target.value as ExportFont)}
-                        className="h-8 flex-1 px-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-900 dark:text-white cursor-pointer"
-                      >
-                        <option value="Sarabun">Sarabun (ทางการ)</option>
-                        <option value="Prompt">Prompt (โมเดิร์น)</option>
-                        <option value="Noto Sans Thai">Noto Sans (มาตรฐาน)</option>
-                        <option value="Kanit">Kanit (ร่วมสมัย)</option>
-                      </select>
-                      <div className="flex bg-slate-100 dark:bg-slate-800 p-0.5 rounded-xl">
-                        {(["small", "normal", "large"] as ExportFontSize[]).map((sz) => (
+                    <div className="flex flex-col gap-2">
+                      <div className="flex gap-2">
+                        {/* Orientation Toggle */}
+                        <div className="flex bg-slate-100 dark:bg-slate-800 p-0.5 rounded-xl flex-1">
                           <button
-                            key={sz}
                             type="button"
-                            onClick={() => setReportFontSize(sz)}
-                            className={`px-2 py-1 text-[10px] rounded-lg transition-all ${
-                              reportFontSize === sz
+                            onClick={() => setOrientation("landscape")}
+                            className={`flex-1 px-2 py-1 text-[11px] rounded-lg transition-all ${
+                              orientation === "landscape"
                                 ? "bg-white dark:bg-slate-700 font-bold text-slate-900 dark:text-white shadow-sm"
                                 : "text-slate-500 hover:text-slate-900"
                             }`}
                           >
-                            {sz === "small" ? "เล็ก" : sz === "normal" ? "ปกติ" : "ใหญ่"}
+                            แนวนอน
                           </button>
-                        ))}
+                          <button
+                            type="button"
+                            onClick={() => setOrientation("portrait")}
+                            className={`flex-1 px-2 py-1 text-[11px] rounded-lg transition-all ${
+                              orientation === "portrait"
+                                ? "bg-white dark:bg-slate-700 font-bold text-slate-900 dark:text-white shadow-sm"
+                                : "text-slate-500 hover:text-slate-900"
+                            }`}
+                          >
+                            แนวตั้ง
+                          </button>
+                        </div>
+                        {/* Font Family */}
+                        <select
+                          value={reportFont}
+                          onChange={(e) => setReportFont(e.target.value as ExportFont)}
+                          className="h-8 flex-1 px-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-900 dark:text-white cursor-pointer"
+                        >
+                          <option value="Sarabun">Sarabun (ทางการ)</option>
+                          <option value="Prompt">Prompt (โมเดิร์น)</option>
+                          <option value="Noto Sans Thai">Noto Sans (มาตรฐาน)</option>
+                          <option value="Kanit">Kanit (ร่วมสมัย)</option>
+                        </select>
+                      </div>
+
+                      {/* Font Size Presets + Custom Input */}
+                      <div className="flex flex-wrap items-center gap-2">
+                        <div className="flex bg-slate-100 dark:bg-slate-800 p-0.5 rounded-xl flex-1">
+                          {(["small", "normal", "large", "extralarge"] as ExportFontSize[]).map((sz) => (
+                            <button
+                              key={sz}
+                              type="button"
+                              onClick={() => {
+                                setReportFontSize(sz);
+                                setUseCustomFontSize(false);
+                              }}
+                              className={`flex-1 px-1.5 py-1 text-[10px] rounded-lg transition-all ${
+                                !useCustomFontSize && reportFontSize === sz
+                                  ? "bg-white dark:bg-slate-700 font-bold text-slate-900 dark:text-white shadow-sm"
+                                  : "text-slate-500 hover:text-slate-900"
+                              }`}
+                            >
+                              {sz === "small" ? "10px" : sz === "normal" ? "11.5px" : sz === "large" ? "13px" : "16px"}
+                            </button>
+                          ))}
+                        </div>
+
+                        <div className="flex items-center gap-1 text-[11px] text-slate-500 bg-slate-50 dark:bg-slate-800/60 px-2 py-0.5 rounded-xl border border-slate-200/80 dark:border-slate-700">
+                          <span>กำหนดเอง:</span>
+                          <input
+                            type="number"
+                            min={8}
+                            max={32}
+                            value={customFontSize}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setCustomFontSize(Number(val));
+                              setUseCustomFontSize(true);
+                            }}
+                            onBlur={() => {
+                              setCustomFontSize(sanitizeFontSize(customFontSize));
+                            }}
+                            className="w-12 h-6 px-1 text-center text-xs font-semibold rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
+                          />
+                          <span>px</span>
+                          {useCustomFontSize && (
+                            <button
+                              type="button"
+                              onClick={() => setUseCustomFontSize(false)}
+                              className="text-[10px] text-purple-600 dark:text-purple-400 underline ml-0.5 cursor-pointer"
+                            >
+                              คืนค่า
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -1013,7 +1106,7 @@ export default function ReportsPage() {
                       พรีวิวรายงานการลา (Live Preview)
                     </span>
                     <span className="text-xs px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-medium">
-                      {reportFont} · {reportFontSize === "small" ? "11px" : reportFontSize === "normal" ? "13px" : "15px"}
+                      {reportFont} · {effectiveFontSizePx}px · {orientation === "landscape" ? "แนวนอน" : "แนวตั้ง"}
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
@@ -1033,14 +1126,18 @@ export default function ReportsPage() {
                 </div>
 
                 {/* Preview Table Container */}
-                <div className={`overflow-x-auto max-h-[640px] overflow-y-auto ${previewFontClass} ${previewFontSizeClass}`}>
+                <div 
+                  className={`overflow-x-auto max-h-[640px] overflow-y-auto ${previewFontClass} ${previewFontSizeClass}`}
+                  style={{ fontSize: useCustomFontSize ? `${effectiveFontSizePx}px` : undefined }}
+                >
                   <table className="w-full text-left border-collapse whitespace-nowrap">
                     {/* Header Row 1: Super Header */}
                     <thead className="sticky top-0 z-10 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 shadow-sm">
                       <tr className="border-b border-slate-300 dark:border-slate-700">
-                        <th rowSpan={2} className="px-3 py-2 text-center border-r border-slate-300 dark:border-slate-700 w-10 font-bold">#</th>
-                        <th rowSpan={2} className="px-3 py-2 border-r border-slate-300 dark:border-slate-700 min-w-[160px] font-bold">ชื่อ-สกุล</th>
-                        <th rowSpan={2} className="px-3 py-2 border-r border-slate-300 dark:border-slate-700 min-w-[110px] font-bold">ตำแหน่ง</th>
+                        <th rowSpan={2} className="px-2 py-2 text-center border-r border-slate-300 dark:border-slate-700 w-9 font-bold">#</th>
+                        <th rowSpan={2} className="px-3 py-2 border-r border-slate-300 dark:border-slate-700 min-w-[190px] font-bold">ชื่อ-สกุล</th>
+                        <th rowSpan={2} className="px-3 py-2 border-r border-slate-300 dark:border-slate-700 min-w-[85px] font-bold">ตำแหน่ง</th>
+                        <th rowSpan={2} className="px-3 py-2 border-r border-slate-300 dark:border-slate-700 min-w-[125px] font-bold">วิทยฐานะ</th>
                         {!groupByGroup && (
                           <th rowSpan={2} className="px-3 py-2 border-r border-slate-300 dark:border-slate-700 min-w-[150px] font-bold">กลุ่มสาระการเรียนรู้ / ฝ่ายงาน</th>
                         )}
@@ -1070,7 +1167,7 @@ export default function ReportsPage() {
                       {viewModel.displayRows.length === 0 ? (
                         <tr>
                           <td 
-                            colSpan={(groupByGroup ? 3 : 4) + viewModel.visibleTypes.length * 2 + 2} 
+                            colSpan={(groupByGroup ? 4 : 5) + viewModel.visibleTypes.length * 2 + 2} 
                             className="text-center py-16 text-slate-400"
                           >
                             ไม่พบข้อมูลบุคลากรตามเงื่อนไขที่เลือก
@@ -1082,7 +1179,7 @@ export default function ReportsPage() {
                             {/* Group Banner Row */}
                             <tr className="bg-slate-100/80 dark:bg-slate-800/60 font-bold text-slate-800 dark:text-slate-200">
                               <td 
-                                colSpan={3 + viewModel.visibleTypes.length * 2 + 2} 
+                                colSpan={4 + viewModel.visibleTypes.length * 2 + 2} 
                                 className="px-3 py-2 border-y border-slate-200 dark:border-slate-700 text-xs text-purple-700 dark:text-purple-300"
                               >
                                 📁 {g.groupName} <span className="font-normal text-slate-500">({g.rows.length} คน)</span>
@@ -1094,9 +1191,10 @@ export default function ReportsPage() {
                                 key={r.userId} 
                                 className="hover:bg-purple-50/30 dark:hover:bg-slate-800/40 transition-colors"
                               >
-                                <td className={`${previewCellPadding} text-center text-slate-400 border-r border-slate-100 dark:border-slate-800`}>{r.index}</td>
-                                <td className={`${previewCellPadding} font-medium text-slate-900 dark:text-white border-r border-slate-100 dark:border-slate-800`}>{r.userName}</td>
-                                <td className={`${previewCellPadding} text-slate-500 dark:text-slate-400 border-r border-slate-100 dark:border-slate-800`}>{tPosition(r.position)}</td>
+                                <td className={`${previewCellPadding} text-center text-slate-400 border-r border-slate-100 dark:border-slate-800 w-9`}>{r.index}</td>
+                                <td className={`${previewCellPadding} font-medium text-slate-900 dark:text-white border-r border-slate-100 dark:border-slate-800 min-w-[190px]`}>{r.userName}</td>
+                                <td className={`${previewCellPadding} text-slate-500 dark:text-slate-400 border-r border-slate-100 dark:border-slate-800 min-w-[85px]`}>{tPosition(r.position)}</td>
+                                <td className={`${previewCellPadding} text-slate-500 dark:text-slate-400 border-r border-slate-100 dark:border-slate-800 min-w-[125px]`}>{r.level || "-"}</td>
                                 {viewModel.visibleTypes.map(t => {
                                   const times = r.byType[t.type]?.times || 0;
                                   const days = r.byType[t.type]?.days || 0;
@@ -1127,9 +1225,10 @@ export default function ReportsPage() {
                             key={r.userId} 
                             className="hover:bg-purple-50/30 dark:hover:bg-slate-800/40 transition-colors"
                           >
-                            <td className={`${previewCellPadding} text-center text-slate-400 border-r border-slate-100 dark:border-slate-800`}>{r.index}</td>
-                            <td className={`${previewCellPadding} font-medium text-slate-900 dark:text-white border-r border-slate-100 dark:border-slate-800`}>{r.userName}</td>
-                            <td className={`${previewCellPadding} text-slate-500 dark:text-slate-400 border-r border-slate-100 dark:border-slate-800`}>{tPosition(r.position)}</td>
+                            <td className={`${previewCellPadding} text-center text-slate-400 border-r border-slate-100 dark:border-slate-800 w-9`}>{r.index}</td>
+                            <td className={`${previewCellPadding} font-medium text-slate-900 dark:text-white border-r border-slate-100 dark:border-slate-800 min-w-[190px]`}>{r.userName}</td>
+                            <td className={`${previewCellPadding} text-slate-500 dark:text-slate-400 border-r border-slate-100 dark:border-slate-800 min-w-[85px]`}>{tPosition(r.position)}</td>
+                            <td className={`${previewCellPadding} text-slate-500 dark:text-slate-400 border-r border-slate-100 dark:border-slate-800 min-w-[125px]`}>{r.level || "-"}</td>
                             <td className={`${previewCellPadding} text-slate-500 dark:text-slate-400 border-r border-slate-100 dark:border-slate-800 text-xs`}>{r.subjectGroup}</td>
                             {viewModel.visibleTypes.map(t => {
                               const times = r.byType[t.type]?.times || 0;
@@ -1161,7 +1260,7 @@ export default function ReportsPage() {
                       <tfoot className="sticky bottom-0 z-10 bg-slate-100 dark:bg-slate-800 border-t-2 border-slate-300 dark:border-slate-700 font-bold text-slate-900 dark:text-white">
                         <tr>
                           <td 
-                            colSpan={groupByGroup ? 3 : 4} 
+                            colSpan={groupByGroup ? 4 : 5} 
                             className="px-3 py-2 text-center border-r border-slate-300 dark:border-slate-700"
                           >
                             รวมทั้งสิ้น ({viewModel.totals.totalUsers} คน)

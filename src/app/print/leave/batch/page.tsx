@@ -641,19 +641,27 @@ function BatchPrintPageContent() {
 
                     {/* Inspector Signature */}
                     <div className="text-center pt-1.5 space-y-1">
-                      <div className="relative w-full h-8 flex items-end justify-center">
-                        <div className="z-10">(ลงชื่อ) ........................................ ผู้ตรวจสอบ</div>
-                        {inspector?.signatureUrl && (
-                          <img 
-                            src={inspector.signatureUrl} 
-                            alt="Signature" 
-                            className="max-h-10 max-w-[120px] object-contain absolute bottom-[2px] z-20 pointer-events-none" 
-                          />
-                        )}
-                      </div>
-                      <div>( {inspector ? inspector.name : "..................................................."} )</div>
-                      <div className="text-[11px] text-slate-500">ตำแหน่ง {inspector?.position === "ผู้ตรวจสอบ" ? "ครู" : (inspector?.position || "หัวหน้างานบุคคล")}</div>
-                      <div className="text-[11px] text-slate-500">วันที่ {request.createdAt ? toThaiDateString(request.createdAt) : "........./........../.........."}</div>
+                      {inspector ? (
+                        <>
+                          <div className="relative w-full h-8 flex items-end justify-center">
+                            <div className="z-10">(ลงชื่อ) ........................................ ผู้ตรวจสอบ</div>
+                            {inspector.signatureUrl && (
+                              <img 
+                                src={inspector.signatureUrl} 
+                                alt="Signature" 
+                                className="max-h-10 max-w-[120px] object-contain absolute bottom-[2px] z-20 pointer-events-none" 
+                              />
+                            )}
+                          </div>
+                          <div>( {inspector.name} )</div>
+                          <div className="text-[11px] text-slate-500">ตำแหน่ง {inspector.position === "ผู้ตรวจสอบ" ? "ครู" : (inspector.position || "หัวหน้างานบุคคล")}</div>
+                          <div className="text-[11px] text-slate-500">วันที่ {request.createdAt ? toThaiDateString(request.createdAt) : "........./........../.........."}</div>
+                        </>
+                      ) : (
+                        <div className="py-3 text-center text-xs text-slate-400 italic">
+                          — ไม่มีบันทึกการตรวจ (ก่อนใช้ระบบ) —
+                        </div>
+                      )}
                     </div>
                   </div>
 

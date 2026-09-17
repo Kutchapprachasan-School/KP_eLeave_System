@@ -148,6 +148,9 @@ const translations = {
     allOptions: "ทั้งหมด (All)",
     allFiscalYears: "ทั้งหมดทุกปีงบประมาณ",
     position_ครู: "ครู",
+    position_ครูผู้ช่วย: "ครูผู้ช่วย",
+    position_พนักงานราชการ: "พนักงานราชการ",
+    position_ครูอัตราจ้าง: "ครูอัตราจ้าง",
     position_ลูกจ้างประจำ: "ลูกจ้างประจำ",
     position_ลูกจ้างชั่วคราว: "ลูกจ้างชั่วคราว",
     position_หัวหน้างานบุคคล: "หัวหน้างานบุคคล",
@@ -668,6 +671,9 @@ const translations = {
     allOptions: "All",
     allFiscalYears: "All Fiscal Years",
     position_ครู: "Teacher",
+    position_ครูผู้ช่วย: "Assistant Teacher",
+    position_พนักงานราชการ: "Government Employee",
+    position_ครูอัตราจ้าง: "Contract Teacher",
     position_ลูกจ้างประจำ: "Permanent Employee",
     position_ลูกจ้างชั่วคราว: "Temporary Employee",
     position_หัวหน้างานบุคคล: "Head of HR",
@@ -1119,7 +1125,10 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
       "กิจกรรมพัฒนาผู้เรียน": { th: "กิจกรรมพัฒนาผู้เรียน", en: "Student Development Activities" },
       "งานแนะแนว": { th: "งานแนะแนว", en: "Guidance" },
       "นักพัฒนาโรงเรียนและบุคลากรอื่นๆ": { th: "นักพัฒนาโรงเรียนและบุคลากรอื่นๆ", en: "School Development & Others" },
-      "แอดมิน/ผู้อำนวยการ": { th: "แอดมิน / ผู้อำนวยการ", en: "Admin / Director" }
+      "แอดมิน/ผู้อำนวยการ": { th: "แอดมิน / ผู้อำนวยการ", en: "Admin / Director" },
+      "ผู้อำนวยการ/ผู้บริหาร": { th: "ผู้อำนวยการ / ผู้บริหาร", en: "Director / Executive" },
+      "ผู้อำนวยการ": { th: "ผู้อำนวยการ / ผู้บริหาร", en: "Director / Executive" },
+      "แอดมิน": { th: "แอดมิน", en: "Admin" }
     }
     const match = mapping[cleaned]
     if (match) return lang === "en" ? match.en : match.th

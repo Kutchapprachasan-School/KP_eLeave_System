@@ -295,7 +295,20 @@ export default function UsersPage() {
     u.position?.toLowerCase().includes(searchText.toLowerCase())
   );
 
-  const positionOptions = ["ครู", "ลูกจ้างประจำ", "ลูกจ้างชั่วคราว", "นักศึกษาฝึกประสบการณ์", "ผู้ตรวจสอบ", "เจ้าหน้าที่ธุรการ / งานสารบรรณ", "หัวหน้างานบุคคล", "เจ้าหน้าที่บุคคล", "รองผู้อำนวยการ", "ผู้อำนวยการ", "แอดมิน"];
+  const positionOptions = [
+    "ผู้อำนวยการ",
+    "รองผู้อำนวยการ",
+    "ครู",
+    "ครูผู้ช่วย",
+    "พนักงานราชการ",
+    "ลูกจ้างประจำ",
+    "ลูกจ้างชั่วคราว",
+    "ครูอัตราจ้าง",
+    "นักศึกษาฝึกประสบการณ์",
+    "เจ้าหน้าที่ธุรการ / งานสารบรรณ",
+    "เจ้าหน้าที่บุคคล",
+    "แอดมิน"
+  ];
   const subjectGroupOptions = [
     "วิทยาศาสตร์และเทคโนโลยี",
     "คณิตศาสตร์",
@@ -306,7 +319,8 @@ export default function UsersPage() {
     "ศิลปะ",
     "การงานอาชีพ",
     "กิจกรรมพัฒนาผู้เรียน",
-    "แอดมิน / ผู้อำนวยการ"
+    "ผู้อำนวยการ / ผู้บริหาร",
+    "แอดมิน"
   ];
 
   const getPositionBadge = (position: string, role: string) => {
@@ -317,6 +331,9 @@ export default function UsersPage() {
     if (position === "หัวหน้างานบุคคล") return { text: tPosition("หัวหน้างานบุคคล"), cls: "bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-800" };
     if (position === "เจ้าหน้าที่บุคคล") return { text: tPosition("เจ้าหน้าที่บุคคล"), cls: "bg-teal-50 text-teal-600 border-teal-200 dark:bg-teal-500/10 dark:text-teal-400 dark:border-teal-800" };
     if (position === "ผู้ตรวจสอบ") return { text: tPosition("ผู้ตรวจสอบ"), cls: "bg-amber-50 text-amber-600 border-amber-200 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-800" };
+    if (position === "พนักงานราชการ") return { text: tPosition("พนักงานราชการ"), cls: "bg-indigo-50 text-indigo-600 border-indigo-200 dark:bg-indigo-500/10 dark:text-indigo-400 dark:border-indigo-800" };
+    if (position === "ครูผู้ช่วย") return { text: tPosition("ครูผู้ช่วย"), cls: "bg-cyan-50 text-cyan-600 border-cyan-200 dark:bg-cyan-500/10 dark:text-cyan-400 dark:border-cyan-800" };
+    if (position === "ครูอัตราจ้าง") return { text: tPosition("ครูอัตราจ้าง"), cls: "bg-amber-50 text-amber-600 border-amber-200 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-800" };
     if (position === "นักศึกษาฝึกประสบการณ์") return { text: tPosition("นักศึกษาฝึกประสบการณ์"), cls: "bg-pink-50 text-pink-600 border-pink-200 dark:bg-pink-500/10 dark:text-pink-400 dark:border-pink-800" };
     return { text: tPosition(position || "ครู"), cls: "bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700" };
   };
