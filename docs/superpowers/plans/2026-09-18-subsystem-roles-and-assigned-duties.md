@@ -1,35 +1,36 @@
-# Subsystem Roles, Assigned Duties & Teacher Capability Architecture Implementation Plan (Rev 2 - Forensic Hardened)
+# Subsystem Roles, Assigned Duties & Teacher Capability Architecture Implementation Plan (Rev 3 - Forensic Hardened)
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Decouple official civil service positions (`position = "ครู"`) from appointed functional duties by introducing a normalized `UserDutyAssignment` table, fail-closed permission evaluation, concurrency locking (`SystemSettings FOR UPDATE`), strict anti-self-approval separation of duties, historical signer snapshots for official prints, idempotent `--dry-run` migration, and immutable audit logs.
+**Goal:** Implement normalized `UserDutyAssignment` with typed enums, partial unique index, DB consistency check, dedicated immutable snapshot columns on `LeaveRequest`, server-only `actorId` derivation, query-level anti-self-approval routing, and idempotent CLI migration with resolution flags.
 
-**Architecture:** Model `UserDutyAssignment` in Prisma with typed domain enums (`DutyType`, `DivisionType`, `DepartmentType`). Implement `getUserCapabilities(user, assignments, settings)` in `src/lib/permissions.ts`. Wire transactional duty updates with row locks and `SystemLog` auditing. Protect leave approval workflows against self-approval. Seal signer snapshots into `LeaveRequest.extraFields`.
+**Architecture:** Model `UserDutyAssignment` and typed enums in Prisma and PostgreSQL. Implement `getUserCapabilities` with fail-closed evaluation. Guard `updateAppointedDuties` with `SystemSettings FOR UPDATE` and derive `actorId` from server session. Protect leave approval workflows against self-approval at query and assertion levels. Store immutable signer snapshots in dedicated columns with DB trigger protection.
 
 **Tech Stack:** Next.js 15, TypeScript, Prisma ORM, PostgreSQL, Tailwind CSS, Lucide React, Node.js Test Runner.
 
 ## Global Constraints
 
-- Never mutate `User.position` for role authorization; evaluate `getUserCapabilities(user, assignments, settings)`.
-- Explicit assignment required for privilege grants; default is FAIL-CLOSED (deny).
-- Legacy compatibility is restricted to transitional verification and will not grant unassigned privileges.
-- Concurrency control: mutating assignments requires `SELECT * FROM "SystemSettings" WHERE id = 'default' FOR UPDATE`.
+- `actorId` MUST be derived strictly from `session.user.id` on server; never accepted from client payload.
+- Active assignments are canonically defined by `revokedAt IS NULL`, enforced with DB `CHECK (("isActive" = true AND "revokedAt" IS NULL) OR ("isActive" = false AND "revokedAt" IS NOT NULL))`.
+- No generic `extraFields` for signer snapshots; use dedicated `LeaveRequest.inspectorSnapshot` and `headApproverSnapshot`.
+- Concurrency control: mutating assignments requires `SELECT id FROM "SystemSettings" WHERE id = 'default' FOR UPDATE`.
 - Working directory: `C:\dev\eLeave`.
 - Node test runner: `node --experimental-strip-types --test <test_path>`.
 
 ---
 
-### Task 1: Normalized Database Schema (`UserDutyAssignment`) & Enums
+### Task 1: Database Schema Hardening (Enums, Partial Unique Index & Snapshot Columns)
 
 **Files:**
 - Modify: `prisma/schema.prisma`
+- Create: `scripts/apply-duty-assignments-schema.mjs`
 - Test: `eLeave/tests/unit/subsystemRolesSchema.test.js`
 
 **Interfaces:**
-- Produces: `model UserDutyAssignment`, `enum DutyType` in Prisma.
-- Relations: `User.dutyAssignments`, `User.dutiesAssignedBy`.
+- Produces: `DutyType`, `ScopeDivision`, `ScopeDepartment` enums; `UserDutyAssignment` model; dedicated `inspectorSnapshot` and `headApproverSnapshot` columns on `LeaveRequest`.
+- Constraints: Partial unique index on `(userId, dutyType, COALESCE(divisionScope, departmentScope)) WHERE revokedAt IS NULL`, trigger `trg_protect_leave_signer_snapshots`.
 
-- [ ] **Step 1: Write test to verify schema invariants and domain types**
+- [ ] **Step 1: Write test for schema constraints and typed domains**
 
 ```javascript
 // eLeave/tests/unit/subsystemRolesSchema.test.js
@@ -56,14 +57,9 @@ describe('Subsystem Roles Schema & Domain Types', () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it passes**
+- [ ] **Step 2: Update `prisma/schema.prisma`**
 
-Run: `node --experimental-strip-types --test eLeave/tests/unit/subsystemRolesSchema.test.js`  
-Expected: PASS (2/2 tests passing).
-
-- [ ] **Step 3: Update `prisma/schema.prisma`**
-
-Add `enum DutyType` and `model UserDutyAssignment`:
+Add enums and model:
 ```prisma
 enum DutyType {
   INSPECTOR
@@ -73,51 +69,71 @@ enum DutyType {
   DEPT_HEAD
 }
 
-model UserDutyAssignment {
-  id           String    @id @default(cuid())
-  userId       String
-  dutyType     DutyType
-  scope        String?
-  assignedAt   DateTime  @default(now())
-  revokedAt    DateTime?
-  assignedById String?
-  isActive     Boolean   @default(true)
-  metadata     Json?
-  user         User      @relation("UserDutyAssignments", fields: [userId], references: [id], onDelete: Cascade)
-  assignedBy   User?     @relation("DutyAssignedByUser", fields: [assignedById], references: [id], onDelete: SetNull)
+enum ScopeDivision {
+  ACADEMIC
+  PERSONNEL
+  GENERAL
+  BUDGET
+}
 
-  @@index([userId, dutyType, isActive])
-  @@index([dutyType, scope, isActive])
+enum ScopeDepartment {
+  THAI
+  MATH
+  SCIENCE
+  FOREIGN_LANG
+  SOCIAL
+  HEALTH_PE
+  ART
+  CAREER
+  STUDENT_DEV
+}
+
+model UserDutyAssignment {
+  id              String           @id @default(cuid())
+  userId          String
+  dutyType        DutyType
+  divisionScope   ScopeDivision?
+  departmentScope ScopeDepartment?
+  assignedAt      DateTime         @default(now())
+  revokedAt       DateTime?
+  assignedById    String?
+  isActive        Boolean          @default(true)
+  user            User             @relation("UserDutyAssignments", fields: [userId], references: [id], onDelete: Cascade)
+  assignedBy      User?            @relation("DutyAssignedByUser", fields: [assignedById], references: [id], onDelete: SetNull)
+
+  @@index([userId, dutyType, revokedAt])
+  @@index([dutyType, divisionScope, revokedAt])
+  @@index([dutyType, departmentScope, revokedAt])
 }
 ```
-Add relations to `model User`:
+Add to `model LeaveRequest`:
 ```prisma
-  dutyAssignments    UserDutyAssignment[] @relation("UserDutyAssignments")
-  dutiesAssigned     UserDutyAssignment[] @relation("DutyAssignedByUser")
+  inspectorSnapshot    Json?
+  headApproverSnapshot Json?
 ```
 
-- [ ] **Step 4: Generate Prisma Client & Apply DB Migration**
+- [ ] **Step 3: Create and run `scripts/apply-duty-assignments-schema.mjs`**
 
-Run: `npx prisma db push` or create SQL migration script in `scripts/apply-duty-assignments-schema.mjs`.
+Applies SQL constraints: `chk_duty_active_consistency`, `chk_duty_scope_validity`, partial unique index `uk_active_user_duty_assignment`, and trigger `trg_protect_leave_signer_snapshots`.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 4: Commit**
 
 ```bash
-git add prisma/schema.prisma eLeave/tests/unit/subsystemRolesSchema.test.js
-git commit -m "feat(schema): add UserDutyAssignment model and duty enums"
+git add prisma/schema.prisma scripts/apply-duty-assignments-schema.mjs eLeave/tests/unit/subsystemRolesSchema.test.js
+git commit -m "feat(schema): add typed UserDutyAssignment, partial unique index, and dedicated snapshots"
 ```
 
 ---
 
-### Task 2: Idempotent Preflight Migration with `--dry-run`
+### Task 2: Idempotent Migration CLI with Ambiguity Resolution
 
 **Files:**
 - Create: `scripts/migrate-subsystem-roles.mjs`
 - Test: `eLeave/tests/unit/subsystemRolesMigration.test.js`
 
 **Interfaces:**
-- Inputs: CLI flags `--dry-run` or `--apply`.
-- Produces: Normalized assignments in `UserDutyAssignment`, detailed audit summary `{ inspected, migrated, skipped, ambiguous }`.
+- CLI Flags: `--dry-run`, `--apply`, `--resolve-ambiguous="userId:position,..."`.
+- Enforces: Idempotency (no duplicate assignments), aborts if unresolved ambiguous staff exist in `--apply` mode.
 
 - [ ] **Step 1: Write unit test for migration engine**
 
@@ -126,7 +142,7 @@ git commit -m "feat(schema): add UserDutyAssignment model and duty enums"
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 
-export function planMigration(users, existingAssignments) {
+export function planMigration(users, existingAssignments, resolutions = {}) {
   const actions = [];
   let migrated = 0;
   let skipped = 0;
@@ -134,7 +150,7 @@ export function planMigration(users, existingAssignments) {
 
   for (const u of users) {
     if (u.position === 'หัวหน้างานบุคคล') {
-      const already = existingAssignments.some(a => a.userId === u.id && a.dutyType === 'HR_HEAD' && a.isActive);
+      const already = existingAssignments.some(a => a.userId === u.id && a.dutyType === 'HR_HEAD' && a.revokedAt === null);
       if (already) {
         skipped++;
       } else {
@@ -143,7 +159,7 @@ export function planMigration(users, existingAssignments) {
         migrated++;
       }
     } else if (u.position === 'ผู้ตรวจสอบ') {
-      const already = existingAssignments.some(a => a.userId === u.id && a.dutyType === 'INSPECTOR' && a.isActive);
+      const already = existingAssignments.some(a => a.userId === u.id && a.dutyType === 'INSPECTOR' && a.revokedAt === null);
       if (already) {
         skipped++;
       } else {
@@ -152,8 +168,14 @@ export function planMigration(users, existingAssignments) {
         migrated++;
       }
     } else if (u.position === 'เจ้าหน้าที่บุคคล') {
-      ambiguous++;
-      actions.push({ action: 'FLAG_AMBIGUOUS', userId: u.id, reason: 'Requires manual verification of civil service position' });
+      if (resolutions[u.id]) {
+        actions.push({ action: 'CREATE_ASSIGNMENT', userId: u.id, dutyType: 'HR_STAFF', scope: 'PERSONNEL' });
+        actions.push({ action: 'NORMALIZE_POSITION', userId: u.id, newPosition: resolutions[u.id] });
+        migrated++;
+      } else {
+        ambiguous++;
+        actions.push({ action: 'FLAG_AMBIGUOUS', userId: u.id, reason: 'Requires resolution via --resolve-ambiguous' });
+      }
     }
   }
 
@@ -161,18 +183,14 @@ export function planMigration(users, existingAssignments) {
 }
 
 describe('Idempotent Migration Engine', () => {
-  test('skips users already assigned and flags ambiguous staff without guessing', () => {
-    const users = [
-      { id: 'u1', position: 'หัวหน้างานบุคคล' },
-      { id: 'u2', position: 'ผู้ตรวจสอบ' },
-      { id: 'u3', position: 'เจ้าหน้าที่บุคคล' }
-    ];
-    const existing = [{ userId: 'u1', dutyType: 'HR_HEAD', isActive: true }];
+  test('flags ambiguous staff when unresolved and resolves with resolution map', () => {
+    const users = [{ id: 'u3', position: 'เจ้าหน้าที่บุคคล' }];
+    const planUnresolved = planMigration(users, []);
+    assert.equal(planUnresolved.summary.ambiguous, 1);
 
-    const plan = planMigration(users, existing);
-    assert.equal(plan.summary.migrated, 1); // only u2
-    assert.equal(plan.summary.skipped, 1);  // u1 skipped
-    assert.equal(plan.summary.ambiguous, 1); // u3 flagged
+    const planResolved = planMigration(users, [], { u3: 'เจ้าหน้าที่' });
+    assert.equal(planResolved.summary.ambiguous, 0);
+    assert.equal(planResolved.summary.migrated, 1);
   });
 });
 ```
@@ -182,7 +200,7 @@ describe('Idempotent Migration Engine', () => {
 Run: `node --experimental-strip-types --test eLeave/tests/unit/subsystemRolesMigration.test.js`  
 Expected: PASS.
 
-- [ ] **Step 3: Implement `scripts/migrate-subsystem-roles.mjs` with `--dry-run`**
+- [ ] **Step 3: Implement CLI `scripts/migrate-subsystem-roles.mjs`**
 
 - [ ] **Step 4: Execute dry-run and apply**
 
@@ -193,21 +211,22 @@ Run: `node scripts/migrate-subsystem-roles.mjs --apply`
 
 ```bash
 git add scripts/migrate-subsystem-roles.mjs eLeave/tests/unit/subsystemRolesMigration.test.js
-git commit -m "feat(migration): add idempotent dry-run migration script for legacy roles"
+git commit -m "feat(migration): implement idempotent CLI with ambiguity resolution parameter"
 ```
 
 ---
 
-### Task 3: Fail-Closed Capability Engine (`src/lib/permissions.ts`)
+### Task 3: Fail-Closed Capability Engine with Cutover Gate
 
 **Files:**
 - Create: `src/lib/permissions.ts`
 - Test: `eLeave/tests/unit/subsystemRolesCapabilities.test.js`
 
 **Interfaces:**
-- Produces: `getUserCapabilities(user, activeAssignments, settings): UserCapabilities`
+- Produces: `getUserCapabilities(user, activeAssignments, settings)`
+- Enforces: Fail-Closed by default. Cutover gate prevents legacy position strings from granting permissions.
 
-- [ ] **Step 1: Write test suite verifying Fail-Closed security**
+- [ ] **Step 1: Write test suite verifying Fail-Closed security and Cutover**
 
 ```javascript
 // eLeave/tests/unit/subsystemRolesCapabilities.test.js
@@ -215,8 +234,8 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { getUserCapabilities } from '../../src/lib/permissions.ts';
 
-describe('Fail-Closed Capability Engine', () => {
-  test('Denies HR Head capability when no active assignment exists, even if legacy position string is present without transitional flag', () => {
+describe('Fail-Closed Capability Engine with Cutover Gate', () => {
+  test('Denies HR Head capability when no active assignment exists, even if legacy position string is present', () => {
     const caps = getUserCapabilities(
       { id: 'u_test', position: 'หัวหน้างานบุคคล', role: 'TEACHER' },
       [], // no assignments
@@ -229,7 +248,7 @@ describe('Fail-Closed Capability Engine', () => {
   test('Grants HR Head capability when active assignment exists', () => {
     const caps = getUserCapabilities(
       { id: 'u_test', position: 'ครู', role: 'TEACHER' },
-      [{ dutyType: 'HR_HEAD', scope: 'PERSONNEL' }],
+      [{ dutyType: 'HR_HEAD', divisionScope: 'PERSONNEL', departmentScope: null }],
       {}
     );
     assert.equal(caps.isHRHead, true);
@@ -241,8 +260,6 @@ describe('Fail-Closed Capability Engine', () => {
 
 - [ ] **Step 2: Implement `src/lib/permissions.ts`**
 
-Implement `getUserCapabilities` adhering strictly to explicit assignment checks.
-
 - [ ] **Step 3: Run tests**
 
 Run: `node --experimental-strip-types --test eLeave/tests/unit/subsystemRolesCapabilities.test.js`  
@@ -252,34 +269,26 @@ Expected: PASS.
 
 ```bash
 git add src/lib/permissions.ts eLeave/tests/unit/subsystemRolesCapabilities.test.js
-git commit -m "feat(auth): implement fail-closed capability engine and invariants test"
+git commit -m "feat(auth): implement fail-closed capability engine with transition cutover gate"
 ```
 
 ---
 
-### Task 4: Transactional Duty Management & Audit Trail
+### Task 4: Transactional Duty Management (Actor Derivation & Row Lock)
 
 **Files:**
 - Modify: `src/app/actions/settings.ts`
 - Test: `eLeave/tests/unit/dutyAuditTransactions.test.js`
 
 **Interfaces:**
-- Produces: `updateAppointedDuties({ assignments, actorId })`
-- Enforces: `SystemSettings FOR UPDATE`, target validation (`isApproved = true`), `SystemLog` audit recording in single transaction.
+- Action: `updateAppointedDuties({ assignmentsToGrant, assignmentsToRevoke })` (no `actorId` in input).
+- Enforces: Derives `actorId = session.user.id`, acquires `SystemSettings FOR UPDATE`, validates `isApproved = true`, writes `SystemLog` audit within `$transaction`.
 
-- [ ] **Step 1: Write test for transactional audit log creation**
+- [ ] **Step 1: Write unit test for transaction action**
 
-- [ ] **Step 2: Implement `updateAppointedDuties` in `settings.ts`**
+- [ ] **Step 2: Implement `updateAppointedDuties` in `src/app/actions/settings.ts`**
 
-Use Prisma `$transaction`:
-1. `SELECT id FROM "SystemSettings" WHERE id = 'default' FOR UPDATE;`
-2. Validate caller has `ADMIN` role.
-3. Validate all target user IDs (`isApproved: true, isDeleted: false`).
-4. Set existing assignments `isActive = false, revokedAt = now()`.
-5. Insert new `UserDutyAssignment` records.
-6. Create `SystemLog` audit entries.
-
-- [ ] **Step 3: Verify with unit tests**
+- [ ] **Step 3: Run test**
 
 Run: `node --experimental-strip-types --test eLeave/tests/unit/dutyAuditTransactions.test.js`
 
@@ -287,63 +296,50 @@ Run: `node --experimental-strip-types --test eLeave/tests/unit/dutyAuditTransact
 
 ```bash
 git add src/app/actions/settings.ts eLeave/tests/unit/dutyAuditTransactions.test.js
-git commit -m "feat(actions): add transactional duty updates with row locks and audit logging"
+git commit -m "feat(actions): secure duty mutations with server-derived actor and row locks"
 ```
 
 ---
 
-### Task 5: Anti-Self-Approval & Signer Historical Snapshots
+### Task 5: Query-Level Anti-Self-Approval & Signer Snapshot Sealing
 
 **Files:**
 - Modify: `src/app/actions/leave.ts`
 - Test: `eLeave/tests/unit/leaveSeparationOfDuties.test.js`
 
 **Interfaces:**
-- Enforces: `requesterId !== inspectorId`, `requesterId !== headApproverId`, `requesterId !== execApproverId`.
-- Writes: Immutable snapshot to `LeaveRequest.extraFields` during inspection/approval.
+- Enforces: Automated routing excludes requester (`userId: { not: request.userId }`), runtime assertion prevents self-approval, saves dedicated `inspectorSnapshot` and `headApproverSnapshot`.
 
-- [ ] **Step 1: Write test for separation of duties & snapshot sealing**
+- [ ] **Step 1: Write test for separation of duties and snapshot sealing**
 
 ```javascript
 // eLeave/tests/unit/leaveSeparationOfDuties.test.js
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 
-describe('Separation of Duties (Anti-Self-Approval)', () => {
-  test('Throws error when requester attempts to inspect own leave request', () => {
-    assert.throws(() => {
-      validateApprovalActors({ requesterId: 'usr_1', inspectorId: 'usr_1', headApproverId: 'usr_2', execApproverId: 'usr_3' });
-    }, /Violation: Requester cannot inspect own leave request/);
-  });
+export function routeApproverExcludingRequester(candidates, requesterId) {
+  return candidates.find(c => c.userId !== requesterId) || null;
+}
 
-  test('Throws error when requester attempts head approval of own leave request', () => {
-    assert.throws(() => {
-      validateApprovalActors({ requesterId: 'usr_1', inspectorId: 'usr_2', headApproverId: 'usr_1', execApproverId: 'usr_3' });
-    }, /Violation: Requester cannot act as head approver for own leave request/);
+describe('Anti-Self-Approval Query-Level Routing', () => {
+  test('Department head taking leave routes to alternate or director, not self', () => {
+    const mathCandidates = [
+      { userId: 'usr_math_head', duty: 'DEPT_HEAD', scope: 'MATH' },
+      { userId: 'usr_dir', duty: 'DIRECTOR', scope: null }
+    ];
+    const approver = routeApproverExcludingRequester(mathCandidates, 'usr_math_head');
+    assert.equal(approver.userId, 'usr_dir');
   });
 });
-
-export function validateApprovalActors({ requesterId, inspectorId, headApproverId, execApproverId }) {
-  if (requesterId && inspectorId && requesterId === inspectorId) {
-    throw new Error('Violation: Requester cannot inspect own leave request');
-  }
-  if (requesterId && headApproverId && requesterId === headApproverId) {
-    throw new Error('Violation: Requester cannot act as head approver for own leave request');
-  }
-  if (requesterId && execApproverId && requesterId === execApproverId) {
-    throw new Error('Violation: Requester cannot execute final approval for own leave request');
-  }
-  return true;
-}
 ```
 
-- [ ] **Step 2: Integrate into `src/app/actions/leave.ts`**
+- [ ] **Step 2: Implement query-level routing and snapshot sealing in `src/app/actions/leave.ts`**
 
-Add actor validation and snapshot sealing in `inspectLeaveRequest` and `approveLeaveRequest`.
+Write `inspectorSnapshot` and `headApproverSnapshot` directly to dedicated columns.
 
 - [ ] **Step 3: Update `src/app/print/leave/[id]/page.tsx` & `batch/page.tsx`**
 
-Read directly from `extraFields.inspectorSnapshot` and `extraFields.headApproverSnapshot`. Render `ตำแหน่ง [position] [level]` + duty subtitle.
+Read dedicated columns `request.inspectorSnapshot` and `request.headApproverSnapshot`.
 
 - [ ] **Step 4: Run full test suite regression**
 
@@ -354,12 +350,12 @@ Expected: All tests pass with 0 failures.
 
 ```bash
 git add src/app/actions/leave.ts src/app/print/leave/[id]/page.tsx src/app/print/leave/batch/page.tsx eLeave/tests/unit/leaveSeparationOfDuties.test.js
-git commit -m "feat(leave): enforce separation of duties and seal historical signer snapshots"
+git commit -m "feat(leave): enforce query-level anti-self-approval and seal dedicated signer snapshots"
 ```
 
 ---
 
-### Task 6: Settings UI & User Management Display
+### Task 6: Settings UI Cards & User Management Badges
 
 **Files:**
 - Modify: `src/app/(app)/settings/page.tsx`
@@ -367,17 +363,13 @@ git commit -m "feat(leave): enforce separation of duties and seal historical sig
 - Modify: `src/lib/i18n.tsx`
 
 **Interfaces:**
-- Produces: Dedicated Settings Section with 3 Cards for Appointed Duties, Badges and Filters in User Management.
+- UI: Dedicated 3 Cards in Settings (HR/Leave, 4 Divisions, 8+1 Learning Areas), Badges and Filters in Users Page.
 
 - [ ] **Step 1: Settings UI Assignment Cards**
 
-Implement Card 1 (HR & Leave Duties), Card 2 (4 Division Heads), Card 3 (8+1 Department Heads).
-
 - [ ] **Step 2: User Management Badges & Filters**
 
-Display official position (`ครู`, `ครูผู้ช่วย`) with duty badges (`[ผู้ตรวจสอบการลา]`, `[หัวหน้างานบุคคล]`, `[หัวหน้าฝ่าย...]`).
-
-- [ ] **Step 3: Verification**
+- [ ] **Step 3: Full Verification**
 
 Run `npm test` and test HTTP endpoints:
 - `GET http://localhost:3001/settings` ➔ HTTP 200
