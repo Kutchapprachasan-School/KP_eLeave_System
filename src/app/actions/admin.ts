@@ -5,7 +5,16 @@ import { getSession } from "@/lib/auth-session";
 import { prisma } from "@/lib/db";
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
-import { ensureSequencesPopulated, calculateLeaveDays } from "./leave";
+import { Prisma } from "@prisma/client";
+import { 
+  ensureSequencesPopulated, 
+  calculateLeaveDays, 
+  calculateLeaveDaysFast, 
+  toLocalCustomDateString,
+  CANONICAL_LEAVE_TYPES,
+  LEAVE_TYPE_NAME_MAP
+} from "./leave";
+import { getLeaveCycleFilter } from "@/lib/cycle";
 import { withTelemetry } from "@/lib/telemetry";
 import { uploadAvatarWithFallback } from "@/services/storage/resilient-upload";
 
@@ -337,7 +346,6 @@ export async function deleteUser(userId: string) {
 }
 
 // ========= Get Monthly Report Data =========
-import { getLeaveCycleFilter } from "@/lib/cycle";
 
 export async function getMonthlyReport(month: number, year: number) {
   await requireHROrAdmin();
@@ -419,6 +427,209 @@ export async function getCycleReport(cycleFilter: "current" | "cycle1" | "cycle2
       };
     })
   );
+}
+
+export interface UserLeaveSummaryDTO {
+  userId: string;
+  userName: string;
+  position: string;
+  subjectGroup: string;
+  totalTimes: number;
+  totalDays: number;
+  byType: Record<string, { times: number; days: number }>;
+}
+
+export interface LeaveReportDTO {
+  fiscalYear: number;
+  cycle: string;
+  cycleLabelTh: string;
+  staffCount: number;
+  canonicalTypes: Array<{ type: string; name: string }>;
+  users: UserLeaveSummaryDTO[];
+  generatedAt: string;
+}
+
+export async function getCanonicalLeaveReportDTO(
+  cycleFilter: "current" | "cycle1" | "cycle2" | "year" = "current",
+  targetYear?: number
+): Promise<LeaveReportDTO> {
+  await requireHROrAdmin();
+  await ensureSequencesPopulated();
+
+  const now = new Date();
+  const currentMonth = now.getMonth();
+  const currentFY = (currentMonth >= 9 ? now.getFullYear() + 1 : now.getFullYear()) + 543;
+
+  if (targetYear !== undefined) {
+    if (typeof targetYear !== "number" || targetYear < currentFY - 5 || targetYear > currentFY + 1) {
+      throw new Error(`ปีงบประมาณไม่ถูกต้อง (ต้องอยู่ระหว่าง ${currentFY - 5} ถึง ${currentFY + 1})`);
+    }
+  }
+
+  const selectedFY = targetYear || currentFY;
+  let targetDate = new Date();
+  if (targetYear) {
+    const westernYear = targetYear - 543;
+    targetDate = new Date(westernYear, 5, 15);
+  }
+
+  const filter = getLeaveCycleFilter(targetDate, cycleFilter);
+  const cycleLabelTh = filter?.label || `ปีงบประมาณ ${selectedFY}`;
+
+  // Execute 4 independent queries within a single interactive transaction, using Promise.all for orchestration;
+  // database execution is not assumed to be physically parallel.
+  const [requests, users, holidays, settings] = await prisma.$transaction(
+    async (tx) => {
+      return Promise.all([
+        tx.leaveRequest.findMany({
+          where: {
+            status: "APPROVED",
+            ...(filter ? {
+              startDate: { lte: filter.end },
+              endDate: { gte: filter.start }
+            } : {})
+          },
+          select: {
+            id: true,
+            userId: true,
+            type: true,
+            startDate: true,
+            endDate: true
+          }
+        }),
+        tx.user.findMany({
+          where: {
+            isApproved: true,
+            name: { not: null },
+            OR: [
+              { role: "TEACHER" },
+              { leaveRequests: { some: {} } }
+            ],
+            username: { notIn: ["admin", "admin1"] }
+          },
+          select: {
+            id: true,
+            name: true,
+            position: true,
+            subjectGroup: true
+          },
+          orderBy: { name: "asc" }
+        }),
+        tx.holiday.findMany({
+          where: filter ? {
+            startDate: { lte: filter.end },
+            endDate: { gte: filter.start }
+          } : undefined
+        }),
+        tx.systemSettings.findUnique({
+          where: { id: "default" },
+          select: { timezone: true }
+        })
+      ]);
+    },
+    {
+      isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead
+    }
+  );
+
+  const tz = settings?.timezone || "Asia/Bangkok";
+
+  // Pre-process holiday lookup Sets in memory
+  const holidayDates = new Set<string>();
+  const specialWorkdayDates = new Set<string>();
+
+  for (const h of holidays) {
+    const hStartStr = toLocalCustomDateString(new Date(h.startDate), tz);
+    const hEndStr = toLocalCustomDateString(new Date(h.endDate), tz);
+    const [sy, sm, sd] = hStartStr.split("-").map(Number);
+    const [ey, em, ed] = hEndStr.split("-").map(Number);
+    const cur = new Date(Date.UTC(sy, sm - 1, sd));
+    const end = new Date(Date.UTC(ey, em - 1, ed));
+
+    while (cur <= end) {
+      const y = cur.getUTCFullYear();
+      const m = String(cur.getUTCMonth() + 1).padStart(2, "0");
+      const d = String(cur.getUTCDate()).padStart(2, "0");
+      const dayStr = `${y}-${m}-${d}`;
+      if (h.isWorkday) {
+        specialWorkdayDates.add(dayStr);
+      } else {
+        holidayDates.add(dayStr);
+      }
+      cur.setUTCDate(cur.getUTCDate() + 1);
+    }
+  }
+
+  // Reporting window boundary strings (YYYY-MM-DD)
+  const cycleStartStr = filter ? toLocalCustomDateString(filter.start, tz) : "1900-01-01";
+  const cycleEndStr = filter ? toLocalCustomDateString(filter.end, tz) : "2100-12-31";
+
+  // Initialize Canonical User Summary Map
+  const userMap = new Map<string, UserLeaveSummaryDTO>();
+  for (const u of users) {
+    const byType: Record<string, { times: number; days: number }> = {};
+    for (const typeKey of CANONICAL_LEAVE_TYPES) {
+      byType[typeKey] = { times: 0, days: 0 };
+    }
+    userMap.set(u.id, {
+      userId: u.id,
+      userName: u.name || "-",
+      position: u.position || "-",
+      subjectGroup: u.subjectGroup && u.subjectGroup.trim() !== "" ? u.subjectGroup.trim() : "ไม่ระบุกลุ่มสาระ/ฝ่ายงาน",
+      totalTimes: 0,
+      totalDays: 0,
+      byType
+    });
+  }
+
+  // Aggregate leave records with Window Intersection
+  for (const req of requests) {
+    let summary = userMap.get(req.userId);
+    if (!summary) {
+      continue;
+    }
+
+    const reqStartStr = toLocalCustomDateString(req.startDate, tz);
+    const reqEndStr = toLocalCustomDateString(req.endDate, tz);
+
+    // Reporting window intersection (date string comparison)
+    const effectiveStartStr = reqStartStr > cycleStartStr ? reqStartStr : cycleStartStr;
+    const effectiveEndStr = reqEndStr < cycleEndStr ? reqEndStr : cycleEndStr;
+
+    if (effectiveStartStr <= effectiveEndStr) {
+      const daysInCycle = calculateLeaveDaysFast(
+        effectiveStartStr,
+        effectiveEndStr,
+        req.type,
+        holidayDates,
+        specialWorkdayDates
+      );
+
+      if (!summary.byType[req.type]) {
+        summary.byType[req.type] = { times: 0, days: 0 };
+      }
+
+      summary.byType[req.type].times += 1;
+      summary.byType[req.type].days += daysInCycle;
+      summary.totalTimes += 1;
+      summary.totalDays += daysInCycle;
+    }
+  }
+
+  const canonicalTypes = CANONICAL_LEAVE_TYPES.map(type => ({
+    type,
+    name: LEAVE_TYPE_NAME_MAP[type] || type
+  }));
+
+  return {
+    fiscalYear: selectedFY,
+    cycle: cycleFilter,
+    cycleLabelTh,
+    staffCount: users.length,
+    canonicalTypes,
+    users: Array.from(userMap.values()),
+    generatedAt: new Date().toISOString()
+  };
 }
 
 // ========= Reset User Password by Admin =========

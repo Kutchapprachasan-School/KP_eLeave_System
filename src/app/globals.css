@@ -89,6 +89,20 @@ body, .font-sans, input, select, textarea, button {
   font-family: 'Noto Sans Thai', system-ui, -apple-system, sans-serif !important;
 }
 
+/* Report Preview Font Overrides */
+.report-font-sarabun, .report-font-sarabun * {
+  font-family: 'Sarabun', sans-serif !important;
+}
+.report-font-prompt, .report-font-prompt * {
+  font-family: 'Prompt', sans-serif !important;
+}
+.report-font-noto, .report-font-noto * {
+  font-family: 'Noto Sans Thai', sans-serif !important;
+}
+.report-font-kanit, .report-font-kanit * {
+  font-family: 'Kanit', sans-serif !important;
+}
+
 /* Smooth transitions for theme changes */
 * {
   transition: background-color 0.2s ease, border-color 0.2s ease, color 0.15s ease;
