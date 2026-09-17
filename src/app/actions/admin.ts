@@ -144,6 +144,15 @@ export async function getAllUsers() {
         phoneNumber: true,
         address: true,
         signatureUrl: true,
+        dutyAssignments: {
+          where: { revokedAt: null },
+          select: {
+            id: true,
+            dutyType: true,
+            divisionScope: true,
+            departmentScope: true
+          }
+        },
         sessions: {
           orderBy: { createdAt: "desc" },
           take: 1,
@@ -194,6 +203,7 @@ export async function getAllUsers() {
       level: u.level,
       image: u.image,
       isApproved: u.isApproved,
+      duties: (u as any).dutyAssignments || [],
       createdAt: u.createdAt.toISOString(),
       lastLogin: u.sessions[0]?.createdAt.toISOString() || null,
       hasPhone: !!u.phoneNumber?.trim(),

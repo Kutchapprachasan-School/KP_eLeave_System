@@ -288,12 +288,23 @@ export default function UsersPage() {
     }
   };
 
-  const filteredUsers = users.filter(u =>
-    !searchText ||
-    u.name?.toLowerCase().includes(searchText.toLowerCase()) ||
-    u.email?.toLowerCase().includes(searchText.toLowerCase()) ||
-    u.position?.toLowerCase().includes(searchText.toLowerCase())
-  );
+  const [dutyFilter, setDutyFilter] = useState<string>("all");
+
+  const filteredUsers = users.filter(u => {
+    const matchesSearch = !searchText ||
+      u.name?.toLowerCase().includes(searchText.toLowerCase()) ||
+      u.email?.toLowerCase().includes(searchText.toLowerCase()) ||
+      u.position?.toLowerCase().includes(searchText.toLowerCase());
+
+    if (!matchesSearch) return false;
+
+    if (dutyFilter === "all") return true;
+    if (dutyFilter === "inspector") return u.duties?.some((d: any) => d.dutyType === "INSPECTOR");
+    if (dutyFilter === "hr") return u.duties?.some((d: any) => d.dutyType === "HR_HEAD" || d.dutyType === "HR_STAFF");
+    if (dutyFilter === "division") return u.duties?.some((d: any) => d.dutyType === "DIVISION_HEAD");
+    if (dutyFilter === "dept") return u.duties?.some((d: any) => d.dutyType === "DEPT_HEAD");
+    return true;
+  });
 
   const positionOptions = [
     "ผู้อำนวยการ",
@@ -397,16 +408,43 @@ export default function UsersPage() {
         </div>
       </div>
 
-      {/* Search */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-        <input
-          type="text"
-          placeholder={t("searchPlaceholder")}
-          value={searchText}
-          onChange={(e) => setSearchText(e.target.value)}
-          className="w-full h-11 pl-10 pr-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all"
-        />
+      {/* Search & Duty Filters */}
+      <div className="space-y-3">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <input
+            type="text"
+            placeholder={t("searchPlaceholder")}
+            value={searchText}
+            onChange={(e) => setSearchText(e.target.value)}
+            className="w-full h-11 pl-10 pr-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all"
+          />
+        </div>
+
+        {/* Quick Duty Filters */}
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 mr-1.5">{lang === "en" ? "Filter Duty:" : "กรองตามหน้าที่พิเศษ:"}</span>
+          {[
+            { key: "all", labelTh: "ทั้งหมด", labelEn: "All" },
+            { key: "inspector", labelTh: "ผู้ตรวจสอบ", labelEn: "Inspectors" },
+            { key: "hr", labelTh: "งานบุคคล", labelEn: "HR Head/Staff" },
+            { key: "division", labelTh: "หัวหน้าฝ่าย 4 ฝ่าย", labelEn: "Division Heads" },
+            { key: "dept", labelTh: "หัวหน้ากลุ่มสาระฯ", labelEn: "Dept Heads" },
+          ].map(filter => (
+            <button
+              key={filter.key}
+              type="button"
+              onClick={() => { setDutyFilter(filter.key); setCurrentPage(1); }}
+              className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-all cursor-pointer ${
+                dutyFilter === filter.key
+                  ? "bg-purple-600 text-white shadow-sm shadow-purple-500/20 font-bold"
+                  : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-750"
+              }`}
+            >
+              {lang === "en" ? filter.labelEn : filter.labelTh}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Users Table */}
@@ -471,9 +509,41 @@ export default function UsersPage() {
                         <td className="px-6 py-4 text-slate-900 dark:text-white text-xs font-semibold">{user.username || "-"}</td>
                         <td className="px-6 py-4 text-slate-500 dark:text-slate-400 text-xs">{user.email}</td>
                         <td className="px-6 py-4">
-                          <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border ${badge.cls}`}>
-                            {badge.text}
-                          </span>
+                          <div className="flex flex-col gap-1 items-start">
+                            <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border ${badge.cls}`}>
+                              {badge.text}
+                            </span>
+                            {user.duties && user.duties.length > 0 && (
+                              <div className="flex flex-wrap gap-1 mt-0.5">
+                                {user.duties.map((d: any) => {
+                                  let label = "";
+                                  let dutyCls = "bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-300 dark:border-indigo-800";
+                                  if (d.dutyType === "INSPECTOR") {
+                                    label = lang === "en" ? "Inspector" : "ผู้ตรวจสอบ";
+                                    dutyCls = "bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-800";
+                                  } else if (d.dutyType === "HR_HEAD") {
+                                    label = lang === "en" ? "Head of HR" : "หัวหน้างานบุคคล";
+                                    dutyCls = "bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800";
+                                  } else if (d.dutyType === "HR_STAFF") {
+                                    label = lang === "en" ? "HR Staff" : "จนท.บุคคล";
+                                    dutyCls = "bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200 dark:bg-fuchsia-950/40 dark:text-fuchsia-300 dark:border-fuchsia-800";
+                                  } else if (d.dutyType === "DIVISION_HEAD") {
+                                    const divMap: Record<string, string> = { ACADEMIC: "วิชาการ", PERSONNEL: "บุคคล", GENERAL: "บริหารทั่วไป", BUDGET: "งบประมาณ" };
+                                    label = `หน.ฝ่าย${divMap[d.divisionScope] || d.divisionScope}`;
+                                    dutyCls = "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800";
+                                  } else if (d.dutyType === "DEPT_HEAD") {
+                                    label = "หน.กลุ่มสาระฯ";
+                                    dutyCls = "bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-950/40 dark:text-teal-300 dark:border-teal-800";
+                                  }
+                                  return (
+                                    <span key={d.id} className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold border ${dutyCls}`}>
+                                      {label}
+                                    </span>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
                         </td>
                         <td className="px-6 py-4 text-slate-500 dark:text-slate-400 text-xs">{tSubjectGroup(user.subjectGroup) || "-"}</td>
                         <td className="px-6 py-4 text-slate-400 text-xs">

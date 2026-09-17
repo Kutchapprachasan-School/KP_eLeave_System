@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 
 import { useSearchParams, useRouter } from "next/navigation";
 
-import { getSystemSettings, updateSystemSettings, updateFooter, generateBackup, getLeaveConfigs, updateLeaveConfig, updateLeaveRules, setImpersonationCookie, clearImpersonation, getEligibleInspectors, updateDefaultInspector, getSimpleUsersList } from "@/app/actions/settings";
+import { getSystemSettings, updateSystemSettings, updateFooter, generateBackup, getLeaveConfigs, updateLeaveConfig, updateLeaveRules, setImpersonationCookie, clearImpersonation, getEligibleInspectors, updateDefaultInspector, getSimpleUsersList, getActiveDutyAssignments, updateAppointedDuties } from "@/app/actions/settings";
 
 import { archiveCurrentCycle, importBackupFromJson, exportLeaveBackup, importLeaveBackup, importLeaveSimple, getImportHistory, undoImportLeave } from "@/app/actions/archive";
 
@@ -371,9 +371,82 @@ export default function SettingsPage() {
 
   const [enableRepairLine, setEnableRepairLine] = useState(true);
 
-  // Drill-down navigation state
+  // Appointed Duties states
+  const [appointedDuties, setAppointedDuties] = useState<any[]>([]);
+  const [simpleUsers, setSimpleUsers] = useState<any[]>([]);
+  const [loadingDuties, setLoadingDuties] = useState(false);
+  const [isSavingDuties, setIsSavingDuties] = useState(false);
 
+  const loadAppointedDuties = useCallback(async () => {
+    setLoadingDuties(true);
+    try {
+      const [duties, usersList] = await Promise.all([
+        getActiveDutyAssignments(),
+        getSimpleUsersList(),
+      ]);
+      setAppointedDuties(duties || []);
+      setSimpleUsers(usersList || []);
+    } catch (e) {
+      console.error("Failed to load appointed duties:", e);
+    } finally {
+      setLoadingDuties(false);
+    }
+  }, []);
+
+  const handleAssignDuty = async (
+    dutyType: string,
+    userId: string,
+    divisionScope?: string | null,
+    departmentScope?: string | null,
+    existingAssignmentId?: string | null
+  ) => {
+    if (!userId) return;
+    setIsSavingDuties(true);
+    try {
+      const assignmentsToRevoke = existingAssignmentId ? [{ assignmentId: existingAssignmentId }] : [];
+      const assignmentsToGrant = [{
+        userId,
+        dutyType: dutyType as any,
+        divisionScope: (divisionScope as any) || null,
+        departmentScope: (departmentScope as any) || null,
+      }];
+      await updateAppointedDuties({ assignmentsToGrant, assignmentsToRevoke });
+      showToast("success", lang === "en" ? "Duty appointed successfully" : "แต่งตั้งหน้าที่พิเศษเรียบร้อยแล้ว");
+      await loadAppointedDuties();
+    } catch (e: any) {
+      showToast("error", e?.message || "เกิดข้อผิดพลาดในการแต่งตั้ง");
+    } finally {
+      setIsSavingDuties(false);
+    }
+  };
+
+  const handleRevokeDuty = async (assignmentId: string, dutyLabel: string) => {
+    if (!confirm(lang === "en" ? `Are you sure you want to revoke "${dutyLabel}"?` : `ยืนยันการถอดถอนหน้าที่ "${dutyLabel}" หรือไม่?`)) {
+      return;
+    }
+    setIsSavingDuties(true);
+    try {
+      await updateAppointedDuties({
+        assignmentsToGrant: [],
+        assignmentsToRevoke: [{ assignmentId }]
+      });
+      showToast("success", lang === "en" ? "Duty revoked successfully" : "ถอดถอนหน้าที่พิเศษเรียบร้อยแล้ว");
+      await loadAppointedDuties();
+    } catch (e: any) {
+      showToast("error", e?.message || "เกิดข้อผิดพลาดในการถอดถอน");
+    } finally {
+      setIsSavingDuties(false);
+    }
+  };
+
+  // Drill-down navigation state
   const [activeSection, setActiveSection] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (activeSection === "appointed-duties") {
+      loadAppointedDuties();
+    }
+  }, [activeSection, loadAppointedDuties]);
 
   useEffect(() => {
 
@@ -2374,6 +2447,12 @@ export default function SettingsPage() {
   if (isAdmin) {
     coreSystemItems.push({ id: "school", icon: <BookOpen className="w-5 h-5 text-blue-500" />, title: lang === "en" ? "School Info" : "ข้อมูลโรงเรียน", description: lang === "en" ? "School name, affiliation, logo" : "ชื่อโรงเรียน, สังกัด, โลโก้" });
     coreSystemItems.push({ id: "permissions", icon: <Lock className="w-5 h-5 text-rose-500" />, title: lang === "en" ? "Access Permissions" : "กำหนดสิทธิ์ผู้เข้าใช้งาน", description: lang === "en" ? "Access rights per role" : "กำหนดสิทธิ์เข้าใช้งานตาม Role บุคลากร" });
+    coreSystemItems.push({
+      id: "appointed-duties",
+      icon: <UserCheck className="w-5 h-5 text-indigo-600" />,
+      title: lang === "en" ? "Appointed Duties & Subsystems" : "บทบาทหน้าที่พิเศษ & ระบบย่อย",
+      description: lang === "en" ? "Assign inspectors, HR head, division & dept heads" : "แต่งตั้งผู้ตรวจสอบ, หัวหน้างานบุคคล, หัวหน้า 4 ฝ่าย และกลุ่มสาระฯ"
+    });
   }
   if ((session?.user as any)?.isActualAdmin === true) {
     coreSystemItems.push({ id: "impersonate", icon: <UserCog className="w-5 h-5 text-indigo-500" />, title: lang === "en" ? "Role Impersonation" : "จำลองบทบาท", description: lang === "en" ? "Simulate roles for testing" : "จำลองตำแหน่งเพื่อทดสอบระบบ" });
@@ -2506,6 +2585,8 @@ export default function SettingsPage() {
     "document-settings": lang === "en" ? "Document Settings" : "ตั้งค่าระบบเอกสารรับ-ส่ง",
 
     approval: lang === "en" ? ((isHRHead || isInspector) ? "System & Approver Settings" : "Approval Chain") : ((isHRHead || isInspector) ? "ตั้งค่าผู้ตรวจสอบและผู้อนุมัติระบบ" : "สายอนุมัติ"),
+
+    "appointed-duties": lang === "en" ? "Appointed Duties & Subsystem Roles" : "บทบาทหน้าที่พิเศษ & การเข้าถึงระบบย่อย",
 
     "leave-rules": lang === "en" ? "Leave Rules & Quotas" : "ระเบียบการลา & โควตา",
 
@@ -8660,11 +8741,500 @@ function doPost(e) {
     );
   };
 
+  // --- Appointed Duties Section Renderer ---
+  const renderAppointedDutiesSection = () => {
+    const hrHead = appointedDuties.find(d => d.dutyType === "HR_HEAD");
+    const hrStaff = appointedDuties.filter(d => d.dutyType === "HR_STAFF");
+    const inspectors = appointedDuties.filter(d => d.dutyType === "INSPECTOR");
+
+    const divisions = [
+      { key: "ACADEMIC", nameTh: "ฝ่ายบริหารวิชาการ", nameEn: "Academic Affairs", icon: BookOpen, color: "text-blue-500 bg-blue-50 dark:bg-blue-950/40 border-blue-200 dark:border-blue-800" },
+      { key: "PERSONNEL", nameTh: "ฝ่ายบริหารงานบุคคล", nameEn: "Personnel Management", icon: Users, color: "text-purple-500 bg-purple-50 dark:bg-purple-950/40 border-purple-200 dark:border-purple-800" },
+      { key: "GENERAL", nameTh: "ฝ่ายบริหารทั่วไป", nameEn: "General Administration", icon: Building2, color: "text-amber-500 bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800" },
+      { key: "BUDGET", nameTh: "ฝ่ายบริหารงบประมาณ", nameEn: "Budget & Finance", icon: Wallet, color: "text-emerald-500 bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800" },
+    ];
+
+    const departments = [
+      { key: "THAI", nameTh: "กลุ่มสาระการเรียนรู้ภาษาไทย", nameEn: "Thai Language" },
+      { key: "MATH", nameTh: "กลุ่มสาระการเรียนรู้คณิตศาสตร์", nameEn: "Mathematics" },
+      { key: "SCIENCE", nameTh: "กลุ่มสาระการเรียนรู้วิทยาศาสตร์และเทคโนโลยี", nameEn: "Science & Technology" },
+      { key: "FOREIGN_LANG", nameTh: "กลุ่มสาระการเรียนรู้ภาษาต่างประเทศ", nameEn: "Foreign Languages" },
+      { key: "SOCIAL", nameTh: "กลุ่มสาระการเรียนรู้สังคมศึกษา ศาสนา และวัฒนธรรม", nameEn: "Social Studies, Religion & Culture" },
+      { key: "HEALTH_PE", nameTh: "กลุ่มสาระการเรียนรู้สุขศึกษาและพลศึกษา", nameEn: "Health & Physical Education" },
+      { key: "ART", nameTh: "กลุ่มสาระการเรียนรู้ศิลปะ", nameEn: "Art" },
+      { key: "CAREER", nameTh: "กลุ่มสาระการเรียนรู้การงานอาชีพ", nameEn: "Career & Technology" },
+      { key: "STUDENT_DEV", nameTh: "กิจกรรมพัฒนาผู้เรียน", nameEn: "Student Development Activities" },
+    ];
+
+    return (
+      <div className="bg-white dark:bg-gray-900 rounded-2xl p-6 md:p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-100 dark:border-gray-800 space-y-8">
+        <SectionHeader title={sectionTitles["appointed-duties"] || (lang === "en" ? "Appointed Duties & Subsystem Roles" : "บทบาทหน้าที่พิเศษ & การเข้าถึงระบบย่อย")} />
+
+        {/* Informational Banner */}
+        <div className="bg-indigo-50/60 dark:bg-indigo-950/30 border border-indigo-150 dark:border-indigo-800/60 rounded-2xl p-4 md:p-5 flex items-start gap-3.5">
+          <div className="p-2 bg-indigo-600 text-white rounded-xl shadow-sm mt-0.5">
+            <UserCheck className="w-5 h-5" />
+          </div>
+          <div className="space-y-1">
+            <h4 className="text-sm font-bold text-indigo-950 dark:text-indigo-200">
+              {lang === "en" ? "Appointed Duty & Subsystem Architecture" : "โครงสร้างบทบาทหน้าที่พิเศษและการเข้าถึงระบบย่อย"}
+            </h4>
+            <p className="text-xs text-indigo-800/80 dark:text-indigo-300 leading-relaxed">
+              {lang === "en"
+                ? "Assign teachers with special administrative duties (e.g. Leave Inspector, Head of HR, Division Heads, and Department Heads). Official civil servant positions remain 'Teacher' (ครู/ครูผู้ช่วย), while appointed duties grant domain-scoped authorities and approve workflows fail-closed."
+                : "แต่งตั้งครูเพื่อรับผิดชอบบทบาทหน้าที่พิเศษ (เช่น ผู้ตรวจสอบการลา, หัวหน้างานบุคคล, หัวหน้า 4 ฝ่าย, หัวหน้ากลุ่มสาระฯ) โดยตำแหน่งราชการหลักยังคงเป็น 'ครู/ครูผู้ช่วย' ตามระเบียบ ก.ค.ศ. พร้อมจำกัดขอบเขตอำนาจการเข้าถึงระบบย่อยและสายอนุมัติตามโครงสร้างฝ่ายอย่างปลอดภัย"}
+            </p>
+          </div>
+        </div>
+
+        {loadingDuties ? (
+          <div className="py-12 flex flex-col items-center justify-center gap-3 text-slate-400">
+            <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
+            <span className="text-sm">{lang === "en" ? "Loading appointed duties..." : "กำลังโหลดข้อมูลบทบาทหน้าที่พิเศษ..."}</span>
+          </div>
+        ) : (
+          <div className="space-y-8">
+            {/* CARD 1: งานบุคคล & การตรวจสอบการลา */}
+            <div className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden bg-slate-50/40 dark:bg-slate-900/30">
+              <div className="bg-gradient-to-r from-purple-600/10 via-indigo-600/10 to-transparent p-5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 bg-purple-600 text-white rounded-xl shadow-sm">
+                    <Award className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                      {lang === "en" ? "1. HR & Leave Inspection Authorities" : "1. ผู้ตรวจสอบการลา & งานบริหารบุคคล"}
+                    </h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      {lang === "en" ? "Configure Leave Inspector, Head of HR, and HR Officers" : "กำหนดผู้ตรวจสอบการลา, หัวหน้างานบุคคล และเจ้าหน้าที่งานบุคคล"}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-5 md:p-6 space-y-6">
+                {/* 1.1 หัวหน้างานบุคคล (HR_HEAD) */}
+                <div className="bg-white dark:bg-slate-800/80 p-4 md:p-5 rounded-xl border border-slate-200/80 dark:border-slate-700/80 space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+                        {lang === "en" ? "Head of HR" : "หัวหน้างานบุคคล"}
+                      </span>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                        {lang === "en" ? "Responsible for managing school personnel leave workflows and HR approvals" : "รับผิดชอบตรวจสอบและลงนามสายการลาลำดับหัวหน้างานบุคคล"}
+                      </p>
+                    </div>
+                    {hrHead ? (
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                          <CheckCircle2 className="w-4 h-4" /> {hrHead.user?.name || "ระบุแล้ว"}
+                        </span>
+                        <button
+                          type="button"
+                          disabled={isSavingDuties}
+                          onClick={() => handleRevokeDuty(hrHead.id, "หัวหน้างานบุคคล")}
+                          className="px-2.5 py-1 text-xs font-medium text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg border border-rose-200 dark:border-rose-800 transition-colors cursor-pointer"
+                        >
+                          {lang === "en" ? "Revoke" : "ถอดถอน"}
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-amber-600 dark:text-amber-400 font-medium">
+                        {lang === "en" ? "Not Appointed" : "ยังไม่ได้แต่งตั้ง"}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="pt-2 flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                    <select
+                      id="select-hr-head"
+                      defaultValue=""
+                      disabled={isSavingDuties}
+                      className="flex-1 px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-purple-500/20"
+                    >
+                      <option value="">{lang === "en" ? "-- Select Teacher to Appoint Head of HR --" : "-- เลือกครูเพื่อแต่งตั้งเป็นหัวหน้างานบุคคล --"}</option>
+                      {simpleUsers.map(u => (
+                        <option key={u.id} value={u.id}>
+                          {u.name} ({u.position || "ครู"}) {u.subjectGroup ? `- ${u.subjectGroup}` : ""}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      disabled={isSavingDuties}
+                      onClick={() => {
+                        const sel = document.getElementById("select-hr-head") as HTMLSelectElement;
+                        if (sel && sel.value) {
+                          handleAssignDuty("HR_HEAD", sel.value, null, null, hrHead?.id);
+                          sel.value = "";
+                        }
+                      }}
+                      className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-semibold shadow-sm transition-all whitespace-nowrap cursor-pointer disabled:opacity-50"
+                    >
+                      {hrHead ? (lang === "en" ? "Replace" : "เปลี่ยนผู้ดำรงตำแหน่ง") : (lang === "en" ? "Appoint" : "แต่งตั้ง")}
+                    </button>
+                  </div>
+                </div>
+
+                {/* 1.2 ผู้ตรวจสอบการลา (INSPECTOR) */}
+                <div className="bg-white dark:bg-slate-800/80 p-4 md:p-5 rounded-xl border border-slate-200/80 dark:border-slate-700/80 space-y-3">
+                  <div>
+                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-sky-100 dark:bg-sky-950/60 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800">
+                      {lang === "en" ? "Leave Inspectors" : "ผู้ตรวจสอบการลา"}
+                    </span>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                      {lang === "en" ? "Civil servants responsible for preliminary inspection and verifying leave records" : "ครูหรือบุคลากรที่ได้รับมอบหมายให้ตรวจสอบความถูกต้องของสถิติและใบลา"}
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    {inspectors.length === 0 ? (
+                      <p className="text-xs text-slate-400 italic py-1">{lang === "en" ? "No inspectors assigned yet." : "ยังไม่มีผู้ตรวจสอบการลาที่แต่งตั้ง"}</p>
+                    ) : (
+                      <div className="flex flex-wrap gap-2">
+                        {inspectors.map(insp => (
+                          <div key={insp.id} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-sky-50 dark:bg-sky-950/40 border border-sky-200 dark:border-sky-800 text-xs text-sky-900 dark:text-sky-200">
+                            <span className="font-semibold">{insp.user?.name}</span>
+                            <span className="text-[11px] text-sky-600 dark:text-sky-400">({insp.user?.position || "ครู"})</span>
+                            <button
+                              type="button"
+                              disabled={isSavingDuties}
+                              onClick={() => handleRevokeDuty(insp.id, `ผู้ตรวจสอบ (${insp.user?.name})`)}
+                              className="text-rose-500 hover:text-rose-700 ml-1 p-0.5 cursor-pointer"
+                              title="ถอดถอน"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="pt-2 flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                    <select
+                      id="select-inspector-add"
+                      defaultValue=""
+                      disabled={isSavingDuties}
+                      className="flex-1 px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-sky-500/20"
+                    >
+                      <option value="">{lang === "en" ? "-- Select Teacher to Add as Inspector --" : "-- เลือกครูเพื่อเพิ่มเป็นผู้ตรวจสอบการลา --"}</option>
+                      {simpleUsers
+                        .filter(u => !inspectors.some(i => i.userId === u.id))
+                        .map(u => (
+                          <option key={u.id} value={u.id}>
+                            {u.name} ({u.position || "ครู"})
+                          </option>
+                        ))}
+                    </select>
+                    <button
+                      type="button"
+                      disabled={isSavingDuties}
+                      onClick={() => {
+                        const sel = document.getElementById("select-inspector-add") as HTMLSelectElement;
+                        if (sel && sel.value) {
+                          handleAssignDuty("INSPECTOR", sel.value, null, null, null);
+                          sel.value = "";
+                        }
+                      }}
+                      className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-semibold shadow-sm transition-all whitespace-nowrap cursor-pointer disabled:opacity-50"
+                    >
+                      {lang === "en" ? "Add Inspector" : "เพิ่มผู้ตรวจสอบ"}
+                    </button>
+                  </div>
+                </div>
+
+                {/* 1.3 เจ้าหน้าที่งานบุคคล (HR_STAFF) */}
+                <div className="bg-white dark:bg-slate-800/80 p-4 md:p-5 rounded-xl border border-slate-200/80 dark:border-slate-700/80 space-y-3">
+                  <div>
+                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-fuchsia-100 dark:bg-fuchsia-950/60 text-fuchsia-700 dark:text-fuchsia-300 border border-fuchsia-200 dark:border-fuchsia-800">
+                      {lang === "en" ? "HR Staff" : "เจ้าหน้าที่งานบุคคล"}
+                    </span>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                      {lang === "en" ? "Assistants with permissions to view staff records and generate HR leave summaries" : "ครูหรือเจ้าหน้าที่ช่วยงานสารบรรณ/สถิติงานบุคคล"}
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    {hrStaff.length === 0 ? (
+                      <p className="text-xs text-slate-400 italic py-1">{lang === "en" ? "No HR staff assigned yet." : "ยังไม่มีเจ้าหน้าที่งานบุคคลที่แต่งตั้ง"}</p>
+                    ) : (
+                      <div className="flex flex-wrap gap-2">
+                        {hrStaff.map(staff => (
+                          <div key={staff.id} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-fuchsia-50 dark:bg-fuchsia-950/40 border border-fuchsia-200 dark:border-fuchsia-800 text-xs text-fuchsia-900 dark:text-fuchsia-200">
+                            <span className="font-semibold">{staff.user?.name}</span>
+                            <span className="text-[11px] text-fuchsia-600 dark:text-fuchsia-400">({staff.user?.position || "ครู"})</span>
+                            <button
+                              type="button"
+                              disabled={isSavingDuties}
+                              onClick={() => handleRevokeDuty(staff.id, `จนท.บุคคล (${staff.user?.name})`)}
+                              className="text-rose-500 hover:text-rose-700 ml-1 p-0.5 cursor-pointer"
+                              title="ถอดถอน"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="pt-2 flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                    <select
+                      id="select-hr-staff-add"
+                      defaultValue=""
+                      disabled={isSavingDuties}
+                      className="flex-1 px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-fuchsia-500/20"
+                    >
+                      <option value="">{lang === "en" ? "-- Select Teacher to Add as HR Staff --" : "-- เลือกครูเพื่อเพิ่มเป็นเจ้าหน้าที่งานบุคคล --"}</option>
+                      {simpleUsers
+                        .filter(u => !hrStaff.some(s => s.userId === u.id))
+                        .map(u => (
+                          <option key={u.id} value={u.id}>
+                            {u.name} ({u.position || "ครู"})
+                          </option>
+                        ))}
+                    </select>
+                    <button
+                      type="button"
+                      disabled={isSavingDuties}
+                      onClick={() => {
+                        const sel = document.getElementById("select-hr-staff-add") as HTMLSelectElement;
+                        if (sel && sel.value) {
+                          handleAssignDuty("HR_STAFF", sel.value, null, null, null);
+                          sel.value = "";
+                        }
+                      }}
+                      className="px-4 py-2 bg-fuchsia-600 hover:bg-fuchsia-700 text-white rounded-xl text-xs font-semibold shadow-sm transition-all whitespace-nowrap cursor-pointer disabled:opacity-50"
+                    >
+                      {lang === "en" ? "Add HR Staff" : "เพิ่มเจ้าหน้าที่"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* CARD 2: หัวหน้าฝ่าย 4 ฝ่าย */}
+            <div className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden bg-slate-50/40 dark:bg-slate-900/30">
+              <div className="bg-gradient-to-r from-amber-600/10 via-orange-600/10 to-transparent p-5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 bg-amber-600 text-white rounded-xl shadow-sm">
+                    <Building2 className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                      {lang === "en" ? "2. Four Division Heads (หัวหน้าฝ่าย 4 ฝ่าย)" : "2. หัวหน้าฝ่าย 4 ฝ่าย"}
+                    </h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      {lang === "en" ? "Heads of Academic, Personnel, General, and Budget divisions" : "ผู้ดำรงตำแหน่งหัวหน้าฝ่ายบริหารทั้ง 4 ด้านของสถานศึกษา"}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-5 md:p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+                {divisions.map(div => {
+                  const assignment = appointedDuties.find(
+                    d => d.dutyType === "DIVISION_HEAD" && d.divisionScope === div.key
+                  );
+                  const Icon = div.icon;
+
+                  return (
+                    <div key={div.key} className="bg-white dark:bg-slate-800/80 p-4 md:p-5 rounded-xl border border-slate-200/80 dark:border-slate-700/80 space-y-3 flex flex-col justify-between">
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className={`p-1.5 rounded-lg border ${div.color}`}>
+                              <Icon className="w-4 h-4" />
+                            </span>
+                            <div>
+                              <h4 className="text-sm font-bold text-slate-900 dark:text-white">
+                                {lang === "en" ? div.nameEn : div.nameTh}
+                              </h4>
+                              <span className="text-[10px] text-slate-400 font-mono">
+                                Scope: {div.key}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-900/60 border border-slate-150 dark:border-slate-800 flex items-center justify-between">
+                          {assignment ? (
+                            <div className="flex items-center justify-between w-full">
+                              <div>
+                                <p className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                                  {assignment.user?.name}
+                                </p>
+                                <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                                  ตำแหน่งหลัก: {assignment.user?.position || "ครู"} {assignment.user?.subjectGroup ? `(${assignment.user?.subjectGroup})` : ""}
+                                </p>
+                              </div>
+                              <button
+                                type="button"
+                                disabled={isSavingDuties}
+                                onClick={() => handleRevokeDuty(assignment.id, `หัวหน้า${div.nameTh}`)}
+                                className="px-2 py-1 text-xs text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded border border-rose-200 dark:border-rose-800 transition-colors cursor-pointer"
+                              >
+                                {lang === "en" ? "Revoke" : "ถอดถอน"}
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-slate-400 italic">
+                              {lang === "en" ? "Not Appointed" : "ยังไม่ได้แต่งตั้งผู้ดำรงตำแหน่ง"}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="pt-2 flex items-center gap-2">
+                        <select
+                          id={`select-div-${div.key}`}
+                          defaultValue=""
+                          disabled={isSavingDuties}
+                          className="flex-1 px-2.5 py-1.5 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-amber-500/20"
+                        >
+                          <option value="">{lang === "en" ? "-- Choose Teacher --" : "-- เลือกครูเพื่อแต่งตั้ง --"}</option>
+                          {simpleUsers.map(u => (
+                            <option key={u.id} value={u.id}>
+                              {u.name} ({u.position || "ครู"})
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          disabled={isSavingDuties}
+                          onClick={() => {
+                            const sel = document.getElementById(`select-div-${div.key}`) as HTMLSelectElement;
+                            if (sel && sel.value) {
+                              handleAssignDuty("DIVISION_HEAD", sel.value, div.key, null, assignment?.id);
+                              sel.value = "";
+                            }
+                          }}
+                          className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-semibold transition-all whitespace-nowrap cursor-pointer disabled:opacity-50"
+                        >
+                          {assignment ? (lang === "en" ? "Replace" : "เปลี่ยน") : (lang === "en" ? "Appoint" : "แต่งตั้ง")}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* CARD 3: หัวหน้ากลุ่มสาระการเรียนรู้ 8+1 กลุ่ม */}
+            <div className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden bg-slate-50/40 dark:bg-slate-900/30">
+              <div className="bg-gradient-to-r from-teal-600/10 via-emerald-600/10 to-transparent p-5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 bg-teal-600 text-white rounded-xl shadow-sm">
+                    <Layers className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                      {lang === "en" ? "3. Department Heads (หัวหน้ากลุ่มสาระการเรียนรู้ 8+1 กลุ่ม)" : "3. หัวหน้ากลุ่มสาระการเรียนรู้ (8 กลุ่มสาระฯ + 1 กิจกรรม)"}
+                    </h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      {lang === "en" ? "Appointed heads for leave review and subject management" : "ผู้พิจารณาการลาชั้นต้นและบริหารงานวิชาการของกลุ่มสาระฯ"}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-5 md:p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {departments.map(dept => {
+                  const assignment = appointedDuties.find(
+                    d => d.dutyType === "DEPT_HEAD" && d.departmentScope === dept.key
+                  );
+
+                  return (
+                    <div key={dept.key} className="bg-white dark:bg-slate-800/80 p-4 rounded-xl border border-slate-200/80 dark:border-slate-700/80 space-y-2.5 flex flex-col justify-between">
+                      <div className="space-y-1.5">
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <h4 className="text-xs font-bold text-slate-900 dark:text-white line-clamp-1">
+                              {lang === "en" ? dept.nameEn : dept.nameTh}
+                            </h4>
+                            <span className="text-[10px] text-teal-600 dark:text-teal-400 font-mono">
+                              Scope: {dept.key}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="p-2 rounded-lg bg-slate-50 dark:bg-slate-900/60 border border-slate-150 dark:border-slate-800 min-h-[44px] flex items-center justify-between">
+                          {assignment ? (
+                            <div className="flex items-center justify-between w-full">
+                              <div className="truncate pr-1">
+                                <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                                  {assignment.user?.name}
+                                </p>
+                                <p className="text-[10px] text-slate-400">
+                                  {assignment.user?.position || "ครู"}
+                                </p>
+                              </div>
+                              <button
+                                type="button"
+                                disabled={isSavingDuties}
+                                onClick={() => handleRevokeDuty(assignment.id, `หัวหน้า${dept.nameTh}`)}
+                                className="px-1.5 py-0.5 text-[11px] text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded border border-rose-200 dark:border-rose-800 transition-colors shrink-0 cursor-pointer"
+                              >
+                                {lang === "en" ? "Revoke" : "ถอดถอน"}
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="text-[11px] text-slate-400 italic">
+                              {lang === "en" ? "Not Appointed" : "ยังไม่แต่งตั้ง"}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="pt-1 flex items-center gap-1.5">
+                        <select
+                          id={`select-dept-${dept.key}`}
+                          defaultValue=""
+                          disabled={isSavingDuties}
+                          className="flex-1 px-2 py-1 text-[11px] rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:ring-1 focus:ring-teal-500"
+                        >
+                          <option value="">{lang === "en" ? "-- Choose --" : "-- เลือกครู --"}</option>
+                          {simpleUsers.map(u => (
+                            <option key={u.id} value={u.id}>
+                              {u.name}
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          disabled={isSavingDuties}
+                          onClick={() => {
+                            const sel = document.getElementById(`select-dept-${dept.key}`) as HTMLSelectElement;
+                            if (sel && sel.value) {
+                              handleAssignDuty("DEPT_HEAD", sel.value, null, dept.key, assignment?.id);
+                              sel.value = "";
+                            }
+                          }}
+                          className="px-2.5 py-1 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-[11px] font-semibold transition-all whitespace-nowrap cursor-pointer disabled:opacity-50"
+                        >
+                          {assignment ? (lang === "en" ? "Change" : "เปลี่ยน") : (lang === "en" ? "Set" : "แต่งตั้ง")}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   // --- Section renderer map ---
 
   const renderActiveSection = () => {
 
     switch (activeSection) {
+
+      case "appointed-duties": return renderAppointedDutiesSection();
 
       case "attendance-settings": return renderAttendanceSettingsSection();
 
