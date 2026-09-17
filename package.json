@@ -2,7 +2,6 @@
   "name": "suraleave",
   "version": "0.1.0",
   "private": true,
-  "type": "module",
   "allowScripts": {
     "@prisma/engines": true,
     "core-js": true,
