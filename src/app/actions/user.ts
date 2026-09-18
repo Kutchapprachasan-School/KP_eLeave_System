@@ -8,6 +8,7 @@ import { revalidatePath } from "next/cache";
 import { uploadSignatureWithFallback, uploadAvatarWithFallback } from "@/services/storage/resilient-upload";
 import { sanitizeSvg } from "@/lib/svg-sanitizer";
 import { invalidateSignatureCache } from "@/app/api/signatures/[userId]/route";
+import { AcademicStandingSchema, validateSubjectGroupNotLegacy } from "@/lib/permissions";
 
 export async function getMySignature() {
   const session = await auth.api.getSession({
@@ -207,21 +208,30 @@ export async function updateProfile(data: {
     }
   }
 
-  const updatedUser = await prisma.user.update({
-    where: { id: session.user.id },
-    data: {
-      name: data.name,
-      ...(normalizedEmail !== undefined && { email: normalizedEmail }),
-      subjectGroup: data.subjectGroup,
-      lineUserId: data.lineUserId,
-      image: finalImageUrl !== undefined ? finalImageUrl : undefined,
-      signatureUrl: finalSignatureUrl !== undefined ? finalSignatureUrl : undefined,
-      hasSignature: finalSignatureUrl !== undefined ? Boolean(finalSignatureUrl) : undefined,
-      address: data.address !== undefined ? data.address : undefined,
-      phoneNumber: data.phoneNumber !== undefined ? data.phoneNumber : undefined,
-      level: data.level !== undefined ? data.level : undefined,
+    let parsedLevel: string | null | undefined = undefined;
+    if (data.level !== undefined) {
+      parsedLevel = AcademicStandingSchema.parse(data.level);
     }
-  });
+
+    if (data.subjectGroup !== undefined) {
+      validateSubjectGroupNotLegacy(data.subjectGroup);
+    }
+
+    const updatedUser = await prisma.user.update({
+      where: { id: session.user.id },
+      data: {
+        name: data.name,
+        ...(normalizedEmail !== undefined && { email: normalizedEmail }),
+        subjectGroup: data.subjectGroup,
+        lineUserId: data.lineUserId,
+        image: finalImageUrl !== undefined ? finalImageUrl : undefined,
+        signatureUrl: finalSignatureUrl !== undefined ? finalSignatureUrl : undefined,
+        hasSignature: finalSignatureUrl !== undefined ? Boolean(finalSignatureUrl) : undefined,
+        address: data.address !== undefined ? data.address : undefined,
+        phoneNumber: data.phoneNumber !== undefined ? data.phoneNumber : undefined,
+        level: parsedLevel,
+      }
+    });
 
   if (normalizedEmail) {
     try {

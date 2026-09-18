@@ -100,6 +100,26 @@ async function main() {
       -- Ensure multiple people can be appointed per division and department
       DROP INDEX IF EXISTS "uk_single_active_division_head";
       DROP INDEX IF EXISTS "uk_single_active_dept_head";
+
+      -- Ensure pure academic standing and forbid legacy subjectGroups
+      ALTER TABLE "User" DROP CONSTRAINT IF EXISTS "chk_user_level_academic_standing";
+      ALTER TABLE "User" ADD CONSTRAINT "chk_user_level_academic_standing"
+      CHECK (
+        "level" IS NULL 
+        OR "level" = '' 
+        OR "level" IN ('ชำนาญการ', 'ชำนาญการพิเศษ', 'เชี่ยวชาญ', 'เชี่ยวชาญพิเศษ')
+      );
+
+      ALTER TABLE "User" DROP CONSTRAINT IF EXISTS "chk_user_subject_group_no_admin_exec";
+      ALTER TABLE "User" ADD CONSTRAINT "chk_user_subject_group_no_admin_exec"
+      CHECK (
+        "subjectGroup" IS NULL 
+        OR "subjectGroup" = '' 
+        OR (
+          "subjectGroup" NOT IN ('แอดมิน / ผู้บริหาร', 'แอดมิน / ผู้อำนวยการ')
+          AND "subjectGroup" NOT LIKE '%แอดมิน / %'
+        )
+      );
     `);
 
     // 6. Triggers for Snapshot protection and Deletion protection

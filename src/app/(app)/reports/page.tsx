@@ -7,6 +7,7 @@ import {
   buildExportViewModel,
   escapeHtml,
   sanitizeFontSize,
+  generateCanonicalCsv,
   ExportScope,
   ExportFont,
   ExportFontSize,
@@ -16,6 +17,7 @@ import {
   Printer,
   Download,
   FileSpreadsheet,
+  FileText,
   CalendarDays,
   CheckCircle2,
   XCircle,
@@ -44,6 +46,7 @@ export default function ReportsPage() {
   const [scope, setScope] = useState<ExportScope>("all");
   const [groupByGroup, setGroupByGroup] = useState<boolean>(true);
   const [hideUnusedTypes, setHideUnusedTypes] = useState<boolean>(true);
+  const [showLevelColumn, setShowLevelColumn] = useState<boolean>(true);
   const [reportFont, setReportFont] = useState<ExportFont>("Sarabun");
   const [reportFontSize, setReportFontSize] = useState<ExportFontSize>("normal");
   const [customFontSize, setCustomFontSize] = useState<number>(13);
@@ -202,7 +205,7 @@ export default function ReportsPage() {
       } else {
         // Canonical Individual Summary Report
         const { visibleTypes, displayRows, totals } = viewModel;
-        const fixedColsCount = groupByGroup ? 4 : 5;
+        const fixedColsCount = (groupByGroup ? 3 : 4) + (showLevelColumn ? 1 : 0);
         const totalCols = fixedColsCount + visibleTypes.length * 2 + 2;
 
         const titleRow = [`รายงานสรุปการลาของข้าราชการครูและบุคลากรทางการศึกษา ประจำ${canonicalReport?.cycleLabelTh || getCycleLabelTh()}`];
@@ -214,7 +217,7 @@ export default function ReportsPage() {
           "ลำดับ",
           "ชื่อ-สกุล",
           "ตำแหน่ง",
-          "วิทยฐานะ",
+          ...(showLevelColumn ? ["วิทยฐานะ"] : []),
           ...(groupByGroup ? [] : ["กลุ่มสาระการเรียนรู้ / ฝ่ายงาน"]),
           ...visibleTypes.flatMap(t => [t.name, ""]),
           "สรุปรวมการลา",
@@ -226,7 +229,7 @@ export default function ReportsPage() {
           "",
           "",
           "",
-          "",
+          ...(showLevelColumn ? [""] : []),
           ...(groupByGroup ? [] : [""]),
           ...visibleTypes.flatMap(() => ["ครั้ง", "วัน"]),
           "ครั้ง",
@@ -238,7 +241,7 @@ export default function ReportsPage() {
           r.index,
           r.userName,
           r.position,
-          r.level || "-",
+          ...(showLevelColumn ? [r.level || "-"] : []),
           ...(groupByGroup ? [] : [r.subjectGroup]),
           ...visibleTypes.flatMap(t => [
             r.byType[t.type]?.times || 0,
@@ -267,13 +270,18 @@ export default function ReportsPage() {
         const merges: any[] = [
           { s: { r: 0, c: 0 }, e: { r: 0, c: totalCols - 1 } },
           { s: { r: 1, c: 0 }, e: { r: 1, c: totalCols - 1 } },
-          { s: { r: 3, c: 0 }, e: { r: 4, c: 0 } },
-          { s: { r: 3, c: 1 }, e: { r: 4, c: 1 } },
-          { s: { r: 3, c: 2 }, e: { r: 4, c: 2 } },
-          { s: { r: 3, c: 3 }, e: { r: 4, c: 3 } },
+          { s: { r: 3, c: 0 }, e: { r: 4, c: 0 } }, // ลำดับ
+          { s: { r: 3, c: 1 }, e: { r: 4, c: 1 } }, // ชื่อ-สกุล
+          { s: { r: 3, c: 2 }, e: { r: 4, c: 2 } }, // ตำแหน่ง
         ];
+        let currentMergeCol = 3;
+        if (showLevelColumn) {
+          merges.push({ s: { r: 3, c: currentMergeCol }, e: { r: 4, c: currentMergeCol } });
+          currentMergeCol++;
+        }
         if (!groupByGroup) {
-          merges.push({ s: { r: 3, c: 4 }, e: { r: 4, c: 4 } });
+          merges.push({ s: { r: 3, c: currentMergeCol }, e: { r: 4, c: currentMergeCol } });
+          currentMergeCol++;
         }
         for (let i = 0; i < visibleTypes.length; i++) {
           const c = fixedColsCount + i * 2;
@@ -292,8 +300,10 @@ export default function ReportsPage() {
           { wch: 8 },  // ลำดับ
           { wch: 28 }, // ชื่อ-สกุล
           { wch: 18 }, // ตำแหน่ง
-          { wch: 20 }, // วิทยฐานะ
         ];
+        if (showLevelColumn) {
+          colWidths.push({ wch: 20 }); // วิทยฐานะ
+        }
         if (!groupByGroup) {
           colWidths.push({ wch: 28 }); // กลุ่มสาระ
         }
@@ -307,6 +317,26 @@ export default function ReportsPage() {
         XLSX.utils.book_append_sheet(wb, ws, "รายงานสรุปการลา");
         XLSX.writeFile(wb, `รายงานสรุปการลา_${fiscalYear}_${cycle}.xlsx`);
       }
+    } catch (err: any) {
+      alert(t("exportExcelError") + (err?.message || err));
+    }
+  };
+
+  const handleExportCSV = () => {
+    try {
+      const csv = generateCanonicalCsv(viewModel, {
+        showLevelColumn,
+        groupByGroup
+      });
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.setAttribute("href", url);
+      link.setAttribute("download", `รายงานสรุปการลา_${fiscalYear}_${cycle}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
     } catch (err: any) {
       alert(t("exportExcelError") + (err?.message || err));
     }
@@ -429,7 +459,8 @@ export default function ReportsPage() {
     } else {
       // Canonical Individual Summary Print Layout (A4 Landscape / Portrait, Official Gov Table)
       const { visibleTypes, displayRows, groupedRows, totals } = viewModel;
-      const totalCols = (groupByGroup ? 4 : 5) + visibleTypes.length * 2 + 2;
+      const fixedColsCount = (groupByGroup ? 3 : 4) + (showLevelColumn ? 1 : 0);
+      const totalCols = fixedColsCount + visibleTypes.length * 2 + 2;
 
       const fontMap: Record<ExportFont, { family: string; url: string }> = {
         "Sarabun": {
@@ -492,7 +523,7 @@ export default function ReportsPage() {
               <td style="border:1px solid #888;padding:${sizeStyles.cellPad};text-align:center;">${r.index}</td>
               <td style="border:1px solid #888;padding:${sizeStyles.cellPad};text-align:left;white-space:nowrap;font-weight:500;">${escapeHtml(r.userName)}</td>
               <td style="border:1px solid #888;padding:${sizeStyles.cellPad};text-align:left;white-space:nowrap;">${escapeHtml(r.position)}</td>
-              <td style="border:1px solid #888;padding:${sizeStyles.cellPad};text-align:left;white-space:nowrap;">${escapeHtml(r.level || "-")}</td>
+              ${showLevelColumn ? `<td style="border:1px solid #888;padding:${sizeStyles.cellPad};text-align:left;white-space:nowrap;">${escapeHtml(r.level || "-")}</td>` : ""}
               ${visibleTypes.map(t => {
                 const times = r.byType[t.type]?.times || 0;
                 const days = r.byType[t.type]?.days || 0;
@@ -514,7 +545,7 @@ export default function ReportsPage() {
             <td style="border:1px solid #888;padding:${sizeStyles.cellPad};text-align:center;">${r.index}</td>
             <td style="border:1px solid #888;padding:${sizeStyles.cellPad};text-align:left;white-space:nowrap;font-weight:500;">${escapeHtml(r.userName)}</td>
             <td style="border:1px solid #888;padding:${sizeStyles.cellPad};text-align:left;white-space:nowrap;">${escapeHtml(r.position)}</td>
-            <td style="border:1px solid #888;padding:${sizeStyles.cellPad};text-align:left;white-space:nowrap;">${escapeHtml(r.level || "-")}</td>
+            ${showLevelColumn ? `<td style="border:1px solid #888;padding:${sizeStyles.cellPad};text-align:left;white-space:nowrap;">${escapeHtml(r.level || "-")}</td>` : ""}
             <td style="border:1px solid #888;padding:${sizeStyles.cellPad};text-align:left;">${escapeHtml(r.subjectGroup)}</td>
             ${visibleTypes.map(t => {
               const times = r.byType[t.type]?.times || 0;
@@ -534,12 +565,12 @@ export default function ReportsPage() {
         <th rowspan="2" style="border:1px solid #666;padding:${sizeStyles.headPad};text-align:center;background:#f3f4f6;width:36px;">#</th>
         <th rowspan="2" style="border:1px solid #666;padding:${sizeStyles.headPad};text-align:center;background:#f3f4f6;width:190px;">ชื่อ-สกุล</th>
         <th rowspan="2" style="border:1px solid #666;padding:${sizeStyles.headPad};text-align:center;background:#f3f4f6;width:85px;">ตำแหน่ง</th>
-        <th rowspan="2" style="border:1px solid #666;padding:${sizeStyles.headPad};text-align:center;background:#f3f4f6;width:125px;">วิทยฐานะ</th>
+        ${showLevelColumn ? `<th rowspan="2" style="border:1px solid #666;padding:${sizeStyles.headPad};text-align:center;background:#f3f4f6;width:125px;">วิทยฐานะ</th>` : ""}
       ` : `
         <th rowspan="2" style="border:1px solid #666;padding:${sizeStyles.headPad};text-align:center;background:#f3f4f6;width:36px;">#</th>
         <th rowspan="2" style="border:1px solid #666;padding:${sizeStyles.headPad};text-align:center;background:#f3f4f6;width:190px;">ชื่อ-สกุล</th>
         <th rowspan="2" style="border:1px solid #666;padding:${sizeStyles.headPad};text-align:center;background:#f3f4f6;width:85px;">ตำแหน่ง</th>
-        <th rowspan="2" style="border:1px solid #666;padding:${sizeStyles.headPad};text-align:center;background:#f3f4f6;width:125px;">วิทยฐานะ</th>
+        ${showLevelColumn ? `<th rowspan="2" style="border:1px solid #666;padding:${sizeStyles.headPad};text-align:center;background:#f3f4f6;width:125px;">วิทยฐานะ</th>` : ""}
         <th rowspan="2" style="border:1px solid #666;padding:${sizeStyles.headPad};text-align:center;background:#f3f4f6;min-width:120px;">กลุ่มสาระการเรียนรู้ / ฝ่ายงาน</th>
       `;
 
@@ -552,7 +583,7 @@ export default function ReportsPage() {
         `;
       }).join("");
 
-      const fixedTotalColSpan = groupByGroup ? 4 : 5;
+      const fixedTotalColSpan = fixedColsCount;
 
       const fullHtml = `
         <!DOCTYPE html>
@@ -764,6 +795,15 @@ export default function ReportsPage() {
             >
               <FileSpreadsheet className="w-4 h-4 text-emerald-600" /> Export Excel
             </button>
+            {viewMode === "individual" && (
+              <button 
+                onClick={handleExportCSV} 
+                className="h-11 px-4 rounded-xl bg-amber-50 text-amber-700 hover:bg-amber-100 dark:bg-amber-500/10 dark:text-amber-400 dark:hover:bg-amber-500/20 font-semibold text-sm border border-amber-200 dark:border-amber-800 transition-colors flex items-center justify-center gap-2 w-full md:w-auto cursor-pointer"
+                title="ส่งออกเป็นไฟล์ CSV"
+              >
+                <FileText className="w-4 h-4 text-amber-600" /> Export CSV
+              </button>
+            )}
             <button 
               onClick={handlePrint} 
               className="h-11 px-4 rounded-xl bg-blue-50 text-blue-700 hover:bg-blue-100 dark:bg-blue-500/10 dark:text-blue-400 dark:hover:bg-blue-500/20 font-semibold text-sm border border-blue-200 dark:border-blue-800 transition-colors flex items-center justify-center gap-2 w-full md:w-auto cursor-pointer"
@@ -911,7 +951,7 @@ export default function ReportsPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
                   {/* 1. Scope Selector */}
                   <div className="space-y-1.5">
                     <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300">
@@ -988,14 +1028,35 @@ export default function ReportsPage() {
                           : "bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400"
                       }`}
                     >
-                      <span>{hideUnusedTypes ? "✓ ซ่อนประเภทที่ไม่มีการลา" : "แสดงทุกประเภท (11 ประเภท)"}</span>
+                      <span>{hideUnusedTypes ? "✓ ซ่อนประเภทที่ว่าง" : "แสดงครบ 11 ประเภท"}</span>
                       <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-100 dark:bg-purple-900/60 font-bold">
                         {viewModel.visibleTypes.length} ประเภท
                       </span>
                     </button>
                   </div>
 
-                  {/* 4. Orientation & Font Controls */}
+                  {/* 4. Academic Standing (วิทยฐานะ) Toggle */}
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300">
+                      คอลัมน์วิทยฐานะ
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setShowLevelColumn(!showLevelColumn)}
+                      className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium border transition-all ${
+                        showLevelColumn
+                          ? "bg-purple-50/70 border-purple-200 dark:bg-purple-950/30 dark:border-purple-800 text-purple-700 dark:text-purple-300"
+                          : "bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400"
+                      }`}
+                    >
+                      <span>{showLevelColumn ? "✓ แสดงวิทยฐานะ" : "ซ่อนวิทยฐานะ"}</span>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-100 dark:bg-purple-900/60 font-bold">
+                        {showLevelColumn ? "มีวิทยฐานะ" : "ไม่มี"}
+                      </span>
+                    </button>
+                  </div>
+
+                  {/* 5. Orientation & Font Controls */}
                   <div className="space-y-1.5">
                     <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300">
                       แนวกระดาษและฟอนต์
@@ -1117,6 +1178,12 @@ export default function ReportsPage() {
                       <FileSpreadsheet className="w-3.5 h-3.5" /> ส่งออก Excel
                     </button>
                     <button 
+                      onClick={handleExportCSV} 
+                      className="px-3.5 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <FileText className="w-3.5 h-3.5" /> ส่งออก CSV
+                    </button>
+                    <button 
                       onClick={handlePrint} 
                       className="px-3.5 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-semibold text-xs shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
                     >
@@ -1137,7 +1204,9 @@ export default function ReportsPage() {
                         <th rowSpan={2} className="px-2 py-2 text-center border-r border-slate-300 dark:border-slate-700 w-9 font-bold">#</th>
                         <th rowSpan={2} className="px-3 py-2 border-r border-slate-300 dark:border-slate-700 min-w-[190px] font-bold">ชื่อ-สกุล</th>
                         <th rowSpan={2} className="px-3 py-2 border-r border-slate-300 dark:border-slate-700 min-w-[85px] font-bold">ตำแหน่ง</th>
-                        <th rowSpan={2} className="px-3 py-2 border-r border-slate-300 dark:border-slate-700 min-w-[125px] font-bold">วิทยฐานะ</th>
+                        {showLevelColumn && (
+                          <th rowSpan={2} className="px-3 py-2 border-r border-slate-300 dark:border-slate-700 min-w-[125px] font-bold">วิทยฐานะ</th>
+                        )}
                         {!groupByGroup && (
                           <th rowSpan={2} className="px-3 py-2 border-r border-slate-300 dark:border-slate-700 min-w-[150px] font-bold">กลุ่มสาระการเรียนรู้ / ฝ่ายงาน</th>
                         )}
@@ -1167,7 +1236,7 @@ export default function ReportsPage() {
                       {viewModel.displayRows.length === 0 ? (
                         <tr>
                           <td 
-                            colSpan={(groupByGroup ? 4 : 5) + viewModel.visibleTypes.length * 2 + 2} 
+                            colSpan={(groupByGroup ? 3 : 4) + (showLevelColumn ? 1 : 0) + viewModel.visibleTypes.length * 2 + 2} 
                             className="text-center py-16 text-slate-400"
                           >
                             ไม่พบข้อมูลบุคลากรตามเงื่อนไขที่เลือก
@@ -1179,7 +1248,7 @@ export default function ReportsPage() {
                             {/* Group Banner Row */}
                             <tr className="bg-slate-100/80 dark:bg-slate-800/60 font-bold text-slate-800 dark:text-slate-200">
                               <td 
-                                colSpan={4 + viewModel.visibleTypes.length * 2 + 2} 
+                                colSpan={(groupByGroup ? 3 : 4) + (showLevelColumn ? 1 : 0) + viewModel.visibleTypes.length * 2 + 2} 
                                 className="px-3 py-2 border-y border-slate-200 dark:border-slate-700 text-xs text-purple-700 dark:text-purple-300"
                               >
                                 📁 {g.groupName} <span className="font-normal text-slate-500">({g.rows.length} คน)</span>
@@ -1194,7 +1263,9 @@ export default function ReportsPage() {
                                 <td className={`${previewCellPadding} text-center text-slate-400 border-r border-slate-100 dark:border-slate-800 w-9`}>{r.index}</td>
                                 <td className={`${previewCellPadding} font-medium text-slate-900 dark:text-white border-r border-slate-100 dark:border-slate-800 min-w-[190px]`}>{r.userName}</td>
                                 <td className={`${previewCellPadding} text-slate-500 dark:text-slate-400 border-r border-slate-100 dark:border-slate-800 min-w-[85px]`}>{tPosition(r.position)}</td>
-                                <td className={`${previewCellPadding} text-slate-500 dark:text-slate-400 border-r border-slate-100 dark:border-slate-800 min-w-[125px]`}>{r.level || "-"}</td>
+                                {showLevelColumn && (
+                                  <td className={`${previewCellPadding} text-slate-500 dark:text-slate-400 border-r border-slate-100 dark:border-slate-800 min-w-[125px]`}>{r.level || "-"}</td>
+                                )}
                                 {viewModel.visibleTypes.map(t => {
                                   const times = r.byType[t.type]?.times || 0;
                                   const days = r.byType[t.type]?.days || 0;
@@ -1228,7 +1299,9 @@ export default function ReportsPage() {
                             <td className={`${previewCellPadding} text-center text-slate-400 border-r border-slate-100 dark:border-slate-800 w-9`}>{r.index}</td>
                             <td className={`${previewCellPadding} font-medium text-slate-900 dark:text-white border-r border-slate-100 dark:border-slate-800 min-w-[190px]`}>{r.userName}</td>
                             <td className={`${previewCellPadding} text-slate-500 dark:text-slate-400 border-r border-slate-100 dark:border-slate-800 min-w-[85px]`}>{tPosition(r.position)}</td>
-                            <td className={`${previewCellPadding} text-slate-500 dark:text-slate-400 border-r border-slate-100 dark:border-slate-800 min-w-[125px]`}>{r.level || "-"}</td>
+                            {showLevelColumn && (
+                              <td className={`${previewCellPadding} text-slate-500 dark:text-slate-400 border-r border-slate-100 dark:border-slate-800 min-w-[125px]`}>{r.level || "-"}</td>
+                            )}
                             <td className={`${previewCellPadding} text-slate-500 dark:text-slate-400 border-r border-slate-100 dark:border-slate-800 text-xs`}>{r.subjectGroup}</td>
                             {viewModel.visibleTypes.map(t => {
                               const times = r.byType[t.type]?.times || 0;
@@ -1260,7 +1333,7 @@ export default function ReportsPage() {
                       <tfoot className="sticky bottom-0 z-10 bg-slate-100 dark:bg-slate-800 border-t-2 border-slate-300 dark:border-slate-700 font-bold text-slate-900 dark:text-white">
                         <tr>
                           <td 
-                            colSpan={groupByGroup ? 4 : 5} 
+                            colSpan={(groupByGroup ? 3 : 4) + (showLevelColumn ? 1 : 0)} 
                             className="px-3 py-2 text-center border-r border-slate-300 dark:border-slate-700"
                           >
                             รวมทั้งสิ้น ({viewModel.totals.totalUsers} คน)

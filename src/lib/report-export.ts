@@ -159,12 +159,10 @@ export const POSITION_RANK: Record<string, number> = {
 };
 
 export const ACADEMIC_LEVEL_SCORES: Record<string, number> = {
-  "เชี่ยวชาญพิเศษ": 6,
-  "เชี่ยวชาญ": 5,
-  "ชำนาญการพิเศษ": 4,
-  "ชำนาญการ": 3,
-  "ครู": 2,
-  "ครูผู้ช่วย": 1,
+  "เชี่ยวชาญพิเศษ": 4,
+  "เชี่ยวชาญ": 3,
+  "ชำนาญการพิเศษ": 2,
+  "ชำนาญการ": 1,
 };
 
 export function getAcademicLevelScore(level?: string | null): number {
@@ -242,7 +240,7 @@ export function sanitizeFontSize(val: unknown): number {
   return Math.min(FONT_MAX, Math.max(FONT_MIN, Math.round(n))); // clamp
 }
 
-export function escapeHtml(str: any): string {
+export function escapeHtml(str: unknown): string {
   if (str === null || str === undefined) return "";
   return String(str)
     .replace(/&/g, "&amp;")
@@ -278,7 +276,7 @@ export function buildExportViewModel(
 
   // 2. Sorting & Grouping
   let displayRows: DisplayRow[] = [];
-  let groupedRows: GroupedDisplayRows[] = [];
+  const groupedRows: GroupedDisplayRows[] = [];
   const defaultGroup = "ไม่ระบุกลุ่มสาระ/ฝ่ายงาน";
 
   if (options.groupByGroup) {
@@ -290,6 +288,10 @@ export function buildExportViewModel(
     }
 
     const sortedGroups = Array.from(map.keys()).sort((a, b) => {
+      if (a === "ผู้อำนวยการโรงเรียน") return -1;
+      if (b === "ผู้อำนวยการโรงเรียน") return 1;
+      if (a === "รองผู้อำนวยการโรงเรียน") return -1;
+      if (b === "รองผู้อำนวยการโรงเรียน") return 1;
       if (a === defaultGroup) return 1;
       if (b === defaultGroup) return -1;
       return a.localeCompare(b, "th");
@@ -376,3 +378,115 @@ export function buildExportViewModel(
     totals
   };
 }
+
+export interface CanonicalColumn {
+  key: string;
+  header: string;
+  width?: string;
+  align?: "left" | "center" | "right";
+  isLeaveType?: boolean;
+  leaveTypeKey?: string;
+}
+
+export function getCanonicalReportColumns(options: {
+  showLevelColumn: boolean;
+  visibleTypes: VisibleLeaveType[];
+  groupByGroup?: boolean;
+}): CanonicalColumn[] {
+  const cols: CanonicalColumn[] = [
+    { key: "index", header: "ลำดับ", width: "40px", align: "center" },
+    { key: "userName", header: "ชื่อ - สกุล", width: "160px", align: "left" },
+    { key: "position", header: "ตำแหน่ง", width: "110px", align: "left" },
+  ];
+
+  if (options.showLevelColumn) {
+    cols.push({ key: "level", header: "วิทยฐานะ", width: "110px", align: "left" });
+  }
+
+  if (!options.groupByGroup) {
+    cols.push({ key: "subjectGroup", header: "กลุ่มสาระ/ฝ่ายงาน", width: "150px", align: "left" });
+  }
+
+  for (const t of options.visibleTypes) {
+    cols.push({
+      key: `type_${t.type}`,
+      header: t.name,
+      align: "center",
+      isLeaveType: true,
+      leaveTypeKey: t.type
+    });
+  }
+
+  cols.push(
+    { key: "totalTimes", header: "รวมครั้ง", width: "45px", align: "center" },
+    { key: "totalDays", header: "รวมวัน", width: "45px", align: "center" }
+  );
+
+  return cols;
+}
+
+export function generateCanonicalCsv(
+  viewModel: ReportViewModel,
+  options: {
+    showLevelColumn: boolean;
+    groupByGroup?: boolean;
+  }
+): string {
+  const { visibleTypes, displayRows, totals } = viewModel;
+
+  const escapeCsv = (val: unknown) => {
+    const s = String(val ?? "");
+    if (s.includes(",") || s.includes('"') || s.includes("\n") || s.includes("\r")) {
+      return `"${s.replace(/"/g, '""')}"`;
+    }
+    return s;
+  };
+
+  const headerRow = [
+    "ลำดับ",
+    "ชื่อ-สกุล",
+    "ตำแหน่ง",
+    ...(options.showLevelColumn ? ["วิทยฐานะ"] : []),
+    ...(options.groupByGroup ? [] : ["กลุ่มสาระการเรียนรู้ / ฝ่ายงาน"]),
+    ...visibleTypes.flatMap(t => [`${t.name} (ครั้ง)`, `${t.name} (วัน)`]),
+    "สรุปรวมครั้ง",
+    "สรุปรวมวัน"
+  ];
+
+  const rows: string[] = [
+    headerRow.map(escapeCsv).join(",")
+  ];
+
+  for (const r of displayRows) {
+    const row = [
+      r.index,
+      r.userName,
+      r.position,
+      ...(options.showLevelColumn ? [r.level || "-"] : []),
+      ...(options.groupByGroup ? [] : [r.subjectGroup]),
+      ...visibleTypes.flatMap(t => [
+        r.byType[t.type]?.times || 0,
+        r.byType[t.type]?.days || 0
+      ]),
+      r.totalTimes,
+      r.totalDays
+    ];
+    rows.push(row.map(escapeCsv).join(","));
+  }
+
+  const fixedColsCount = (options.groupByGroup ? 3 : 4) + (options.showLevelColumn ? 1 : 0);
+  const totalRow = [
+    "รวมทั้งสิ้น",
+    ...Array(fixedColsCount - 1).fill(""),
+    ...visibleTypes.flatMap(t => [
+      totals.byType[t.type]?.times || 0,
+      totals.byType[t.type]?.days || 0
+    ]),
+    totals.totalTimes,
+    totals.totalDays
+  ];
+  rows.push(totalRow.map(escapeCsv).join(","));
+
+  return "\uFEFF" + rows.join("\r\n");
+}
+

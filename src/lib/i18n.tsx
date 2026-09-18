@@ -1125,9 +1125,12 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
       "กิจกรรมพัฒนาผู้เรียน": { th: "กิจกรรมพัฒนาผู้เรียน", en: "Student Development Activities" },
       "งานแนะแนว": { th: "งานแนะแนว", en: "Guidance" },
       "นักพัฒนาโรงเรียนและบุคลากรอื่นๆ": { th: "นักพัฒนาโรงเรียนและบุคลากรอื่นๆ", en: "School Development & Others" },
-      "แอดมิน/ผู้อำนวยการ": { th: "แอดมิน / ผู้อำนวยการ", en: "Admin / Director" },
-      "ผู้อำนวยการ/ผู้บริหาร": { th: "ผู้อำนวยการ / ผู้บริหาร", en: "Director / Executive" },
-      "ผู้อำนวยการ": { th: "ผู้อำนวยการ / ผู้บริหาร", en: "Director / Executive" },
+      "ผู้อำนวยการโรงเรียน": { th: "ผู้อำนวยการโรงเรียน", en: "School Director" },
+      "รองผู้อำนวยการโรงเรียน": { th: "รองผู้อำนวยการโรงเรียน", en: "Deputy Director" },
+      "ผู้อำนวยการ/ผู้บริหาร": { th: "ผู้อำนวยการโรงเรียน", en: "School Director" },
+      "แอดมิน/ผู้อำนวยการ": { th: "รองผู้อำนวยการโรงเรียน", en: "Deputy Director" },
+      "ผู้อำนวยการ": { th: "ผู้อำนวยการโรงเรียน", en: "School Director" },
+      "รองผู้อำนวยการ": { th: "รองผู้อำนวยการโรงเรียน", en: "Deputy Director" },
       "แอดมิน": { th: "แอดมิน", en: "Admin" }
     }
     const match = mapping[cleaned]
@@ -1136,21 +1139,25 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
   }
 
   const tLevel = (lvl?: string): string => {
-    if (!lvl) return lang === "en" ? "Unspecified" : "ไม่ระบุ"
+    if (!lvl) return lang === "en" ? "None / General" : "ไม่มีวิทยฐานะ"
     const mapping: Record<string, { th: string, en: string }> = {
-      "ครูผู้ช่วย": { th: "ครูผู้ช่วย", en: "Assistant Teacher" },
-      "ครู": { th: "ครู", en: "Teacher" },
-      "ครูชำนาญการ": { th: "ครูชำนาญการ", en: "Professional Teacher" },
-      "ครูชำนาญการพิเศษ": { th: "ครูชำนาญการพิเศษ", en: "Senior Professional Teacher" },
-      "ครูเชี่ยวชาญ": { th: "ครูเชี่ยวชาญ", en: "Expert Teacher" },
-      "ครูเชี่ยวชาญพิเศษ": { th: "ครูเชี่ยวชาญพิเศษ", en: "Special Expert Teacher" },
-      "รองผู้อำนวยการชำนาญการ": { th: "รองผู้อำนวยการชำนาญการ", en: "Professional Deputy Director" },
-      "รองผู้อำนวยการชำนาญการพิเศษ": { th: "รองผู้อำนวยการชำนาญการพิเศษ", en: "Senior Professional Deputy Director" },
-      "รองผู้อำนวยการเชี่ยวชาญ": { th: "รองผู้อำนวยการเชี่ยวชาญ", en: "Expert Deputy Director" },
-      "ผู้อำนวยการชำนาญการ": { th: "ผู้อำนวยการชำนาญการ", en: "Professional Director" },
-      "ผู้อำนวยการชำนาญการพิเศษ": { th: "ผู้อำนวยการชำนาญการพิเศษ", en: "Senior Professional Director" },
-      "ผู้อำนวยการเชี่ยวชาญ": { th: "ผู้อำนวยการเชี่ยวชาญ", en: "Expert Director" },
-      "ผู้อำนวยการเชี่ยวชาญพิเศษ": { th: "ผู้อำนวยการเชี่ยวชาญพิเศษ", en: "Special Expert Director" }
+      "ชำนาญการ": { th: "ชำนาญการ", en: "Professional" },
+      "ชำนาญการพิเศษ": { th: "ชำนาญการพิเศษ", en: "Senior Professional" },
+      "เชี่ยวชาญ": { th: "เชี่ยวชาญ", en: "Expert" },
+      "เชี่ยวชาญพิเศษ": { th: "เชี่ยวชาญพิเศษ", en: "Special Expert" },
+      "ครูผู้ช่วย": { th: "ครูผู้ช่วย (ตำแหน่ง)", en: "Assistant Teacher (Position)" },
+      "ครู": { th: "ครู (ตำแหน่ง)", en: "Teacher (Position)" },
+      "ครูชำนาญการ": { th: "ชำนาญการ", en: "Professional" },
+      "ครูชำนาญการพิเศษ": { th: "ชำนาญการพิเศษ", en: "Senior Professional" },
+      "ครูเชี่ยวชาญ": { th: "เชี่ยวชาญ", en: "Expert" },
+      "ครูเชี่ยวชาญพิเศษ": { th: "เชี่ยวชาญพิเศษ", en: "Special Expert" },
+      "รองผู้อำนวยการชำนาญการ": { th: "ชำนาญการ", en: "Professional" },
+      "รองผู้อำนวยการชำนาญการพิเศษ": { th: "ชำนาญการพิเศษ", en: "Senior Professional" },
+      "รองผู้อำนวยการเชี่ยวชาญ": { th: "เชี่ยวชาญ", en: "Expert" },
+      "ผู้อำนวยการชำนาญการ": { th: "ชำนาญการ", en: "Professional" },
+      "ผู้อำนวยการชำนาญการพิเศษ": { th: "ชำนาญการพิเศษ", en: "Senior Professional" },
+      "ผู้อำนวยการเชี่ยวชาญ": { th: "เชี่ยวชาญ", en: "Expert" },
+      "ผู้อำนวยการเชี่ยวชาญพิเศษ": { th: "เชี่ยวชาญพิเศษ", en: "Special Expert" }
     }
     const match = mapping[lvl]
     if (match) return lang === "en" ? match.en : match.th

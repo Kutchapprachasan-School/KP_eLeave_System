@@ -19,6 +19,7 @@ import {
 import { getLeaveCycleFilter } from "@/lib/cycle";
 import { withTelemetry } from "@/lib/telemetry";
 import { uploadAvatarWithFallback } from "@/services/storage/resilient-upload";
+import { AcademicStandingSchema, validateSubjectGroupNotLegacy } from "@/lib/permissions";
 
 async function requireSuperAdmin() {
   const session = await getSession();
@@ -292,6 +293,15 @@ export async function updateUserProfile(userId: string, data: { name?: string; e
       }
     }
 
+    let parsedLevel: string | null | undefined = undefined;
+    if (data.level !== undefined) {
+      parsedLevel = AcademicStandingSchema.parse(data.level);
+    }
+
+    if (data.subjectGroup !== undefined) {
+      validateSubjectGroupNotLegacy(data.subjectGroup);
+    }
+
     await prisma.user.update({
       where: { id: userId },
       data: {
@@ -301,7 +311,7 @@ export async function updateUserProfile(userId: string, data: { name?: string; e
         ...(data.role && { role: data.role }),
         ...(data.position !== undefined && { position: data.position }),
         ...(data.subjectGroup !== undefined && { subjectGroup: data.subjectGroup }),
-        ...(data.level !== undefined && { level: data.level }),
+        ...(data.level !== undefined && { level: parsedLevel }),
       }
     });
 
@@ -707,6 +717,8 @@ export async function createUserByAdmin(data: { name: string; email?: string; us
     }
 
     const role = data.position === "แอดมิน" ? "ADMIN" : "TEACHER";
+    const parsedLevel = AcademicStandingSchema.parse(data.level);
+    validateSubjectGroupNotLegacy(data.subjectGroup);
     
     // Create user record
     const newUser = await prisma.user.create({
@@ -717,7 +729,7 @@ export async function createUserByAdmin(data: { name: string; email?: string; us
         role,
         position: data.position,
         subjectGroup: data.subjectGroup,
-        level: data.level || null,
+        level: parsedLevel,
         isApproved: true, // auto approve admin created users
         emailVerified: true
       }

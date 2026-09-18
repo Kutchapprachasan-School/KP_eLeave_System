@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 
 import { useSearchParams, useRouter } from "next/navigation";
 
-import { getSystemSettings, updateSystemSettings, updateFooter, generateBackup, getLeaveConfigs, updateLeaveConfig, updateLeaveRules, setImpersonationCookie, clearImpersonation, getEligibleInspectors, updateDefaultInspector, getSimpleUsersList, getActiveDutyAssignments, updateAppointedDuties } from "@/app/actions/settings";
+import { getSystemSettings, updateSystemSettings, updateFooter, generateBackup, getLeaveConfigs, updateLeaveConfig, updateLeaveRules, setImpersonationCookie, clearImpersonation, getEligibleInspectors, updateDefaultInspector, getSimpleUsersList, getActiveDutyAssignments, updateAppointedDuties, getEligibleAppointees } from "@/app/actions/settings";
 
 import { archiveCurrentCycle, importBackupFromJson, exportLeaveBackup, importLeaveBackup, importLeaveSimple, getImportHistory, undoImportLeave } from "@/app/actions/archive";
 
@@ -380,27 +380,26 @@ export default function SettingsPage() {
   const loadAppointedDuties = useCallback(async () => {
     setLoadingDuties(true);
     try {
-      const [dutiesRes, usersRes] = await Promise.allSettled([
+      const [dutiesRes, appointeesRes] = await Promise.allSettled([
         getActiveDutyAssignments(),
-        getSimpleUsersList(),
+        getEligibleAppointees(),
       ]);
       if (dutiesRes.status === "fulfilled") {
         setAppointedDuties(dutiesRes.value || []);
       } else {
         console.error("Failed to load active duties:", dutiesRes.reason);
       }
-      if (usersRes.status === "fulfilled" && usersRes.value && usersRes.value.length > 0) {
-        setSimpleUsers(usersRes.value);
-        setUserList(usersRes.value);
-      } else if (userList.length > 0) {
-        setSimpleUsers(userList);
+      if (appointeesRes.status === "fulfilled") {
+        setSimpleUsers(appointeesRes.value || []);
+      } else {
+        console.error("Failed to load eligible appointees:", appointeesRes.reason);
       }
     } catch (e) {
       console.error("Failed in loadAppointedDuties:", e);
     } finally {
       setLoadingDuties(false);
     }
-  }, [userList]);
+  }, []);
 
   const handleAssignDuty = async (
     dutyType: string,
@@ -5563,112 +5562,82 @@ function doPost(e) {
     ];
 
     const roles = [
-
-      { id: "ADMIN", nameTh: "แอดมิน", nameEn: "Admin" },
-
-      { id: "DIRECTOR", nameTh: "ผู้อำนวยการ", nameEn: "Director" },
-
-      { id: "HR", nameTh: "หัวหน้างานบุคคล", nameEn: "HR Head" },
-
-      { id: "HR_STAFF", nameTh: "เจ้าหน้าที่บุคคล", nameEn: "HR Staff" },
-
-      { id: "INSPECTOR", nameTh: "ผู้ตรวจสอบ", nameEn: "Inspector" },
-
-      { id: "DEPT_HEAD", nameTh: "หัวหน้าหมวด/กลุ่มสาระ", nameEn: "Department Head" },
-
-      { id: "REPAIR_MANAGER", nameTh: "ผู้จัดการเรื่องระบบซ่อม", nameEn: "Repair Manager" },
-
-      { id: "TEACHER", nameTh: "ครู/บุคลากรทั่วไป", nameEn: "Teacher" },
-
+      { id: "ADMIN", nameTh: "ผู้ดูแลระบบ (Admin)", nameEn: "Admin" },
+      { id: "DIRECTOR", nameTh: "ผู้อำนวยการโรงเรียน", nameEn: "Director" },
+      { id: "DEPUTY_DIRECTOR", nameTh: "รองผู้อำนวยการโรงเรียน", nameEn: "Deputy Director" },
+      { id: "TEACHER", nameTh: "ครูและบุคลากรทั่วไป", nameEn: "Teacher" },
     ];
 
     const handleCheckboxChange = (moduleId: string, roleId: string, checked: boolean) => {
-
       setRolePermissions((prev: any) => {
-
         const currentList = prev[moduleId] || [];
-
         let newList = [];
-
         if (checked) {
-
           newList = [...currentList, roleId];
-
         } else {
-
           newList = currentList.filter((r: string) => r !== roleId);
-
         }
-
         return {
-
           ...prev,
-
           [moduleId]: newList
-
         };
-
       });
-
     };
 
     const handleSavePermissions = async (e: React.FormEvent) => {
-
       e.preventDefault();
-
       setIsSavingPermissions(true);
-
       try {
-
         const res = await updateSystemSettings({
-
           schoolName,
-
           subheader,
-
           rolePermissions: JSON.stringify(rolePermissions)
-
         });
-
         if (res.success) {
-
           showToast("success", lang === "en" ? "Permissions updated successfully" : "บันทึกสิทธิ์การเข้าใช้งานเรียบร้อยแล้ว");
-
         } else {
-
           showToast("error", "บันทึกไม่สำเร็จ");
-
         }
-
       } catch (err: any) {
-
         showToast("error", err.message || "เกิดข้อผิดพลาด");
-
       } finally {
-
         setIsSavingPermissions(false);
-
       }
-
     };
 
     return (
-
       <form onSubmit={handleSavePermissions} className="space-y-6">
-
         <div className="bg-white dark:bg-gray-900 rounded-2xl p-6 md:p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-150 dark:border-gray-800 relative overflow-hidden">
-
           <SectionHeader title={sectionTitles.permissions} />
-
-          <p className="text-xs text-gray-500 mb-6 leading-relaxed">
-
+          <p className="text-xs text-gray-500 mb-4 leading-relaxed">
             {lang === "en" 
-
-              ? "Configure which user levels can view or modify specific modules/features of the system." 
-
-              : "กำหนดสิทธิ์ให้แต่ละระดับบทบาทของบุคลากรในการเข้าใช้งาน แสดงผล หรือจัดการในส่วนต่างๆ ของระบบ"}
-
+              ? "Configure permissions for primary system roles (User.role). Specialized duty roles (HR, Inspector, Academic Planning, Document Clerk) are managed under Appointed Duties." 
+              : "กำหนดสิทธิ์ให้แต่ละระดับบทบาทหลักของระบบ (User.role) สำหรับหน้าที่พิเศษ (หัวหน้างานบุคคล, ผู้ตรวจสอบ, ฝ่ายวิชาการ, สารบรรณ) ให้จัดการที่เมนู 'หน้าที่ที่ได้รับแต่งตั้ง'"}
           </p>
+
+          {/* Banner linking to Appointed Duties */}
+          <div className="mb-6 p-4 rounded-xl bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800/60 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <ShieldCheck className="w-5 h-5 text-purple-600 dark:text-purple-400 shrink-0" />
+              <div>
+                <span className="text-xs font-bold text-purple-950 dark:text-purple-200">
+                  {lang === "en" ? "Looking for Appointed Duty Assignments?" : "ต้องการมอบหมายหน้าที่พิเศษและสิทธิ์รายบุคคล?"}
+                </span>
+                <p className="text-[11px] text-purple-700 dark:text-purple-300">
+                  {lang === "en"
+                    ? "Manage HR Head, Leave Inspectors, Academic Planners, and Document Clerks via Appointed Duties."
+                    : "แต่งตั้งครูผู้ทำหน้าที่หัวหน้างานบุคคล, ผู้ตรวจสอบวันลา, ผู้จัดทำตารางสอน, เจ้าหน้าที่สารบรรณ ได้ที่เมนูหน้าที่แต่งตั้ง"}
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setActiveSection("appointed-duties")}
+              className="px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold shrink-0 transition-colors cursor-pointer flex items-center gap-1"
+            >
+              <span>{lang === "en" ? "Appointed Duties ›" : "หน้าที่แต่งตั้ง ›"}</span>
+            </button>
+          </div>
 
           <div className="overflow-x-auto rounded-xl border border-gray-100 dark:border-gray-800">
 
@@ -7980,229 +7949,48 @@ function doPost(e) {
           ))}
         </div>
 
-        {/* ─── Academic Planning: Teacher Delegation ─── */}
-        <div className="mt-6 bg-purple-50/50 dark:bg-purple-950/20 rounded-2xl border border-purple-200 dark:border-purple-800 p-5">
-          <div className="flex items-center gap-2 mb-3">
-            <Layers className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-            <h4 className="font-bold text-sm text-purple-900 dark:text-purple-200">
-              {lang === "en" ? "Academic Planning — Authorized Teachers" : "ศูนย์วางแผนวิชาการ — กำหนดครูที่เข้าถึงได้"}
-            </h4>
+        {/* ─── Canonical Appointed Duties Notice ─── */}
+        <div className="mt-6 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-purple-100 dark:bg-purple-950 text-purple-600 dark:text-purple-400 flex items-center justify-center shrink-0">
+              <ShieldCheck className="w-5 h-5" />
+            </div>
+            <div>
+              <p className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                {lang === "en" ? "Appointed Duty Roles & Specialized Permissions" : "การแต่งตั้งบทบาทหน้าที่พิเศษและการเข้าถึงระบบย่อย"}
+              </p>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                {lang === "en"
+                  ? "Appoint teachers to specialized duties (e.g. Academic Planning, Document Clerk, Leave Inspector) via the Appointed Duties section."
+                  : "แต่งตั้งครูและบุคลากรเพื่อปฏิบัติหน้าที่พิเศษ (เช่น ผู้จัดทำตารางสอน, เจ้าหน้าที่สารบรรณ, ผู้ตรวจสอบวันลา) ได้ที่เมนู 'หน้าที่ที่ได้รับแต่งตั้ง'"}
+              </p>
+            </div>
           </div>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
-            {lang === "en"
-              ? "Only Admin and the teachers listed below can access the Academic Planning Platform, even when the toggle is ON."
-              : "เฉพาะแอดมินและครูที่ระบุด้านล่างเท่านั้นที่สามารถเข้าถึงศูนย์วางแผนวิชาการได้ แม้ระบบจะเปิดใช้งานแล้ว"}
-          </p>
-
-          {/* Selected teachers tags */}
-          <div className="flex flex-wrap gap-2 mb-3">
-            {academicPlanningAllowedUserIds.map((userId) => {
-              const u = userList.find((x: any) => x.id === userId);
-              return (
-                <span
-                  key={userId}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-purple-100 dark:bg-purple-900/50 text-purple-800 dark:text-purple-200 text-xs font-medium border border-purple-200 dark:border-purple-700"
-                >
-                  {u ? `${u.prefix || ""}${u.firstName} ${u.lastName}` : userId}
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      const updated = academicPlanningAllowedUserIds.filter((id) => id !== userId);
-                      setAcademicPlanningAllowedUserIds(updated);
-                      try {
-                        await updateSystemSettings({ academicPlanningAllowedUserIds: updated.join(",") });
-                        showToast("success", lang === "en" ? "Removed" : "ลบสำเร็จ");
-                      } catch (e: any) {
-                        showToast("error", e?.message ?? "เกิดข้อผิดพลาด");
-                      }
-                    }}
-                    className="hover:text-red-600 dark:hover:text-red-400 transition-colors"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                </span>
-              );
-            })}
-            {academicPlanningAllowedUserIds.length === 0 && (
-              <span className="text-xs text-gray-400 dark:text-gray-500 italic">
-                {lang === "en" ? "No teachers assigned yet — only Admin can access" : "ยังไม่ได้กำหนดครู — เฉพาะแอดมินเข้าถึงได้"}
-              </span>
-            )}
-          </div>
-
-          {/* Search & Add */}
-          <div className="relative">
-            <input
-              type="text"
-              placeholder={lang === "en" ? "Search teacher to add..." : "ค้นหาครูเพื่อเพิ่ม..."}
-              value={apSearchQuery}
-              onChange={(e) => {
-                setApSearchQuery(e.target.value);
-                setShowApDropdown(true);
-              }}
-              onFocus={() => setShowApDropdown(true)}
-              className="w-full px-4 py-2.5 rounded-xl bg-white dark:bg-gray-900 border border-purple-200 dark:border-purple-700 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-400 dark:focus:ring-purple-600"
-            />
-            {showApDropdown && apSearchQuery.length > 0 && (
-              <div className="absolute z-50 w-full mt-1 max-h-48 overflow-y-auto bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl">
-                {userList
-                  .filter(
-                    (u: any) =>
-                      !academicPlanningAllowedUserIds.includes(u.id) &&
-                      (`${u.prefix || ""}${u.firstName} ${u.lastName}`
-                        .toLowerCase()
-                        .includes(apSearchQuery.toLowerCase()))
-                  )
-                  .slice(0, 10)
-                  .map((u: any) => (
-                    <button
-                      key={u.id}
-                      type="button"
-                      onClick={async () => {
-                        const updated = [...academicPlanningAllowedUserIds, u.id];
-                        setAcademicPlanningAllowedUserIds(updated);
-                        setApSearchQuery("");
-                        setShowApDropdown(false);
-                        try {
-                          await updateSystemSettings({ academicPlanningAllowedUserIds: updated.join(",") });
-                          showToast("success", lang === "en" ? "Added" : "เพิ่มสำเร็จ");
-                        } catch (e: any) {
-                          showToast("error", e?.message ?? "เกิดข้อผิดพลาด");
-                        }
-                      }}
-                      className="w-full text-left px-4 py-2 text-sm hover:bg-purple-50 dark:hover:bg-purple-950/30 transition-colors flex items-center gap-2"
-                    >
-                      <UserCheck className="w-4 h-4 text-purple-500" />
-                      <span>{u.prefix || ""}{u.firstName} {u.lastName}</span>
-                      <span className="ml-auto text-xs text-gray-400">{u.position || ""}</span>
-                    </button>
-                  ))}
-                {userList.filter(
-                  (u: any) =>
-                    !academicPlanningAllowedUserIds.includes(u.id) &&
-                    (`${u.prefix || ""}${u.firstName} ${u.lastName}`
-                      .toLowerCase()
-                      .includes(apSearchQuery.toLowerCase()))
-                ).length === 0 && (
-                  <p className="px-4 py-2 text-xs text-gray-400">{lang === "en" ? "No results" : "ไม่พบผลลัพธ์"}</p>
-                )}
-              </div>
-            )}
-          </div>
+          <button
+            type="button"
+            onClick={() => setActiveSection("appointed-duties")}
+            className="px-3.5 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold shrink-0 transition-colors cursor-pointer flex items-center gap-1"
+          >
+            <span>{lang === "en" ? "Manage Duties" : "จัดการหน้าที่แต่งตั้ง"}</span>
+            <ChevronRight className="w-3.5 h-3.5" />
+          </button>
         </div>
 
-        {/* ─── Document System: Document Officers / Clerks Delegation ─── */}
+        {/* Document Management Policy Mode (Direct vs Workflow) */}
         <div className="mt-6 bg-orange-50/50 dark:bg-orange-950/20 rounded-2xl border border-orange-200 dark:border-orange-800 p-5">
           <div className="flex items-center gap-2 mb-3">
             <ClipboardList className="w-4 h-4 text-orange-600 dark:text-orange-400" />
             <h4 className="font-bold text-sm text-orange-900 dark:text-orange-200">
-              {lang === "en" ? "AMSS++ Document System — Authorized Officers & Clerks" : "ระบบสารบรรณ & ออกเลข — กำหนดครูผู้ได้รับมอบหมายเป็นธุรการ/สารบรรณ"}
+              {lang === "en" ? "AMSS++ Document System — Management Policy Mode" : "ระบบสารบรรณ & ออกเลข — นโยบายการควบคุมสิทธิ์"}
             </h4>
           </div>
           <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
             {lang === "en"
-              ? "Teachers and personnel listed below are granted full rights to Edit, Cancel, and Restore all outgoing document numbers."
-              : "ครูและบุคลากรที่ระบุด้านล่างจะได้รับสิทธิ์ในการ แก้ไข, ยกเลิกเลขทะเบียน, และ คืนค่าสถานะเอกสารส่งทั้งหมดในระบบ"}
+              ? "Configure whether document edit and cancel actions are performed directly or through approval workflow."
+              : "กำหนดรูปแบบการอนุมัติและจัดการแก้ไข/ยกเลิกเลขทะเบียนเอกสารในระบบ"}
           </p>
 
-          {/* Selected users tags */}
-          <div className="flex flex-wrap gap-2 mb-3">
-            {docAdminUserIds.map((userId) => {
-              const u = userList.find((x: any) => x.id === userId || x.username === userId);
-              return (
-                <span
-                  key={userId}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-orange-100 dark:bg-orange-900/50 text-orange-800 dark:text-orange-200 text-xs font-medium border border-orange-200 dark:border-orange-700 shadow-2xs"
-                >
-                  {u ? `${u.prefix || ""}${u.firstName || u.name || ""} ${u.lastName || ""}` : userId}
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      const updated = docAdminUserIds.filter((id) => id !== userId);
-                      setDocAdminUserIds(updated);
-                      try {
-                        await updateSystemSettings({ documentAdminUserIds: updated.join(",") });
-                        showToast("success", lang === "en" ? "Removed" : "ลบรายชื่อสำเร็จ");
-                      } catch (e: any) {
-                        showToast("error", e?.message ?? "เกิดข้อผิดพลาด");
-                      }
-                    }}
-                    className="hover:text-red-600 dark:hover:text-red-400 transition-colors cursor-pointer"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                </span>
-              );
-            })}
-            {docAdminUserIds.length === 0 && (
-              <span className="text-xs text-gray-400 dark:text-gray-500 italic">
-                {lang === "en" ? "No personnel assigned yet — only Admins and Creators can manage docs" : "ยังไม่ได้กำหนดผู้ได้รับมอบหมาย — เฉพาะแอดมินและผู้ขอออกเลขที่จัดการได้"}
-              </span>
-            )}
-          </div>
-
-          {/* Search & Add */}
-          <div className="relative">
-            <input
-              type="text"
-              placeholder={lang === "en" ? "Search teacher or staff to add..." : "ค้นหาชื่อครูหรือบุคลากรเพื่อเพิ่มสิทธิ์ธุรการ..."}
-              value={docAdminSearchQuery}
-              onChange={(e) => {
-                setDocAdminSearchQuery(e.target.value);
-                setShowDocAdminDropdown(true);
-              }}
-              onFocus={() => setShowDocAdminDropdown(true)}
-              className="w-full px-4 py-2.5 rounded-xl bg-white dark:bg-gray-900 border border-orange-200 dark:border-orange-700 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-400 dark:focus:ring-orange-600"
-            />
-            {showDocAdminDropdown && docAdminSearchQuery.length > 0 && (
-              <div className="absolute z-50 w-full mt-1 max-h-48 overflow-y-auto bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl">
-                {userList
-                  .filter(
-                    (u: any) =>
-                      !docAdminUserIds.includes(u.id) &&
-                      (`${u.prefix || ""}${u.firstName || u.name || ""} ${u.lastName || ""}`
-                        .toLowerCase()
-                        .includes(docAdminSearchQuery.toLowerCase()))
-                  )
-                  .slice(0, 10)
-                  .map((u: any) => (
-                    <button
-                      key={u.id}
-                      type="button"
-                      onClick={async () => {
-                        const updated = [...docAdminUserIds, u.id];
-                        setDocAdminUserIds(updated);
-                        setDocAdminSearchQuery("");
-                        setShowDocAdminDropdown(false);
-                        try {
-                          await updateSystemSettings({ documentAdminUserIds: updated.join(",") });
-                          showToast("success", lang === "en" ? "Added" : "มอบหมายสิทธิ์สำเร็จ");
-                        } catch (e: any) {
-                          showToast("error", e?.message ?? "เกิดข้อผิดพลาด");
-                        }
-                      }}
-                      className="w-full text-left px-4 py-2 text-sm hover:bg-orange-50 dark:hover:bg-orange-950/30 transition-colors flex items-center gap-2 cursor-pointer"
-                    >
-                      <UserCheck className="w-4 h-4 text-orange-500" />
-                      <span>{u.prefix || ""}${u.firstName || u.name || ""} {u.lastName || ""}</span>
-                      <span className="ml-auto text-xs text-gray-400">{u.position || ""}</span>
-                    </button>
-                  ))}
-                {userList.filter(
-                  (u: any) =>
-                    !docAdminUserIds.includes(u.id) &&
-                    (`${u.prefix || ""}${u.firstName || u.name || ""} ${u.lastName || ""}`
-                      .toLowerCase()
-                      .includes(docAdminSearchQuery.toLowerCase()))
-                ).length === 0 && (
-                  <p className="px-4 py-2 text-xs text-gray-400">{lang === "en" ? "No results" : "ไม่พบผลลัพธ์"}</p>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Document Management Policy Mode (Direct vs Workflow) */}
-          <div className="mt-4 pt-4 border-t border-orange-200/60 dark:border-orange-900/40">
+          <div className="pt-2">
             <label className="block text-xs font-bold text-slate-800 dark:text-slate-200 mb-1.5">
               {lang === "en"
                 ? "Document Edit & Cancel Policy Mode"

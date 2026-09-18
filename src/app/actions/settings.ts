@@ -11,6 +11,7 @@ import { headers, cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import {
   getUserCapabilities,
+  APPOINTEE_ELIGIBILITY_WHERE,
   type DutyType,
   type ScopeDivision,
   type ScopeDepartment,
@@ -902,6 +903,32 @@ export async function getSimpleUsersList() {
   return prisma.user.findMany({
     where: { isApproved: true },
     select: { id: true, username: true, name: true, position: true, email: true, department: true, subjectGroup: true, role: true },
+    orderBy: { name: "asc" }
+  });
+}
+
+export async function getEligibleAppointees() {
+  const session = await getSession();
+  if (!session?.user?.id) throw new Error("Unauthorized: Session required");
+  const actorId = session.user.id;
+
+  const dbActor = await prisma.user.findUnique({
+    where: { id: actorId },
+    select: { role: true, position: true }
+  });
+
+  const activeDuties = await prisma.userDutyAssignment.findMany({
+    where: { userId: actorId, revokedAt: null }
+  });
+
+  const capabilities = getUserCapabilities(dbActor || session.user, activeDuties);
+  if (!capabilities.isAdmin && !capabilities.isHRHead) {
+    throw new Error("Forbidden: insufficient permissions to manage appointed duties");
+  }
+
+  return prisma.user.findMany({
+    where: APPOINTEE_ELIGIBILITY_WHERE,
+    select: { id: true, username: true, name: true, position: true, level: true, department: true, subjectGroup: true, role: true },
     orderBy: { name: "asc" }
   });
 }

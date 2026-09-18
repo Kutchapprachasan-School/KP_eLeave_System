@@ -7,8 +7,10 @@
  * 3. Capability-based Permission Matrix for Facility & Vehicle System
  */
 
+import { z } from "zod";
+
 // ==========================================
-// 1. SUBSYSTEM ROLES & ASSIGNED DUTIES (REV 6)
+// 1. SUBSYSTEM ROLES & ASSIGNED DUTIES (REV 6 - REV 4)
 // ==========================================
 
 export type DutyType = 'INSPECTOR' | 'HR_HEAD' | 'HR_STAFF' | 'DIVISION_HEAD' | 'DEPT_HEAD';
@@ -23,6 +25,62 @@ export type ScopeDepartment =
   | 'ART' 
   | 'CAREER' 
   | 'STUDENT_DEV';
+
+// Pure Academic Standings (ก.ค.ศ. Levels - Strictly distinct from Position)
+export const VALID_ACADEMIC_STANDINGS = [
+  'ชำนาญการ',
+  'ชำนาญการพิเศษ',
+  'เชี่ยวชาญ',
+  'เชี่ยวชาญพิเศษ'
+] as const;
+
+export type AcademicStanding = typeof VALID_ACADEMIC_STANDINGS[number];
+
+export const AcademicStandingSchema = z
+  .string()
+  .trim()
+  .nullable()
+  .optional()
+  .transform(v => (v === '' ? null : v))
+  .refine(v => v === null || v === undefined || (VALID_ACADEMIC_STANDINGS as readonly string[]).includes(v), {
+    message: 'วิทยฐานะต้องเป็นค่าตามมาตรฐาน ก.ค.ศ. เท่านั้น (ชำนาญการ, ชำนาญการพิเศษ, เชี่ยวชาญ, เชี่ยวชาญพิเศษ) และต้องไม่ใช่ชื่อตำแหน่ง'
+  });
+
+// Eligible Appointee Predicate (Approved Active Personnel in teaching/admin positions)
+export const ELIGIBLE_APPOINTEE_POSITIONS = [
+  'ครู',
+  'ครูผู้ช่วย',
+  'รองผู้อำนวยการ',
+  'ผู้อำนวยการ',
+  'แอดมิน'
+] as const;
+
+export const APPOINTEE_ELIGIBILITY_WHERE = {
+  isApproved: true,
+  name: { not: '' },
+  position: { in: [...ELIGIBLE_APPOINTEE_POSITIONS] }
+};
+
+export function isUserEligibleForAppointedDuty(user: { isApproved?: boolean | null; position?: string | null; name?: string | null }): boolean {
+  if (!user.isApproved) return false;
+  if (!user.name || user.name.trim() === '') return false;
+  const pos = (user.position || '').trim();
+  return (ELIGIBLE_APPOINTEE_POSITIONS as readonly string[]).includes(pos);
+}
+
+// Anti-Legacy SubjectGroup Constraint Guard
+export const FORBIDDEN_LEGACY_SUBJECT_GROUPS = ['แอดมิน / ผู้บริหาร', 'แอดมิน / ผู้อำนวยการ'] as const;
+
+export function validateSubjectGroupNotLegacy(subjectGroup?: string | null): void {
+  if (!subjectGroup) return;
+  const trimmed = subjectGroup.trim();
+  if (
+    (FORBIDDEN_LEGACY_SUBJECT_GROUPS as readonly string[]).includes(trimmed) ||
+    /แอดมิน\s*\//i.test(trimmed)
+  ) {
+    throw new Error('กลุ่มสาระ/ฝ่ายงานไม่สามารถใช้ชื่อแอดมินนำหน้าได้ กรุณาใช้ "ผู้อำนวยการโรงเรียน" หรือ "รองผู้อำนวยการโรงเรียน"');
+  }
+}
 
 export interface UserDutyAssignmentDTO {
   dutyType: string;
@@ -102,8 +160,8 @@ export function getUserCapabilities(
   const isAdmin = role === 'ADMIN' || pos === 'แอดมิน';
   const finalApproverIds = (settings.finalApproverUserIds || '').split(',').map(s => s.trim()).filter(Boolean);
   const isFinalApprover = finalApproverIds.includes(userId);
-  const isDirector = pos === 'ผู้อำนวยการ' || isFinalApprover;
-  const isDeputyDirector = pos === 'รองผู้อำนวยการ';
+  const isDirector = role === 'DIRECTOR' || pos === 'ผู้อำนวยการ' || isFinalApprover;
+  const isDeputyDirector = role === 'DEPUTY_DIRECTOR' || pos === 'รองผู้อำนวยการ';
 
   // 2. Active assignments check (Active <=> revokedAt is null/undefined)
   const validActive = activeAssignments.filter(a => !a.revokedAt);
