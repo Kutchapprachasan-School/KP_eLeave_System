@@ -31,6 +31,8 @@ function calculateDays(startDateStr: string, endDateStr: string, type: string): 
 }
 
 import { parseDocumentUrls, handleViewAttachment } from "@/lib/attachment-utils";
+import { getUserRoleKeys, mapSubjectGroupToDeptScope } from "@/lib/permissions";
+import { getMyDutyAssignments } from "@/app/actions/settings";
 
 export default function ApprovalsPage() {
   const { data: session } = useSession();
@@ -38,6 +40,7 @@ export default function ApprovalsPage() {
   const user = session?.user as any;
   const isAdmin = user?.role === "ADMIN" || user?.position === "แอดมิน";
 
+  const [userDuties, setUserDuties] = useState<any[]>([]);
   const [pendingRequests, setPendingRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [zoomedImage, setZoomedImage] = useState<{ src: string; name: string } | null>(null);
@@ -45,6 +48,16 @@ export default function ApprovalsPage() {
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [processingStatus, setProcessingStatus] = useState<string | null>(null);
   const [settings, setSettings] = useState<any>(null);
+
+  useEffect(() => {
+    if (session?.user) {
+      if ((session.user as any).duties) {
+        setUserDuties((session.user as any).duties);
+      } else {
+        getMyDutyAssignments().then(setUserDuties).catch(console.error);
+      }
+    }
+  }, [session?.user]);
 
   const loadData = () => {
     setLoading(true);
@@ -401,13 +414,34 @@ export default function ApprovalsPage() {
           </div>
         ) : (
           pendingRequests.map((item) => {
+            const effectiveUser = {
+              ...user,
+              duties: userDuties.length > 0 ? userDuties : (user?.duties || []),
+            };
             const isFinalApprover = settings?.finalApproverUserIds
               ?.split(",")
               ?.map((id: string) => id.trim())
               ?.includes(session?.user?.id);
-            const isDirector = user?.position === "ผู้อำนวยการ" || user?.position === "รองผู้อำนวยการ";
-            const canApproveFinal = isDirector || isFinalApprover;
-            const canApproveHead = user?.position === "หัวหน้างานบุคคล";
+            const userRoles = getUserRoleKeys(effectiveUser, isFinalApprover);
+            const isUserAdmin = userRoles.includes("ADMIN");
+            const isDirector = userRoles.includes("DIRECTOR");
+            const isDeputyDirector = userRoles.includes("DEPUTY_DIRECTOR");
+            const isHRHead = userRoles.includes("HR");
+            const isDeptHead = userRoles.includes("DEPT_HEAD");
+
+            const canApproveFinal = isDirector || isDeputyDirector || isFinalApprover || isUserAdmin;
+
+            let canApproveHead = isHRHead || isUserAdmin || canApproveFinal;
+            if (!canApproveHead && isDeptHead) {
+              const activeDuties = (effectiveUser.duties || []).filter((d: any) => !d.revokedAt);
+              const deptScopes = activeDuties
+                .filter((d: any) => d.dutyType === "DEPT_HEAD" && d.departmentScope)
+                .map((d: any) => d.departmentScope);
+              const requestDept = mapSubjectGroupToDeptScope(item.user?.subjectGroup);
+              if (requestDept && deptScopes.includes(requestDept)) {
+                canApproveHead = true;
+              }
+            }
 
             const canApproveThisItem = 
               (item.status === "PENDING_HEAD" && canApproveHead) ||

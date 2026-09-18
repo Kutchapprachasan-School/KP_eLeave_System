@@ -570,8 +570,23 @@ export async function getDashboardStats(
     }
     const user = session.user as any;
     
+    const [dbUser, activeAssignments, sysSettings] = await Promise.all([
+      prisma.user.findUnique({
+        where: { id: session.user.id },
+        select: { id: true, name: true, role: true, position: true, subjectGroup: true }
+      }),
+      prisma.userDutyAssignment.findMany({
+        where: { userId: session.user.id, revokedAt: null }
+      }),
+      prisma.systemSettings.findUnique({
+        where: { id: "default" },
+        select: { finalApproverUserIds: true }
+      })
+    ]);
+
+    const caps = getUserCapabilities(dbUser || user, activeAssignments, sysSettings || {});
     // Check if user is a configured final approver
-    const isFinalApprover = await canGiveFinalApproval(session.user.id, user.position, user.role);
+    const isFinalApprover = caps.isDirector || (await canGiveFinalApproval(session.user.id, user.position, user.role));
     
     // Whitelist of positions allowed to view the school overview
     const allowedOverviewPositions = [
@@ -582,7 +597,7 @@ export async function getDashboardStats(
       "ผู้ตรวจสอบ",
       "แอดมิน"
     ];
-    const canViewOverview = user.role === "ADMIN" || user.isActualAdmin === true || allowedOverviewPositions.includes(user.position) || isFinalApprover;
+    const canViewOverview = caps.canViewAllLeaveReports || user.role === "ADMIN" || user.isActualAdmin === true || allowedOverviewPositions.includes(user.position) || isFinalApprover;
 
     // We only show school overview if they are allowed AND they chose "school" mode
     const showSchoolOverview = canViewOverview && viewMode === "school";

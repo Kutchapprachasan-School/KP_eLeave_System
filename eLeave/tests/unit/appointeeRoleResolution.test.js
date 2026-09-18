@@ -1,4 +1,4 @@
-﻿import { test, describe } from 'node:test';
+import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   getUserRoleKey,
@@ -221,4 +221,77 @@ describe('Appointee Role Resolution & Capabilities Parity', () => {
       assert.equal(getUserRoleKey(teacherApprover, true), 'DIRECTOR');
     });
   });
+
+  describe('Client Approvals Matrix & canApproveThisItem logic', () => {
+    function computeCanApproveItem(effectiveUser, item, settings = {}) {
+      const isFinalApprover = settings?.finalApproverUserIds
+        ?.split(',')
+        ?.map(id => id.trim())
+        ?.includes(effectiveUser.id);
+      const userRoles = getUserRoleKeys(effectiveUser, isFinalApprover);
+      const isUserAdmin = userRoles.includes('ADMIN');
+      const isDirector = userRoles.includes('DIRECTOR');
+      const isDeputyDirector = userRoles.includes('DEPUTY_DIRECTOR');
+      const isHRHead = userRoles.includes('HR');
+      const isDeptHead = userRoles.includes('DEPT_HEAD');
+
+      const canApproveFinal = isDirector || isDeputyDirector || isFinalApprover || isUserAdmin;
+
+      let canApproveHead = isHRHead || isUserAdmin || canApproveFinal;
+      if (!canApproveHead && isDeptHead) {
+        const activeDuties = (effectiveUser.duties || []).filter(d => !d.revokedAt);
+        const deptScopes = activeDuties
+          .filter(d => d.dutyType === 'DEPT_HEAD' && d.departmentScope)
+          .map(d => d.departmentScope);
+        const requestDept = item.user?.subjectGroup === 'คณิตศาสตร์' ? 'MATH' : null;
+        if (requestDept && deptScopes.includes(requestDept)) {
+          canApproveHead = true;
+        }
+      }
+
+      return (
+        (item.status === 'PENDING_HEAD' && canApproveHead) ||
+        (item.status === 'PENDING_EXEC' && canApproveFinal)
+      );
+    }
+
+    test('HR Head teacher can approve PENDING_HEAD requests', () => {
+      const hrTeacher = {
+        id: 'u-hr',
+        position: 'ครู',
+        role: 'TEACHER',
+        duties: [{ dutyType: 'HR_HEAD', revokedAt: null }],
+      };
+      const pendingHeadItem = { id: 'req-1', status: 'PENDING_HEAD', user: { subjectGroup: 'ภาษาไทย' } };
+      assert.equal(computeCanApproveItem(hrTeacher, pendingHeadItem), true);
+    });
+
+    test('HR Head teacher cannot approve PENDING_EXEC requests (reserved for Director)', () => {
+      const hrTeacher = {
+        id: 'u-hr',
+        position: 'ครู',
+        role: 'TEACHER',
+        duties: [{ dutyType: 'HR_HEAD', revokedAt: null }],
+      };
+      const pendingExecItem = { id: 'req-2', status: 'PENDING_EXEC', user: { subjectGroup: 'ภาษาไทย' } };
+      assert.equal(computeCanApproveItem(hrTeacher, pendingExecItem), false);
+    });
+
+    test('Director can approve both PENDING_HEAD and PENDING_EXEC requests', () => {
+      const director = { id: 'u-dir', position: 'ผู้อำนวยการ', role: 'DIRECTOR', duties: [] };
+      const pendingHeadItem = { id: 'req-1', status: 'PENDING_HEAD', user: { subjectGroup: 'ภาษาไทย' } };
+      const pendingExecItem = { id: 'req-2', status: 'PENDING_EXEC', user: { subjectGroup: 'ภาษาไทย' } };
+      assert.equal(computeCanApproveItem(director, pendingHeadItem), true);
+      assert.equal(computeCanApproveItem(director, pendingExecItem), true);
+    });
+
+    test('Regular teacher cannot approve PENDING_HEAD or PENDING_EXEC requests', () => {
+      const plainTeacher = { id: 'u-plain', position: 'ครู', role: 'TEACHER', duties: [] };
+      const pendingHeadItem = { id: 'req-1', status: 'PENDING_HEAD', user: { subjectGroup: 'ภาษาไทย' } };
+      const pendingExecItem = { id: 'req-2', status: 'PENDING_EXEC', user: { subjectGroup: 'ภาษาไทย' } };
+      assert.equal(computeCanApproveItem(plainTeacher, pendingHeadItem), false);
+      assert.equal(computeCanApproveItem(plainTeacher, pendingExecItem), false);
+    });
+  });
 });
+
