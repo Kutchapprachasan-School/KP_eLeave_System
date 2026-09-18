@@ -10,11 +10,24 @@ export async function getSession() {
 
   const actualUser = session.user as any;
   
-  // Safe DB query to verify if the actual user is a database admin
-  const dbUser = await prisma.user.findUnique({
-    where: { id: actualUser.id },
-    select: { role: true, position: true }
-  });
+  // Safe DB queries to verify admin status and load active appointed duties
+  const [dbUser, activeDuties] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: actualUser.id },
+      select: { role: true, position: true }
+    }),
+    prisma.userDutyAssignment.findMany({
+      where: { userId: actualUser.id, revokedAt: null },
+      select: {
+        id: true,
+        dutyType: true,
+        divisionScope: true,
+        departmentScope: true,
+      }
+    })
+  ]);
+
+  actualUser.duties = activeDuties;
   const isActualAdmin = dbUser?.role === "ADMIN" || dbUser?.position === "แอดมิน";
   
   if (isActualAdmin) {

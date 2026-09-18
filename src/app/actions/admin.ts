@@ -19,7 +19,7 @@ import {
 import { getLeaveCycleFilter } from "@/lib/cycle";
 import { withTelemetry } from "@/lib/telemetry";
 import { uploadAvatarWithFallback } from "@/services/storage/resilient-upload";
-import { AcademicStandingSchema, validateSubjectGroupNotLegacy } from "@/lib/permissions";
+import { AcademicStandingSchema, validateSubjectGroupNotLegacy, getUserCapabilities } from "@/lib/permissions";
 
 async function requireSuperAdmin() {
   const session = await getSession();
@@ -29,38 +29,82 @@ async function requireSuperAdmin() {
   return session;
 }
 
+async function requireUserManagementAccess() {
+  const session = await getSession();
+  const user = session?.user as any;
+  if (!user?.id) throw new Error("Unauthorized");
+
+  const [dbUser, activeAssignments] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: user.id },
+      select: { id: true, role: true, position: true, subjectGroup: true }
+    }),
+    prisma.userDutyAssignment.findMany({
+      where: { userId: user.id, revokedAt: null }
+    })
+  ]);
+
+  const caps = getUserCapabilities(dbUser || user, activeAssignments);
+  if (!caps.isAdmin && !caps.isHRHead) {
+    throw new Error("Unauthorized");
+  }
+  return { session, caps };
+}
+
 async function requireHROrAdmin() {
   const session = await getSession();
   const user = session?.user as any;
-  if (!user) throw new Error("Unauthorized");
-  const isAdmin = user.role === "ADMIN" || user.position === "แอดมิน";
-  const isHR = user.position === "หัวหน้างานบุคคล" || user.position === "เจ้าหน้าที่บุคคล";
-  const isInspector = user.position === "ผู้ตรวจสอบ";
-  if (!isAdmin && !isHR && !isInspector) throw new Error("Unauthorized");
-  return { session, isAdmin, isHR, isInspector };
+  if (!user?.id) throw new Error("Unauthorized");
+
+  const [dbUser, activeAssignments, settings] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: user.id },
+      select: { id: true, role: true, position: true, subjectGroup: true }
+    }),
+    prisma.userDutyAssignment.findMany({
+      where: { userId: user.id, revokedAt: null }
+    }),
+    prisma.systemSettings.findUnique({
+      where: { id: "default" },
+      select: { finalApproverUserIds: true }
+    })
+  ]);
+
+  const caps = getUserCapabilities(dbUser || user, activeAssignments, settings || {});
+  const isAdmin = caps.isAdmin;
+  const isHR = caps.isHRHead || caps.isHRStaff;
+  const isInspector = caps.isInspector;
+  const isDirector = caps.isDirector || caps.isDeputyDirector;
+
+  if (!isAdmin && !isHR && !isInspector && !isDirector) {
+    throw new Error("Unauthorized");
+  }
+
+  return { session, isAdmin, isHR, isInspector, isDirector, caps };
 }
 
 export async function getNotifications() {
   const session = await getSession();
-  if (!session?.user) return { items: [], counts: { users: 0, leaves: 0 } };
+  if (!session?.user?.id) return { items: [], counts: { users: 0, leaves: 0 } };
 
-  const user = session.user as any;
-  const isAdmin = user.role === "ADMIN" || user.position === "แอดมิน";
-  const isHead = user.position === "หัวหน้างานบุคคล";
-  
-  let isFinalApprover = false;
-  const settings = await prisma.systemSettings.findUnique({
-    where: { id: "default" },
-    select: { finalApproverUserIds: true }
-  });
-  if (settings?.finalApproverUserIds) {
-    const allowedIds = settings.finalApproverUserIds.split(",").map(s => s.trim()).filter(Boolean);
-    if (allowedIds.includes(session.user.id)) {
-      isFinalApprover = true;
-    }
-  }
+  const [dbUser, activeAssignments, settings] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { id: true, role: true, position: true, subjectGroup: true }
+    }),
+    prisma.userDutyAssignment.findMany({
+      where: { userId: session.user.id, revokedAt: null }
+    }),
+    prisma.systemSettings.findUnique({
+      where: { id: "default" },
+      select: { finalApproverUserIds: true }
+    })
+  ]);
 
-  const isExec = user.position === "ผู้อำนวยการ" || isFinalApprover;
+  const caps = getUserCapabilities(dbUser || session.user, activeAssignments, settings || {});
+  const isAdmin = caps.isAdmin;
+  const isHead = caps.isHRHead;
+  const isExec = caps.isDirector;
 
   const items: { id: string; type: "user" | "leave"; title: string; desc: string; time: string; href: string }[] = [];
   let pendingUsers = 0;
@@ -126,7 +170,7 @@ export async function getNotifications() {
 // ========= Get All Users =========
 export async function getAllUsers() {
   return withTelemetry("getAllUsers", async () => {
-    await requireSuperAdmin();
+    await requireUserManagementAccess();
 
     const users = await prisma.user.findMany({
       orderBy: { createdAt: "desc" },
@@ -265,7 +309,10 @@ export async function migrateLegacyAvatarsAction() {
 // ========= Update User Profile =========
 export async function updateUserProfile(userId: string, data: { name?: string; email?: string; username?: string; role?: string; position?: string; subjectGroup?: string; level?: string }) {
   try {
-    await requireSuperAdmin();
+    const { caps } = await requireUserManagementAccess();
+    if (data.role && data.role === "ADMIN" && !caps.isAdmin) {
+      throw new Error("เฉพาะแอดมินเท่านั้นที่สามารถกำหนดบทบาท ADMIN ได้");
+    }
 
     // If username is changing, ensure it is unique
     if (data.username) {

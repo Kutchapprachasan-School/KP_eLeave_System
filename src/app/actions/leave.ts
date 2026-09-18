@@ -308,11 +308,15 @@ export async function submitLeaveRequest(data: {
     }
   }
 
-  // Determine initial status based on position
+  // Determine initial status based on role/duties
   // Teachers -> PENDING_HEAD (wait for Dept Head)
-  // Dept Head -> PENDING_EXEC (skip to Executive)
+  // HR Head / Executives -> PENDING_EXEC (skip to Executive)
+  const userDuties = await prisma.userDutyAssignment.findMany({
+    where: { userId: session.user.id, revokedAt: null }
+  });
+  const creatorCaps = getUserCapabilities(user, userDuties);
   let initialStatus = "PENDING_HEAD";
-  if (user.position === "หัวหน้างานบุคคล") {
+  if (creatorCaps.isHRHead || creatorCaps.isDirector || creatorCaps.isDeputyDirector || user.position === "หัวหน้างานบุคคล") {
     initialStatus = "PENDING_EXEC";
   }
 
@@ -382,7 +386,23 @@ export async function getPaginatedLeaveHistory(rawParams: any) {
   const { cycleFilter, targetUserId, page, limit, statusFilter, searchName } = parsed.data;
 
   // 2. Strict Authorization
-  const isPrivileged = user.role === "ADMIN" || ["แอดมิน", "ผู้อำนวยการ", "รองผู้อำนวยการ", "หัวหน้างานบุคคล", "เจ้าหน้าที่บุคคล", "ผู้ตรวจสอบ"].includes(user.position);
+  const [dbUser, activeAssignments, sysSettings] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { id: true, name: true, role: true, position: true, subjectGroup: true }
+    }),
+    prisma.userDutyAssignment.findMany({
+      where: { userId: session.user.id, revokedAt: null }
+    }),
+    prisma.systemSettings.findUnique({
+      where: { id: "default" },
+      select: { finalApproverUserIds: true }
+    })
+  ]);
+
+  const caps = getUserCapabilities(dbUser || user, activeAssignments, sysSettings || {});
+  const isFinalApprover = caps.isDirector || (await canGiveFinalApproval(session.user.id, user.position, user.role));
+  const isPrivileged = caps.canViewAllLeaveHistory || isFinalApprover || user.role === "ADMIN" || ["แอดมิน", "ผู้อำนวยการ", "รองผู้อำนวยการ", "หัวหน้างานบุคคล", "เจ้าหน้าที่บุคคล", "ผู้ตรวจสอบ"].includes(user.position);
   
   let queryUserId: string | undefined = undefined;
   if (targetUserId === "all") {
@@ -485,8 +505,26 @@ export async function getPaginatedLeaveHistory(rawParams: any) {
 // ========= Get Staff List (for admin/exec dropdown) =========
 export async function getStaffList() {
   const session = await getSession();
+  if (!session?.user?.id) return [];
   const user = session.user as any;
-  const isPrivileged = user.role === "ADMIN" || ["แอดมิน", "ผู้อำนวยการ", "รองผู้อำนวยการ", "หัวหน้างานบุคคล", "เจ้าหน้าที่บุคคล", "ผู้ตรวจสอบ"].includes(user.position);
+
+  const [dbUser, activeAssignments, sysSettings] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { id: true, name: true, role: true, position: true, subjectGroup: true }
+    }),
+    prisma.userDutyAssignment.findMany({
+      where: { userId: session.user.id, revokedAt: null }
+    }),
+    prisma.systemSettings.findUnique({
+      where: { id: "default" },
+      select: { finalApproverUserIds: true }
+    })
+  ]);
+
+  const caps = getUserCapabilities(dbUser || user, activeAssignments, sysSettings || {});
+  const isFinalApprover = caps.isDirector || (await canGiveFinalApproval(session.user.id, user.position, user.role));
+  const isPrivileged = caps.canViewAllLeaveHistory || isFinalApprover || user.role === "ADMIN" || ["แอดมิน", "ผู้อำนวยการ", "รองผู้อำนวยการ", "หัวหน้างานบุคคล", "เจ้าหน้าที่บุคคล", "ผู้ตรวจสอบ"].includes(user.position);
   if (!isPrivileged) {
     return [];
   }
@@ -1377,9 +1415,22 @@ export async function editLeaveRequest(id: string, data: { type: string; startDa
 // ========= Delete Leave Request (Admin Only) =========
 export async function adminDeleteLeaveRequest(id: string) {
   const session = await getSession();
+  if (!session?.user?.id) throw new Error("Unauthorized");
   const user = session.user as any;
-  const isAdmin = user.role === "ADMIN" || user.position === "แอดมิน";
-  const isHR = user.position === "หัวหน้างานบุคคล";
+
+  const [dbUser, activeAssignments] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { id: true, role: true, position: true, subjectGroup: true }
+    }),
+    prisma.userDutyAssignment.findMany({
+      where: { userId: session.user.id, revokedAt: null }
+    })
+  ]);
+
+  const caps = getUserCapabilities(dbUser || user, activeAssignments);
+  const isAdmin = caps.isAdmin || user.role === "ADMIN" || user.position === "แอดมิน";
+  const isHR = caps.isHRHead || user.position === "หัวหน้างานบุคคล";
   if (!isAdmin && !isHR) {
     throw new Error("Unauthorized: Admins or HR Head only");
   }
@@ -1623,10 +1674,23 @@ export async function getLeaveRequestForPrint(id: string) {
 
   // Check permissions: Owner or Admin/HR/Exec/Verifier
   const isOwner = request.userId === session.user.id;
-  const isFinalApprover = await canGiveFinalApproval(session.user.id, currentUser.position, currentUser.role);
-  const isPrivileged = currentUser.role === "ADMIN" || 
-    ["แอดมิน", "ผู้อำนวยการ", "รองผู้อำนวยการ", "หัวหน้างานบุคคล", "เจ้าหน้าที่บุคคล", "ผู้ตรวจสอบ"].includes(currentUser.position) ||
-    isFinalApprover;
+  const [dbUser, activeAssignments, sysSettings] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { id: true, name: true, role: true, position: true, subjectGroup: true }
+    }),
+    prisma.userDutyAssignment.findMany({
+      where: { userId: session.user.id, revokedAt: null }
+    }),
+    prisma.systemSettings.findUnique({
+      where: { id: "default" },
+      select: { finalApproverUserIds: true }
+    })
+  ]);
+  const caps = getUserCapabilities(dbUser || currentUser, activeAssignments, sysSettings || {});
+  const isFinalApprover = caps.isDirector || (await canGiveFinalApproval(session.user.id, currentUser.position, currentUser.role));
+  const isPrivileged = caps.canViewAllLeaveHistory || isFinalApprover || currentUser.role === "ADMIN" || 
+    ["แอดมิน", "ผู้อำนวยการ", "รองผู้อำนวยการ", "หัวหน้างานบุคคล", "เจ้าหน้าที่บุคคล", "ผู้ตรวจสอบ"].includes(currentUser.position);
   if (!isOwner && !isPrivileged) {
     throw new Error("Unauthorized");
   }

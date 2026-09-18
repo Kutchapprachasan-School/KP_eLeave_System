@@ -47,10 +47,10 @@ import {
   GraduationCap,
   Sparkles
 } from "lucide-react";
-import { hasRepairPermission, hasFacilityPermission } from "@/lib/permissions";
+import { hasRepairPermission, hasFacilityPermission, getUserRoleKey, getUserRoleKeys } from "@/lib/permissions";
 import { getNotifications } from "@/app/actions/admin";
 import { getMyPendingRoutingCount } from "@/app/actions/incoming";
-import { getSystemSettings } from "@/app/actions/settings";
+import { getSystemSettings, getMyDutyAssignments } from "@/app/actions/settings";
 import { PolicyUpdateNotifier } from "@/components/privacy/PolicyUpdateNotifier";
 
 function ToolbarButtons({ isAdmin, isApprover }: { isAdmin: boolean; isApprover: boolean }) {
@@ -290,16 +290,6 @@ function ToolbarButtons({ isAdmin, isApprover }: { isAdmin: boolean; isApprover:
   );
 }
 
-function getUserRoleKey(user: any, isFinalApprover: boolean = false) {
-  if (user?.role === "ADMIN" || user?.position === "แอดมิน") return "ADMIN";
-  if (user?.position === "ผู้อำนวยการ" || isFinalApprover) return "DIRECTOR";
-  if (user?.position === "หัวหน้างานบุคคล") return "HR";
-  if (user?.position === "เจ้าหน้าที่บุคคล") return "HR_STAFF";
-  if (user?.position === "ผู้ตรวจสอบ") return "INSPECTOR";
-  if (user?.position === "หัวหน้าหมวด" || user?.position === "หัวหน้ากลุ่มสาระ") return "DEPT_HEAD";
-  return "TEACHER";
-}
-
 const DEFAULT_PERMISSIONS: Record<string, string[]> = {
   calendar: ["ADMIN", "DIRECTOR", "HR", "HR_STAFF", "INSPECTOR", "DEPT_HEAD", "TEACHER"],
   reports: ["ADMIN", "DIRECTOR", "HR", "HR_STAFF", "INSPECTOR", "DEPT_HEAD"],
@@ -437,10 +427,18 @@ function AppContent({ children }: { children: React.ReactNode }) {
   const [academicPlanningAllowedUserIds, setAcademicPlanningAllowedUserIds] = useState<string[]>([]);
   const [brandSubheader, setBrandSubheader] = useState("ระบบจัดการการลา");
   const [isLoadingSettings, setIsLoadingSettings] = useState(true);
+  const [userDuties, setUserDuties] = useState<any[]>([]);
 
   useEffect(() => {
     if (session?.user?.id) {
       getMyPendingRoutingCount().then(setPendingDocsCount).catch(() => {});
+      if (Array.isArray((session.user as any).duties) && (session.user as any).duties.length > 0) {
+        setUserDuties((session.user as any).duties);
+      } else {
+        getMyDutyAssignments().then((d) => {
+          if (Array.isArray(d)) setUserDuties(d);
+        }).catch(() => {});
+      }
     }
   }, [session?.user?.id, pathname]);
 
@@ -714,8 +712,14 @@ function AppContent({ children }: { children: React.ReactNode }) {
   if (!session) return null;
 
   const user = session.user as any;
+  const effectiveUser = {
+    ...user,
+    duties: (Array.isArray(user?.duties) && user.duties.length > 0) ? user.duties : userDuties
+  };
   const isAdmin = user.role === "ADMIN" || user.position === "แอดมิน";
-  const isApprover = isAdmin || user.position === "ผู้อำนวยการ" || user.position === "หัวหน้างานบุคคล" || isFinalApprover;
+  const userRole = getUserRoleKey(effectiveUser, isFinalApprover);
+  const userRoles = getUserRoleKeys(effectiveUser, isFinalApprover);
+  const isApprover = isAdmin || userRoles.includes("DIRECTOR") || userRoles.includes("HR") || userRoles.includes("INSPECTOR") || userRoles.includes("DEPT_HEAD") || isFinalApprover;
 
   if (!isAdmin && !user.isApproved) {
     return (
@@ -744,8 +748,8 @@ function AppContent({ children }: { children: React.ReactNode }) {
     );
   }
 
-  const userRole = getUserRoleKey(user, isFinalApprover);
   const activePermissions = rolePermissions || DEFAULT_PERMISSIONS;
+  const hasRolePerm = (perms?: string[]) => !perms || userRoles.some(r => perms.includes(r));
 
   const showLeave = enableLeave || isAdmin;
   const showDocument = enableDocument || isAdmin;
@@ -768,10 +772,10 @@ function AppContent({ children }: { children: React.ReactNode }) {
         { href: "/history", label: "ประวัติการลา", icon: History },
       ]
     : [];
-  if (showLeave && activePermissions.approvals?.includes(userRole)) {
+  if (showLeave && hasRolePerm(activePermissions.approvals)) {
     leaveSubItems.push({ href: "/approvals", label: "พิจารณาอนุมัติลา", icon: CheckSquare });
   }
-  if (showLeave && activePermissions.reports?.includes(userRole)) {
+  if (showLeave && hasRolePerm(activePermissions.reports)) {
     leaveSubItems.push({ href: "/reports", label: "รายงานและสถิติ", icon: FileSpreadsheet });
   }
   if (showLeave) {
@@ -951,28 +955,27 @@ function AppContent({ children }: { children: React.ReactNode }) {
   };
 
   const checkPermission = (path: string): boolean => {
-    const key = getUserRoleKey(user, isFinalApprover);
     const activePerms = rolePermissions || DEFAULT_PERMISSIONS;
     if ((path.startsWith("/attendance") || path.startsWith("/hr/attendance")) && !enableAttendance && !isAdmin) return false;
     if ((path.startsWith("/document") || path.startsWith("/general/document")) && !enableDocument && !isAdmin) return false;
     if ((path.startsWith("/repair") || path.startsWith("/general/repair")) && !enableRepair && !isAdmin) return false;
-    if ((path.startsWith("/repair") || path.startsWith("/general/repair")) && !hasRepairPermission(user, "repair:view.own") && !hasRepairPermission(user, "repair:view.all")) return false;
+    if ((path.startsWith("/repair") || path.startsWith("/general/repair")) && !hasRepairPermission(effectiveUser, "repair:view.own") && !hasRepairPermission(effectiveUser, "repair:view.all")) return false;
     if ((path.startsWith("/facility") || path.startsWith("/general/facility") || path.startsWith("/academic/facility")) && !enableFacility && !isAdmin) return false;
     if (path.startsWith("/budget") && !enableBudget && !isAdmin) return false;
     if (path.startsWith("/student-affairs") && !enableStudentAffairs && !isAdmin) return false;
     if (path.startsWith("/student-council") && !enableStudentCouncil && !isAdmin) return false;
     if (path.startsWith("/academic/planning") && !isAcademicPlanningAllowed) return false;
-    if ((path.startsWith("/reports") || path.startsWith("/hr/leave/reports")) && !activePerms.reports?.includes(key)) return false;
-    if ((path.startsWith("/approvals") || path.startsWith("/hr/leave/approvals")) && !activePerms.approvals?.includes(key)) return false;
-    if (path.startsWith("/logs") && !activePerms.logs?.includes(key)) return false;
-    if (path.startsWith("/users") && !activePerms.users?.includes(key)) return false;
+    if ((path.startsWith("/reports") || path.startsWith("/hr/leave/reports")) && !hasRolePerm(activePerms.reports)) return false;
+    if ((path.startsWith("/approvals") || path.startsWith("/hr/leave/approvals")) && !hasRolePerm(activePerms.approvals)) return false;
+    if (path.startsWith("/logs") && !hasRolePerm(activePerms.logs)) return false;
+    if (path.startsWith("/users") && !hasRolePerm(activePerms.users)) return false;
     if (path.startsWith("/settings")) {
       if (path.startsWith("/settings/privacy")) return true;
       const section = searchParams?.get("section");
-      if (section === "manual-import" && activePerms.manual_import?.includes(key)) {
+      if (section === "manual-import" && hasRolePerm(activePerms.manual_import)) {
         return true;
       }
-      if (!activePerms.settings?.includes(key)) return false;
+      if (!hasRolePerm(activePerms.settings)) return false;
     }
     return true;
   };

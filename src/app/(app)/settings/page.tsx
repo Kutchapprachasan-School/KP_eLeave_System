@@ -35,6 +35,7 @@ import { useToast } from "@/components/toast-provider";
 
 import { useI18n } from "@/lib/i18n";
 import { removeClientCache } from "@/lib/client-cache";
+import { getUserRoleKey } from "@/lib/permissions";
 
 type DocTab = "sections" | "patterns" | "signees";
 
@@ -1053,7 +1054,8 @@ export default function SettingsPage() {
 
     try {
 
-      const isHRHead = (session?.user as any)?.position === "หัวหน้างานบุคคล" || (session?.user as any)?.position === "เจ้าหน้าที่บุคคล";
+      const userRoleKey = getUserRoleKey(session?.user as any);
+      const isHRHead = userRoleKey === "HR" || userRoleKey === "HR_STAFF" || (session?.user as any)?.position === "หัวหน้างานบุคคล" || (session?.user as any)?.position === "เจ้าหน้าที่บุคคล";
 
       if (isHRHead) {
 
@@ -2067,19 +2069,7 @@ export default function SettingsPage() {
 
     if (!u) return "TEACHER";
 
-    if (u.role === "ADMIN" || u.position === "แอดมิน") return "ADMIN";
-
-    if (u.position === "ผู้อำนวยการ" || finalApproverUserIds.includes(u.id)) return "DIRECTOR";
-
-    if (u.position === "หัวหน้างานบุคคล") return "HR";
-
-    if (u.position === "เจ้าหน้าที่บุคคล") return "HR_STAFF";
-
-    if (u.position === "ผู้ตรวจสอบ") return "INSPECTOR";
-
-    if (u.position === "หัวหน้าหมวด" || u.position === "หัวหน้ากลุ่มสาระ") return "DEPT_HEAD";
-
-    return "TEACHER";
+    return getUserRoleKey(u, finalApproverUserIds.includes(u.id));
 
   };
 
@@ -2111,9 +2101,9 @@ export default function SettingsPage() {
 
   const isAdmin = user?.role === "ADMIN" || user?.position === "แอดมิน";
 
-  const isHRHead = user?.position === "หัวหน้างานบุคคล" || user?.position === "เจ้าหน้าที่บุคคล";
+  const isHRHead = userRole === "HR" || userRole === "HR_STAFF" || user?.position === "หัวหน้างานบุคคล" || user?.position === "เจ้าหน้าที่บุคคล";
 
-  const isInspector = user?.position === "ผู้ตรวจสอบ";
+  const isInspector = userRole === "INSPECTOR" || user?.position === "ผู้ตรวจสอบ";
 
 // ──────────────────────────────────────────────────────────────────────
 // SECTIONS: ATTENDANCE & DOCUMENT RENDERERS

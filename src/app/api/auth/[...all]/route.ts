@@ -16,20 +16,32 @@ export async function GET(request: NextRequest, ctx: any) {
       try {
         const data = await response.clone().json();
         if (data && data.user) {
-          // Safe DB query to verify if the actual user is a database admin
-          const dbUser = await prisma.user.findUnique({
-            where: { id: data.user.id },
-            select: { role: true, position: true }
-          });
-          
+          // Safe DB queries to verify admin status and load active appointed duties
+          const [dbUser, activeDuties] = await Promise.all([
+            prisma.user.findUnique({
+              where: { id: data.user.id },
+              select: { role: true, position: true }
+            }),
+            prisma.userDutyAssignment.findMany({
+              where: { userId: data.user.id, revokedAt: null },
+              select: {
+                id: true,
+                dutyType: true,
+                divisionScope: true,
+                departmentScope: true,
+              }
+            })
+          ]);
+
+          data.user.duties = activeDuties;
           const isActualAdmin = dbUser?.role === "ADMIN" || dbUser?.position === "แอดมิน";
-          
+
           if (isActualAdmin) {
             data.user.isActualAdmin = true;
             const cookieStore = await cookies();
             let impPosition = cookieStore.get("imp_position")?.value;
             const impRole = cookieStore.get("imp_role")?.value;
-            
+
             if (impPosition) {
               try {
                 impPosition = decodeURIComponent(impPosition);
@@ -39,9 +51,9 @@ export async function GET(request: NextRequest, ctx: any) {
             if (impRole) {
               data.user.role = impRole === "CLEAR" ? "TEACHER" : impRole;
             }
-            
-            return NextResponse.json(data);
           }
+
+          return NextResponse.json(data);
         }
       } catch (err) {
         console.error("Error intercepting session response:", err);

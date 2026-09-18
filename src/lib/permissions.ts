@@ -112,6 +112,8 @@ export interface UserCapabilities {
   canAccessBudget: boolean;
   canManageUsers: boolean;
   canAccessDocument: boolean;
+  canViewAllLeaveReports: boolean;
+  canViewAllLeaveHistory: boolean;
 }
 
 export const SUBJECT_GROUP_TO_DEPT_SCOPE: Record<string, ScopeDepartment> = {
@@ -145,6 +147,90 @@ export function mapSubjectGroupToDeptScope(subjectGroup?: string | null): ScopeD
   if (!subjectGroup) return null;
   const trimmed = subjectGroup.trim();
   return SUBJECT_GROUP_TO_DEPT_SCOPE[trimmed] || null;
+}
+
+/**
+ * Resolves all applicable system role keys for a user, evaluating authorization role,
+ * civil-service position, and appointed functional duties (UserDutyAssignment).
+ */
+export function getUserRoleKeys(
+  user?: {
+    id?: string | null;
+    role?: string | null;
+    position?: string | null;
+    duties?: UserDutyAssignmentDTO[] | null;
+    dutyAssignments?: UserDutyAssignmentDTO[] | null;
+  } | null,
+  isFinalApprover: boolean = false
+): string[] {
+  if (!user) return ["TEACHER"];
+  const roles: string[] = [];
+
+  const role = (user.role || "").trim().toUpperCase();
+  const pos = (user.position || "").trim();
+
+  if (role === "ADMIN" || pos === "แอดมิน") {
+    roles.push("ADMIN");
+  }
+  if (role === "DIRECTOR" || pos === "ผู้อำนวยการ" || isFinalApprover) {
+    roles.push("DIRECTOR");
+  }
+  if (role === "DEPUTY_DIRECTOR" || pos === "รองผู้อำนวยการ") {
+    roles.push("DEPUTY_DIRECTOR");
+  }
+
+  // Appointed duties check (support user.duties or user.dutyAssignments)
+  const duties: UserDutyAssignmentDTO[] = (user.duties || user.dutyAssignments || []).filter(d => !d.revokedAt);
+
+  const hasHR = duties.some(d => d.dutyType === "HR_HEAD" || (d.dutyType === "DIVISION_HEAD" && d.divisionScope === "PERSONNEL"));
+  if (hasHR || pos === "หัวหน้างานบุคคล") {
+    roles.push("HR");
+  }
+
+  const hasInspector = duties.some(d => d.dutyType === "INSPECTOR");
+  if (hasInspector || pos === "ผู้ตรวจสอบ") {
+    roles.push("INSPECTOR");
+  }
+
+  const hasHRStaff = duties.some(d => d.dutyType === "HR_STAFF");
+  if (hasHRStaff || pos === "เจ้าหน้าที่บุคคล") {
+    roles.push("HR_STAFF");
+  }
+
+  const hasDeptHead = duties.some(d => d.dutyType === "DEPT_HEAD");
+  if (hasDeptHead || pos === "หัวหน้าหมวด" || pos === "หัวหน้ากลุ่มสาระ") {
+    roles.push("DEPT_HEAD");
+  }
+
+  if (roles.length === 0) {
+    roles.push("TEACHER");
+  }
+  return roles;
+}
+
+/**
+ * Returns the highest-priority canonical role key for single-role interfaces.
+ * Precedence: ADMIN > DIRECTOR > DEPUTY_DIRECTOR > HR > INSPECTOR > HR_STAFF > DEPT_HEAD > TEACHER
+ */
+export function getUserRoleKey(
+  user?: {
+    id?: string | null;
+    role?: string | null;
+    position?: string | null;
+    duties?: UserDutyAssignmentDTO[] | null;
+    dutyAssignments?: UserDutyAssignmentDTO[] | null;
+  } | null,
+  isFinalApprover: boolean = false
+): string {
+  const keys = getUserRoleKeys(user, isFinalApprover);
+  if (keys.includes("ADMIN")) return "ADMIN";
+  if (keys.includes("DIRECTOR")) return "DIRECTOR";
+  if (keys.includes("DEPUTY_DIRECTOR")) return "DEPUTY_DIRECTOR";
+  if (keys.includes("HR")) return "HR";
+  if (keys.includes("INSPECTOR")) return "INSPECTOR";
+  if (keys.includes("HR_STAFF")) return "HR_STAFF";
+  if (keys.includes("DEPT_HEAD")) return "DEPT_HEAD";
+  return "TEACHER";
 }
 
 export function getUserCapabilities(
@@ -199,6 +285,8 @@ export function getUserCapabilities(
     canAccessBudget: isAdmin || isDirector || divisionRoles.includes('BUDGET'),
     canManageUsers: isAdmin || isHRHead,
     canAccessDocument: isAdmin || isDirector || divisionRoles.includes('GENERAL'),
+    canViewAllLeaveReports: isAdmin || isDirector || isDeputyDirector || isHRHead || isHRStaff || isInspector,
+    canViewAllLeaveHistory: isAdmin || isDirector || isDeputyDirector || isHRHead || isHRStaff || isInspector,
   };
 }
 

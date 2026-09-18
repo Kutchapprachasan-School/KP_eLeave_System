@@ -17,11 +17,13 @@ import { TableSkeleton } from "@/components/ui/skeletons";
 import { EmptyState } from "@/components/ui/empty-state";
 
 import { parseDocumentUrls, handleViewAttachment } from "@/lib/attachment-utils";
+import { getUserRoleKey } from "@/lib/permissions";
 
 export default function HistoryPage() {
   const { data: session } = useSession();
+  const userRole = getUserRoleKey(session?.user as any);
   const isAdmin = (session?.user as any)?.role === "ADMIN" || (session?.user as any)?.position === "แอดมิน";
-  const isHR = (session?.user as any)?.position === "หัวหน้างานบุคคล";
+  const isHR = userRole === "HR" || (session?.user as any)?.position === "หัวหน้างานบุคคล";
   
   const searchParams = useSearchParams();
   const cycleParam = searchParams.get("cycle") || "all";

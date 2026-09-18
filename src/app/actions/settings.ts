@@ -918,6 +918,22 @@ export async function getEligibleAppointees() {
   });
 }
 
+export async function getMyDutyAssignments() {
+  const session = await getSession();
+  if (!session?.user?.id) return [];
+
+  return prisma.userDutyAssignment.findMany({
+    where: { userId: session.user.id, revokedAt: null },
+    select: {
+      id: true,
+      dutyType: true,
+      divisionScope: true,
+      departmentScope: true,
+      assignedAt: true,
+    }
+  });
+}
+
 export async function getActiveDutyAssignments() {
   const session = await getSession();
   if (!session?.user) throw new Error("Unauthorized");
