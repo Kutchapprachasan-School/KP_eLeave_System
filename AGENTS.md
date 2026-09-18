@@ -11,7 +11,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 # KP e-Leave Production & Database Safety Rules
 
 ## 1. Zero Orphaned Test Accounts (ห้ามสร้างบัญชีทดสอบตกค้างในฐานข้อมูล)
-- **บุคลากรจริงในระบบมี 76 ท่านเท่านั้น (สร้าง ก.ค. 2569)** ห้ามลบหรือแก้ไขบัญชีจริงเหล่านี้เด็ดขาด
+- **บุคลากรจริงในระบบ (ครูและเจ้าหน้าที่):** จำนวนผู้ใช้จริงอาจมีการเพิ่มหรือลดได้ตามการบริหารงานบุคคลจริงของโรงเรียน แต่**ห้ามสคริปต์ทดสอบหรือระบบอัตโนมัติลบ/แก้ไขบัญชีจริงของโรงเรียนโดยพลการเด็ดขาด**
 - **ห้ามปล่อยให้มีบัญชีทดสอบหลงเหลือในตาราง `User` เด็ดขาด**:
   - ห้ามใส่การทดสอบที่มีการเขียนข้อมูลลง Live Database (เช่น `prisma.user.create/upsert`, `INSERT INTO "User"`) ไว้ใน `npm test` ปกติ
   - หากมีการรันชุดทดสอบเฉพาะกิจที่แตะ Database ต้องมี `after()` hook ทำการ cascade teardown และปิด trigger (`DISABLE TRIGGER USER;`) ก่อนล้างข้อมูลทุกตารางที่เกี่ยวข้อง และลบ `User` ทดสอบออกให้หมด 100%
@@ -19,4 +19,4 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 ## 2. Git & Deployment Pipeline (กฎการพัฒนาและการขึ้น Production)
 - พัฒนาและทดสอบบนกิ่ง `dev` เท่านั้น ห้าม commit ตรงเข้า `main`
-- ตรวจสอบยอดบุคลากรใน Database เสมอก่อนส่งมอบงาน ต้องมี 76 คนเท่าเดิมเสมอ (`SELECT count(*) FROM "User" = 76`)
+- ตรวจสอบความสะอาดของ Database เสมอก่อนส่งมอบงาน ต้องไม่มีบัญชีทดสอบหลงเหลืออยู่ในระบบ (`WHERE email LIKE '%test%' OR name LIKE '%ทดสอบ%' = 0`)
