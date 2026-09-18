@@ -389,10 +389,15 @@ export default function SettingsPage() {
       } else {
         console.error("Failed to load active duties:", dutiesRes.reason);
       }
-      if (appointeesRes.status === "fulfilled") {
-        setSimpleUsers(appointeesRes.value || []);
+      if (appointeesRes.status === "fulfilled" && Array.isArray(appointeesRes.value) && appointeesRes.value.length > 0) {
+        setSimpleUsers(appointeesRes.value);
       } else {
-        console.error("Failed to load eligible appointees:", appointeesRes.reason);
+        try {
+          const fallback = await getSimpleUsersList();
+          setSimpleUsers(fallback || []);
+        } catch (err) {
+          console.error("Fallback to getSimpleUsersList failed:", err);
+        }
       }
     } catch (e) {
       console.error("Failed in loadAppointedDuties:", e);
