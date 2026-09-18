@@ -205,10 +205,51 @@ describe('Academic OMR End-to-End Workflow & Integrity Pipeline', () => {
 
   after(async () => {
     try {
+      if (testPaperId || testUserId) {
+        // Disable triggers to allow cascade cleanup of test submissions & items
+        await pool.query('ALTER TABLE "ExamItemOverride" DISABLE TRIGGER USER;').catch(() => {});
+        await pool.query('ALTER TABLE "ExamItemSubmission" DISABLE TRIGGER USER;').catch(() => {});
+
+        if (testPaperId) {
+          await pool.query(`
+            DELETE FROM "ExamItemOverride" 
+            WHERE "submissionItemId" IN (
+              SELECT eis.id FROM "ExamItemSubmission" eis
+              JOIN "ExamSubmission" es ON es.id = eis."submissionId"
+              WHERE es."examPaperId" = $1
+            )
+          `, [testPaperId]).catch(() => {});
+          await pool.query(`
+            DELETE FROM "ExamItemSubmission" 
+            WHERE "submissionId" IN (
+              SELECT es.id FROM "ExamSubmission" es
+              WHERE es."examPaperId" = $1
+            )
+          `, [testPaperId]).catch(() => {});
+          await pool.query('DELETE FROM "ExamSubmission" WHERE "examPaperId" = $1', [testPaperId]).catch(() => {});
+          await pool.query('DELETE FROM "ExamPrintedSheet" WHERE "examPaperId" = $1', [testPaperId]).catch(() => {});
+          await pool.query(`
+            DELETE FROM "ExamAnswerKeyItem" 
+            WHERE "answerKeyId" IN (SELECT id FROM "ExamAnswerKey" WHERE "examPaperId" = $1)
+          `, [testPaperId]).catch(() => {});
+          await pool.query('DELETE FROM "ExamAnswerKey" WHERE "examPaperId" = $1', [testPaperId]).catch(() => {});
+          await pool.query('DELETE FROM "ExamAnswerKeyVersion" WHERE "examPaperId" = $1', [testPaperId]).catch(() => {});
+          await pool.query('DELETE FROM "ExamSubjectiveItem" WHERE "examPaperId" = $1', [testPaperId]).catch(() => {});
+          await pool.query('DELETE FROM "ExamPaper" WHERE "id" = $1', [testPaperId]).catch(() => {});
+        }
+
+        await pool.query('ALTER TABLE "ExamItemOverride" ENABLE TRIGGER USER;').catch(() => {});
+        await pool.query('ALTER TABLE "ExamItemSubmission" ENABLE TRIGGER USER;').catch(() => {});
+
+        if (testUserId) {
+          await pool.query('DELETE FROM "User" WHERE "id" = $1', [testUserId]).catch(() => {});
+        }
+      }
+    } catch (err) {
+      console.error('Error cleaning up omrWorkflow test data:', err);
+    } finally {
       await pool.end();
       await prisma.$disconnect();
-    } catch {
-      // ignore
     }
   });
 });

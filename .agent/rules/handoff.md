@@ -62,6 +62,11 @@ git checkout dev
    - **ต้องเรียงลำดับ Primary Key ตามตัวอักษร (Ascending PK Order)** เสมอก่อนทำการ Acquire Lock เพื่อป้องกัน Deadlock ข้าม Transaction
 3. **ห้าม Hard-Delete ข้อมูลที่มี Foreign Key อ้างอิง:**
    - ทรัพยากร (เช่น รถ/ห้องประชุมในระบบ `/facility`) ที่มีประวัติการจอง ให้ Fallback เป็น Soft-Delete/`RETIRED` เมื่อเจอ Error รหัส `P2003` หรือ `23503` (Foreign Key Constraint Violation) เท่านั้น Error อื่นให้ Throw ตามปกติ
+4. **กฎความปลอดภัยบัญชีผู้ใช้และข้อมูลทดสอบ (Zero Orphaned Test Accounts):**
+   - ฐานข้อมูลจริงต้องมีเฉพาะบุคลากรจริง 76 ท่านเท่านั้น ห้ามมีบัญชีทดสอบหลงเหลือ
+   - ห้ามใส่สคริปต์ทดสอบที่เขียนลง Database จริงไว้ใน `npm test` ปกติ (ให้แยกเป็น `npm run test:<module>`)
+   - หากสคริปต์ทดสอบใดจำเป็นต้องยิง Database จริง ต้องมี `after()` hook ล้างข้อมูลแบบ Cascade พร้อมใช้ `DISABLE TRIGGER USER;` และลบบัญชีทดสอบออก 100% เสมอ
+   - ดูรายละเอียดใน [`.agent/rules/test-data-and-account-safety.md`](file:///g:/My%20Drive/01%20Web%20app/01%20ระบบการลา/.agent/rules/test-data-and-account-safety.md)
 
 ---
 

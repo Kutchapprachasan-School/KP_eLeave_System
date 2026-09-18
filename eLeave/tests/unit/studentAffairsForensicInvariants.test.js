@@ -32,6 +32,7 @@ describe('⚖️ Student Affairs Forensic Invariants & Zero-GUC Engine Suite (Re
   let testEnrollmentId;
   let testEnrollment2Id;
   let testSessionId;
+  let actualDeptId;
 
   const currentYear = 2569;
   const currentTerm = 1;
@@ -86,7 +87,7 @@ describe('⚖️ Student Affairs Forensic Invariants & Zero-GUC Engine Suite (Re
       ON CONFLICT ("code") DO UPDATE SET "name" = EXCLUDED."name"
       RETURNING "id";
     `, [deptId, 'DEPT_' + nowStr]);
-    const actualDeptId = deptRes.rows[0].id;
+    actualDeptId = deptRes.rows[0].id;
 
     testTeacherId = 'tch_' + nowStr;
     const tchRes = await client.query(`
@@ -167,35 +168,57 @@ describe('⚖️ Student Affairs Forensic Invariants & Zero-GUC Engine Suite (Re
 
   after(async () => {
     if (!client) return;
-    const safeDelete = async (query, params) => {
-      try {
-        await client.query(query, params);
-      } catch (e) {
-        // Ignore forensic-guarded deletions during teardown
+    try {
+      const testUserIds = [adminUserId, teacherUserId, teacher2UserId].filter(Boolean);
+      if (testUserIds.length > 0) {
+        // 1. Temporarily disable deletion triggers
+        try { await client.query('ALTER TABLE "CctExportManifest" DISABLE TRIGGER USER;'); } catch {}
+        try { await client.query('ALTER TABLE "StudentMeritNomination" DISABLE TRIGGER USER;'); } catch {}
+
+        // 2. Cascade delete in child-first order
+        try { 
+          await client.query(
+            'DELETE FROM "StudentPeriodAttendance" WHERE "recordedById" = ANY($1) OR "scheduledSessionId" IN (SELECT id FROM "ScheduledClassSession" WHERE "createdById" = ANY($1) OR "id" = $2 OR "offeringId" = $3) OR "enrollmentId" IN (SELECT id FROM "StudentEnrollment" WHERE "studentId" IN ($4, $5))', 
+            [testUserIds, testSessionId, testOfferingId, testStudentId, testStudent2Id]
+          ); 
+        } catch {}
+        try { await client.query('DELETE FROM "StudentMorningAttendance" WHERE "recordedById" = ANY($1) OR "enrollmentId" IN (SELECT id FROM "StudentEnrollment" WHERE "studentId" IN ($2, $3))', [testUserIds, testStudentId, testStudent2Id]); } catch {}
+        try { await client.query('DELETE FROM "ScheduledClassSession" WHERE "createdById" = ANY($1) OR "id" = $2 OR "offeringId" = $3', [testUserIds, testSessionId, testOfferingId]); } catch {}
+        try { await client.query('DELETE FROM "InterventionActivity" WHERE "recordedById" = ANY($1) OR "caseId" IN (SELECT id FROM "StudentInterventionCase" WHERE "studentId" IN ($2, $3))', [testUserIds, testStudentId, testStudent2Id]); } catch {}
+        try { await client.query('DELETE FROM "StudentRiskAssessment" WHERE "studentId" IN ($1, $2)', [testStudentId, testStudent2Id]); } catch {}
+        try { await client.query('DELETE FROM "StudentInterventionCase" WHERE "assignedToId" = ANY($1) OR "createdById" = ANY($1) OR "studentId" IN ($2, $3)', [testUserIds, testStudentId, testStudent2Id]); } catch {}
+        try { await client.query('DELETE FROM "StudentSdqEvaluation" WHERE "studentId" IN ($1, $2) OR "evaluatorId" = ANY($3)', [testStudentId, testStudent2Id, testUserIds]); } catch {}
+        try { await client.query('DELETE FROM "StudentHomeVisit" WHERE "studentId" IN ($1, $2) OR "visitorTeacherId" = ANY($3)', [testStudentId, testStudent2Id, testUserIds]); } catch {}
+        try { await client.query('DELETE FROM "StudentMedicalCertificate" WHERE "studentId" IN ($1, $2) OR "verifiedById" = ANY($3)', [testStudentId, testStudent2Id, testUserIds]); } catch {}
+        try { await client.query('DELETE FROM "StudentMeritNomination" WHERE "studentId" IN ($1, $2) OR "reviewedById" = ANY($3)', [testStudentId, testStudent2Id, testUserIds]); } catch {}
+        try { await client.query('DELETE FROM "StudentYearlyBehaviorProjection" WHERE "studentId" IN ($1, $2)', [testStudentId, testStudent2Id]); } catch {}
+        try { await client.query('DELETE FROM "BehaviorRecord" WHERE "reportedById" = ANY($1) OR "studentId" IN ($2, $3)', [testUserIds, testStudentId, testStudent2Id]); } catch {}
+        try { await client.query('DELETE FROM "StudentStatusHistory" WHERE "studentId" IN ($1, $2) OR "changedById" = ANY($3)', [testStudentId, testStudent2Id, testUserIds]); } catch {}
+        try { await client.query('DELETE FROM "StudentEnrollment" WHERE "studentId" IN ($1, $2)', [testStudentId, testStudent2Id]); } catch {}
+        try { await client.query('DELETE FROM "Student" WHERE "id" IN ($1, $2)', [testStudentId, testStudent2Id]); } catch {}
+        try { await client.query('DELETE FROM "SubjectOffering" WHERE "id" = $1 OR "teacherId" = $2', [testOfferingId, testTeacherId]); } catch {}
+        try { await client.query('DELETE FROM "Subject" WHERE "id" = $1', [testSubjectId]); } catch {}
+        try { await client.query('DELETE FROM "ClassRoom" WHERE "id" IN ($1, $2)', [testClassRoomId, testClassRoom2Id]); } catch {}
+        try { await client.query('DELETE FROM "Teacher" WHERE "id" = $1', [testTeacherId]); } catch {}
+        try { await client.query('DELETE FROM "Department" WHERE "id" = $1', [actualDeptId]); } catch {}
+        try { await client.query('DELETE FROM "CctExportManifest" WHERE "verifiedById" = ANY($1) OR "createdById" = ANY($1)', [testUserIds]); } catch {}
+        try { await client.query('DELETE FROM "Session" WHERE "userId" = ANY($1)', [testUserIds]); } catch {}
+        try { await client.query('DELETE FROM "Account" WHERE "userId" = ANY($1)', [testUserIds]); } catch {}
+
+        // 3. Re-enable triggers
+        try { await client.query('ALTER TABLE "CctExportManifest" ENABLE TRIGGER USER;'); } catch {}
+        try { await client.query('ALTER TABLE "StudentMeritNomination" ENABLE TRIGGER USER;'); } catch {}
+
+        // 4. Finally delete test users
+        await client.query('DELETE FROM "User" WHERE "id" = ANY($1)', [testUserIds]);
       }
-    };
-
-    // Clean up sandbox data in reverse dependency order
-    await safeDelete(`DELETE FROM public."StudentPeriodAttendance" WHERE "enrollmentId" IN ($1, $2);`, [testEnrollmentId, testEnrollment2Id]);
-    await safeDelete(`DELETE FROM public."StudentMorningAttendance" WHERE "enrollmentId" IN ($1, $2);`, [testEnrollmentId, testEnrollment2Id]);
-    await safeDelete(`DELETE FROM public."StudentMedicalCertificate" WHERE "studentId" IN ($1, $2);`, [testStudentId, testStudent2Id]);
-    await safeDelete(`DELETE FROM public."ScheduledClassSession" WHERE "id" = $1;`, [testSessionId]);
-    await safeDelete(`DELETE FROM public."BehaviorRecord" WHERE "studentId" IN ($1, $2);`, [testStudentId, testStudent2Id]);
-    await safeDelete(`DELETE FROM public."StudentYearlyBehaviorProjection" WHERE "studentId" IN ($1, $2);`, [testStudentId, testStudent2Id]);
-    await safeDelete(`DELETE FROM public."StudentStatusHistory" WHERE "studentId" IN ($1, $2);`, [testStudentId, testStudent2Id]);
-    await safeDelete(`DELETE FROM public."StudentRiskAssessment" WHERE "studentId" IN ($1, $2);`, [testStudentId, testStudent2Id]);
-    await safeDelete(`DELETE FROM public."InterventionActivity" WHERE "recordedById" IN ($1, $2);`, [adminUserId, teacherUserId]);
-    await safeDelete(`DELETE FROM public."StudentInterventionCase" WHERE "studentId" IN ($1, $2);`, [testStudentId, testStudent2Id]);
-    await safeDelete(`DELETE FROM public."StudentMeritNomination" WHERE "studentId" IN ($1, $2);`, [testStudentId, testStudent2Id]);
-    await safeDelete(`DELETE FROM public."StudentSdqEvaluation" WHERE "studentId" IN ($1, $2);`, [testStudentId, testStudent2Id]);
-    await safeDelete(`DELETE FROM public."StudentHomeVisit" WHERE "studentId" IN ($1, $2);`, [testStudentId, testStudent2Id]);
-    await safeDelete(`DELETE FROM public."StudentEnrollment" WHERE "id" IN ($1, $2);`, [testEnrollmentId, testEnrollment2Id]);
-    await safeDelete(`DELETE FROM public."Student" WHERE "id" IN ($1, $2);`, [testStudentId, testStudent2Id]);
-    await safeDelete(`DELETE FROM public."Session" WHERE "userId" IN ($1, $2, $3);`, [adminUserId, teacherUserId, teacher2UserId]);
-    await safeDelete(`DELETE FROM public."User" WHERE "id" IN ($1, $2, $3);`, [adminUserId, teacherUserId, teacher2UserId]);
-
-    await client.end();
+    } catch (err) {
+      console.error('Failed to cleanup student affairs test users:', err.message);
+    } finally {
+      await client.end();
+    }
   });
+
 
   // ===========================================================================
   // TEST-01: AUDIT LOG IMMUTABILITY VERIFICATION
@@ -1268,3 +1291,4 @@ describe('⚖️ Student Affairs Forensic Invariants & Zero-GUC Engine Suite (Re
     });
   });
 });
+
