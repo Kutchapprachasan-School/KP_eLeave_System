@@ -54,7 +54,6 @@ describe('Leave Separation of Duties & Anti-Self-Approval', () => {
     assert.equal(applicantDeptScope, 'THAI');
 
     const canApprove =
-      caps.isAdmin ||
       caps.isDirector ||
       caps.isHRHead ||
       caps.deptHeadGroups.includes(applicantDeptScope);
@@ -88,7 +87,6 @@ describe('Leave Separation of Duties & Anti-Self-Approval', () => {
     assert.equal(applicantDeptScope, 'MATH');
 
     const canApprove =
-      caps.isAdmin ||
       caps.isDirector ||
       caps.isHRHead ||
       caps.deptHeadGroups.includes(applicantDeptScope);
@@ -113,12 +111,23 @@ describe('Leave Separation of Duties & Anti-Self-Approval', () => {
     const applicantDeptScope = mapSubjectGroupToDeptScope(applicantThai.subjectGroup);
 
     const canApprove =
-      caps.isAdmin ||
       caps.isDirector ||
       caps.isHRHead ||
       caps.deptHeadGroups.includes(applicantDeptScope);
 
     assert.equal(canApprove, true);
+  });
+
+  test('separation of duties: admin without appointed duties cannot approve leaves', () => {
+    const adminUser = {
+      id: 'admin-1',
+      role: 'ADMIN',
+      position: 'แอดมิน',
+    };
+    const caps = getUserCapabilities(adminUser, []);
+    assert.equal(caps.isAdmin, true);
+    assert.equal(caps.canApproveLeaveHead, false);
+    assert.equal(caps.canInspectLeave, false);
   });
 
   test('approver snapshot structure satisfies mandatory schema fields', () => {

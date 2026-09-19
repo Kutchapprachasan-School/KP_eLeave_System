@@ -542,8 +542,6 @@ export async function getStaffList() {
 async function canGiveFinalApproval(userId: string, userPosition: string | null, userRole: string): Promise<boolean> {
   // Director (ผู้อำนวยการ) can always give final approval
   if (userPosition === "ผู้อำนวยการ" || userRole === "DIRECTOR") return true;
-  // Admin can always give final approval
-  if (userRole === "ADMIN" || userPosition === "แอดมิน") return true;
   // Check if user is in the configurable final approver list
   const settings = await prisma.systemSettings.findUnique({
     where: { id: "default" },
@@ -967,9 +965,9 @@ export async function approveLeaveRequest(id: string, pdfBase64?: string, skipDr
     let updateData: any = {};
     const now = new Date();
 
-    if ((caps.isHRHead || caps.isAdmin || caps.isDeptHead) && request.status === "PENDING_HEAD" && !isFinalApprover) {
+    if ((caps.isHRHead || caps.isDeptHead) && request.status === "PENDING_HEAD" && !isFinalApprover) {
       // If Department Head approving, verify domain scope
-      if (caps.isDeptHead && !caps.isHRHead && !caps.isAdmin) {
+      if (caps.isDeptHead && !caps.isHRHead) {
         const requestDept = mapSubjectGroupToDeptScope(request.user?.subjectGroup);
         if (!requestDept || !caps.deptHeadGroups.includes(requestDept)) {
           await logSecurityViolationIsolated(
@@ -1235,7 +1233,7 @@ export async function rejectLeaveRequest(id: string, rejectReason?: string, pdfB
     const isFinalApprover = caps.isDirector || (await canGiveFinalApproval(session.user.id, user.position, user.role));
 
     let canReject = false;
-    if ((caps.isHRHead || caps.isAdmin || caps.isDeptHead) && request.status === "PENDING_HEAD" && !isFinalApprover) {
+    if ((caps.isHRHead || caps.isDeptHead) && request.status === "PENDING_HEAD" && !isFinalApprover) {
       canReject = true;
     } else if (
       isFinalApprover &&

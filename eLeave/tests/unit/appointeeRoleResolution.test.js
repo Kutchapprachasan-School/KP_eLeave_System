@@ -235,9 +235,9 @@ describe('Appointee Role Resolution & Capabilities Parity', () => {
       const isHRHead = userRoles.includes('HR');
       const isDeptHead = userRoles.includes('DEPT_HEAD');
 
-      const canApproveFinal = isDirector || isDeputyDirector || isFinalApprover || isUserAdmin;
+      const canApproveFinal = isDirector || isDeputyDirector || isFinalApprover;
 
-      let canApproveHead = isHRHead || isUserAdmin || canApproveFinal;
+      let canApproveHead = isHRHead || canApproveFinal;
       if (!canApproveHead && isDeptHead) {
         const activeDuties = (effectiveUser.duties || []).filter(d => !d.revokedAt);
         const deptScopes = activeDuties
@@ -249,7 +249,7 @@ describe('Appointee Role Resolution & Capabilities Parity', () => {
         }
       }
 
-      return (
+      return Boolean(
         (item.status === 'PENDING_HEAD' && canApproveHead) ||
         (item.status === 'PENDING_EXEC' && canApproveFinal)
       );
@@ -291,6 +291,14 @@ describe('Appointee Role Resolution & Capabilities Parity', () => {
       const pendingExecItem = { id: 'req-2', status: 'PENDING_EXEC', user: { subjectGroup: 'ภาษาไทย' } };
       assert.equal(computeCanApproveItem(plainTeacher, pendingHeadItem), false);
       assert.equal(computeCanApproveItem(plainTeacher, pendingExecItem), false);
+    });
+
+    test('Admin without appointed duties cannot approve PENDING_HEAD or PENDING_EXEC requests (SoD)', () => {
+      const adminUser = { id: 'u-admin', position: 'แอดมิน', role: 'ADMIN', duties: [] };
+      const pendingHeadItem = { id: 'req-1', status: 'PENDING_HEAD', user: { subjectGroup: 'ภาษาไทย' } };
+      const pendingExecItem = { id: 'req-2', status: 'PENDING_EXEC', user: { subjectGroup: 'ภาษาไทย' } };
+      assert.equal(computeCanApproveItem(adminUser, pendingHeadItem), false);
+      assert.equal(computeCanApproveItem(adminUser, pendingExecItem), false);
     });
   });
 });

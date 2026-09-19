@@ -429,9 +429,9 @@ export default function ApprovalsPage() {
             const isHRHead = userRoles.includes("HR");
             const isDeptHead = userRoles.includes("DEPT_HEAD");
 
-            const canApproveFinal = isDirector || isDeputyDirector || isFinalApprover || isUserAdmin;
+            const canApproveFinal = isDirector || isDeputyDirector || isFinalApprover;
 
-            let canApproveHead = isHRHead || isUserAdmin || canApproveFinal;
+            let canApproveHead = isHRHead || canApproveFinal;
             if (!canApproveHead && isDeptHead) {
               const activeDuties = (effectiveUser.duties || []).filter((d: any) => !d.revokedAt);
               const deptScopes = activeDuties
@@ -443,9 +443,10 @@ export default function ApprovalsPage() {
               }
             }
 
-            const canApproveThisItem = 
+            const canApproveThisItem = Boolean(
               (item.status === "PENDING_HEAD" && canApproveHead) ||
-              (item.status === "PENDING_EXEC" && canApproveFinal);
+              (item.status === "PENDING_EXEC" && canApproveFinal)
+            );
 
             return (
               <div key={item.id} className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white/60 dark:border-slate-800 rounded-3xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] flex flex-col md:flex-row gap-6 items-start md:items-center">

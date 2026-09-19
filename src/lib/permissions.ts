@@ -277,8 +277,8 @@ export function getUserCapabilities(
     deptHeadGroups,
     divisionRoles,
     // Capabilities
-    canInspectLeave: isAdmin || isDirector || isInspector,
-    canApproveLeaveHead: isAdmin || isDirector || isHRHead || isDeptHead,
+    canInspectLeave: isDirector || isInspector,
+    canApproveLeaveHead: isDirector || isHRHead || isDeptHead,
     canManageLeaveQuotas: isAdmin || isDirector || isHRHead,
     canAccessAcademic: isAdmin || isDirector || divisionRoles.includes('ACADEMIC'),
     canAccessFacility: isAdmin || isDirector || divisionRoles.includes('GENERAL'),
