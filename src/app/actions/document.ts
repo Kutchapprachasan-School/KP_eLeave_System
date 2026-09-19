@@ -846,9 +846,13 @@ export async function getDocumentsList(filters: {
   status?: string;
   year?: number;
   includeCertificates?: boolean;
+  includeDeleted?: boolean;
 }): Promise<ActionResponse> {
   try {
     const where: any = {};
+    if (!filters.includeDeleted) {
+      where.isDeleted = false;
+    }
     if (filters.docType) {
       where.docType = filters.docType;
     } else if (!filters.includeCertificates) {
@@ -891,7 +895,7 @@ export async function getDashboardStats(): Promise<ActionResponse> {
     const counts = await prisma.documentRecord.groupBy({
       by: ["status"],
       _count: { id: true },
-      where: { year: currentYear }
+      where: { year: currentYear, isDeleted: false }
     });
 
     const stats = { DRAFT: 0, ISSUED: 0, PRINTED: 0, CANCELLED: 0 };
@@ -971,6 +975,7 @@ export async function getDocumentTrendStats(): Promise<ActionResponse> {
     const currentYear = new Date().getFullYear();
     const docs = await prisma.documentRecord.findMany({
       where: {
+        isDeleted: false,
         createdAt: {
           gte: new Date(`${currentYear}-01-01T00:00:00.000Z`),
           lte: new Date(`${currentYear}-12-31T23:59:59.999Z`)

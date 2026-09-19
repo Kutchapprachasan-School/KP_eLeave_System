@@ -7,6 +7,7 @@ import {
   Clock,
   Award,
   AlertCircle,
+  AlertTriangle,
   RefreshCw,
   X,
   CheckCircle2,
@@ -20,7 +21,9 @@ import {
 import {
   getRecycleBinItemsAction,
   restoreRecycleBinItemAction,
+  purgeRecycleBinItemAction,
 } from "@/app/actions/recycle-bin";
+import { useSession } from "@/lib/auth-client";
 import type { RecycleBinItemViewModel } from "@/services/recycle-bin/recycle-bin.service";
 
 interface MyTrashModalProps {
@@ -30,9 +33,13 @@ interface MyTrashModalProps {
 }
 
 export function MyTrashModal({ isOpen, onClose, onItemRestored }: MyTrashModalProps) {
+  const { data: session } = useSession();
+  const isAdmin = session?.user?.role === "ADMIN" || session?.user?.role === "SUPERADMIN";
+
   const [items, setItems] = useState<RecycleBinItemViewModel[]>([]);
   const [loading, setLoading] = useState(false);
   const [restoringItem, setRestoringItem] = useState<RecycleBinItemViewModel | null>(null);
+  const [purgingItem, setPurgingItem] = useState<RecycleBinItemViewModel | null>(null);
   const [isPending, startTransition] = useTransition();
   const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
@@ -79,6 +86,25 @@ export function MyTrashModal({ isOpen, onClose, onItemRestored }: MyTrashModalPr
           onItemRestored?.();
         } else {
           showToast("error", res.error || "เกิดข้อผิดพลาดในการกู้คืน");
+        }
+      } catch (err: any) {
+        showToast("error", err.message || "เกิดข้อผิดพลาด");
+      }
+    });
+  };
+
+  const handleConfirmPurge = () => {
+    if (!purgingItem) return;
+    startTransition(async () => {
+      try {
+        const res = await purgeRecycleBinItemAction("CERTIFICATE", purgingItem.id);
+        if (res.success) {
+          showToast("success", "ลบเกียรติบัตรออกจากระบบถาวรเรียบร้อยแล้ว");
+          setPurgingItem(null);
+          await loadItems();
+          onItemRestored?.();
+        } else {
+          showToast("error", res.error || "เกิดข้อผิดพลาดในการลบถาวร");
         }
       } catch (err: any) {
         showToast("error", err.message || "เกิดข้อผิดพลาด");
@@ -201,6 +227,17 @@ export function MyTrashModal({ isOpen, onClose, onItemRestored }: MyTrashModalPr
                         เหลือ {item.daysRemaining} วัน
                       </span>
 
+                      {isAdmin && (
+                        <button
+                          type="button"
+                          onClick={() => setPurgingItem(item)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/50 border border-rose-200 dark:border-rose-800 transition cursor-pointer"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          ลบถาวร
+                        </button>
+                      )}
+
                       <button
                         type="button"
                         onClick={() => setRestoringItem(item)}
@@ -276,6 +313,57 @@ export function MyTrashModal({ isOpen, onClose, onItemRestored }: MyTrashModalPr
           >
             {isPending ? <RefreshCw className="w-4 h-4 animate-spin" /> : <RotateCcw className="w-4 h-4" />}
             <span>ยืนยันกู้คืน</span>
+          </button>
+        </UnifiedModalFooter>
+      </UnifiedModal>
+
+      {/* Nested Confirm Purge Modal (Admin) */}
+      <UnifiedModal
+        isOpen={Boolean(purgingItem)}
+        onClose={() => setPurgingItem(null)}
+        size="md"
+      >
+        <UnifiedModalHeader
+          title="ยืนยันการลบเกียรติบัตรถาวร"
+          subtitle={purgingItem?.title}
+          icon={Trash2}
+          iconClass="bg-rose-50 text-rose-600 dark:bg-rose-950 dark:text-rose-400"
+          onClose={() => setPurgingItem(null)}
+        />
+        <UnifiedModalBody className="space-y-3">
+          <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+            ท่านต้องการลบชุดเกียรติบัตร{" "}
+            <strong className="text-slate-900 dark:text-white">
+              &quot;{purgingItem?.title}&quot;
+            </strong>{" "}
+            {purgingItem?.docNo ? `(${purgingItem.docNo})` : ""} ออกจากฐานข้อมูลถาวรใช่หรือไม่?
+          </p>
+          <div className="p-3.5 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200/80 dark:border-rose-800/60 text-xs text-rose-900 dark:text-rose-200 space-y-1.5">
+            <div className="font-bold flex items-center gap-1.5 text-rose-800 dark:text-rose-300">
+              <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+              <span>คำเตือน: การกระทำนี้ไม่สามารถย้อนกลับได้</span>
+            </div>
+            <p className="leading-relaxed">
+              ข้อมูลชุดเกียรติบัตรนี้รวมถึงรายการใบเกียรติบัตรย่อยทั้งหมดจะถูกลบออกจากระบบอย่างถาวรทันที
+            </p>
+          </div>
+        </UnifiedModalBody>
+        <UnifiedModalFooter>
+          <button
+            type="button"
+            onClick={() => setPurgingItem(null)}
+            className="px-4 py-2 rounded-xl text-xs sm:text-sm font-bold border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+          >
+            ยกเลิก
+          </button>
+          <button
+            type="button"
+            disabled={isPending}
+            onClick={handleConfirmPurge}
+            className="px-5 py-2 rounded-xl text-xs sm:text-sm font-bold bg-rose-600 hover:bg-rose-700 text-white transition cursor-pointer disabled:opacity-50 flex items-center gap-2"
+          >
+            {isPending ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+            <span>ยืนยันลบถาวร</span>
           </button>
         </UnifiedModalFooter>
       </UnifiedModal>
