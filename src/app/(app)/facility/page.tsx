@@ -7,7 +7,9 @@ import {
   History, 
   ShieldCheck, 
   Settings, 
-  RefreshCw 
+  RefreshCw,
+  ChevronDown,
+  ChevronUp
 } from "lucide-react";
 import { useToast } from "@/components/toast-provider";
 import {
@@ -41,6 +43,8 @@ function FacilityPortalContent() {
   const [drivers, setDrivers] = useState<any[]>([]);
   const [userRoleInfo, setUserRoleInfo] = useState<any>(null);
   const [facilitySettings, setFacilitySettings] = useState<any>(null);
+
+  const [isCalendarOpen, setIsCalendarOpen] = useState(true);
 
   // Selected slot from calendar to populate booking form
   const [selectedSlot, setSelectedSlot] = useState<{
@@ -222,32 +226,52 @@ function FacilityPortalContent() {
           {/* COMBINED VIEW: CALENDAR ON TOP + BOOKING FORM DIRECTLY UNDERNEATH */}
           {(currentView === "request" || currentView === "calendar") && (
             <div className="space-y-8">
-              {/* 1. Resource Calendar on Top */}
+              {/* 1. Resource Calendar on Top (Collapsible) */}
               <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                      <Calendar className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
-                      ปฏิทินการใช้ทรัพยากรส่วนกลาง
-                    </h2>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                      ตรวจสอบสถานะและช่วงเวลาว่างของห้องประชุมและรถโรงเรียนแบบเรียลไทม์ (คลิกเพื่อจองคิวที่ต้องการ)
-                    </p>
+                <div
+                  onClick={() => setIsCalendarOpen(!isCalendarOpen)}
+                  className="flex items-center justify-between p-4 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white/60 dark:border-slate-800 rounded-2xl cursor-pointer hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-all shadow-xs"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400">
+                      <Calendar className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h2 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                        ปฏิทินการใช้ทรัพยากรส่วนกลาง
+                        <span className="text-[11px] font-semibold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 px-2 py-0.5 rounded-full">
+                          {isCalendarOpen ? "กำลังแสดง (คลิกเพื่อพับเก็บ)" : "พับเก็บอยู่ (คลิกเพื่อเปิดดู)"}
+                        </span>
+                      </h2>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                        {isCalendarOpen
+                          ? "ตรวจสอบสถานะและช่วงเวลาว่างของห้องประชุมและรถโรงเรียนแบบเรียลไทม์ (คลิกช่องเวลาเพื่อเริ่มจอง)"
+                          : "พับปฏิทินเก็บแล้ว — ท่านสามารถกรอกแบบฟอร์มยื่นจองด้านล่างได้ทันทีโดยไม่ต้องเลื่อนหน้าจอ"}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                    {isCalendarOpen ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
                   </div>
                 </div>
 
-                <FacilityUnifiedCalendar
-                  resources={resources}
-                  reservations={reservations}
-                  onSelectSlot={handleSelectSlot}
-                  onSelectReservation={(item) => {
-                    if (item.reservedByUserId === userRoleInfo?.userId) {
-                      navigateToView("history");
-                    } else if (isPrivileged) {
-                      navigateToView("approval");
-                    }
-                  }}
-                />
+                {isCalendarOpen && (
+                  <div className="transition-all duration-300">
+                    <FacilityUnifiedCalendar
+                      resources={resources}
+                      reservations={reservations}
+                      onSelectSlot={handleSelectSlot}
+                      onSelectReservation={(item) => {
+                        if (item.reservedByUserId === userRoleInfo?.userId) {
+                          navigateToView("history");
+                        } else if (isPrivileged) {
+                          navigateToView("approval");
+                        }
+                      }}
+                    />
+                  </div>
+                )}
               </div>
 
               {/* 2. Booking Form Directly Underneath */}

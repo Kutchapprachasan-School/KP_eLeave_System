@@ -1052,9 +1052,48 @@ export async function getFacilityReservationsAction(
 }
 
 /**
- * Query Active Driver Profiles
+ * Query Active Driver Profiles (with auto-sync from Driver Pool settings)
  */
 export async function getDriverProfilesAction() {
+  try {
+    let settings: any = null;
+    try {
+      if ((prisma as any).facilitySettings) {
+        settings = await (prisma as any).facilitySettings.findUnique({ where: { id: "default" } });
+      }
+    } catch (_) {}
+
+    if (!settings) {
+      const rows = await prisma.$queryRawUnsafe<any[]>('SELECT * FROM "FacilitySettings" WHERE id = \'default\'').catch(() => []);
+      if (rows && rows.length > 0) settings = rows[0];
+    }
+
+    if (settings?.driverPoolUserIds) {
+      const poolIds = settings.driverPoolUserIds.split(",").map((id: string) => id.trim()).filter(Boolean);
+      for (const userId of poolIds) {
+        const existing = await prisma.driverProfile.findUnique({ where: { userId } });
+        if (!existing) {
+          const u = await prisma.user.findUnique({ where: { id: userId }, select: { phoneNumber: true } });
+          await prisma.driverProfile.create({
+            data: {
+              userId,
+              licenseNumber: "-",
+              phoneNumber: u?.phoneNumber || "-",
+              isActive: true
+            }
+          });
+        } else if (!existing.isActive) {
+          await prisma.driverProfile.update({
+            where: { id: existing.id },
+            data: { isActive: true }
+          });
+        }
+      }
+    }
+  } catch (err) {
+    console.error("Error auto-syncing driver profiles:", err);
+  }
+
   return await prisma.driverProfile.findMany({
     where: { isActive: true },
     include: {
@@ -1064,6 +1103,33 @@ export async function getDriverProfilesAction() {
     },
     orderBy: { createdAt: "asc" }
   });
+}
+
+/**
+ * Update Driver Profile details (License Number, Phone)
+ */
+export async function updateDriverProfileAction(
+  id: string,
+  data: { licenseNumber?: string; phoneNumber?: string }
+) {
+  const user = await getSessionUser();
+  if (!user) throw new Error("Unauthorized");
+  assertFacilityPermission(user, "facility:resource.manage");
+
+  const updated = await prisma.driverProfile.update({
+    where: { id },
+    data: {
+      ...(data.licenseNumber !== undefined ? { licenseNumber: data.licenseNumber.trim() } : {}),
+      ...(data.phoneNumber !== undefined ? { phoneNumber: data.phoneNumber.trim() } : {})
+    },
+    include: {
+      user: { select: { id: true, name: true, email: true, phoneNumber: true } }
+    }
+  });
+
+  revalidatePath("/facility");
+  revalidatePath("/general/facility");
+  return updated;
 }
 
 /**

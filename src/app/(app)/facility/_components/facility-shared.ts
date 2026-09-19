@@ -51,3 +51,47 @@ export function getThaiMonthYear(date: Date): string {
   ];
   return `${fullMonths[date.getMonth()]} ${date.getFullYear() + 543}`;
 }
+
+export interface RoomConfigMetadata {
+  defaultLayout: string;
+  defaultEquipment: string;
+  note: string;
+}
+
+export const ROOM_LAYOUT_LABELS: Record<string, string> = {
+  THEATER: "เธียเตอร์ (Theater)",
+  CLASSROOM: "ห้องเรียน (Classroom)",
+  U_SHAPE: "ตัวยู (U-Shape)",
+  BOARDROOM: "โต๊ะประชุมยาว (Boardroom)",
+  BANQUET: "โต๊ะกลม (Banquet)",
+  HOLLOW_SQUARE: "สี่เหลี่ยมเปิดกลาง (Hollow Square)",
+  OTHER: "รูปแบบอื่นๆ"
+};
+
+export function parseRoomConfig(description: string | null | undefined): RoomConfigMetadata {
+  if (!description) {
+    return { defaultLayout: "THEATER", defaultEquipment: "", note: "" };
+  }
+  const trimmed = description.trim();
+  if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      return {
+        defaultLayout: parsed.defaultLayout || "THEATER",
+        defaultEquipment: parsed.defaultEquipment || "",
+        note: parsed.note || ""
+      };
+    } catch {
+      // Not JSON, fallback to note
+    }
+  }
+  return { defaultLayout: "THEATER", defaultEquipment: "", note: trimmed };
+}
+
+export function serializeRoomConfig(cfg: Partial<RoomConfigMetadata>): string {
+  return JSON.stringify({
+    defaultLayout: cfg.defaultLayout || "THEATER",
+    defaultEquipment: cfg.defaultEquipment || "",
+    note: cfg.note || ""
+  });
+}

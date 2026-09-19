@@ -926,7 +926,16 @@ function AppContent({ children }: { children: React.ReactNode }) {
          (item.href.startsWith("/general/facility") && (pathname === "/facility" || pathname === "/academic/facility"))) &&
         (searchParams?.get(item.href.split("?")[1].split("=")[0]) === item.href.split("?")[1].split("=")[1] ||
          (item.href.endsWith("view=request") && !searchParams?.get("view")))
-      : (pathname === item.href || (item.href === "/hr/leave/request" && pathname === "/request") || (item.href === "/hr/leave/history" && pathname === "/history") || (item.href === "/hr/leave/approvals" && pathname === "/approvals") || (item.href === "/hr/leave/reports" && pathname === "/reports") || (item.href === "/hr/attendance" && pathname === "/attendance") || (item.href === "/hr/competency" && pathname === "/academic/competency") || (item.href === "/general/facility" && (pathname === "/academic/facility" || pathname === "/facility" || pathname === "/general/facility") && (!searchParams?.get("view") || searchParams?.get("view") === "request" || searchParams?.get("view") === "calendar")));
+      : (item.href === "/general/facility" || item.href === "/facility" || item.href === "/academic/facility")
+        ? (pathname === "/general/facility" || pathname === "/facility" || pathname === "/academic/facility") &&
+          (!searchParams?.get("view") || searchParams?.get("view") === "request" || searchParams?.get("view") === "calendar")
+        : (pathname === item.href ||
+           (item.href === "/hr/leave/request" && pathname === "/request") ||
+           (item.href === "/hr/leave/history" && pathname === "/history") ||
+           (item.href === "/hr/leave/approvals" && pathname === "/approvals") ||
+           (item.href === "/hr/leave/reports" && pathname === "/reports") ||
+           (item.href === "/hr/attendance" && pathname === "/attendance") ||
+           (item.href === "/hr/competency" && pathname === "/academic/competency"));
 
     const isActive = isExactMatch || (item.href.startsWith("/settings") && !item.href.includes("?") && pathname.startsWith("/settings") && !searchParams?.get("section"));
     const Icon = item.icon;

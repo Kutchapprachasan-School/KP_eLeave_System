@@ -25,7 +25,9 @@ import {
 } from "@/app/actions/facility";
 import {
   toThaiDateString,
-  toThaiTimeString
+  toThaiTimeString,
+  parseRoomConfig,
+  ROOM_LAYOUT_LABELS
 } from "./facility-shared";
 import {
   UnifiedModal,
@@ -243,7 +245,7 @@ export default function FacilityApprovalView({
         </div>
       </div>
 
-      {/* Approval List */}
+      {/* Approval List or Processed Table */}
       {filteredItems.length === 0 ? (
         <div className="py-16 text-center text-slate-400 space-y-3 bg-slate-50/50 dark:bg-slate-800/20 rounded-3xl border border-dashed border-slate-200 dark:border-slate-800">
           <CheckCircle2 className="w-10 h-10 mx-auto text-emerald-500/60" />
@@ -252,6 +254,95 @@ export default function FacilityApprovalView({
               ? "ไม่มีรายการคำขอค้างรอการพิจารณาในขณะนี้"
               : "ไม่พบประวัติรายการที่พิจารณาแล้ว"}
           </p>
+        </div>
+      ) : activeTab === "PROCESSED" ? (
+        <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white/60 dark:border-slate-800 rounded-3xl overflow-hidden shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="bg-slate-50/80 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-bold">
+                  <th className="p-3.5 font-mono">รหัสคำขอ</th>
+                  <th className="p-3.5">ประเภท</th>
+                  <th className="p-3.5">ภารกิจ / ชื่องาน</th>
+                  <th className="p-3.5">ทรัพยากร</th>
+                  <th className="p-3.5">ผู้ขอใช้</th>
+                  <th className="p-3.5">วันเวลาใช้งาน</th>
+                  <th className="p-3.5 text-center">สถานะ</th>
+                  <th className="p-3.5 text-center">เอกสาร</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                {filteredItems.map((res) => {
+                  const isRoom = res.consumerModule === "MEETING_ROOM";
+                  return (
+                    <tr key={res.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition">
+                      <td className="p-3.5 font-mono font-bold text-slate-800 dark:text-slate-200 whitespace-nowrap">
+                        {res.bookingNumber || "KP-FACILITY"}
+                      </td>
+                      <td className="p-3.5 whitespace-nowrap">
+                        <span className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full ${
+                          isRoom
+                            ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800"
+                            : "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800"
+                        }`}>
+                          {isRoom ? <Building className="w-3 h-3" /> : <Bus className="w-3 h-3" />}
+                          {isRoom ? "ห้องประชุม" : "รถโรงเรียน"}
+                        </span>
+                      </td>
+                      <td className="p-3.5 font-semibold text-slate-900 dark:text-white max-w-[220px]">
+                        <div className="truncate" title={res.title}>{res.title}</div>
+                        {isRoom && res.roomDetails?.layoutType && (
+                          <div className="text-[10px] text-slate-400 mt-0.5">
+                            ผัง: {ROOM_LAYOUT_LABELS[res.roomDetails.layoutType] || res.roomDetails.layoutType}
+                          </div>
+                        )}
+                        {!isRoom && res.vehicleDetails?.destination && (
+                          <div className="text-[10px] text-emerald-600 dark:text-emerald-400 mt-0.5 flex items-center gap-1">
+                            <MapPin className="w-2.5 h-2.5" /> {res.vehicleDetails.destination}
+                          </div>
+                        )}
+                      </td>
+                      <td className="p-3.5 text-slate-700 dark:text-slate-300">
+                        <span className="font-medium">{res.resource?.name}</span>
+                        <span className="text-[10px] text-slate-400 block font-mono">({res.resource?.code})</span>
+                      </td>
+                      <td className="p-3.5 text-slate-600 dark:text-slate-400">
+                        <div>{res.reservedByUser?.name || "-"}</div>
+                        <div className="text-[10px] text-slate-400">{res.department || "โรงเรียน"}</div>
+                      </td>
+                      <td className="p-3.5 text-slate-600 dark:text-slate-400 whitespace-nowrap">
+                        <div>{toThaiDateString(res.startAt)}</div>
+                        <div className="text-[10px] text-slate-400">{toThaiTimeString(res.startAt)} - {toThaiTimeString(res.endAt)}</div>
+                      </td>
+                      <td className="p-3.5 text-center whitespace-nowrap">
+                        <StatusPillBadge
+                          status={res.status}
+                          label={
+                            res.status === "APPROVED" ? "อนุมัติแล้ว" :
+                            res.status === "CANCELLED" ? "ยกเลิกแล้ว" :
+                            res.status === "REJECTED" ? "ไม่อนุมัติ / ปฏิเสธ" : undefined
+                          }
+                          size="sm"
+                        />
+                      </td>
+                      <td className="p-3.5 text-center whitespace-nowrap">
+                        <a
+                          href={isRoom ? `/print/facility/room/${res.id}` : `/print/facility/vehicle/${res.id}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-medium transition cursor-pointer"
+                          title="พิมพ์แบบฟอร์ม A4"
+                        >
+                          <FileText className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                          <span>ใบงาน A4</span>
+                        </a>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       ) : (
         <div className="space-y-4">
@@ -328,6 +419,53 @@ export default function FacilityApprovalView({
                     )}
                   </div>
                 </div>
+
+                {/* Room Layout & Equipment Setup Section */}
+                {isRoom && (() => {
+                  const roomConfig = parseRoomConfig(res.resource?.description);
+                  const defaultLayout = roomConfig.defaultLayout || "THEATER";
+                  const reqLayout = res.roomDetails?.layoutType || "THEATER";
+                  const isModified = reqLayout !== defaultLayout;
+                  const hasCustomLayoutNotes = Boolean(res.roomDetails?.layoutNotes?.trim());
+                  const hasExtraEquipment = Boolean(res.roomDetails?.audioVisualNotes?.trim());
+
+                  if (isModified || hasCustomLayoutNotes) {
+                    return (
+                      <div className="p-3 bg-amber-50/90 dark:bg-amber-950/30 border-2 border-amber-300 dark:border-amber-700/60 rounded-xl space-y-1.5">
+                        <div className="flex items-center gap-1.5 text-amber-900 dark:text-amber-200 font-bold text-xs">
+                          <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                          <span>⚠️ มีการปรับเปลี่ยนผังจัดห้องใหม่: {ROOM_LAYOUT_LABELS[reqLayout] || reqLayout}</span>
+                          <span className="text-[10px] text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/60 px-1.5 py-0.5 rounded font-normal">
+                            (มาตรฐานเดิม: {ROOM_LAYOUT_LABELS[defaultLayout] || "เธียเตอร์"})
+                          </span>
+                        </div>
+                        {hasCustomLayoutNotes && (
+                          <div className="text-xs text-amber-950 dark:text-amber-100 pl-5.5">
+                            <strong>รายละเอียดผังที่ขอจัด:</strong> {res.roomDetails.layoutNotes}
+                          </div>
+                        )}
+                        {hasExtraEquipment && (
+                          <div className="text-xs text-amber-950 dark:text-amber-100 pl-5.5">
+                            <strong>อุปกรณ์โสตฯ ที่ขอเพิ่มเติม:</strong> {res.roomDetails.audioVisualNotes}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="text-[11px] text-slate-500 dark:text-slate-400 bg-slate-100/80 dark:bg-slate-800/60 px-2.5 py-1.5 rounded-xl inline-flex items-center gap-1.5 border border-slate-200/60 dark:border-slate-700/60">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                      <span>ผังห้อง: ตามมาตรฐานห้อง ({ROOM_LAYOUT_LABELS[defaultLayout] || "เธียเตอร์"})</span>
+                      {res.roomDetails?.requireAirCon ? " • เปิดแอร์" : " • ไม่เปิดแอร์"}
+                      {hasExtraEquipment && (
+                        <span className="text-slate-600 dark:text-slate-300 ml-1">
+                          (อุปกรณ์: {res.roomDetails.audioVisualNotes})
+                        </span>
+                      )}
+                    </div>
+                  );
+                })()}
 
                 {/* Card Footer / Actions */}
                 {res.status === "PENDING" && (

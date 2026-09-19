@@ -23,7 +23,12 @@ import {
   toggleFacilityResourceStatusAction,
   deleteFacilityResourceAction
 } from "@/app/actions/facility";
-import { type ModuleMode } from "./facility-shared";
+import {
+  type ModuleMode,
+  parseRoomConfig,
+  serializeRoomConfig,
+  ROOM_LAYOUT_LABELS
+} from "./facility-shared";
 import {
   StatusPillBadge,
   UnifiedModal,
@@ -59,7 +64,9 @@ export default function FacilityManagementView({
     location: "",
     description: "",
     licensePlate: "",
-    floor: "ชั้น 1"
+    floor: "ชั้น 1",
+    defaultLayout: "THEATER",
+    defaultEquipment: "โปรเจคเตอร์, จอฉายภาพ, เครื่องเสียง, ไมค์ลอย 2 ตัว"
   });
 
   // Edit Modal State
@@ -74,7 +81,10 @@ export default function FacilityManagementView({
     floor: "ชั้น 1",
     licensePlate: "",
     brand: "",
-    model: ""
+    model: "",
+    defaultLayout: "THEATER",
+    defaultEquipment: "",
+    roomNote: ""
   });
 
   // Create Resource
@@ -89,13 +99,21 @@ export default function FacilityManagementView({
       setAdding(true);
       const isVehicle = resourceType === "VEHICLE";
 
+      const descToSave = isVehicle
+        ? quickAddForm.description.trim() || undefined
+        : serializeRoomConfig({
+            defaultLayout: quickAddForm.defaultLayout,
+            defaultEquipment: quickAddForm.defaultEquipment.trim(),
+            note: quickAddForm.description.trim()
+          });
+
       await createFacilityResourceAction({
         code: quickAddForm.code.trim(),
         name: quickAddForm.name.trim(),
         type: resourceType,
         capacity: Number(quickAddForm.capacity) || 30,
         location: quickAddForm.location.trim() || undefined,
-        description: quickAddForm.description.trim() || undefined,
+        description: descToSave,
         ...(isVehicle
           ? {
               vehicleProfile: {
@@ -121,7 +139,9 @@ export default function FacilityManagementView({
         location: "",
         description: "",
         licensePlate: "",
-        floor: "ชั้น 1"
+        floor: "ชั้น 1",
+        defaultLayout: "THEATER",
+        defaultEquipment: "โปรเจคเตอร์, จอฉายภาพ, เครื่องเสียง, ไมค์ลอย 2 ตัว"
       });
       await onRefresh();
     } catch (err: any) {
@@ -133,6 +153,7 @@ export default function FacilityManagementView({
 
   // Open Edit Modal
   const handleOpenEdit = (res: any) => {
+    const parsedRoom = res.type === "MEETING_ROOM" ? parseRoomConfig(res.description) : null;
     setEditingResource(res);
     setEditForm({
       code: res.code || "",
@@ -144,7 +165,10 @@ export default function FacilityManagementView({
       floor: res.roomProfile?.floor || "ชั้น 1",
       licensePlate: res.vehicleProfile?.licensePlate || "",
       brand: res.vehicleProfile?.brand || "",
-      model: res.vehicleProfile?.model || ""
+      model: res.vehicleProfile?.model || "",
+      defaultLayout: parsedRoom?.defaultLayout || "THEATER",
+      defaultEquipment: parsedRoom?.defaultEquipment || "",
+      roomNote: parsedRoom?.note || ""
     });
   };
 
@@ -156,12 +180,20 @@ export default function FacilityManagementView({
       setSavingEdit(true);
       const isVehicle = editingResource.type === "VEHICLE";
 
+      const descToSave = isVehicle
+        ? editForm.description
+        : serializeRoomConfig({
+            defaultLayout: editForm.defaultLayout,
+            defaultEquipment: editForm.defaultEquipment.trim(),
+            note: editForm.roomNote.trim()
+          });
+
       await updateFacilityResourceAction(editingResource.id, {
         code: editForm.code,
         name: editForm.name,
         capacity: Number(editForm.capacity),
         location: editForm.location,
-        description: editForm.description,
+        description: descToSave,
         status: editForm.status as any,
         ...(isVehicle
           ? {
@@ -272,73 +304,120 @@ export default function FacilityManagementView({
           เพิ่มทรัพยากรส่วนกลางใหม่ (Quick Add: {resourceType === "MEETING_ROOM" ? "ห้องประชุม" : "รถโรงเรียน"})
         </h2>
 
-        <form onSubmit={handleCreateResource} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3 items-end">
-          <div>
-            <label className="block font-bold text-xs text-slate-700 dark:text-slate-300 mb-1">
-              รหัสกำกับ <span className="text-rose-500">*</span>
-            </label>
-            <input
-              type="text"
-              required
-              placeholder={resourceType === "MEETING_ROOM" ? "เช่น ROOM-02" : "เช่น BUS-02"}
-              value={quickAddForm.code}
-              onChange={(e) => setQuickAddForm({ ...quickAddForm, code: e.target.value })}
-              className="w-full h-10 px-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-mono"
-            />
+        <form onSubmit={handleCreateResource} className="space-y-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+            <div>
+              <label className="block font-bold text-xs text-slate-700 dark:text-slate-300 mb-1">
+                รหัสกำกับ <span className="text-rose-500">*</span>
+              </label>
+              <input
+                type="text"
+                required
+                placeholder={resourceType === "MEETING_ROOM" ? "เช่น ROOM-02" : "เช่น BUS-02"}
+                value={quickAddForm.code}
+                onChange={(e) => setQuickAddForm({ ...quickAddForm, code: e.target.value })}
+                className="w-full h-10 px-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-mono"
+              />
+            </div>
+
+            <div>
+              <label className="block font-bold text-xs text-slate-700 dark:text-slate-300 mb-1">
+                ชื่อทรัพยากร <span className="text-rose-500">*</span>
+              </label>
+              <input
+                type="text"
+                required
+                placeholder={resourceType === "MEETING_ROOM" ? "เช่น ห้องประชุมกุญชร 2" : "เช่น รถตู้โตโยต้า 14 ที่นั่ง"}
+                value={quickAddForm.name}
+                onChange={(e) => setQuickAddForm({ ...quickAddForm, name: e.target.value })}
+                className="w-full h-10 px-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs"
+              />
+            </div>
+
+            <div>
+              <label className="block font-bold text-xs text-slate-700 dark:text-slate-300 mb-1">
+                {resourceType === "VEHICLE" ? "ทะเบียนรถ" : "สถานที่ / ชั้น"}
+              </label>
+              <input
+                type="text"
+                placeholder={resourceType === "VEHICLE" ? "เช่น นข-5678 อุดรธานี" : "เช่น อาคาร 1 ชั้น 2"}
+                value={resourceType === "VEHICLE" ? quickAddForm.licensePlate : quickAddForm.floor}
+                onChange={(e) =>
+                  resourceType === "VEHICLE"
+                    ? setQuickAddForm({ ...quickAddForm, licensePlate: e.target.value })
+                    : setQuickAddForm({ ...quickAddForm, floor: e.target.value })
+                }
+                className="w-full h-10 px-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs"
+              />
+            </div>
+
+            <div>
+              <label className="block font-bold text-xs text-slate-700 dark:text-slate-300 mb-1">
+                ความจุ (คน / ที่นั่ง)
+              </label>
+              <input
+                type="number"
+                min={1}
+                value={quickAddForm.capacity}
+                onChange={(e) => setQuickAddForm({ ...quickAddForm, capacity: Number(e.target.value) })}
+                className="w-full h-10 px-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs"
+              />
+            </div>
           </div>
 
-          <div>
-            <label className="block font-bold text-xs text-slate-700 dark:text-slate-300 mb-1">
-              ชื่อทรัพยากร <span className="text-rose-500">*</span>
-            </label>
-            <input
-              type="text"
-              required
-              placeholder={resourceType === "MEETING_ROOM" ? "เช่น ห้องประชุมกุญชร 2" : "เช่น รถตู้โตโยต้า 14 ที่นั่ง"}
-              value={quickAddForm.name}
-              onChange={(e) => setQuickAddForm({ ...quickAddForm, name: e.target.value })}
-              className="w-full h-10 px-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs"
-            />
-          </div>
+          {resourceType === "MEETING_ROOM" && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 p-3 bg-indigo-50/40 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/40 rounded-2xl">
+              <div>
+                <label className="block font-bold text-xs text-indigo-900 dark:text-indigo-300 mb-1">
+                  รูปแบบจัดห้องมาตรฐาน (Default Layout)
+                </label>
+                <select
+                  value={quickAddForm.defaultLayout}
+                  onChange={(e) => setQuickAddForm({ ...quickAddForm, defaultLayout: e.target.value })}
+                  className="w-full h-10 px-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs"
+                >
+                  {Object.entries(ROOM_LAYOUT_LABELS).map(([k, v]) => (
+                    <option key={k} value={k}>{v}</option>
+                  ))}
+                </select>
+              </div>
 
-          <div>
-            <label className="block font-bold text-xs text-slate-700 dark:text-slate-300 mb-1">
-              {resourceType === "VEHICLE" ? "ทะเบียนรถ" : "สถานที่ / ชั้น"}
-            </label>
-            <input
-              type="text"
-              placeholder={resourceType === "VEHICLE" ? "เช่น นข-5678 อุดรธานี" : "เช่น อาคาร 1 ชั้น 2"}
-              value={resourceType === "VEHICLE" ? quickAddForm.licensePlate : quickAddForm.floor}
-              onChange={(e) =>
-                resourceType === "VEHICLE"
-                  ? setQuickAddForm({ ...quickAddForm, licensePlate: e.target.value })
-                  : setQuickAddForm({ ...quickAddForm, floor: e.target.value })
-              }
-              className="w-full h-10 px-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs"
-            />
-          </div>
+              <div>
+                <label className="block font-bold text-xs text-indigo-900 dark:text-indigo-300 mb-1">
+                  อุปกรณ์ประจำห้องมาตรฐาน
+                </label>
+                <input
+                  type="text"
+                  placeholder="เช่น โปรเจคเตอร์, ไมค์ 2 ตัว, จอ LED"
+                  value={quickAddForm.defaultEquipment}
+                  onChange={(e) => setQuickAddForm({ ...quickAddForm, defaultEquipment: e.target.value })}
+                  className="w-full h-10 px-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs"
+                />
+              </div>
 
-          <div>
-            <label className="block font-bold text-xs text-slate-700 dark:text-slate-300 mb-1">
-              ความจุ (คน / ที่นั่ง)
-            </label>
-            <input
-              type="number"
-              min={1}
-              value={quickAddForm.capacity}
-              onChange={(e) => setQuickAddForm({ ...quickAddForm, capacity: Number(e.target.value) })}
-              className="w-full h-10 px-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs"
-            />
-          </div>
+              <div>
+                <label className="block font-bold text-xs text-indigo-900 dark:text-indigo-300 mb-1">
+                  คำอธิบาย / หมายเหตุห้อง
+                </label>
+                <input
+                  type="text"
+                  placeholder="เช่น ห้องประชุมใหญ่ส่วนกลาง"
+                  value={quickAddForm.description}
+                  onChange={(e) => setQuickAddForm({ ...quickAddForm, description: e.target.value })}
+                  className="w-full h-10 px-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs"
+                />
+              </div>
+            </div>
+          )}
 
-          <div>
+          <div className="flex justify-end pt-1">
             <button
               type="submit"
               disabled={adding}
-              className="w-full h-10 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+              className="h-10 px-6 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
             >
               <Plus className="w-4 h-4" />
-              {adding ? "กำลังเพิ่ม..." : "+ เพิ่มรายการ"}
+              {adding ? "กำลังเพิ่ม..." : "+ เพิ่มรายการทรัพยากร"}
             </button>
           </div>
         </form>
@@ -378,9 +457,36 @@ export default function FacilityManagementView({
                     <td className="p-3.5 font-mono font-bold text-slate-700 dark:text-slate-300">{res.code}</td>
                     <td className="p-3.5 font-bold text-slate-900 dark:text-white">{res.name}</td>
                     <td className="p-3.5 text-slate-500 dark:text-slate-400">
-                      {res.vehicleProfile?.licensePlate
-                        ? `ทะเบียน: ${res.vehicleProfile.licensePlate}`
-                        : res.location || res.roomProfile?.floor || "-"}
+                      {res.vehicleProfile?.licensePlate ? (
+                        <div>
+                          <span className="font-semibold text-slate-700 dark:text-slate-300">ทะเบียน: </span>
+                          <span className="font-bold text-slate-900 dark:text-white">{res.vehicleProfile.licensePlate}</span>
+                          {res.vehicleProfile.brand && (
+                            <span className="text-[11px] text-slate-400 block">{res.vehicleProfile.brand} {res.vehicleProfile.model}</span>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="space-y-1">
+                          <div className="font-medium text-slate-700 dark:text-slate-300">
+                            {res.location || res.roomProfile?.floor || "-"}
+                          </div>
+                          {(() => {
+                            const parsed = parseRoomConfig(res.description);
+                            return (
+                              <div className="space-y-0.5">
+                                <span className="inline-block px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 font-semibold text-[10px] border border-indigo-200/60 dark:border-indigo-800/60">
+                                  ผังมาตรฐาน: {ROOM_LAYOUT_LABELS[parsed.defaultLayout] || "เธียเตอร์"}
+                                </span>
+                                {parsed.defaultEquipment && (
+                                  <div className="text-[10px] text-slate-400 line-clamp-1" title={parsed.defaultEquipment}>
+                                    อุปกรณ์: {parsed.defaultEquipment}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })()}
+                        </div>
+                      )}
                     </td>
                     <td className="p-3.5 text-center font-bold text-slate-800 dark:text-slate-200">
                       {res.capacity ? `${res.capacity} ที่นั่ง` : "-"}
@@ -440,7 +546,7 @@ export default function FacilityManagementView({
                 >
                   <div className="font-bold text-slate-900 dark:text-white">{d.user?.name}</div>
                   <div className="text-slate-500">ใบขับขี่: {d.licenseNumber || "-"}</div>
-                  <div className="text-slate-500">โทร: {d.user?.phone || "-"}</div>
+                  <div className="text-slate-500">โทร: {d.phoneNumber || d.user?.phoneNumber || "-"}</div>
                 </div>
               ))
             )}
@@ -525,7 +631,7 @@ export default function FacilityManagementView({
                   </div>
                 </div>
 
-                {editingResource.type === "VEHICLE" && (
+                {editingResource.type === "VEHICLE" ? (
                   <div className="p-3 bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 rounded-xl space-y-2">
                     <span className="font-bold text-amber-800 dark:text-amber-300">ข้อมูลยานพาหนะ</span>
                     <div className="grid grid-cols-3 gap-2">
@@ -556,6 +662,44 @@ export default function FacilityManagementView({
                           className="w-full p-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs"
                         />
                       </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-3 bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-200 dark:border-indigo-900/40 rounded-xl space-y-3">
+                    <span className="font-bold text-indigo-800 dark:text-indigo-300">การจัดผังห้องและอุปกรณ์มาตรฐาน</span>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-slate-600 dark:text-slate-400 mb-0.5">รูปแบบจัดห้องมาตรฐาน</label>
+                        <select
+                          value={editForm.defaultLayout}
+                          onChange={(e) => setEditForm({ ...editForm, defaultLayout: e.target.value })}
+                          className="w-full p-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs"
+                        >
+                          {Object.entries(ROOM_LAYOUT_LABELS).map(([k, v]) => (
+                            <option key={k} value={k}>{v}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-slate-600 dark:text-slate-400 mb-0.5">อุปกรณ์ประจำห้องมาตรฐาน</label>
+                        <input
+                          type="text"
+                          placeholder="เช่น โปรเจคเตอร์, ไมค์ 2 ตัว, จอ LED"
+                          value={editForm.defaultEquipment}
+                          onChange={(e) => setEditForm({ ...editForm, defaultEquipment: e.target.value })}
+                          className="w-full p-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-slate-600 dark:text-slate-400 mb-0.5">คำอธิบาย / หมายเหตุห้องเพิ่มเติม</label>
+                      <input
+                        type="text"
+                        placeholder="เช่น ห้องประชุมใหญ่ส่วนกลางชั้น 2"
+                        value={editForm.roomNote}
+                        onChange={(e) => setEditForm({ ...editForm, roomNote: e.target.value })}
+                        className="w-full p-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs"
+                      />
                     </div>
                   </div>
                 )}

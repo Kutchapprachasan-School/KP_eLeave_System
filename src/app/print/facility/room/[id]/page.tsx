@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { getFacilityReservationsAction } from "@/app/actions/facility";
 import { getSystemSettings } from "@/app/actions/settings";
-import { Printer, ArrowLeft, Loader2, XCircle, Building, CheckCircle2 } from "lucide-react";
+import { Printer, ArrowLeft, Loader2, XCircle, Building, CheckCircle2, AlertCircle } from "lucide-react";
+import { parseRoomConfig, ROOM_LAYOUT_LABELS } from "@/app/(app)/facility/_components/facility-shared";
 
 function toThaiDateString(dateInput: string | Date | null | undefined) {
   if (!dateInput) return "-";
@@ -192,16 +193,65 @@ export default function PrintRoomReservationPage() {
           </div>
 
           {/* Setup Requirements */}
-          <div className="p-3 border border-slate-200 rounded text-[12px] space-y-1.5 bg-white">
-            <div className="font-bold text-slate-800 text-[13px]">ความต้องการจัดเตรียมสถานที่และโสตทัศนูปกรณ์:</div>
-            <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-slate-700">
-              <div>• รูปแบบการจัดโต๊ะ: <span className="font-semibold">{roomDetail?.layoutType || "ตามมาตรฐาน"}</span></div>
-              <div>• การใช้เครื่องปรับอากาศ: <span className="font-semibold">{roomDetail?.requireAirCon ? "เปิดใช้งาน" : "ไม่เปิดใช้งาน"}</span></div>
-              {roomDetail?.layoutNotes && <div>• หมายเหตุการจัดผัง: {roomDetail.layoutNotes}</div>}
-              {roomDetail?.audioVisualNotes && <div>• อุปกรณ์โสตฯ: {roomDetail.audioVisualNotes}</div>}
-              {roomDetail?.cateringNotes && <div>• อาหารว่าง/เครื่องดื่ม: {roomDetail.cateringNotes}</div>}
-            </div>
-          </div>
+          {(() => {
+            const roomConfig = parseRoomConfig(room?.description);
+            const defaultLayout = roomConfig.defaultLayout || "THEATER";
+            const reqLayout = roomDetail?.layoutType || "THEATER";
+            const isCustomLayout = reqLayout !== defaultLayout;
+            const hasCustomLayoutNotes = Boolean(roomDetail?.layoutNotes?.trim());
+
+            if (isCustomLayout || hasCustomLayoutNotes) {
+              return (
+                <div className="p-3 border-2 border-amber-400 bg-amber-50/40 rounded text-[12px] space-y-2">
+                  <div className="flex items-center justify-between border-b border-amber-200 pb-1.5">
+                    <div className="font-bold text-amber-950 text-[13px] flex items-center gap-1.5">
+                      <AlertCircle className="w-4 h-4 text-amber-700" />
+                      <span>ความต้องการจัดเตรียมสถานที่และโสตทัศนูปกรณ์ (ขอปรับเปลี่ยนผังห้องใหม่)</span>
+                    </div>
+                    <span className="text-[11px] px-2 py-0.5 rounded bg-amber-200 text-amber-900 font-bold">
+                      ผังใหม่: {ROOM_LAYOUT_LABELS[reqLayout] || reqLayout}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-slate-800">
+                    <div>
+                      • ผังการจัดโต๊ะ: <span className="font-bold text-amber-900">{ROOM_LAYOUT_LABELS[reqLayout] || reqLayout}</span>{" "}
+                      <span className="text-[11px] text-slate-500">(มาตรฐานเดิม: {ROOM_LAYOUT_LABELS[defaultLayout] || "เธียเตอร์"})</span>
+                    </div>
+                    <div>
+                      • การใช้เครื่องปรับอากาศ: <span className="font-semibold">{roomDetail?.requireAirCon ? "เปิดใช้งาน" : "ไม่เปิดใช้งาน"}</span>
+                    </div>
+                    {hasCustomLayoutNotes && (
+                      <div className="col-span-2 bg-white p-2 rounded border border-amber-300">
+                        • <span className="font-semibold text-amber-900">รายละเอียดผังที่ต้องการจัด:</span> {roomDetail.layoutNotes}
+                      </div>
+                    )}
+                    {roomDetail?.audioVisualNotes && (
+                      <div>• อุปกรณ์โสตฯ เพิ่มเติม: <span className="font-semibold">{roomDetail.audioVisualNotes}</span></div>
+                    )}
+                    {roomDetail?.cateringNotes && (
+                      <div>• อาหารว่าง/เครื่องดื่ม: <span className="font-semibold">{roomDetail.cateringNotes}</span></div>
+                    )}
+                  </div>
+                </div>
+              );
+            }
+
+            return (
+              <div className="p-3 border border-slate-200 rounded text-[12px] space-y-1.5 bg-white">
+                <div className="font-bold text-slate-800 text-[13px]">ความต้องการจัดเตรียมสถานที่และโสตทัศนูปกรณ์:</div>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-slate-700">
+                  <div>• รูปแบบการจัดโต๊ะ: <span className="font-semibold">ตามมาตรฐานห้อง ({ROOM_LAYOUT_LABELS[defaultLayout] || "เธียเตอร์"})</span></div>
+                  <div>• การใช้เครื่องปรับอากาศ: <span className="font-semibold">{roomDetail?.requireAirCon ? "เปิดใช้งาน" : "ไม่เปิดใช้งาน"}</span></div>
+                  {roomDetail?.audioVisualNotes ? (
+                    <div>• อุปกรณ์โสตฯ/ที่ขอ: <span className="font-semibold">{roomDetail.audioVisualNotes}</span></div>
+                  ) : roomConfig.defaultEquipment ? (
+                    <div>• อุปกรณ์ประจำห้อง: <span className="font-semibold">{roomConfig.defaultEquipment}</span></div>
+                  ) : null}
+                  {roomDetail?.cateringNotes && <div>• อาหารว่าง/เครื่องดื่ม: <span className="font-semibold">{roomDetail.cateringNotes}</span></div>}
+                </div>
+              </div>
+            );
+          })()}
         </div>
 
         {/* 2-Tier Signature & Approval Sections */}

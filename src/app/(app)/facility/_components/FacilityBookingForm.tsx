@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/components/toast-provider";
 import { reserveFacilityAction } from "@/app/actions/facility";
-import { formatISODateInput, type ModuleMode } from "./facility-shared";
+import { formatISODateInput, type ModuleMode, parseRoomConfig, ROOM_LAYOUT_LABELS } from "./facility-shared";
 import RoomBlueprintCards from "./RoomBlueprintCards";
 
 interface FacilityBookingFormProps {
@@ -67,6 +67,16 @@ export default function FacilityBookingForm({ resources, onSuccess, initialSelec
     }
   }, [initialSelection]);
 
+  // Selected resource and its default configuration
+  const selectedResource = useMemo(() => {
+    return resources.find((r) => r.id === selectedResourceId);
+  }, [resources, selectedResourceId]);
+
+  const selectedRoomConfig = useMemo(() => {
+    if (!selectedResource || selectedResource.type !== "MEETING_ROOM") return null;
+    return parseRoomConfig(selectedResource.description);
+  }, [selectedResource]);
+
   // Form Fields
   const [title, setTitle] = useState("");
   const [purpose, setPurpose] = useState("");
@@ -84,6 +94,14 @@ export default function FacilityBookingForm({ resources, onSuccess, initialSelec
   const [audioVisualNotes, setAudioVisualNotes] = useState("");
   const [cateringNotes, setCateringNotes] = useState("");
   const [requireAirCon, setRequireAirCon] = useState(true);
+
+  // Auto-populate room default layout & equipment whenever a meeting room is selected
+  useEffect(() => {
+    if (selectedRoomConfig) {
+      setLayoutType(selectedRoomConfig.defaultLayout || "THEATER");
+      setAudioVisualNotes(selectedRoomConfig.defaultEquipment || "");
+    }
+  }, [selectedRoomConfig]);
 
   // Vehicle Specific Fields
   const [missionType, setMissionType] = useState("OFFICIAL_MEETING");
@@ -284,6 +302,23 @@ export default function FacilityBookingForm({ resources, onSuccess, initialSelec
                     <ChevronDown className="w-4 h-4" />
                   </div>
                 </div>
+
+                {selectedRoomConfig && (
+                  <div className="mt-2.5 p-3 rounded-xl bg-indigo-50/70 dark:bg-indigo-950/30 border border-indigo-100 dark:border-indigo-900/40 text-xs text-indigo-950 dark:text-indigo-200 flex flex-wrap items-center gap-x-4 gap-y-1">
+                    <span>
+                      <strong>ผังมาตรฐานห้อง:</strong>{" "}
+                      <span className="font-bold text-indigo-700 dark:text-indigo-300">
+                        {ROOM_LAYOUT_LABELS[selectedRoomConfig.defaultLayout] || selectedRoomConfig.defaultLayout}
+                      </span>
+                    </span>
+                    {selectedRoomConfig.defaultEquipment && (
+                      <span>
+                        <strong>อุปกรณ์มาตรฐาน:</strong> {selectedRoomConfig.defaultEquipment}
+                      </span>
+                    )}
+                  </div>
+                )}
+
                 {availableResources.length === 0 && (
                   <p className="text-xs text-rose-500 mt-1.5 flex items-center gap-1">
                     <AlertCircle className="w-3.5 h-3.5" /> ไม่พบทรัพยากรที่พร้อมให้บริการในหมวดหมู่นี้
@@ -427,6 +462,27 @@ export default function FacilityBookingForm({ resources, onSuccess, initialSelec
                     selected={layoutType}
                     onSelect={(val) => setLayoutType(val)}
                   />
+
+                  {selectedRoomConfig && (
+                    <div className="pt-1">
+                      {layoutType === (selectedRoomConfig.defaultLayout || "THEATER") ? (
+                        <div className="p-2.5 rounded-xl bg-slate-100/80 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-700/60 text-xs text-slate-600 dark:text-slate-300 flex items-center gap-2">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                          <span>ใช้การจัดห้องตามมาตรฐานเดิมของห้อง ({ROOM_LAYOUT_LABELS[layoutType] || layoutType})</span>
+                        </div>
+                      ) : (
+                        <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/80 text-xs text-amber-900 dark:text-amber-200 space-y-1">
+                          <div className="font-bold flex items-center gap-1.5">
+                            <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                            <span>คุณกำลังเลือกจัดห้องแบบใหม่ ({ROOM_LAYOUT_LABELS[layoutType] || layoutType})</span>
+                          </div>
+                          <p className="text-[11px] text-amber-700 dark:text-amber-300 pl-5.5">
+                            แตกต่างจากผังมาตรฐานเดิม ({ROOM_LAYOUT_LABELS[selectedRoomConfig.defaultLayout] || selectedRoomConfig.defaultLayout}) ข้อมูลนี้จะแสดงบนใบขอใช้และแจ้งผู้ดูแลเพื่อเตรียมการจัดผังล่วงหน้า
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   <div className="flex items-center pt-1">
                     <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-700 dark:text-slate-300">

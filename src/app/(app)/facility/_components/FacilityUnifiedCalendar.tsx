@@ -325,21 +325,29 @@ export default function FacilityUnifiedCalendar({
               return (
                 <div
                   key={dayIsoStr}
-                  className={`min-h-[380px] flex flex-col rounded-2xl border p-3 transition ${
-                    isToday
-                      ? "bg-indigo-50/40 dark:bg-indigo-950/20 border-indigo-200 dark:border-indigo-800/60 shadow-xs"
-                      : "bg-slate-50/50 dark:bg-slate-800/30 border-slate-200/80 dark:border-slate-800 hover:border-slate-300"
+                  className={`flex flex-col rounded-2xl border transition ${
+                    dayItems.length === 0
+                      ? "min-h-0 md:min-h-[360px] p-2.5 md:p-3 bg-slate-50/40 dark:bg-slate-800/20 border-slate-200/60 dark:border-slate-800/60 opacity-90 hover:opacity-100"
+                      : "min-h-[140px] md:min-h-[380px] p-3 " +
+                        (isToday
+                          ? "bg-indigo-50/40 dark:bg-indigo-950/20 border-indigo-200 dark:border-indigo-800/60 shadow-xs"
+                          : "bg-slate-50/50 dark:bg-slate-800/30 border-slate-200/80 dark:border-slate-800 hover:border-slate-300")
                   }`}
                 >
                   {/* Day Header */}
-                  <div className="flex items-center justify-between border-b border-slate-200/60 dark:border-slate-700/60 pb-2 mb-2">
-                    <div>
+                  <div className={`flex items-center justify-between ${dayItems.length === 0 ? "border-b-0 md:border-b md:border-slate-200/60 md:dark:border-slate-700/60 md:pb-2 md:mb-2" : "border-b border-slate-200/60 dark:border-slate-700/60 pb-2 mb-2"}`}>
+                    <div className="flex items-center gap-2 md:block">
                       <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
                         {thaiDaysShort[idx]}
                       </span>
                       <div className={`text-base font-bold font-mono ${isToday ? "text-indigo-600 dark:text-indigo-400" : "text-slate-900 dark:text-white"}`}>
                         {day.getDate()}
                       </div>
+                      {dayItems.length === 0 && (
+                        <span className="md:hidden text-[11px] text-slate-400 italic ml-1.5">
+                          ไม่มีคิวจอง
+                        </span>
+                      )}
                     </div>
                     {isToday && (
                       <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300">
@@ -349,7 +357,7 @@ export default function FacilityUnifiedCalendar({
                   </div>
 
                   {/* Day Booking Cards */}
-                  <div className="flex-1 space-y-2 overflow-y-auto max-h-[480px] custom-scrollbar">
+                  <div className={`flex-1 space-y-2 overflow-y-auto max-h-[480px] custom-scrollbar ${dayItems.length === 0 ? "hidden md:block" : ""}`}>
                     {dayItems.length === 0 ? (
                       <div className="h-24 flex items-center justify-center text-[11px] text-slate-400 italic">
                         ไม่มีคิวจอง
