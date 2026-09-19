@@ -45,7 +45,8 @@ import {
   ScanLine,
   ShieldCheck,
   GraduationCap,
-  Sparkles
+  Sparkles,
+  Trash2
 } from "lucide-react";
 import { hasRepairPermission, hasFacilityPermission, getUserRoleKey, getUserRoleKeys } from "@/lib/permissions";
 import { getNotifications } from "@/app/actions/admin";
@@ -914,6 +915,9 @@ function AppContent({ children }: { children: React.ReactNode }) {
   }
   if (activePermissions.logs?.includes(userRole)) {
     settingsNavItems.push({ href: "/logs", label: "บันทึกกิจกรรม", icon: Activity });
+  }
+  if (isAdmin) {
+    settingsNavItems.push({ href: "/admin/recycle-bin", label: "ถังขยะระบบกลาง (Recycle Bin)", icon: Trash2 });
   }
 
   const renderNavItem = (item: any, isSubItem: boolean = false) => {

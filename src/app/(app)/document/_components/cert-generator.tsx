@@ -466,15 +466,27 @@ export default function CertGenerator({ onBack }: { onBack?: () => void }) {
             </button>
           </div>
 
-          {onBack && (
+          <div className="flex items-center gap-2">
             <button
-              onClick={onBack}
-              className="px-3.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-750 bg-white dark:bg-slate-800 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition flex items-center gap-1.5 cursor-pointer shadow-xs"
+              type="button"
+              onClick={() => setIsTrashModalOpen(true)}
+              className="px-3.5 py-1.5 rounded-xl border border-rose-200/80 dark:border-rose-900/60 bg-rose-50/50 dark:bg-rose-950/30 text-xs font-bold text-rose-700 dark:text-rose-300 hover:bg-rose-100 dark:hover:bg-rose-900/50 transition flex items-center gap-1.5 cursor-pointer shadow-xs"
+              title="ถังขยะเกียรติบัตร (กู้คืนได้ภายใน 30 วัน)"
             >
-              <ArrowLeft className="w-3.5 h-3.5" />
-              ย้อนกลับ
+              <Trash2 className="w-3.5 h-3.5 text-rose-500" />
+              ถังขยะของฉัน
             </button>
-          )}
+
+            {onBack && (
+              <button
+                onClick={onBack}
+                className="px-3.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-750 bg-white dark:bg-slate-800 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition flex items-center gap-1.5 cursor-pointer shadow-xs"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                ย้อนกลับ
+              </button>
+            )}
+          </div>
         </div>
       )}
 
