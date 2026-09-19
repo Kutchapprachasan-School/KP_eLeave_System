@@ -1,6 +1,6 @@
 "use client";
 // trigger vercel build: stable version 1.0.1
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
 import { useSearchParams, useRouter } from "next/navigation";
@@ -29,7 +29,7 @@ import { getHolidays, createHoliday, updateHoliday, deleteHoliday, searchInterne
 
 import { useSession } from "@/lib/auth-client";
 
-import { Save, Image as ImageIcon, ShieldAlert, DownloadCloud, Lock, Code, Settings2, Archive, UploadCloud, Database, FileJson, AlertTriangle, CheckCircle2, ChevronRight, ArrowLeft, Bell, Type, Users, BookOpen, HardDrive, UserCog, FileSpreadsheet, X, CalendarDays, CalendarDays as Calendar, ArrowRightLeft, CheckSquare, FileX, Plus, Clock, ClipboardList, MapPin, FolderOpen, Hash, UserCheck, Pencil, Trash2, ToggleLeft, ToggleRight, Sparkles, AlertCircle, Check, Eye, LayoutGrid, Wrench, Loader2, XCircle, MessageSquare, Building2, Award, FileText, Settings, Wallet, Vote, Layers, Search, Folder, ShieldCheck } from "lucide-react";
+import { Save, Image as ImageIcon, ShieldAlert, DownloadCloud, Lock, Code, Settings2, Archive, UploadCloud, Database, FileJson, AlertTriangle, CheckCircle2, ChevronRight, ChevronDown, ArrowLeft, Bell, Type, Users, BookOpen, HardDrive, UserCog, FileSpreadsheet, X, CalendarDays, CalendarDays as Calendar, ArrowRightLeft, CheckSquare, FileX, Plus, Clock, ClipboardList, MapPin, FolderOpen, Hash, UserCheck, Pencil, Trash2, ToggleLeft, ToggleRight, Sparkles, AlertCircle, Check, Eye, LayoutGrid, Wrench, Loader2, XCircle, MessageSquare, Building2, Award, FileText, Settings, Wallet, Vote, Layers, Search, Folder, ShieldCheck } from "lucide-react";
 
 import { useToast } from "@/components/toast-provider";
 
@@ -66,6 +66,199 @@ interface DocSigneePreset {
   name: string;
   position: string;
   isCommon: boolean;
+}
+
+interface SearchableTeacherComboboxProps {
+  availableUsers: Array<{
+    id: string;
+    name: string;
+    position?: string | null;
+    subjectGroup?: string | null;
+    email?: string | null;
+  }>;
+  excludedUserIds: string[];
+  onSelect: (userId: string) => void;
+  disabled?: boolean;
+  placeholder?: string;
+  themeColor?: "amber" | "teal" | "sky";
+  compact?: boolean;
+  lang?: string;
+}
+
+function SearchableTeacherCombobox({
+  availableUsers,
+  excludedUserIds,
+  onSelect,
+  disabled = false,
+  placeholder,
+  themeColor = "amber",
+  compact = false,
+  lang = "th",
+}: SearchableTeacherComboboxProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const excludedSet = useMemo(() => new Set(excludedUserIds), [excludedUserIds]);
+
+  const filteredUsers = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return availableUsers.filter((u) => {
+      if (excludedSet.has(u.id)) return false;
+      if (!q) return true;
+      return (
+        (u.name && u.name.toLowerCase().includes(q)) ||
+        (u.position && u.position.toLowerCase().includes(q)) ||
+        (u.subjectGroup && u.subjectGroup.toLowerCase().includes(q))
+      );
+    });
+  }, [availableUsers, excludedSet, search]);
+
+  const handleSelectUser = (userId: string) => {
+    onSelect(userId);
+    setSearch("");
+    setIsOpen(false);
+  };
+
+  const ringFocusClass =
+    themeColor === "teal"
+      ? "focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500"
+      : themeColor === "sky"
+      ? "focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500"
+      : "focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500";
+
+  const hoverItemClass =
+    themeColor === "teal"
+      ? "hover:bg-teal-50/80 dark:hover:bg-teal-950/40 hover:border-teal-200 dark:hover:border-teal-800"
+      : themeColor === "sky"
+      ? "hover:bg-sky-50/80 dark:hover:bg-sky-950/40 hover:border-sky-200 dark:hover:border-sky-800"
+      : "hover:bg-amber-50/80 dark:hover:bg-amber-950/40 hover:border-amber-200 dark:hover:border-amber-800";
+
+  const tagTextClass =
+    themeColor === "teal"
+      ? "text-teal-600 dark:text-teal-400"
+      : themeColor === "sky"
+      ? "text-sky-600 dark:text-sky-400"
+      : "text-amber-600 dark:text-amber-400";
+
+  const assignBtnClass =
+    themeColor === "teal"
+      ? "bg-teal-600 hover:bg-teal-700 text-white"
+      : themeColor === "sky"
+      ? "bg-sky-600 hover:bg-sky-700 text-white"
+      : "bg-amber-600 hover:bg-amber-700 text-white";
+
+  const defaultPlaceholder =
+    placeholder ||
+    (lang === "en" ? "Search teacher name to appoint..." : "พิมพ์ชื่อครูเพื่อแต่งตั้ง...");
+
+  return (
+    <div
+      ref={containerRef}
+      className="relative w-full"
+      onKeyDown={(e) => {
+        if (e.key === "Escape") setIsOpen(false);
+      }}
+    >
+      <div className="relative flex items-center">
+        <Search className={`absolute left-2.5 text-slate-400 pointer-events-none ${compact ? "w-3 h-3" : "w-3.5 h-3.5"}`} />
+        <input
+          type="text"
+          value={search}
+          disabled={disabled}
+          onChange={(e) => {
+            setSearch(e.target.value);
+            if (!isOpen) setIsOpen(true);
+          }}
+          onFocus={() => setIsOpen(true)}
+          placeholder={defaultPlaceholder}
+          className={`w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 outline-none transition-all shadow-2xs disabled:opacity-50 ${ringFocusClass} ${
+            compact ? "pl-7.5 pr-7 py-1.5 text-xs" : "pl-8 pr-8 py-2 text-xs"
+          }`}
+        />
+        {search ? (
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={() => setSearch("")}
+            className="absolute right-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 p-0.5 rounded cursor-pointer"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        ) : (
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={() => setIsOpen((prev) => !prev)}
+            className="absolute right-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 p-0.5 rounded cursor-pointer"
+          >
+            <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+          </button>
+        )}
+      </div>
+
+      {isOpen && (
+        <div className="absolute left-0 right-0 top-full mt-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-xl z-50 p-2 space-y-1 max-h-56 overflow-y-auto">
+          <div className="px-2 py-1 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider flex items-center justify-between">
+            <span>{lang === "en" ? "Select teacher to appoint" : "เลือกครูเพื่อแต่งตั้ง"}</span>
+            <span className={tagTextClass}>
+              {filteredUsers.length} {lang === "en" ? "teachers" : "คน"}
+            </span>
+          </div>
+          {filteredUsers.length === 0 ? (
+            <div className="py-4 text-center text-xs text-slate-400 italic">
+              {availableUsers.length === 0
+                ? (lang === "en" ? "No teachers loaded" : "ยังไม่ได้โหลดรายชื่อครู")
+                : (lang === "en" ? "No matching teachers" : "ไม่พบรายชื่อครูที่ค้นหา")}
+            </div>
+          ) : (
+            <div className="space-y-0.5">
+              {filteredUsers.map((u) => (
+                <div
+                  key={u.id}
+                  onClick={() => handleSelectUser(u.id)}
+                  className={`p-2 rounded-xl border border-transparent transition-colors flex items-center justify-between group cursor-pointer ${hoverItemClass}`}
+                >
+                  <div className="flex items-center gap-2 min-w-0 pr-2">
+                    <div className="w-6 h-6 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 flex items-center justify-center font-bold text-[10px] shrink-0">
+                      {u.name?.startsWith("นาย") ? "ช" : "ญ"}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate">
+                        {u.name}
+                      </div>
+                      <div className="text-[10px] text-slate-400 dark:text-slate-500 flex items-center gap-1.5 truncate">
+                        <span>{u.position || "ครู"}</span>
+                        {u.subjectGroup && (
+                          <>
+                            <span>•</span>
+                            <span className={tagTextClass}>{u.subjectGroup}</span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <span className={`px-2 py-0.5 rounded-lg text-[10px] font-bold shrink-0 transition-opacity ${assignBtnClass}`}>
+                    + {lang === "en" ? "Appoint" : "แต่งตั้ง"}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function SettingsPage() {
@@ -8540,48 +8733,30 @@ function doPost(e) {
                   )}
                 </div>
 
-                {/* Add inspector dropdown */}
-                <div className="pt-2 flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-                  <select
-                    id="select-inspector-add"
-                    defaultValue=""
+                {/* Add inspector combobox */}
+                <div className="pt-2 max-w-xl">
+                  <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5">
+                    {lang === "en" ? "Appoint New Leave Inspector:" : "ค้นหาและแต่งตั้งผู้ตรวจสอบการลาเพิ่ม:"}
+                  </label>
+                  <SearchableTeacherCombobox
+                    availableUsers={availableUsers}
+                    excludedUserIds={inspectors.map(i => i.userId)}
+                    onSelect={(userId) => handleAssignDuty("INSPECTOR", userId, null, null)}
                     disabled={isSavingDuties}
-                    className="flex-1 px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-sky-500/20"
-                  >
-                    <option value="">
-                      {availableUsers.length === 0
+                    themeColor="sky"
+                    placeholder={
+                      availableUsers.length === 0
                         ? (lang === "en" ? "-- No teachers loaded --" : "-- ไม่พบรายชื่อครู --")
-                        : (lang === "en" ? `-- Select Teacher to Appoint as Inspector (${availableUsers.length} available) --` : `-- เลือกครูเพื่อแต่งตั้งเป็นผู้ตรวจสอบการลา (${availableUsers.length} คน) --`)}
-                    </option>
-                    {availableUsers
-                      .filter(u => !inspectors.some(i => i.userId === u.id))
-                      .map(u => (
-                        <option key={u.id} value={u.id}>
-                          {u.name} ({u.position || "ครู"}) {u.subjectGroup ? `[${u.subjectGroup}]` : ""}
-                        </option>
-                      ))}
-                  </select>
-                  <button
-                    type="button"
-                    disabled={isSavingDuties}
-                    onClick={() => {
-                      const sel = document.getElementById("select-inspector-add") as HTMLSelectElement;
-                      if (sel && sel.value) {
-                        handleAssignDuty("INSPECTOR", sel.value, null, null);
-                        sel.value = "";
-                      }
-                    }}
-                    className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-semibold shadow-sm transition-all whitespace-nowrap cursor-pointer disabled:opacity-50 flex items-center justify-center gap-1.5"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    {lang === "en" ? "Appoint Inspector" : "แต่งตั้งผู้ตรวจสอบ"}
-                  </button>
+                        : (lang === "en" ? `Search teacher to appoint inspector (${availableUsers.length} available)...` : `พิมพ์ชื่อครูเพื่อแต่งตั้งเป็นผู้ตรวจสอบการลา (${availableUsers.length} คน)...`)
+                    }
+                    lang={lang}
+                  />
                 </div>
               </div>
             </div>
 
-            {/* CARD 2: หัวหน้าฝ่าย 4 ฝ่าย (Division Heads - Multi-person per division) */}
-            <div className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden bg-slate-50/40 dark:bg-slate-900/30">
+            {/* CARD 2: ตารางหัวหน้าฝ่าย 4 ฝ่าย (Division Heads Table) */}
+            <div className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden bg-white dark:bg-slate-900/60 shadow-sm">
               <div className="bg-gradient-to-r from-amber-600/10 via-orange-600/10 to-transparent p-5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="p-2.5 bg-amber-600 text-white rounded-xl shadow-sm">
@@ -8589,112 +8764,101 @@ function doPost(e) {
                   </div>
                   <div>
                     <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                      {lang === "en" ? "2. Four Division Heads (หัวหน้าฝ่าย 4 ฝ่าย)" : "2. หัวหน้าฝ่าย 4 ฝ่าย"}
+                      {lang === "en" ? "2. Four Division Heads (ตารางหัวหน้าฝ่าย 4 ฝ่าย)" : "2. ตารางหัวหน้าฝ่าย 4 ฝ่าย"}
                     </h3>
                     <p className="text-xs text-slate-500 dark:text-slate-400">
                       {lang === "en" ? "Heads and deputies for Academic, Personnel, General, and Budget divisions (supports multiple appointees per division)" : "ผู้ดำรงตำแหน่งหัวหน้าฝ่ายและผู้ช่วยหัวหน้าฝ่ายทั้ง 4 ด้าน (แต่งตั้งได้หลายคนต่อฝ่าย)"}
                     </p>
                   </div>
                 </div>
+                <span className="text-xs font-bold px-3 py-1 rounded-full bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800 hidden sm:inline-block">
+                  {lang === "en" ? "4 Divisions" : "ครบ 4 ฝ่าย"}
+                </span>
               </div>
 
-              <div className="p-5 md:p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-                {divisions.map(div => {
-                  const divAppointees = appointedDuties.filter(
-                    d => d.dutyType === "DIVISION_HEAD" && d.divisionScope === div.key
-                  );
-                  const Icon = div.icon;
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50/80 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 text-xs uppercase tracking-wider font-semibold">
+                      <th className="py-3.5 px-5 w-1/4">{lang === "en" ? "Division" : "ฝ่ายบริหาร"}</th>
+                      <th className="py-3.5 px-5 w-2/5">{lang === "en" ? "Current Appointees" : "ผู้ได้รับการแต่งตั้งปัจจุบัน"}</th>
+                      <th className="py-3.5 px-5 w-1/3">{lang === "en" ? "Search & Appoint" : "ค้นหาและแต่งตั้งครูเพิ่ม"}</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
+                    {divisions.map(div => {
+                      const divAppointees = appointedDuties.filter(
+                        d => d.dutyType === "DIVISION_HEAD" && d.divisionScope === div.key
+                      );
+                      const Icon = div.icon;
 
-                  return (
-                    <div key={div.key} className="bg-white dark:bg-slate-800/80 p-4 md:p-5 rounded-xl border border-slate-200/80 dark:border-slate-700/80 space-y-3 flex flex-col justify-between">
-                      <div className="space-y-2.5">
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="flex items-center gap-2.5">
-                            <span className={`p-2 rounded-xl border ${div.color} shadow-sm`}>
-                              <Icon className="w-4 h-4" />
-                            </span>
-                            <div>
-                              <h4 className="text-sm font-bold text-slate-900 dark:text-white">
-                                {lang === "en" ? div.nameEn : div.nameTh}
-                              </h4>
-                              <p className="text-[11px] text-slate-400">{div.desc}</p>
-                            </div>
-                          </div>
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300 shrink-0">
-                            {divAppointees.length} {lang === "en" ? "assigned" : "คน"}
-                          </span>
-                        </div>
-
-                        {/* Appointees list */}
-                        <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-150 dark:border-slate-800 min-h-[50px] flex flex-col justify-center">
-                          {divAppointees.length === 0 ? (
-                            <span className="text-xs text-slate-400 italic">
-                              {lang === "en" ? "No appointees yet." : "ยังไม่ได้แต่งตั้งผู้รับผิดชอบ"}
-                            </span>
-                          ) : (
-                            <div className="flex flex-wrap gap-1.5">
-                              {divAppointees.map(a => (
-                                <div key={a.id} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-800 dark:text-slate-200 shadow-xs">
-                                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                                  <span className="font-semibold">{a.user?.name}</span>
-                                  <span className="text-[10px] text-slate-400">({a.user?.position || "ครู"})</span>
-                                  <button
-                                    type="button"
-                                    disabled={isSavingDuties}
-                                    onClick={() => handleRevokeDuty(a.id, `${div.nameTh} (${a.user?.name})`)}
-                                    className="text-rose-500 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded p-0.5 transition-colors cursor-pointer"
-                                    title="ถอดถอน"
-                                  >
-                                    <X className="w-3 h-3" />
-                                  </button>
+                      return (
+                        <tr key={div.key} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
+                          <td className="py-4 px-5 align-top">
+                            <div className="flex items-start gap-3">
+                              <span className={`p-2 rounded-xl border ${div.color} shadow-xs shrink-0 mt-0.5`}>
+                                <Icon className="w-4 h-4" />
+                              </span>
+                              <div>
+                                <div className="font-bold text-slate-900 dark:text-white text-sm">
+                                  {lang === "en" ? div.nameEn : div.nameTh}
                                 </div>
-                              ))}
+                                <div className="text-[11px] text-slate-400 mt-0.5">{div.desc}</div>
+                                <div className="mt-1.5">
+                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300">
+                                    {divAppointees.length} {lang === "en" ? "assigned" : "คน"}
+                                  </span>
+                                </div>
+                              </div>
                             </div>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Add appointee */}
-                      <div className="pt-2 flex items-center gap-2">
-                        <select
-                          id={`select-div-${div.key}`}
-                          defaultValue=""
-                          disabled={isSavingDuties}
-                          className="flex-1 px-2.5 py-1.5 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-amber-500/20"
-                        >
-                          <option value="">{lang === "en" ? "-- Choose Teacher to Add --" : "-- เลือกครูเพื่อแต่งตั้งเพิ่ม --"}</option>
-                          {availableUsers
-                            .filter(u => !divAppointees.some(a => a.userId === u.id))
-                            .map(u => (
-                              <option key={u.id} value={u.id}>
-                                {u.name} ({u.position || "ครู"})
-                              </option>
-                            ))}
-                        </select>
-                        <button
-                          type="button"
-                          disabled={isSavingDuties}
-                          onClick={() => {
-                            const sel = document.getElementById(`select-div-${div.key}`) as HTMLSelectElement;
-                            if (sel && sel.value) {
-                              handleAssignDuty("DIVISION_HEAD", sel.value, div.key, null);
-                              sel.value = "";
-                            }
-                          }}
-                          className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-semibold transition-all whitespace-nowrap cursor-pointer disabled:opacity-50 flex items-center gap-1"
-                        >
-                          <Plus className="w-3.5 h-3.5" />
-                          {lang === "en" ? "Add" : "แต่งตั้งเพิ่ม"}
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
+                          </td>
+                          <td className="py-4 px-5 align-top">
+                            <div className="flex flex-wrap gap-1.5 min-h-[38px] items-center">
+                              {divAppointees.length === 0 ? (
+                                <span className="text-xs text-slate-400 italic">
+                                  {lang === "en" ? "No appointees yet." : "ยังไม่ได้แต่งตั้งผู้รับผิดชอบ"}
+                                </span>
+                              ) : (
+                                divAppointees.map(a => (
+                                  <div key={a.id} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-800 dark:text-slate-200 shadow-2xs">
+                                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                                    <span className="font-semibold">{a.user?.name}</span>
+                                    <span className="text-[10px] text-slate-400">({a.user?.position || "ครู"})</span>
+                                    <button
+                                      type="button"
+                                      disabled={isSavingDuties}
+                                      onClick={() => handleRevokeDuty(a.id, `${div.nameTh} (${a.user?.name})`)}
+                                      className="text-rose-500 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded p-0.5 transition-colors cursor-pointer"
+                                      title="ถอดถอน"
+                                    >
+                                      <X className="w-3 h-3" />
+                                    </button>
+                                  </div>
+                                ))
+                              )}
+                            </div>
+                          </td>
+                          <td className="py-4 px-5 align-top">
+                            <SearchableTeacherCombobox
+                              availableUsers={availableUsers}
+                              excludedUserIds={divAppointees.map(a => a.userId)}
+                              onSelect={(userId) => handleAssignDuty("DIVISION_HEAD", userId, div.key, null)}
+                              disabled={isSavingDuties}
+                              themeColor="amber"
+                              placeholder={lang === "en" ? "Type name to appoint..." : "พิมพ์ชื่อครูเพื่อแต่งตั้ง..."}
+                              lang={lang}
+                            />
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             </div>
 
-            {/* CARD 3: หัวหน้ากลุ่มสาระการเรียนรู้ 8+1 กลุ่ม (Department Heads - Multi-person per dept) */}
-            <div className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden bg-slate-50/40 dark:bg-slate-900/30">
+            {/* CARD 3: ตารางหัวหน้ากลุ่มสาระการเรียนรู้ 8+1 กลุ่ม (Department Heads Table) */}
+            <div className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden bg-white dark:bg-slate-900/60 shadow-sm">
               <div className="bg-gradient-to-r from-teal-600/10 via-emerald-600/10 to-transparent p-5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="p-2.5 bg-teal-600 text-white rounded-xl shadow-sm">
@@ -8702,96 +8866,86 @@ function doPost(e) {
                   </div>
                   <div>
                     <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                      {lang === "en" ? "3. Department Heads (หัวหน้ากลุ่มสาระการเรียนรู้ 8+1 กลุ่ม)" : "3. หัวหน้ากลุ่มสาระการเรียนรู้ (8 กลุ่มสาระฯ + 1 กิจกรรม)"}
+                      {lang === "en" ? "3. Department Heads Table (ตารางหัวหน้ากลุ่มสาระการเรียนรู้ 8+1 กลุ่ม)" : "3. ตารางหัวหน้ากลุ่มสาระการเรียนรู้ (8 กลุ่มสาระฯ + 1 กิจกรรม)"}
                     </h3>
                     <p className="text-xs text-slate-500 dark:text-slate-400">
                       {lang === "en" ? "Appointed heads for initial leave review and subject management (supports multiple appointees per department)" : "ผู้พิจารณาการลาชั้นต้นและบริหารงานวิชาการของกลุ่มสาระฯ (แต่งตั้งได้หลายคนต่อกลุ่มสาระฯ)"}
                     </p>
                   </div>
                 </div>
+                <span className="text-xs font-bold px-3 py-1 rounded-full bg-teal-100 dark:bg-teal-950 text-teal-800 dark:text-teal-300 border border-teal-200 dark:border-teal-800 hidden sm:inline-block">
+                  {lang === "en" ? "9 Departments" : "รวม 9 กลุ่มสาระฯ"}
+                </span>
               </div>
 
-              <div className="p-5 md:p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {departments.map(dept => {
-                  const deptAppointees = appointedDuties.filter(
-                    d => d.dutyType === "DEPT_HEAD" && d.departmentScope === dept.key
-                  );
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50/80 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 text-xs uppercase tracking-wider font-semibold">
+                      <th className="py-3.5 px-5 w-1/3">{lang === "en" ? "Department" : "กลุ่มสาระการเรียนรู้"}</th>
+                      <th className="py-3.5 px-5 w-1/3">{lang === "en" ? "Current Appointees" : "หัวหน้า/ผู้รับผิดชอบปัจจุบัน"}</th>
+                      <th className="py-3.5 px-5 w-1/3">{lang === "en" ? "Search & Appoint" : "ค้นหาและแต่งตั้ง"}</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
+                    {departments.map(dept => {
+                      const deptAppointees = appointedDuties.filter(
+                        d => d.dutyType === "DEPT_HEAD" && d.departmentScope === dept.key
+                      );
 
-                  return (
-                    <div key={dept.key} className="bg-white dark:bg-slate-800/80 p-4 rounded-xl border border-slate-200/80 dark:border-slate-700/80 space-y-2.5 flex flex-col justify-between">
-                      <div className="space-y-2">
-                        <div className="flex items-start justify-between gap-1">
-                          <h4 className="text-xs font-bold text-slate-900 dark:text-white line-clamp-1">
-                            {lang === "en" ? dept.nameEn : dept.nameTh}
-                          </h4>
-                          <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-teal-100 dark:bg-teal-950 text-teal-700 dark:text-teal-300 shrink-0">
-                            {deptAppointees.length}
-                          </span>
-                        </div>
-
-                        {/* Appointees list */}
-                        <div className="p-2 rounded-lg bg-slate-50 dark:bg-slate-900/60 border border-slate-150 dark:border-slate-800 min-h-[46px] flex flex-col justify-center">
-                          {deptAppointees.length === 0 ? (
-                            <span className="text-[11px] text-slate-400 italic">
-                              {lang === "en" ? "Not appointed" : "ยังไม่ได้แต่งตั้ง"}
-                            </span>
-                          ) : (
-                            <div className="flex flex-wrap gap-1">
-                              {deptAppointees.map(a => (
-                                <div key={a.id} className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[11px] text-slate-800 dark:text-slate-200 shadow-xs">
-                                  <span className="font-semibold truncate max-w-[120px]">{a.user?.name}</span>
-                                  <button
-                                    type="button"
-                                    disabled={isSavingDuties}
-                                    onClick={() => handleRevokeDuty(a.id, `${dept.nameTh} (${a.user?.name})`)}
-                                    className="text-rose-500 hover:text-rose-700 p-0.5 transition-colors cursor-pointer"
-                                    title="ถอดถอน"
-                                  >
-                                    <X className="w-2.5 h-2.5" />
-                                  </button>
-                                </div>
-                              ))}
+                      return (
+                        <tr key={dept.key} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
+                          <td className="py-3.5 px-5 align-top">
+                            <div className="font-bold text-slate-900 dark:text-white text-xs">
+                              {lang === "en" ? dept.nameEn : dept.nameTh}
                             </div>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Add appointee */}
-                      <div className="pt-1 flex items-center gap-1.5">
-                        <select
-                          id={`select-dept-${dept.key}`}
-                          defaultValue=""
-                          disabled={isSavingDuties}
-                          className="flex-1 px-2 py-1 text-[11px] rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:ring-1 focus:ring-teal-500"
-                        >
-                          <option value="">{lang === "en" ? "-- Choose Teacher --" : "-- เลือกครู --"}</option>
-                          {availableUsers
-                            .filter(u => !deptAppointees.some(a => a.userId === u.id))
-                            .map(u => (
-                              <option key={u.id} value={u.id}>
-                                {u.name}
-                              </option>
-                            ))}
-                        </select>
-                        <button
-                          type="button"
-                          disabled={isSavingDuties}
-                          onClick={() => {
-                            const sel = document.getElementById(`select-dept-${dept.key}`) as HTMLSelectElement;
-                            if (sel && sel.value) {
-                              handleAssignDuty("DEPT_HEAD", sel.value, null, dept.key);
-                              sel.value = "";
-                            }
-                          }}
-                          className="px-2.5 py-1 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-[11px] font-semibold transition-all whitespace-nowrap cursor-pointer disabled:opacity-50 flex items-center gap-0.5"
-                        >
-                          <Plus className="w-3 h-3" />
-                          {lang === "en" ? "Add" : "เพิ่ม"}
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
+                            <div className="mt-1">
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-100 dark:bg-teal-950 text-teal-700 dark:text-teal-300">
+                                {deptAppointees.length} {lang === "en" ? "assigned" : "คน"}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="py-3.5 px-5 align-top">
+                            <div className="flex flex-wrap gap-1 min-h-[32px] items-center">
+                              {deptAppointees.length === 0 ? (
+                                <span className="text-[11px] text-slate-400 italic">
+                                  {lang === "en" ? "Not appointed" : "ยังไม่ได้แต่งตั้ง"}
+                                </span>
+                              ) : (
+                                deptAppointees.map(a => (
+                                  <div key={a.id} className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[11px] text-slate-800 dark:text-slate-200 shadow-2xs">
+                                    <span className="font-semibold truncate max-w-[130px]">{a.user?.name}</span>
+                                    <button
+                                      type="button"
+                                      disabled={isSavingDuties}
+                                      onClick={() => handleRevokeDuty(a.id, `${dept.nameTh} (${a.user?.name})`)}
+                                      className="text-rose-500 hover:text-rose-700 p-0.5 transition-colors cursor-pointer"
+                                      title="ถอดถอน"
+                                    >
+                                      <X className="w-3 h-3" />
+                                    </button>
+                                  </div>
+                                ))
+                              )}
+                            </div>
+                          </td>
+                          <td className="py-3.5 px-5 align-top">
+                            <SearchableTeacherCombobox
+                              availableUsers={availableUsers}
+                              excludedUserIds={deptAppointees.map(a => a.userId)}
+                              onSelect={(userId) => handleAssignDuty("DEPT_HEAD", userId, null, dept.key)}
+                              disabled={isSavingDuties}
+                              themeColor="teal"
+                              placeholder={lang === "en" ? "Search teacher..." : "ค้นหาชื่อครู..."}
+                              compact
+                              lang={lang}
+                            />
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             </div>
           </div>
