@@ -208,8 +208,8 @@ function SearchableTeacherCombobox({
       </div>
 
       {isOpen && (
-        <div className="absolute left-0 right-0 top-full mt-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-xl z-50 p-2 space-y-1 max-h-56 overflow-y-auto">
-          <div className="px-2 py-1 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider flex items-center justify-between">
+        <div className="absolute right-0 top-full mt-1.5 w-[360px] sm:w-[420px] max-w-[90vw] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl z-50 p-2.5 space-y-1 max-h-64 overflow-y-auto">
+          <div className="px-2 py-1 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-1.5 mb-1">
             <span>{lang === "en" ? "Select teacher to appoint" : "เลือกครูเพื่อแต่งตั้ง"}</span>
             <span className={tagTextClass}>
               {filteredUsers.length} {lang === "en" ? "teachers" : "คน"}
@@ -229,15 +229,15 @@ function SearchableTeacherCombobox({
                   onClick={() => handleSelectUser(u.id)}
                   className={`p-2 rounded-xl border border-transparent transition-colors flex items-center justify-between group cursor-pointer ${hoverItemClass}`}
                 >
-                  <div className="flex items-center gap-2 min-w-0 pr-2">
-                    <div className="w-6 h-6 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 flex items-center justify-center font-bold text-[10px] shrink-0">
+                  <div className="flex items-center gap-2.5 min-w-0 pr-2">
+                    <div className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 flex items-center justify-center font-bold text-[11px] shrink-0">
                       {u.name?.startsWith("นาย") ? "ช" : "ญ"}
                     </div>
                     <div className="min-w-0">
-                      <div className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate">
+                      <div className="text-xs font-bold text-slate-800 dark:text-slate-100 break-words">
                         {u.name}
                       </div>
-                      <div className="text-[10px] text-slate-400 dark:text-slate-500 flex items-center gap-1.5 truncate">
+                      <div className="text-[10px] text-slate-400 dark:text-slate-500 flex items-center gap-1.5 flex-wrap mt-0.5">
                         <span>{u.position || "ครู"}</span>
                         {u.subjectGroup && (
                           <>
@@ -248,7 +248,7 @@ function SearchableTeacherCombobox({
                       </div>
                     </div>
                   </div>
-                  <span className={`px-2 py-0.5 rounded-lg text-[10px] font-bold shrink-0 transition-opacity ${assignBtnClass}`}>
+                  <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold shrink-0 shadow-2xs transition-all ${assignBtnClass}`}>
                     + {lang === "en" ? "Appoint" : "แต่งตั้ง"}
                   </span>
                 </div>
@@ -8734,7 +8734,7 @@ function doPost(e) {
                 </div>
 
                 {/* Add inspector combobox */}
-                <div className="pt-2 max-w-xl">
+                <div className="pt-2 w-full max-w-2xl">
                   <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5">
                     {lang === "en" ? "Appoint New Leave Inspector:" : "ค้นหาและแต่งตั้งผู้ตรวจสอบการลาเพิ่ม:"}
                   </label>
@@ -8747,7 +8747,7 @@ function doPost(e) {
                     placeholder={
                       availableUsers.length === 0
                         ? (lang === "en" ? "-- No teachers loaded --" : "-- ไม่พบรายชื่อครู --")
-                        : (lang === "en" ? `Search teacher to appoint inspector (${availableUsers.length} available)...` : `พิมพ์ชื่อครูเพื่อแต่งตั้งเป็นผู้ตรวจสอบการลา (${availableUsers.length} คน)...`)
+                        : (lang === "en" ? `Search teacher to appoint inspector (${availableUsers.length} available)...` : "พิมพ์ชื่อครูเพื่อแต่งตั้งเป็นผู้ตรวจสอบการลา...")
                     }
                     lang={lang}
                   />
@@ -8777,12 +8777,12 @@ function doPost(e) {
               </div>
 
               <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
+                <table className="w-full text-left border-collapse min-w-[800px]">
                   <thead>
                     <tr className="bg-slate-50/80 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 text-xs uppercase tracking-wider font-semibold">
-                      <th className="py-3.5 px-5 w-1/4">{lang === "en" ? "Division" : "ฝ่ายบริหาร"}</th>
-                      <th className="py-3.5 px-5 w-2/5">{lang === "en" ? "Current Appointees" : "ผู้ได้รับการแต่งตั้งปัจจุบัน"}</th>
-                      <th className="py-3.5 px-5 w-1/3">{lang === "en" ? "Search & Appoint" : "ค้นหาและแต่งตั้งครูเพิ่ม"}</th>
+                      <th className="py-3.5 px-5 w-1/4 min-w-[200px]">{lang === "en" ? "Division" : "ฝ่ายบริหาร"}</th>
+                      <th className="py-3.5 px-5 w-1/3 min-w-[220px]">{lang === "en" ? "Current Appointees" : "ผู้ได้รับการแต่งตั้งปัจจุบัน"}</th>
+                      <th className="py-3.5 px-5 w-5/12 min-w-[340px]">{lang === "en" ? "Search & Appoint" : "ค้นหาและแต่งตั้งครูเพิ่ม"}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
@@ -8794,7 +8794,7 @@ function doPost(e) {
 
                       return (
                         <tr key={div.key} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
-                          <td className="py-4 px-5 align-top">
+                          <td className="py-4 px-5 align-top min-w-[200px]">
                             <div className="flex items-start gap-3">
                               <span className={`p-2 rounded-xl border ${div.color} shadow-xs shrink-0 mt-0.5`}>
                                 <Icon className="w-4 h-4" />
@@ -8812,7 +8812,7 @@ function doPost(e) {
                               </div>
                             </div>
                           </td>
-                          <td className="py-4 px-5 align-top">
+                          <td className="py-4 px-5 align-top min-w-[220px]">
                             <div className="flex flex-wrap gap-1.5 min-h-[38px] items-center">
                               {divAppointees.length === 0 ? (
                                 <span className="text-xs text-slate-400 italic">
@@ -8838,7 +8838,7 @@ function doPost(e) {
                               )}
                             </div>
                           </td>
-                          <td className="py-4 px-5 align-top">
+                          <td className="py-4 px-5 align-top min-w-[340px]">
                             <SearchableTeacherCombobox
                               availableUsers={availableUsers}
                               excludedUserIds={divAppointees.map(a => a.userId)}
@@ -8879,12 +8879,12 @@ function doPost(e) {
               </div>
 
               <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
+                <table className="w-full text-left border-collapse min-w-[800px]">
                   <thead>
                     <tr className="bg-slate-50/80 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 text-xs uppercase tracking-wider font-semibold">
-                      <th className="py-3.5 px-5 w-1/3">{lang === "en" ? "Department" : "กลุ่มสาระการเรียนรู้"}</th>
-                      <th className="py-3.5 px-5 w-1/3">{lang === "en" ? "Current Appointees" : "หัวหน้า/ผู้รับผิดชอบปัจจุบัน"}</th>
-                      <th className="py-3.5 px-5 w-1/3">{lang === "en" ? "Search & Appoint" : "ค้นหาและแต่งตั้ง"}</th>
+                      <th className="py-3.5 px-5 w-1/4 min-w-[200px]">{lang === "en" ? "Department" : "กลุ่มสาระการเรียนรู้"}</th>
+                      <th className="py-3.5 px-5 w-1/3 min-w-[220px]">{lang === "en" ? "Current Appointees" : "หัวหน้า/ผู้รับผิดชอบปัจจุบัน"}</th>
+                      <th className="py-3.5 px-5 w-5/12 min-w-[340px]">{lang === "en" ? "Search & Appoint" : "ค้นหาและแต่งตั้ง"}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
@@ -8895,7 +8895,7 @@ function doPost(e) {
 
                       return (
                         <tr key={dept.key} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
-                          <td className="py-3.5 px-5 align-top">
+                          <td className="py-3.5 px-5 align-top min-w-[200px]">
                             <div className="font-bold text-slate-900 dark:text-white text-xs">
                               {lang === "en" ? dept.nameEn : dept.nameTh}
                             </div>
@@ -8905,7 +8905,7 @@ function doPost(e) {
                               </span>
                             </div>
                           </td>
-                          <td className="py-3.5 px-5 align-top">
+                          <td className="py-3.5 px-5 align-top min-w-[220px]">
                             <div className="flex flex-wrap gap-1 min-h-[32px] items-center">
                               {deptAppointees.length === 0 ? (
                                 <span className="text-[11px] text-slate-400 italic">
@@ -8929,15 +8929,14 @@ function doPost(e) {
                               )}
                             </div>
                           </td>
-                          <td className="py-3.5 px-5 align-top">
+                          <td className="py-3.5 px-5 align-top min-w-[340px]">
                             <SearchableTeacherCombobox
                               availableUsers={availableUsers}
                               excludedUserIds={deptAppointees.map(a => a.userId)}
                               onSelect={(userId) => handleAssignDuty("DEPT_HEAD", userId, null, dept.key)}
                               disabled={isSavingDuties}
                               themeColor="teal"
-                              placeholder={lang === "en" ? "Search teacher..." : "ค้นหาชื่อครู..."}
-                              compact
+                              placeholder={lang === "en" ? "Search teacher..." : "พิมพ์ชื่อครูเพื่อแต่งตั้ง..."}
                               lang={lang}
                             />
                           </td>
