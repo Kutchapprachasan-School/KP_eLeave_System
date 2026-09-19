@@ -541,7 +541,7 @@ export async function getStaffList() {
 // ========= Helper: Check if user can give final approval =========
 async function canGiveFinalApproval(userId: string, userPosition: string | null, userRole: string): Promise<boolean> {
   // Director (ผู้อำนวยการ) can always give final approval
-  if (userPosition === "ผู้อำนวยการ") return true;
+  if (userPosition === "ผู้อำนวยการ" || userRole === "DIRECTOR") return true;
   // Admin can always give final approval
   if (userRole === "ADMIN" || userPosition === "แอดมิน") return true;
   // Check if user is in the configurable final approver list
