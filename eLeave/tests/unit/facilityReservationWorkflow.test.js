@@ -126,8 +126,8 @@ test('FacilityWorkflow - Director approval atomic re-check prevents race collisi
     resourceId: 'res-room-audi',
     reservedByUserId: 'teacher-A',
     title: 'ประชุม A',
-    startAt: '2026-09-20T09:00:00Z',
-    endAt: '2026-09-20T11:00:00Z',
+    startAt: '2026-10-20T09:00:00Z',
+    endAt: '2026-10-20T11:00:00Z',
     consumerModule: 'MEETING_ROOM'
   });
 
@@ -137,11 +137,11 @@ test('FacilityWorkflow - Director approval atomic re-check prevents race collisi
     resourceId: 'res-room-audi',
     reservedByUserId: 'teacher-B',
     title: 'ประชุม B',
-    startAt: '2026-09-20T10:00:00Z',
-    endAt: '2026-09-20T12:00:00Z',
+    startAt: '2026-10-20T10:00:00Z',
+    endAt: '2026-10-20T12:00:00Z',
     status: 'PENDING',
     approvalSteps: [{ stepNo: 2, status: 'PENDING' }],
-    assignments: [{ targetType: 'RESOURCE', resourceId: 'res-room-audi', startAt: '2026-09-20T10:00:00Z', endAt: '2026-09-20T12:00:00Z', status: 'PENDING' }]
+    assignments: [{ targetType: 'RESOURCE', resourceId: 'res-room-audi', startAt: '2026-10-20T10:00:00Z', endAt: '2026-10-20T12:00:00Z', status: 'PENDING' }]
   };
   service.reservations.push(resB);
 
