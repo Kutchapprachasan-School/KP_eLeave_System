@@ -1,10 +1,15 @@
 /**
- * KP Academic OMR - Compact Scan Zone Template Geometry (Rev 9.0)
+ * KP Academic OMR - Compact Scan Zone Template Geometry (Rev 9.1)
  * 
- * ออกแบบใหม่ทั้งหมด: รวม bubbles ทั้งหมดไว้ใน "Compact Scan Zone" (v: 0.02→0.58)
- * เพื่อแก้ปัญหากล้องมือถือจับตำแหน่ง bubble ไม่ตรงเมื่อกระจายทั่วกระดาษ A4
+ * รองรับ 5 แม่แบบมาตรฐาน (20, 40, 60, 80, 100 ข้อ):
+ * - 20 ข้อ: 2 คอลัมน์ คอลัมน์ละ 10 ข้อ (ปัดทุก 10 ข้อ)
+ * - 40 ข้อ: 2 คอลัมน์ คอลัมน์ละ 20 ข้อ
+ * - 60 ข้อ: 3 คอลัมน์ คอลัมน์ละ 20 ข้อ
+ * - 80 ข้อ: 4 คอลัมน์ คอลัมน์ละ 20 ข้อ
+ * - 100 ข้อ: 5 คอลัมน์ คอลัมน์ละ 20 ข้อ
  * 
  * รองรับตัวเลือก A-F (สูงสุด 6 ตัวเลือก ตามที่ครูกำหนด)
+ * รองรับคะแนนอัตนัยแบบยืดหยุ่น 0-30 คะแนน (หลักสิบ 0-3, หลักหน่วย 0-9)
  */
 
 export interface BubbleCoordinate {
@@ -34,6 +39,12 @@ export interface VersionCodeCoordinate {
   radius: number;
 }
 
+export interface SubjectiveScoreCoordinate {
+  itemNo: number;
+  tens: { value: number; u: number; v: number; radius: number }[]; // 0, 1, 2, 3 (for 0-30 points)
+  units: { value: number; u: number; v: number; radius: number }[]; // 0 to 9
+}
+
 export interface TemplateGridMetadata {
   canvasWidth: number;
   canvasHeight: number;
@@ -55,8 +66,9 @@ export interface TemplateGridMetadata {
   versionCodeGrid: {
     versions: VersionCodeCoordinate[];
   };
+  subjectiveScores?: SubjectiveScoreCoordinate[];
   questionBlocks: QuestionCoordinate[];
-  /** จำนวนตัวเลือกที่ใช้ (4-6) */
+  /** จำนวนตัวเลือกที่ใช้ (2-6) */
   choiceCount: number;
   /** สัดส่วนของ scan zone (width/height) สำหรับ IQG validation */
   scanZoneAspectRatio: number;
@@ -92,11 +104,11 @@ const MARGIN_Y = 40 / CANVAS_H;
 /** ขอบเขต Scan Zone: ด้านบน v=MARGIN_Y ถึง v=SCAN_ZONE_BOTTOM */
 const SCAN_ZONE_BOTTOM = 0.575;
 
-/** Bubble radius ใหญ่ขึ้น 15% สำหรับสแกนมือถือ */
-const BUBBLE_R = 14 / CANVAS_W;
+/** Bubble radius ใหญ่ขึ้นสำหรับสแกนมือถือ */
+const BUBBLE_R = 13.5 / CANVAS_W;
 
 /**
- * สร้าง fiducial markers 4 มุมรอบ Scan Zone (ไม่ใช่มุมกระดาษ A4)
+ * สร้าง fiducial markers 4 มุมรอบ Scan Zone
  */
 function createScanZoneMarkers() {
   return {
@@ -109,13 +121,12 @@ function createScanZoneMarkers() {
 
 /**
  * สร้าง Student ID Grid (5 หลัก, ค่า 0-9)
- * ตำแหน่ง: u 0.08-0.32, v 0.10-0.23
  */
 function createStudentIdGrid(): TemplateGridMetadata["studentIdGrid"] {
   const digits: StudentIdDigitCoordinate[] = [];
-  const startU = 0.09;
+  const startU = 0.10;
   const startV = 0.105;
-  const stepU = 0.042;
+  const stepU = 0.040;
   const stepV = 0.0125;
 
   for (let digit = 0; digit < 5; digit++) {
@@ -135,17 +146,50 @@ function createStudentIdGrid(): TemplateGridMetadata["studentIdGrid"] {
 
 /**
  * สร้าง Version Code Grid (01-04)
- * ตำแหน่ง: u 0.38-0.55, v 0.12-0.16
  */
 function createVersionCodeGrid(): TemplateGridMetadata["versionCodeGrid"] {
   return {
     versions: [
-      { versionCode: "01", u: 0.40, v: 0.135, radius: BUBBLE_R },
-      { versionCode: "02", u: 0.445, v: 0.135, radius: BUBBLE_R },
-      { versionCode: "03", u: 0.49, v: 0.135, radius: BUBBLE_R },
-      { versionCode: "04", u: 0.535, v: 0.135, radius: BUBBLE_R }
+      { versionCode: "01", u: 0.42, v: 0.125, radius: BUBBLE_R },
+      { versionCode: "02", u: 0.465, v: 0.125, radius: BUBBLE_R },
+      { versionCode: "03", u: 0.51, v: 0.125, radius: BUBBLE_R },
+      { versionCode: "04", u: 0.555, v: 0.125, radius: BUBBLE_R }
     ]
   };
+}
+
+/**
+ * สร้าง Subjective Score Grid (0-30 คะแนน: หลักสิบ 0-3, หลักหน่วย 0-9)
+ */
+function createSubjectiveScores(itemCount: number = 2): SubjectiveScoreCoordinate[] {
+  const list: SubjectiveScoreCoordinate[] = [];
+  const baseV = 0.17;
+  const rowHeight = 0.035;
+
+  for (let itemIdx = 0; itemIdx < itemCount; itemIdx++) {
+    const vTens = baseV + itemIdx * rowHeight;
+    const vUnits = vTens + 0.015;
+
+    // Tens: 0, 1, 2, 3
+    const tens = [0, 1, 2, 3].map((val, idx) => ({
+      value: val,
+      u: 0.45 + idx * 0.032,
+      v: vTens,
+      radius: BUBBLE_R * 0.8
+    }));
+
+    // Units: 0 to 9
+    const units = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((val, idx) => ({
+      value: val,
+      u: 0.45 + idx * 0.032,
+      v: vUnits,
+      radius: BUBBLE_R * 0.8
+    }));
+
+    list.push({ itemNo: itemIdx + 1, tens, units });
+  }
+
+  return list;
 }
 
 /**
@@ -157,41 +201,58 @@ function createQrAnchor() {
 
 /**
  * คำนวณ aspect ratio ของ scan zone
- * scan zone กว้าง = (1.0 - 2*MARGIN_X) * CANVAS_W
- * scan zone สูง = (SCAN_ZONE_BOTTOM - MARGIN_Y) * CANVAS_H
  */
 function calcScanZoneAspectRatio(): number {
   const zoneW = (1.0 - 2 * MARGIN_X) * CANVAS_W;
   const zoneH = (SCAN_ZONE_BOTTOM - MARGIN_Y) * CANVAS_H;
-  return zoneH / zoneW; // ~0.82 (กว้างกว่าสูง)
+  return zoneH / zoneW;
 }
 
 // =============================================================================
-// COMPACT GRID GENERATORS
+// STANDARDIZED 5-TIER GRID GENERATORS (20, 40, 60, 80, 100)
 // =============================================================================
 
 /**
- * สร้าง Compact Grid สำหรับ 20 ข้อ (1 คอลัมน์)
- * Bubble zone: v 0.265 → 0.545 (ระยะห่างกว้างสบายตา)
+ * 1. แม่แบบ 20 ข้อ: 2 คอลัมน์ x 10 ข้อ (ปัดทุก 10 ข้อ)
+ * Col 1: ข้อ 1 - 10 | Col 2: ข้อ 11 - 20
  */
 export function generate20ItemGridMetadata(choiceCount: number = 4): TemplateGridMetadata {
   const choices = ALL_CHOICES.slice(0, Math.min(6, Math.max(2, choiceCount)));
-  const rowStepV = 0.014;
-  const startV = 0.265;
-  // จัดตัวเลือกให้อยู่กลาง
-  const totalChoiceWidth = (choices.length - 1) * 0.052;
-  const choiceStartU = 0.5 - totalChoiceWidth / 2;
+  const rowStepV = 0.022; // ระยะห่างกว้าง โล่ง สบายตา
+  const startV = 0.280;
+  const choiceStepU = choices.length <= 4 ? 0.052 : 0.042;
+
+  const col1BaseU = 0.18;
+  const col2BaseU = 0.58;
 
   const questionBlocks: QuestionCoordinate[] = [];
-  for (let i = 1; i <= 20; i++) {
+
+  // Col 1: ข้อ 1 - 10
+  for (let i = 1; i <= 10; i++) {
     const v = startV + (i - 1) * rowStepV;
-    const bubbles: BubbleCoordinate[] = choices.map((c, cIdx) => ({
-      choice: c,
-      u: choiceStartU + cIdx * 0.052,
-      v,
-      radius: BUBBLE_R
-    }));
-    questionBlocks.push({ itemNo: i, bubbles });
+    questionBlocks.push({
+      itemNo: i,
+      bubbles: choices.map((c, cIdx) => ({
+        choice: c,
+        u: col1BaseU + cIdx * choiceStepU,
+        v,
+        radius: BUBBLE_R * 1.1
+      }))
+    });
+  }
+
+  // Col 2: ข้อ 11 - 20
+  for (let i = 11; i <= 20; i++) {
+    const v = startV + (i - 11) * rowStepV;
+    questionBlocks.push({
+      itemNo: i,
+      bubbles: choices.map((c, cIdx) => ({
+        choice: c,
+        u: col2BaseU + cIdx * choiceStepU,
+        v,
+        radius: BUBBLE_R * 1.1
+      }))
+    });
   }
 
   return {
@@ -201,6 +262,7 @@ export function generate20ItemGridMetadata(choiceCount: number = 4): TemplateGri
     qrCodeAnchor: createQrAnchor(),
     studentIdGrid: createStudentIdGrid(),
     versionCodeGrid: createVersionCodeGrid(),
+    subjectiveScores: createSubjectiveScores(2),
     questionBlocks,
     choiceCount: choices.length,
     scanZoneAspectRatio: calcScanZoneAspectRatio()
@@ -208,45 +270,46 @@ export function generate20ItemGridMetadata(choiceCount: number = 4): TemplateGri
 }
 
 /**
- * สร้าง Compact Grid สำหรับ 50 ข้อ (2 คอลัมน์ x 25 ข้อ)
- * Bubble zone: v 0.265 → 0.545
+ * 2. แม่แบบ 40 ข้อ: 2 คอลัมน์ x 20 ข้อ
+ * Col 1: ข้อ 1 - 20 | Col 2: ข้อ 21 - 40
  */
-export function generate50ItemGridMetadata(choiceCount: number = 4): TemplateGridMetadata {
+export function generate40ItemGridMetadata(choiceCount: number = 4): TemplateGridMetadata {
   const choices = ALL_CHOICES.slice(0, Math.min(6, Math.max(2, choiceCount)));
-  const rowStepV = 0.0112;
-  const startV = 0.265;
+  const rowStepV = 0.0132;
+  const startV = 0.270;
+  const choiceStepU = choices.length <= 4 ? 0.050 : 0.040;
 
-  // คำนวณ choice step ตามจำนวนตัวเลือก
-  const choiceStepU = choices.length <= 4 ? 0.052 : 0.042;
-
-  // Col 1 base U, Col 2 base U (แบ่งครึ่งหน้ากระดาษ)
-  const col1BaseU = 0.12;
+  const col1BaseU = 0.14;
   const col2BaseU = 0.57;
 
   const questionBlocks: QuestionCoordinate[] = [];
 
-  // Col 1: ข้อ 1-25
-  for (let i = 1; i <= 25; i++) {
+  // Col 1: 1 - 20
+  for (let i = 1; i <= 20; i++) {
     const v = startV + (i - 1) * rowStepV;
-    const bubbles: BubbleCoordinate[] = choices.map((c, cIdx) => ({
-      choice: c,
-      u: col1BaseU + cIdx * choiceStepU,
-      v,
-      radius: BUBBLE_R
-    }));
-    questionBlocks.push({ itemNo: i, bubbles });
+    questionBlocks.push({
+      itemNo: i,
+      bubbles: choices.map((c, cIdx) => ({
+        choice: c,
+        u: col1BaseU + cIdx * choiceStepU,
+        v,
+        radius: BUBBLE_R
+      }))
+    });
   }
 
-  // Col 2: ข้อ 26-50
-  for (let i = 26; i <= 50; i++) {
-    const v = startV + (i - 26) * rowStepV;
-    const bubbles: BubbleCoordinate[] = choices.map((c, cIdx) => ({
-      choice: c,
-      u: col2BaseU + cIdx * choiceStepU,
-      v,
-      radius: BUBBLE_R
-    }));
-    questionBlocks.push({ itemNo: i, bubbles });
+  // Col 2: 21 - 40
+  for (let i = 21; i <= 40; i++) {
+    const v = startV + (i - 21) * rowStepV;
+    questionBlocks.push({
+      itemNo: i,
+      bubbles: choices.map((c, cIdx) => ({
+        choice: c,
+        u: col2BaseU + cIdx * choiceStepU,
+        v,
+        radius: BUBBLE_R
+      }))
+    });
   }
 
   return {
@@ -256,6 +319,7 @@ export function generate50ItemGridMetadata(choiceCount: number = 4): TemplateGri
     qrCodeAnchor: createQrAnchor(),
     studentIdGrid: createStudentIdGrid(),
     versionCodeGrid: createVersionCodeGrid(),
+    subjectiveScores: createSubjectiveScores(2),
     questionBlocks,
     choiceCount: choices.length,
     scanZoneAspectRatio: calcScanZoneAspectRatio()
@@ -263,30 +327,33 @@ export function generate50ItemGridMetadata(choiceCount: number = 4): TemplateGri
 }
 
 /**
- * สร้าง Compact Grid สำหรับ 75 ข้อ (3 คอลัมน์ x 25 ข้อ)
- * Bubble zone: v 0.265 → 0.545
+ * 3. แม่แบบ 60 ข้อ: 3 คอลัมน์ x 20 ข้อ
+ * Col 1: 1 - 20 | Col 2: 21 - 40 | Col 3: 41 - 60
  */
-export function generate75ItemGridMetadata(choiceCount: number = 4): TemplateGridMetadata {
+export function generate60ItemGridMetadata(choiceCount: number = 4): TemplateGridMetadata {
   const choices = ALL_CHOICES.slice(0, Math.min(6, Math.max(2, choiceCount)));
-  const rowStepV = 0.0112;
-  const startV = 0.265;
-  const choiceStepU = choices.length <= 4 ? 0.042 : 0.034;
+  const rowStepV = 0.0132;
+  const startV = 0.270;
+  const choiceStepU = choices.length <= 4 ? 0.038 : 0.031;
 
   const colBaseUs = [0.08, 0.38, 0.68];
-
   const questionBlocks: QuestionCoordinate[] = [];
-  for (let i = 1; i <= 75; i++) {
-    const colIdx = Math.floor((i - 1) / 25);
-    const rowIdx = (i - 1) % 25;
+
+  for (let i = 1; i <= 60; i++) {
+    const colIdx = Math.floor((i - 1) / 20);
+    const rowIdx = (i - 1) % 20;
     const v = startV + rowIdx * rowStepV;
     const baseU = colBaseUs[colIdx];
-    const bubbles: BubbleCoordinate[] = choices.map((c, cIdx) => ({
-      choice: c,
-      u: baseU + cIdx * choiceStepU,
-      v,
-      radius: BUBBLE_R * 0.85
-    }));
-    questionBlocks.push({ itemNo: i, bubbles });
+
+    questionBlocks.push({
+      itemNo: i,
+      bubbles: choices.map((c, cIdx) => ({
+        choice: c,
+        u: baseU + cIdx * choiceStepU,
+        v,
+        radius: BUBBLE_R * 0.9
+      }))
+    });
   }
 
   return {
@@ -296,6 +363,7 @@ export function generate75ItemGridMetadata(choiceCount: number = 4): TemplateGri
     qrCodeAnchor: createQrAnchor(),
     studentIdGrid: createStudentIdGrid(),
     versionCodeGrid: createVersionCodeGrid(),
+    subjectiveScores: createSubjectiveScores(2),
     questionBlocks,
     choiceCount: choices.length,
     scanZoneAspectRatio: calcScanZoneAspectRatio()
@@ -303,30 +371,77 @@ export function generate75ItemGridMetadata(choiceCount: number = 4): TemplateGri
 }
 
 /**
- * สร้าง Compact Grid สำหรับ 100 ข้อ (4 คอลัมน์ x 25 ข้อ)
- * Bubble zone: v 0.265 → 0.545
+ * 4. แม่แบบ 80 ข้อ: 4 คอลัมน์ x 20 ข้อ
+ * Col 1: 1-20 | Col 2: 21-40 | Col 3: 41-60 | Col 4: 61-80
+ */
+export function generate80ItemGridMetadata(choiceCount: number = 4): TemplateGridMetadata {
+  const choices = ALL_CHOICES.slice(0, Math.min(6, Math.max(2, choiceCount)));
+  const rowStepV = 0.0132;
+  const startV = 0.270;
+  const choiceStepU = choices.length <= 4 ? 0.033 : 0.026;
+
+  const colBaseUs = [0.06, 0.29, 0.52, 0.75];
+  const questionBlocks: QuestionCoordinate[] = [];
+
+  for (let i = 1; i <= 80; i++) {
+    const colIdx = Math.floor((i - 1) / 20);
+    const rowIdx = (i - 1) % 20;
+    const v = startV + rowIdx * rowStepV;
+    const baseU = colBaseUs[colIdx];
+
+    questionBlocks.push({
+      itemNo: i,
+      bubbles: choices.map((c, cIdx) => ({
+        choice: c,
+        u: baseU + cIdx * choiceStepU,
+        v,
+        radius: BUBBLE_R * 0.8
+      }))
+    });
+  }
+
+  return {
+    canvasWidth: CANVAS_W,
+    canvasHeight: CANVAS_H,
+    fiducialMarkers: createScanZoneMarkers(),
+    qrCodeAnchor: createQrAnchor(),
+    studentIdGrid: createStudentIdGrid(),
+    versionCodeGrid: createVersionCodeGrid(),
+    subjectiveScores: createSubjectiveScores(2),
+    questionBlocks,
+    choiceCount: choices.length,
+    scanZoneAspectRatio: calcScanZoneAspectRatio()
+  };
+}
+
+/**
+ * 5. แม่แบบ 100 ข้อ: 5 คอลัมน์ x 20 ข้อ
+ * Col 1..5 x 20 items each
  */
 export function generate100ItemGridMetadata(choiceCount: number = 4): TemplateGridMetadata {
   const choices = ALL_CHOICES.slice(0, Math.min(6, Math.max(2, choiceCount)));
-  const rowStepV = 0.0112;
-  const startV = 0.265;
-  const choiceStepU = choices.length <= 4 ? 0.036 : 0.029;
+  const rowStepV = 0.0132;
+  const startV = 0.270;
+  const choiceStepU = choices.length <= 4 ? 0.028 : 0.022;
 
-  const colBaseUs = [0.06, 0.30, 0.54, 0.78];
-
+  const colBaseUs = [0.05, 0.235, 0.42, 0.605, 0.79];
   const questionBlocks: QuestionCoordinate[] = [];
+
   for (let i = 1; i <= 100; i++) {
-    const colIdx = Math.floor((i - 1) / 25);
-    const rowIdx = (i - 1) % 25;
+    const colIdx = Math.floor((i - 1) / 20);
+    const rowIdx = (i - 1) % 20;
     const v = startV + rowIdx * rowStepV;
     const baseU = colBaseUs[colIdx];
-    const bubbles: BubbleCoordinate[] = choices.map((c, cIdx) => ({
-      choice: c,
-      u: baseU + cIdx * choiceStepU,
-      v,
-      radius: BUBBLE_R * 0.75
-    }));
-    questionBlocks.push({ itemNo: i, bubbles });
+
+    questionBlocks.push({
+      itemNo: i,
+      bubbles: choices.map((c, cIdx) => ({
+        choice: c,
+        u: baseU + cIdx * choiceStepU,
+        v,
+        radius: BUBBLE_R * 0.75
+      }))
+    });
   }
 
   return {
@@ -336,23 +451,32 @@ export function generate100ItemGridMetadata(choiceCount: number = 4): TemplateGr
     qrCodeAnchor: createQrAnchor(),
     studentIdGrid: createStudentIdGrid(),
     versionCodeGrid: createVersionCodeGrid(),
+    subjectiveScores: createSubjectiveScores(2),
     questionBlocks,
     choiceCount: choices.length,
     scanZoneAspectRatio: calcScanZoneAspectRatio()
   };
 }
 
+// Aliases for backward compatibility
+export const generate50ItemGridMetadata = generate60ItemGridMetadata;
+export const generate75ItemGridMetadata = generate80ItemGridMetadata;
+
 /**
- * Helper: เลือก TemplateGridMetadata ตามจำนวนข้อ
- * @param totalItems จำนวนข้อทั้งหมด (1-100)
- * @param choiceCount จำนวนตัวเลือก (2-6, default 4 = A,B,C,D)
+ * Dispatcher: เลือก TemplateGridMetadata อัตโนมัติตาม totalItems
+ * - <= 20: แม่แบบ 20 (2 x 10)
+ * - <= 40: แม่แบบ 40 (2 x 20)
+ * - <= 60: แม่แบบ 60 (3 x 20)
+ * - <= 80: แม่แบบ 80 (4 x 20)
+ * - > 80: แม่แบบ 100 (5 x 20)
  */
 export function getTemplateGridForItems(
   totalItems: number,
   choiceCount: number = 4
 ): TemplateGridMetadata {
   if (totalItems <= 20) return generate20ItemGridMetadata(choiceCount);
-  if (totalItems <= 50) return generate50ItemGridMetadata(choiceCount);
-  if (totalItems <= 75) return generate75ItemGridMetadata(choiceCount);
+  if (totalItems <= 40) return generate40ItemGridMetadata(choiceCount);
+  if (totalItems <= 60) return generate60ItemGridMetadata(choiceCount);
+  if (totalItems <= 80) return generate80ItemGridMetadata(choiceCount);
   return generate100ItemGridMetadata(choiceCount);
 }

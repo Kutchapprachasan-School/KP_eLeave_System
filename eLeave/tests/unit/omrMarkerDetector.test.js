@@ -4,8 +4,9 @@ import assert from 'node:assert/strict';
 import { detectFiducialMarkers } from '../../../src/lib/omr/omrMarkerDetector.ts';
 import {
   generate20ItemGridMetadata,
-  generate50ItemGridMetadata,
-  generate75ItemGridMetadata,
+  generate40ItemGridMetadata,
+  generate60ItemGridMetadata,
+  generate80ItemGridMetadata,
   generate100ItemGridMetadata,
   getTemplateGridForItems
 } from '../../../src/lib/omr/omrTemplateGeometry.ts';
@@ -84,11 +85,12 @@ describe('OMR Marker Detector & Compact Geometry Unit Tests', () => {
 
   it('compact template geometry should constrain all question bubbles to the upper scan zone (v < 0.60)', () => {
     const grid20 = generate20ItemGridMetadata(4);
-    const grid50 = generate50ItemGridMetadata(4);
-    const grid75 = generate75ItemGridMetadata(5);
+    const grid40 = generate40ItemGridMetadata(4);
+    const grid60 = generate60ItemGridMetadata(4);
+    const grid80 = generate80ItemGridMetadata(5);
     const grid100 = generate100ItemGridMetadata(6);
 
-    for (const grid of [grid20, grid50, grid75, grid100]) {
+    for (const grid of [grid20, grid40, grid60, grid80, grid100]) {
       // Scan zone markers should be around upper 58% of the page
       assert.ok(grid.fiducialMarkers.bottomLeft.v <= 0.60, `Bottom marker v is too large: ${grid.fiducialMarkers.bottomLeft.v}`);
       assert.ok(grid.fiducialMarkers.bottomRight.v <= 0.60, `Bottom marker v is too large: ${grid.fiducialMarkers.bottomRight.v}`);
@@ -104,19 +106,37 @@ describe('OMR Marker Detector & Compact Geometry Unit Tests', () => {
       for (const d of grid.studentIdGrid.digits) {
         assert.ok(d.v < 0.25, `Student ID digit v exceeds 0.25: ${d.v}`);
       }
+
+      // Subjective scores should exist and support 0-30 points (tens 0-3, units 0-9)
+      assert.ok(grid.subjectiveScores && grid.subjectiveScores.length > 0);
+      assert.equal(grid.subjectiveScores[0].tens.length, 4); // 0, 1, 2, 3
+      assert.equal(grid.subjectiveScores[0].units.length, 10); // 0..9
     }
   });
 
+  it('getTemplateGridForItems should correctly route 20, 40, 60, 80, 100 tiers', () => {
+    assert.equal(getTemplateGridForItems(15).questionBlocks.length, 20); // <= 20 uses 20
+    assert.equal(getTemplateGridForItems(20).questionBlocks.length, 20); // 20 uses 20
+    assert.equal(getTemplateGridForItems(25).questionBlocks.length, 40); // 25 uses 40
+    assert.equal(getTemplateGridForItems(40).questionBlocks.length, 40); // 40 uses 40
+    assert.equal(getTemplateGridForItems(50).questionBlocks.length, 60); // 50 uses 60
+    assert.equal(getTemplateGridForItems(60).questionBlocks.length, 60); // 60 uses 60
+    assert.equal(getTemplateGridForItems(75).questionBlocks.length, 80); // 75 uses 80
+    assert.equal(getTemplateGridForItems(80).questionBlocks.length, 80); // 80 uses 80
+    assert.equal(getTemplateGridForItems(90).questionBlocks.length, 100); // 90 uses 100
+    assert.equal(getTemplateGridForItems(100).questionBlocks.length, 100); // 100 uses 100
+  });
+
   it('getTemplateGridForItems should support variable choiceCount up to 6 (A-F)', () => {
-    const grid4 = getTemplateGridForItems(50, 4);
+    const grid4 = getTemplateGridForItems(40, 4);
     assert.equal(grid4.choiceCount, 4);
     assert.deepEqual(grid4.questionBlocks[0].bubbles.map(b => b.choice), ['A', 'B', 'C', 'D']);
 
-    const grid5 = getTemplateGridForItems(50, 5);
+    const grid5 = getTemplateGridForItems(40, 5);
     assert.equal(grid5.choiceCount, 5);
     assert.deepEqual(grid5.questionBlocks[0].bubbles.map(b => b.choice), ['A', 'B', 'C', 'D', 'E']);
 
-    const grid6 = getTemplateGridForItems(50, 6);
+    const grid6 = getTemplateGridForItems(40, 6);
     assert.equal(grid6.choiceCount, 6);
     assert.deepEqual(grid6.questionBlocks[0].bubbles.map(b => b.choice), ['A', 'B', 'C', 'D', 'E', 'F']);
   });

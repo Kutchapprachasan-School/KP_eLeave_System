@@ -84,10 +84,12 @@ export function OmrCameraScanner({
   const templateGrid: TemplateGridMetadata = getTemplateGridForItems(totalItems, choiceCount);
   const templateLabel = totalItems <= 20
     ? `20 ข้อ (${choiceCount} ตัวเลือก)`
-    : totalItems <= 50
-    ? `50 ข้อ (${choiceCount} ตัวเลือก)`
-    : totalItems <= 75
-    ? `75 ข้อ (${choiceCount} ตัวเลือก)`
+    : totalItems <= 40
+    ? `40 ข้อ (${choiceCount} ตัวเลือก)`
+    : totalItems <= 60
+    ? `60 ข้อ (${choiceCount} ตัวเลือก)`
+    : totalItems <= 80
+    ? `80 ข้อ (${choiceCount} ตัวเลือก)`
     : `100 ข้อ (${choiceCount} ตัวเลือก)`;
 
   // Load preferences from localStorage
