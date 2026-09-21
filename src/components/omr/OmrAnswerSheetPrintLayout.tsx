@@ -241,9 +241,9 @@ export function OmrAnswerSheet({
         
         {/* ========================================================================= */}
         {/* 1. COMPACT SCAN ZONE (Height: ~162mm)                                     */}
-        {/* 4 Corner Markers at 6mm from edges with 22mm content padding safe zone    */}
+        {/* 4 Corner Markers at 4mm from edges with 24mm content padding safe zone    */}
         {/* ========================================================================= */}
-        <div className="relative border border-slate-300 rounded px-[22mm] pt-[6mm] pb-[16mm] min-h-[162mm] flex flex-col justify-between bg-white">
+        <div className="relative border border-slate-300 rounded px-[24mm] pt-[6mm] pb-[16mm] min-h-[162mm] flex flex-col justify-between bg-white">
           
           {/* 4 Corner Fiducial Markers (12mm x 12mm) - Isolated with Safe Margins */}
           <div className="absolute top-[4mm] left-[4mm] w-[12mm] h-[12mm] bg-black" />
@@ -256,7 +256,7 @@ export function OmrAnswerSheet({
             <div className="flex items-start justify-between border-b border-black pb-1">
               <div>
                 <div className="text-[13px] font-bold tracking-tight">
-                  โรงเรียนกุดจับประชาสรรค์ • กระดาษคำตอบมาตรฐาน ({tierName} Rev 9.1)
+                  โรงเรียนกุดจับประชาสรรค์ • กระดาษคำตอบมาตรฐาน ({tierName} Rev 9.2)
                 </div>
                 <div className="text-[11.5px] font-semibold text-slate-800">
                   {subjectCode} {subjectName} ({gradeLevel}) • {paperTitle}
@@ -524,7 +524,7 @@ export function OmrAnswerSheet({
           </div>
 
           <div className="text-[7px] text-slate-400 text-center font-mono pt-0.5">
-            [ สิ้นสุดพื้นที่สแกน OMR Scan Zone • {tierName} Rev 9.1 ]
+            [ สิ้นสุดพื้นที่สแกน OMR Scan Zone • {tierName} Rev 9.2 ]
           </div>
         </div>
 
@@ -570,7 +570,7 @@ export function OmrAnswerSheet({
 
               <div className="border-t border-slate-200 pt-0.5 flex justify-between items-center text-[8.5px] text-slate-500">
                 <span>ครูผู้ตรวจ: กรุณานำคะแนนไปฝนลงในช่องคะแนนอัตนัยใน Scan Zone ด้านบนเพื่อตรวจด้วยระบบ</span>
-                <span className="font-mono font-bold">KP-OMR Rev 9.1</span>
+                <span className="font-mono font-bold">KP-OMR Rev 9.2</span>
               </div>
             </div>
           ) : (
@@ -594,7 +594,7 @@ export function OmrAnswerSheet({
           <div className="text-[7.5px] text-slate-400 border-t border-slate-200 pt-0.5 text-center flex justify-between items-center mt-1">
             <span>โรงเรียนกุดจับประชาสรรค์ • Smart Academic Exam System</span>
             <span className="font-mono">
-              {tierName} (Rev. 9.1 Standard)
+              {tierName} (Rev. 9.2 Standard)
             </span>
           </div>
         </div>

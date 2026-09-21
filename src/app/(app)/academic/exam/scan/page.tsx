@@ -13,10 +13,11 @@ import {
   BarChart3, 
   Users,
   Loader2,
-  ListOrdered
+  ListOrdered,
+  Trash2
 } from "lucide-react";
 import { OmrCameraScanner } from "@/components/omr/OmrCameraScanner";
-import { listExamPapersAction, getExamPaperDetailsAction } from "@/app/actions/omr";
+import { listExamPapersAction, getExamPaperDetailsAction, deleteExamSubmissionAction } from "@/app/actions/omr";
 
 export default function ExamScanPage() {
   const searchParams = useSearchParams();
@@ -28,6 +29,7 @@ export default function ExamScanPage() {
   const [currentPaper, setCurrentPaper] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [recentScans, setRecentScans] = useState<any[]>([]);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   // Load available papers
   useEffect(() => {
@@ -67,6 +69,22 @@ export default function ExamScanPage() {
 
   const handleScanComplete = (newSubmission: any) => {
     setRecentScans((prev) => [newSubmission, ...prev.filter((s) => s.id !== newSubmission.id)]);
+  };
+
+  const handleDeleteSubmission = async (submissionId: string, studentId: string) => {
+    if (!confirm(`คุณต้องการลบผลการตรวจของนักเรียนรหัส ${studentId} ใช่หรือไม่?`)) {
+      return;
+    }
+    try {
+      setDeletingId(submissionId);
+      await deleteExamSubmissionAction(submissionId);
+      setRecentScans((prev) => prev.filter((s) => s.id !== submissionId));
+    } catch (err: any) {
+      console.error("Failed to delete submission:", err);
+      alert(err.message || "เกิดข้อผิดพลาดในการลบผลการตรวจ");
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   return (
@@ -213,16 +231,31 @@ export default function ExamScanPage() {
                         </div>
                       </div>
 
-                      <div className="text-right">
-                        <div className="text-sm font-bold text-emerald-600 dark:text-emerald-400">
-                          {Number(sub.netScore)} คะแนน
+                      <div className="flex items-center gap-2">
+                        <div className="text-right">
+                          <div className="text-sm font-bold text-emerald-600 dark:text-emerald-400">
+                            {Number(sub.netScore)} คะแนน
+                          </div>
+                          <Link
+                            href={`/academic/exam/review/${sub.id}`}
+                            className="text-[10px] text-purple-600 dark:text-purple-400 hover:underline font-semibold"
+                          >
+                            ตรวจทานคำตอบ &gt;
+                          </Link>
                         </div>
-                        <Link
-                          href={`/academic/exam/review/${sub.id}`}
-                          className="text-[10px] text-purple-600 dark:text-purple-400 hover:underline font-semibold"
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteSubmission(sub.id, sub.studentId)}
+                          disabled={deletingId === sub.id}
+                          title="ลบผลการตรวจนี้"
+                          className="p-1.5 rounded-lg border border-red-200 dark:border-red-900/40 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 transition disabled:opacity-50"
                         >
-                          ตรวจทานคำตอบ &gt;
-                        </Link>
+                          {deletingId === sub.id ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <Trash2 className="w-3.5 h-3.5" />
+                          )}
+                        </button>
                       </div>
                     </div>
                   ))}

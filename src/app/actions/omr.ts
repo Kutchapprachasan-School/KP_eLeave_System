@@ -1545,3 +1545,73 @@ export async function calculateExamItemAnalysisAction(examPaperId: string) {
 }
 
 export const getExamItemAnalysisAction = calculateExamItemAnalysisAction;
+
+/**
+ * Delete a scanned exam submission and clean its leaf items & overrides
+ */
+export async function deleteExamSubmissionAction(submissionId: string) {
+  const session = await getSession();
+  if (!session?.user?.id) {
+    throw new Error("กรุณาเข้าสู่ระบบก่อนทำรายการ");
+  }
+
+  const submission = await prisma.examSubmission.findUnique({
+    where: { id: submissionId },
+    include: {
+      examPaper: true
+    }
+  });
+
+  if (!submission) {
+    throw new Error("ไม่พบข้อมูลผลการตรวจที่ต้องการลบ");
+  }
+
+  const isTeacherOrAdmin = session.user.role === "TEACHER" || session.user.role === "ADMIN";
+  if (!isTeacherOrAdmin && submission.scannedByUserId !== session.user.id && submission.examPaper.createdById !== session.user.id) {
+    throw new Error("คุณไม่มีสิทธิ์ลบผลการตรวจนี้");
+  }
+
+  await prisma.$transaction(async (tx) => {
+    // 1. Delete overrides
+    const itemIds = (await tx.examItemSubmission.findMany({
+      where: { submissionId },
+      select: { id: true }
+    })).map(i => i.id);
+
+    if (itemIds.length > 0) {
+      await tx.examItemOverride.deleteMany({
+        where: { submissionItemId: { in: itemIds } }
+      });
+    }
+
+    // 2. Delete item submissions
+    await tx.examItemSubmission.deleteMany({
+      where: { submissionId }
+    });
+
+    // 3. Delete the submission
+    await tx.examSubmission.delete({
+      where: { id: submissionId }
+    });
+
+    // 4. If this was the latest attempt, promote previous attempt if any exists
+    if (submission.isLatestAttempt) {
+      const prevAttempt = await tx.examSubmission.findFirst({
+        where: {
+          examPaperId: submission.examPaperId,
+          studentId: submission.studentId
+        },
+        orderBy: { attemptNo: "desc" }
+      });
+
+      if (prevAttempt) {
+        await tx.examSubmission.update({
+          where: { id: prevAttempt.id },
+          data: { isLatestAttempt: true }
+        });
+      }
+    }
+  });
+
+  return { success: true, deletedSubmissionId: submissionId };
+}

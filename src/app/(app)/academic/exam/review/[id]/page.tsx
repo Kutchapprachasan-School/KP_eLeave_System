@@ -14,12 +14,14 @@ import {
   Sparkles, 
   History, 
   FileText,
-  BookOpen
+  BookOpen,
+  Trash2
 } from "lucide-react";
 import { 
   getSubmissionDetailsAction, 
   updateItemManualOverrideAction,
-  updateSubjectiveScoreAction 
+  updateSubjectiveScoreAction,
+  deleteExamSubmissionAction
 } from "@/app/actions/omr";
 import { useSession } from "@/lib/auth-client";
 
@@ -106,6 +108,24 @@ export default function TeacherReviewStudioPage({ params }: { params: Promise<{ 
       alert("เกิดข้อผิดพลาดในการบันทึกคะแนนอัตนัย: " + (err.message || "Unknown error"));
     } finally {
       setSavingSubjective(false);
+    }
+  };
+
+  const [deleting, setDeleting] = useState(false);
+  const handleDeleteSubmission = async () => {
+    if (!submission) return;
+    if (!confirm(`คุณต้องการลบผลการตรวจของนักเรียนรหัส ${submission.studentId} ใช่หรือไม่? ข้อมูลการตรวจทั้งหมดของแผ่นนี้จะถูกลบถาวร`)) {
+      return;
+    }
+    try {
+      setDeleting(true);
+      await deleteExamSubmissionAction(submissionId);
+      alert("ลบผลการตรวจเรียบร้อยแล้ว");
+      router.push(`/academic/exam/scan?paperId=${submission.examPaperId}`);
+    } catch (err: any) {
+      console.error("Failed to delete submission:", err);
+      alert(err.message || "เกิดข้อผิดพลาดในการลบผลการตรวจ");
+      setDeleting(false);
     }
   };
 
@@ -438,6 +458,25 @@ export default function TeacherReviewStudioPage({ params }: { params: Promise<{ 
             <p>
               • คะแนนอัตนัยจะถูกตรวจสอบ Invariant ขอบเขตล่าง (≥ 0) และขอบเขตบน (≤ คะแนนเต็มแต่ละข้อ) ทั้งในฝั่ง Client และ Database
             </p>
+          </div>
+
+          {/* Danger Zone: Delete Submission */}
+          <div className="bg-red-50/50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/40 rounded-3xl p-6 shadow-sm space-y-3">
+            <h4 className="font-bold text-red-700 dark:text-red-400 flex items-center gap-2 text-xs">
+              <Trash2 className="w-4 h-4 text-red-600" /> ลบผลการตรวจนี้
+            </h4>
+            <p className="text-xs text-red-600/80 dark:text-red-400/80 leading-relaxed">
+              หากต้องการลบกระดาษคำตอบแผ่นนี้ออกจากระบบ สามารถคลิกปุ่มด้านล่างเพื่อลบข้อมูลการตรวจทั้งหมด
+            </p>
+            <button
+              type="button"
+              onClick={handleDeleteSubmission}
+              disabled={deleting}
+              className="w-full py-2 px-3 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs transition flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+            >
+              {deleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+              ลบผลการตรวจแผ่นนี้
+            </button>
           </div>
         </div>
       </div>

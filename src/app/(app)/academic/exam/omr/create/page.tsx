@@ -487,49 +487,68 @@ function CreateExamPaperForm() {
               </div>
             </div>
 
-            {/* Responsive Answer Key Grid: 1 col on mobile, 2 cols on small, 3 cols on md, 4 cols on xl */}
-            <div className={`grid grid-cols-1 sm:grid-cols-2 ${totalItems > 40 ? "md:grid-cols-3 xl:grid-cols-4" : "md:grid-cols-2"} gap-x-4 gap-y-2.5 max-h-[640px] overflow-y-auto pr-1`}>
-              {Array.from({ length: totalItems }, (_, idx) => {
-                const itemNo = idx + 1;
-                const currentChoices = answerKey[itemNo] || [];
+            {/* Column-First Answer Key Grid: top-to-bottom per column (matches paper layout) */}
+            {(() => {
+              const numCols = totalItems <= 20 ? 2 : totalItems <= 40 ? 2 : totalItems <= 60 ? 3 : 4;
+              const itemsPerCol = Math.ceil(totalItems / numCols);
+              const columns = Array.from({ length: numCols }, (_, colIdx) => {
+                const start = colIdx * itemsPerCol + 1;
+                const end = Math.min((colIdx + 1) * itemsPerCol, totalItems);
+                return start <= totalItems ? { start, end } : null;
+              }).filter((c): c is { start: number; end: number } => c !== null);
 
-                return (
-                  <div
-                    key={itemNo}
-                    className="flex items-center justify-between p-2 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/60 dark:border-slate-700/60 text-xs hover:border-purple-300 transition"
-                  >
-                    <span className="font-bold text-slate-700 dark:text-slate-300 w-9 truncate">
-                      {itemNo}.
-                    </span>
+              return (
+                <div className={`grid grid-cols-1 ${numCols === 2 ? "sm:grid-cols-2" : numCols === 3 ? "sm:grid-cols-3" : "sm:grid-cols-2 lg:grid-cols-4"} gap-4 max-h-[640px] overflow-y-auto pr-1`}>
+                  {columns.map((col, colIdx) => (
+                    <div key={colIdx} className="space-y-2">
+                      <div className="text-[11px] font-bold text-slate-400 dark:text-slate-500 pb-1 border-b border-slate-200 dark:border-slate-800">
+                        ข้อ {col.start} - {col.end}
+                      </div>
+                      {Array.from({ length: col.end - col.start + 1 }, (_, idx) => {
+                        const itemNo = col.start + idx;
+                        const currentChoices = answerKey[itemNo] || [];
 
-                    <div className="flex items-center gap-1">
-                      {["A", "B", "C", "D"].map((c) => {
-                        const isSelected = currentChoices.includes(c);
                         return (
-                          <button
-                            type="button"
-                            key={c}
-                            onClick={() => handleSetSingleChoice(itemNo, c)}
-                            onContextMenu={(e) => {
-                              e.preventDefault();
-                              handleToggleChoice(itemNo, c);
-                            }}
-                            title="คลิกซ้าย: เลือกเดี่ยว | คลิกขวา: เลือกหลายตัวเลือก"
-                            className={`w-6.5 h-6.5 rounded-full font-bold transition-all flex items-center justify-center cursor-pointer text-xs ${
-                              isSelected
-                                ? "bg-purple-600 text-white shadow-xs scale-105"
-                                : "bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-300 border border-slate-300 dark:border-slate-600 hover:border-purple-400"
-                            }`}
+                          <div
+                            key={itemNo}
+                            className="flex items-center justify-between p-2 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/60 dark:border-slate-700/60 text-xs hover:border-purple-300 transition"
                           >
-                            {c}
-                          </button>
+                            <span className="font-bold text-slate-700 dark:text-slate-300 w-9 truncate">
+                              {itemNo}.
+                            </span>
+
+                            <div className="flex items-center gap-1">
+                              {["A", "B", "C", "D"].map((c) => {
+                                const isSelected = currentChoices.includes(c);
+                                return (
+                                  <button
+                                    type="button"
+                                    key={c}
+                                    onClick={() => handleSetSingleChoice(itemNo, c)}
+                                    onContextMenu={(e) => {
+                                      e.preventDefault();
+                                      handleToggleChoice(itemNo, c);
+                                    }}
+                                    title="คลิกซ้าย: เลือกเดี่ยว | คลิกขวา: เลือกหลายตัวเลือก"
+                                    className={`w-6.5 h-6.5 rounded-full font-bold transition-all flex items-center justify-center cursor-pointer text-xs ${
+                                      isSelected
+                                        ? "bg-purple-600 text-white shadow-xs scale-105"
+                                        : "bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-300 border border-slate-300 dark:border-slate-600 hover:border-purple-400"
+                                    }`}
+                                  >
+                                    {c}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
                         );
                       })}
                     </div>
-                  </div>
-                );
-              })}
-            </div>
+                  ))}
+                </div>
+              );
+            })()}
           </div>
 
           {/* 2. Subjective Section 2 (ตอนที่ 2 ข้อสอบอัตนัย บนหน้าเดียวกัน) */}
@@ -581,6 +600,13 @@ function CreateExamPaperForm() {
                     className="px-2.5 py-1 rounded-xl bg-white dark:bg-slate-800 hover:bg-indigo-100 dark:hover:bg-slate-700 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 text-[11px] font-semibold transition cursor-pointer"
                   >
                     + 1 ข้อ (10 คะแนน)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleAddSubjectiveItem(20)}
+                    className="px-2.5 py-1 rounded-xl bg-white dark:bg-slate-800 hover:bg-indigo-100 dark:hover:bg-slate-700 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 text-[11px] font-semibold transition cursor-pointer"
+                  >
+                    + 1 ข้อ (20 คะแนน)
                   </button>
                   <button
                     type="button"
@@ -639,16 +665,17 @@ function CreateExamPaperForm() {
 
                       <div className="sm:col-span-1">
                         <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
-                          คะแนนเต็มข้อนี้ <span className="text-rose-500">*</span>
+                          คะแนนเต็มข้อนี้ (0-30) <span className="text-rose-500">*</span>
                         </label>
                         <div className="relative">
                           <input
                             type="number"
-                            min="0.5"
-                            step="0.5"
+                            min="1"
+                            max="30"
+                            step="1"
                             required
                             value={sItem.maxScore}
-                            onChange={(e) => handleUpdateSubjectiveItem(sIdx, "maxScore", Number(e.target.value))}
+                            onChange={(e) => handleUpdateSubjectiveItem(sIdx, "maxScore", Math.min(30, Math.max(1, Number(e.target.value))))}
                             className="w-full h-9 pl-3 pr-8 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-bold font-mono text-slate-900 dark:text-white"
                           />
                           <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 font-semibold pointer-events-none">
