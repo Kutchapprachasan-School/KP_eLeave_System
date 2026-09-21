@@ -91,8 +91,8 @@ export default function ExamScanPage() {
           </div>
         </div>
 
-        {/* Paper Selector Dropdown */}
-        <div className="flex items-center gap-2">
+        {/* Paper Selector Dropdown & Fullscreen Trigger */}
+        <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs font-semibold text-slate-500 shrink-0">ชุดข้อสอบ:</span>
           <select
             value={selectedPaperId}
@@ -131,6 +131,7 @@ export default function ExamScanPage() {
             <OmrCameraScanner
               paperId={selectedPaperId}
               totalItems={currentPaper?.totalItems || 50}
+              choiceCount={currentPaper?.choiceCount || 4}
               onScanComplete={handleScanComplete}
             />
           </div>

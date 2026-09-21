@@ -110,6 +110,13 @@ export interface OmrScanResult {
   error?: string;
 }
 
+export interface OmrProcessOptions {
+  /** Expected aspect ratio of scan zone for IQG validation (default: 1.0 for compact) */
+  expectedAspectRatio?: number;
+  /** Fill threshold multiplier (default: 0.35) */
+  fillThresholdMultiplier?: number;
+}
+
 // =============================================================================
 // 1. MATHEMATICAL HOMOGRAPHY & PERSPECTIVE WARP
 // =============================================================================
@@ -320,7 +327,8 @@ export function warpPerspectiveBilinear(
 
 export function evaluateImageQuality(
   image: RawImageData,
-  quad?: QuadPoints
+  quad?: QuadPoints,
+  expectedAspectRatio: number = 1.0
 ): IQGResult {
   const issues: string[] = [];
   const { width, height, data } = image;
@@ -359,8 +367,8 @@ export function evaluateImageQuality(
   const meanL = sumL / (laplacianCount || 1);
   const blurVariance = (sumL2 / (laplacianCount || 1)) - (meanL * meanL);
 
-  if (blurVariance < 110.0) {
-    issues.push(`ภาพเบลอหรือไม่คมชัดเพียงพอ (Laplacian Variance: ${blurVariance.toFixed(1)} < 110.0)`);
+  if (blurVariance < 60.0) {
+    issues.push(`ภาพเบลอหรือไม่คมชัดเพียงพอ (Laplacian Variance: ${blurVariance.toFixed(1)} < 60.0)`);
   }
 
   // 2. Specular Glare Check: Count oversaturated pixels (Y > 250)
@@ -374,8 +382,8 @@ export function evaluateImageQuality(
     }
   }
   const glarePercentage = (saturatedCount / (totalPixelsSampled || 1)) * 100;
-  if (glarePercentage > 2.0) {
-    issues.push(`ตรวจพบแสงสะท้อนจ้า (Specular Glare: ${glarePercentage.toFixed(1)}% > 2.0%)`);
+  if (glarePercentage > 4.0) {
+    issues.push(`ตรวจพบแสงสะท้อนจ้า (Specular Glare: ${glarePercentage.toFixed(1)}% > 4.0%)`);
   }
 
   // 3 & 4. Aspect Ratio & Curvature (if Quad is provided)
@@ -393,11 +401,11 @@ export function evaluateImageQuality(
 
     const avgW = (topW + bottomW) / 2;
     const avgH = (leftH + rightH) / 2;
-    aspectRatio = avgW > 0 ? avgH / avgW : 1.414;
+    aspectRatio = avgW > 0 ? avgH / avgW : expectedAspectRatio;
 
-    // Expected A4 aspect ratio: 297mm / 210mm ≈ 1.414
-    const aspectDiff = Math.abs(aspectRatio - 1.414) / 1.414;
-    if (aspectDiff > 0.12) {
+    // Expected aspect ratio: dynamic based on template (compact zone ≈ 1.0, A4 ≈ 1.414)
+    const aspectDiff = Math.abs(aspectRatio - expectedAspectRatio) / expectedAspectRatio;
+    if (aspectDiff > 0.20) {
       issues.push(`สัดส่วนกระดาษบิดเบี้ยวเกินเกณฑ์ (Aspect Ratio: ${aspectRatio.toFixed(2)} ผิดพลาด ${(aspectDiff * 100).toFixed(1)}%)`);
     }
 
@@ -406,8 +414,8 @@ export function evaluateImageQuality(
     const heightSkew = Math.abs(leftH - rightH) / Math.max(leftH, rightH, 1);
     curvatureError = Math.max(widthSkew, heightSkew) * 100;
 
-    if (curvatureError > 15.0) {
-      issues.push(`กระดาษเอียงหรือโค้งงอมากเกินไป (Skew Error: ${curvatureError.toFixed(1)}% > 15%)`);
+    if (curvatureError > 20.0) {
+      issues.push(`กระดาษเอียงหรือโค้งงอมากเกินไป (Skew Error: ${curvatureError.toFixed(1)}% > 20%)`);
     }
   }
 
@@ -466,7 +474,8 @@ export interface ContrastCalibration {
  */
 export function calibrateContrast(
   image: RawImageData,
-  template: TemplateGridMetadata
+  template: TemplateGridMetadata,
+  fillThresholdMultiplier: number = 0.35
 ): ContrastCalibration {
   const { width, height, data } = image;
 
@@ -517,8 +526,8 @@ export function calibrateContrast(
   const lPaper = paperSum / (paperCount || 1);
 
   const contrastRange = Math.max(10, lPaper - lMarker);
-  // Threshold for marked bubble: 40% darker than paper reference
-  const fillThreshold = lPaper - 0.40 * contrastRange;
+  // Threshold for marked bubble: default 35% darker than paper reference
+  const fillThreshold = lPaper - fillThresholdMultiplier * contrastRange;
 
   return {
     lPaper,
@@ -714,12 +723,16 @@ export function decodeQuestionBlocks(
 export function processOmrSheet(
   image: RawImageData,
   template: TemplateGridMetadata,
-  corners?: QuadPoints
+  corners?: QuadPoints,
+  options?: OmrProcessOptions
 ): OmrScanResult {
   const startTime = Date.now();
 
+  const expectedAspect = options?.expectedAspectRatio ?? template.scanZoneAspectRatio ?? 1.0;
+  const fillMultiplier = options?.fillThresholdMultiplier ?? 0.35;
+
   // 1. Image Quality Gate
-  const iqg = evaluateImageQuality(image, corners);
+  const iqg = evaluateImageQuality(image, corners, expectedAspect);
   if (!iqg.passed) {
     return {
       success: false,
@@ -748,7 +761,7 @@ export function processOmrSheet(
   }
 
   // 3. Dynamic Contrast Calibration
-  const calibration = calibrateContrast(canonicalImage, template);
+  const calibration = calibrateContrast(canonicalImage, template, fillMultiplier);
 
   // 4. Decode Student ID & Version Code
   const studentResult = decodeStudentIdGrid(canonicalImage, template.studentIdGrid, calibration);

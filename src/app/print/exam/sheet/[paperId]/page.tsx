@@ -184,6 +184,7 @@ export default function PrintExamSheetsPage() {
                   term={paper.term}
                   gradeLevel={paper.gradeLevel}
                   totalItems={paper.totalItems}
+                  choiceCount={paper.choiceCount || 4}
                   subjectiveItems={paper.subjectiveItems || []}
                   sheetTop={topSheet}
                   sheetBottom={bottomSheet}
@@ -208,6 +209,7 @@ export default function PrintExamSheetsPage() {
                 term={paper.term}
                 gradeLevel={paper.gradeLevel}
                 totalItems={paper.totalItems}
+                choiceCount={paper.choiceCount || 4}
                 subjectiveItems={paper.subjectiveItems || []}
                 sheet={sheet}
                 isPreSlugged={isPreSlugged && sheet.studentId !== "00000"}
