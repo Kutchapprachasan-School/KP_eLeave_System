@@ -46,7 +46,8 @@ import {
   ShieldCheck,
   GraduationCap,
   Sparkles,
-  Trash2
+  Trash2,
+  ExternalLink
 } from "lucide-react";
 import { hasRepairPermission, hasFacilityPermission, getUserRoleKey, getUserRoleKeys } from "@/lib/permissions";
 import { getNotifications } from "@/app/actions/admin";
@@ -427,6 +428,9 @@ function AppContent({ children }: { children: React.ReactNode }) {
   const [enableAcademicPlanning, setEnableAcademicPlanning] = useState(true);
   const [academicPlanningAllowedUserIds, setAcademicPlanningAllowedUserIds] = useState<string[]>([]);
   const [brandSubheader, setBrandSubheader] = useState("ระบบจัดการการลา");
+  const [classroomPortalUrl, setClassroomPortalUrl] = useState(
+    process.env.NEXT_PUBLIC_CLASSROOM_PORTAL_URL || "http://localhost:5173"
+  );
   const [isLoadingSettings, setIsLoadingSettings] = useState(true);
   const [userDuties, setUserDuties] = useState<any[]>([]);
 
@@ -530,6 +534,9 @@ function AppContent({ children }: { children: React.ReactNode }) {
       setBrandName(finalSchoolName);
       setBrandLogo(finalLogoUrl);
       setBrandSubheader(finalSubheader);
+      if ((s as any).classroomPortalUrl) {
+        setClassroomPortalUrl((s as any).classroomPortalUrl);
+      }
       setEnableLeave(finalEnableLeave);
       setEnableAttendance(finalEnableAttendance);
       setEnableDocument(finalEnableDocument);
@@ -1092,6 +1099,30 @@ function AppContent({ children }: { children: React.ReactNode }) {
               <span className="flex-1 truncate">{t("dashboard")}</span>
             </div>
           </Link>
+
+          {/* Classroom Portal Shortcut Link (รองจาก Dashboard) */}
+          <a
+            href={classroomPortalUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            title={lang === "en" ? "Open Classroom Portal (ระบบจัดการชั้นเรียน)" : "เข้าสู่ระบบจัดการชั้นเรียน (Classroom Portal)"}
+            className="group relative flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-[13px] font-medium transition-all duration-200 overflow-hidden bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-transparent hover:from-emerald-500/20 hover:via-teal-500/20 border border-emerald-500/20 dark:border-emerald-500/30 text-emerald-800 dark:text-emerald-300 hover:text-emerald-900 dark:hover:text-emerald-200 hover:shadow-xs"
+          >
+            <div className="p-1 rounded-lg bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 group-hover:scale-110 transition-transform shrink-0">
+              <GraduationCap className="w-4 h-4" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between gap-1">
+                <span className="font-semibold truncate">
+                  {lang === "en" ? "Classroom Portal" : "ระบบจัดการชั้นเรียน"}
+                </span>
+                <ExternalLink className="w-3.5 h-3.5 opacity-60 group-hover:opacity-100 group-hover:translate-x-0.5 -translate-y-0.5 transition-all shrink-0 text-emerald-600 dark:text-emerald-400" />
+              </div>
+              <div className="text-[10.5px] text-emerald-600/80 dark:text-emerald-400/80 truncate font-normal">
+                Classroom Portal
+              </div>
+            </div>
+          </a>
 
           {/* Section 1: บุคคล */}
           <div className="space-y-1.5">

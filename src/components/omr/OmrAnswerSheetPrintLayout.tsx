@@ -94,7 +94,9 @@ function MultipleChoiceColumn({
 
       <div className="space-y-0.5">
         {items.map((itemNo) => (
-          <div key={itemNo} className={`flex items-center gap-1 text-[8px] px-0.5 ${itemPadding}`}>
+          <div key={itemNo} className={`flex items-center gap-0.5 text-[8px] px-0.5 ${itemPadding}`}>
+            {/* Timing mark: 3mm black square for ZipGrade-style row alignment */}
+            <div className="w-[3mm] h-[3mm] bg-black shrink-0" />
             <span className="w-5 font-bold font-mono text-slate-700 text-right pr-0.5">
               {itemNo}.
             </span>
@@ -116,7 +118,8 @@ function MultipleChoiceColumn({
 }
 
 /**
- * Flexible Subjective Score Bubbles (0 - 30 points) for Teacher Grading inside Scan Zone
+ * Combined Subjective Score Bubbles (0-30 total) for Teacher Grading inside Scan Zone
+ * Rev 10.0: Single combined total instead of per-item scoring
  */
 function SubjectiveScoreBubbles({
   subjectiveItems = []
@@ -125,78 +128,62 @@ function SubjectiveScoreBubbles({
 }) {
   if (subjectiveItems.length === 0) return null;
 
+  // Calculate total max score for display
+  const totalMax = Math.min(30, subjectiveItems.reduce((sum, item) => sum + Math.floor(Number(item.maxScore || 5)), 0));
+
   return (
     <div className="border border-indigo-300 rounded p-1.5 bg-indigo-50/40 space-y-1.5">
       <div className="text-[8.5px] font-bold text-indigo-950 flex justify-between items-center border-b border-indigo-200 pb-0.5">
-        <span>ช่องฝนคะแนนอัตนัย (สำหรับครูผู้ตรวจ • 0-30 คะแนน):</span>
+        <span>ช่องฝนคะแนนอัตนัยรวม (0-{totalMax} คะแนน):</span>
         <span className="text-indigo-700 text-[8px]">ฝนในกรอบสแกน</span>
       </div>
 
-      <div className="space-y-1">
-        {subjectiveItems.slice(0, 3).map((sItem) => {
-          const maxS = Math.min(30, Math.max(1, Math.floor(Number(sItem.maxScore || 5))));
-          const isDirect = maxS <= 10;
+      {/* Reference: list of subjective items for teacher */}
+      <div className="text-[7.5px] text-slate-600 flex flex-wrap gap-x-3 gap-y-0.5 px-0.5">
+        {subjectiveItems.map((sItem) => (
+          <span key={sItem.itemNo}>
+            ข้อ {sItem.itemNo}: {sItem.title} ({sItem.maxScore} คะแนน)
+          </span>
+        ))}
+      </div>
 
-          return (
-            <div key={sItem.itemNo} className="text-[8px] bg-white p-1 rounded border border-indigo-100">
-              <div className="flex justify-between items-center font-bold text-slate-800 mb-0.5">
-                <span>ข้อที่ {sItem.itemNo}: {sItem.title}</span>
-                <span className="text-indigo-900 font-mono">เต็ม {maxS} คะแนน</span>
+      {/* Combined Total Score: Tens + Units */}
+      <div className="bg-white p-1.5 rounded border border-indigo-100 space-y-1">
+        <div className="flex justify-between items-center font-bold text-slate-800 text-[8px]">
+          <span>คะแนนรวมอัตนัยทุกข้อ</span>
+          <span className="text-indigo-900 font-mono">เต็ม {totalMax} คะแนน</span>
+        </div>
+
+        {/* Tens row (0, 1, 2, 3) → represents 0, 10, 20, 30 */}
+        <div className="flex items-center gap-1">
+          <span className="text-[7.5px] font-bold text-slate-500 w-12">หลักสิบ:</span>
+          <div className="flex gap-1.5">
+            {[0, 1, 2, 3].map((tensVal) => (
+              <div
+                key={tensVal}
+                className="w-4 h-4 rounded-full border border-black flex items-center justify-center font-bold text-[8px] bg-white text-black"
+              >
+                {tensVal}
               </div>
+            ))}
+          </div>
+          <span className="text-[7px] text-slate-400 ml-1">(0, 10, 20, 30)</span>
+        </div>
 
-              {isDirect ? (
-                /* Simple row: 0 to maxS */
-                <div className="flex items-center gap-1">
-                  <span className="text-[7.5px] font-bold text-slate-500 w-10">คะแนน:</span>
-                  <div className="flex flex-wrap gap-1">
-                    {Array.from({ length: maxS + 1 }, (_, i) => i).map((score) => (
-                      <div
-                        key={score}
-                        className="w-3.5 h-3.5 rounded-full border border-black flex items-center justify-center font-bold text-[7px] bg-white text-black"
-                      >
-                        {score}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : (
-                /* 2 Rows: Tens (0-3) and Units (0-9) for flexible 0-30 points */
-                <div className="space-y-0.5">
-                  {/* Tens */}
-                  <div className="flex items-center gap-1">
-                    <span className="text-[7.5px] font-bold text-slate-500 w-10">หลักสิบ:</span>
-                    <div className="flex gap-1">
-                      {[0, 1, 2, 3].map((tensVal) => (
-                        <div
-                          key={tensVal}
-                          className="w-3.5 h-3.5 rounded-full border border-black flex items-center justify-center font-bold text-[7px] bg-white text-black"
-                        >
-                          {tensVal}
-                        </div>
-                      ))}
-                    </div>
-                    <span className="text-[7px] text-slate-400 ml-1">(0, 10, 20, 30)</span>
-                  </div>
-
-                  {/* Units */}
-                  <div className="flex items-center gap-1">
-                    <span className="text-[7.5px] font-bold text-slate-500 w-10">หลักหน่วย:</span>
-                    <div className="flex gap-1">
-                      {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((uVal) => (
-                        <div
-                          key={uVal}
-                          className="w-3.5 h-3.5 rounded-full border border-black flex items-center justify-center font-bold text-[7px] bg-white text-black"
-                        >
-                          {uVal}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          );
-        })}
+        {/* Units row (0-9) */}
+        <div className="flex items-center gap-1">
+          <span className="text-[7.5px] font-bold text-slate-500 w-12">หลักหน่วย:</span>
+          <div className="flex gap-1.5">
+            {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((uVal) => (
+              <div
+                key={uVal}
+                className="w-4 h-4 rounded-full border border-black flex items-center justify-center font-bold text-[8px] bg-white text-black"
+              >
+                {uVal}
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -245,18 +232,21 @@ export function OmrAnswerSheet({
         {/* ========================================================================= */}
         <div className="relative border border-slate-300 rounded px-[24mm] pt-[6mm] pb-[16mm] min-h-[162mm] flex flex-col justify-between bg-white">
           
-          {/* 4 Corner Fiducial Markers (12mm x 12mm) - Isolated with Safe Margins */}
+          {/* 6 Fiducial Markers: 4 corners (12mm) + 2 mid-side (8mm) for Rev 10.0 */}
           <div className="absolute top-[4mm] left-[4mm] w-[12mm] h-[12mm] bg-black" />
           <div className="absolute top-[4mm] right-[4mm] w-[12mm] h-[12mm] bg-black" />
           <div className="absolute bottom-[4mm] left-[4mm] w-[12mm] h-[12mm] bg-black" />
           <div className="absolute bottom-[4mm] right-[4mm] w-[12mm] h-[12mm] bg-black" />
+          {/* Mid-side markers (8mm) - ZipGrade-style alignment anchors */}
+          <div className="absolute top-1/2 -translate-y-1/2 left-[4mm] w-[8mm] h-[8mm] bg-black" />
+          <div className="absolute top-1/2 -translate-y-1/2 right-[4mm] w-[8mm] h-[8mm] bg-black" />
 
           {/* Top Bar: School Header & Cryptographic QR */}
           <div>
             <div className="flex items-start justify-between border-b border-black pb-1">
               <div>
                 <div className="text-[13px] font-bold tracking-tight">
-                  โรงเรียนกุดจับประชาสรรค์ • กระดาษคำตอบมาตรฐาน ({tierName} Rev 9.2)
+                  โรงเรียนกุดจับประชาสรรค์ • กระดาษคำตอบมาตรฐาน ({tierName} Rev 10.0)
                 </div>
                 <div className="text-[11.5px] font-semibold text-slate-800">
                   {subjectCode} {subjectName} ({gradeLevel}) • {paperTitle}
@@ -524,7 +514,7 @@ export function OmrAnswerSheet({
           </div>
 
           <div className="text-[7px] text-slate-400 text-center font-mono pt-0.5">
-            [ สิ้นสุดพื้นที่สแกน OMR Scan Zone • {tierName} Rev 9.2 ]
+            [ สิ้นสุดพื้นที่สแกน OMR Scan Zone • {tierName} Rev 10.0 ]
           </div>
         </div>
 
@@ -570,7 +560,7 @@ export function OmrAnswerSheet({
 
               <div className="border-t border-slate-200 pt-0.5 flex justify-between items-center text-[8.5px] text-slate-500">
                 <span>ครูผู้ตรวจ: กรุณานำคะแนนไปฝนลงในช่องคะแนนอัตนัยใน Scan Zone ด้านบนเพื่อตรวจด้วยระบบ</span>
-                <span className="font-mono font-bold">KP-OMR Rev 9.2</span>
+                <span className="font-mono font-bold">KP-OMR Rev 10.0</span>
               </div>
             </div>
           ) : (

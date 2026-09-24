@@ -1,5 +1,5 @@
 /**
- * KP Academic OMR - Compact Scan Zone Template Geometry (Rev 9.1)
+ * KP Academic OMR - Compact Scan Zone Template Geometry (Rev 10.0)
  * 
  * รองรับ 5 แม่แบบมาตรฐาน (20, 40, 60, 80, 100 ข้อ):
  * - 20 ข้อ: 2 คอลัมน์ คอลัมน์ละ 10 ข้อ (ปัดทุก 10 ข้อ)
@@ -45,6 +45,20 @@ export interface SubjectiveScoreCoordinate {
   units: { value: number; u: number; v: number; radius: number }[]; // 0 to 9
 }
 
+/** ZipGrade-style row timing marks for scan alignment */
+export interface TimingMark {
+  /** 0-based row index within the column */
+  rowIndex: number;
+  /** 0-based column index */
+  colIndex: number;
+  /** normalized X (left edge of timing mark) */
+  u: number;
+  /** normalized Y (same as question row center) */
+  v: number;
+  /** normalized width/height of the timing mark square */
+  size: number;
+}
+
 export interface TemplateGridMetadata {
   canvasWidth: number;
   canvasHeight: number;
@@ -53,6 +67,8 @@ export interface TemplateGridMetadata {
     topRight: { u: number; v: number; width: number; height: number };
     bottomLeft: { u: number; v: number; width: number; height: number };
     bottomRight: { u: number; v: number; width: number; height: number };
+    midLeft?: { u: number; v: number; width: number; height: number };
+    midRight?: { u: number; v: number; width: number; height: number };
   };
   qrCodeAnchor: {
     u: number;
@@ -67,6 +83,8 @@ export interface TemplateGridMetadata {
     versions: VersionCodeCoordinate[];
   };
   subjectiveScores?: SubjectiveScoreCoordinate[];
+  /** Row-level timing marks for scan alignment (ZipGrade-style) */
+  timingMarks?: TimingMark[];
   questionBlocks: QuestionCoordinate[];
   /** จำนวนตัวเลือกที่ใช้ (2-6) */
   choiceCount: number;
@@ -101,21 +119,32 @@ const MARKER_H = 94 / CANVAS_H;
 const MARGIN_X = 50 / CANVAS_W;
 const MARGIN_Y = 40 / CANVAS_H;
 
+/** Mid-side markers 8mm = 63px @ 200DPI */
+const MARKER_MID_W = 63 / CANVAS_W;
+const MARKER_MID_H = 63 / CANVAS_H;
+
+/** Timing mark ~3mm = 24px @ 200DPI */
+const TIMING_MARK_SIZE = 24 / CANVAS_W;
+
 /** ขอบเขต Scan Zone: ด้านบน v=MARGIN_Y ถึง v=SCAN_ZONE_BOTTOM */
 const SCAN_ZONE_BOTTOM = 0.575;
 
-/** Bubble radius ใหญ่ขึ้นสำหรับสแกนมือถือ */
-const BUBBLE_R = 13.5 / CANVAS_W;
+/** Bubble radius ใหญ่ขึ้นสำหรับสแกนมือถือ (Rev 10.0: 16px จากเดิม 13.5px) */
+const BUBBLE_R = 16 / CANVAS_W;
 
 /**
- * สร้าง fiducial markers 4 มุมรอบ Scan Zone
+ * สร้าง fiducial markers 6 จุดรอบ Scan Zone (4 มุม + 2 กลาง)
+ * Rev 10.0: เพิ่ม midLeft/midRight เพื่อเพิ่มความแม่นยำในการสแกน
  */
 function createScanZoneMarkers() {
+  const midV = (MARGIN_Y + SCAN_ZONE_BOTTOM) / 2 - MARKER_MID_H / 2;
   return {
     topLeft: { u: MARGIN_X, v: MARGIN_Y, width: MARKER_W, height: MARKER_H },
     topRight: { u: 1.0 - MARGIN_X - MARKER_W, v: MARGIN_Y, width: MARKER_W, height: MARKER_H },
     bottomLeft: { u: MARGIN_X, v: SCAN_ZONE_BOTTOM, width: MARKER_W, height: MARKER_H },
-    bottomRight: { u: 1.0 - MARGIN_X - MARKER_W, v: SCAN_ZONE_BOTTOM, width: MARKER_W, height: MARKER_H }
+    bottomRight: { u: 1.0 - MARGIN_X - MARKER_W, v: SCAN_ZONE_BOTTOM, width: MARKER_W, height: MARKER_H },
+    midLeft: { u: MARGIN_X, v: midV, width: MARKER_MID_W, height: MARKER_MID_H },
+    midRight: { u: 1.0 - MARGIN_X - MARKER_MID_W, v: midV, width: MARKER_MID_W, height: MARKER_MID_H }
   };
 }
 
@@ -159,37 +188,33 @@ function createVersionCodeGrid(): TemplateGridMetadata["versionCodeGrid"] {
 }
 
 /**
- * สร้าง Subjective Score Grid (0-30 คะแนน: หลักสิบ 0-3, หลักหน่วย 0-9)
+ * สร้าง Combined Subjective Score Grid (0-30 คะแนนรวม: หลักสิบ 0-3, หลักหน่วย 0-9)
+ * Rev 10.0: คะแนนรวมทุกข้ออัตนัยในช่องเดียว
  */
-function createSubjectiveScores(itemCount: number = 2): SubjectiveScoreCoordinate[] {
-  const list: SubjectiveScoreCoordinate[] = [];
+function createCombinedSubjectiveScore(): SubjectiveScoreCoordinate[] {
   const baseV = 0.17;
-  const rowHeight = 0.035;
 
-  for (let itemIdx = 0; itemIdx < itemCount; itemIdx++) {
-    const vTens = baseV + itemIdx * rowHeight;
-    const vUnits = vTens + 0.015;
+  // Single combined entry (itemNo = 0 means "total")
+  const vTens = baseV;
+  const vUnits = vTens + 0.015;
 
-    // Tens: 0, 1, 2, 3
-    const tens = [0, 1, 2, 3].map((val, idx) => ({
-      value: val,
-      u: 0.45 + idx * 0.032,
-      v: vTens,
-      radius: BUBBLE_R * 0.8
-    }));
+  // Tens: 0, 1, 2, 3
+  const tens = [0, 1, 2, 3].map((val, idx) => ({
+    value: val,
+    u: 0.45 + idx * 0.032,
+    v: vTens,
+    radius: BUBBLE_R * 0.8
+  }));
 
-    // Units: 0 to 9
-    const units = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((val, idx) => ({
-      value: val,
-      u: 0.45 + idx * 0.032,
-      v: vUnits,
-      radius: BUBBLE_R * 0.8
-    }));
+  // Units: 0 to 9
+  const units = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((val, idx) => ({
+    value: val,
+    u: 0.45 + idx * 0.032,
+    v: vUnits,
+    radius: BUBBLE_R * 0.8
+  }));
 
-    list.push({ itemNo: itemIdx + 1, tens, units });
-  }
-
-  return list;
+  return [{ itemNo: 0, tens, units }];
 }
 
 /**
@@ -206,6 +231,42 @@ function calcScanZoneAspectRatio(): number {
   const zoneW = (1.0 - 2 * MARGIN_X) * CANVAS_W;
   const zoneH = (SCAN_ZONE_BOTTOM - MARGIN_Y) * CANVAS_H;
   return zoneH / zoneW;
+}
+
+// =============================================================================
+// TIMING MARKS GENERATOR (ZipGrade-style row alignment)
+// =============================================================================
+
+/**
+ * สร้าง Timing Marks สำหรับทุกแถวข้อสอบในแต่ละคอลัมน์ (ZipGrade-style)
+ * ใช้เป็นจุดอ้างอิงแถวเพื่อให้สแกนแม่นยำ
+ */
+function createTimingMarks(
+  questionBlocks: QuestionCoordinate[],
+  colBaseUs: number[],
+  rowsPerCol: number
+): TimingMark[] {
+  const marks: TimingMark[] = [];
+  const offset = 0.022; // offset ทางซ้ายจาก column base
+
+  for (let colIdx = 0; colIdx < colBaseUs.length; colIdx++) {
+    const colStartItem = colIdx * rowsPerCol + 1;
+    for (let rowIdx = 0; rowIdx < rowsPerCol; rowIdx++) {
+      const itemNo = colStartItem + rowIdx;
+      const question = questionBlocks.find(q => q.itemNo === itemNo);
+      if (!question || question.bubbles.length === 0) continue;
+
+      marks.push({
+        rowIndex: rowIdx,
+        colIndex: colIdx,
+        u: colBaseUs[colIdx] - offset,
+        v: question.bubbles[0].v,
+        size: TIMING_MARK_SIZE
+      });
+    }
+  }
+
+  return marks;
 }
 
 // =============================================================================
@@ -255,6 +316,8 @@ export function generate20ItemGridMetadata(choiceCount: number = 4): TemplateGri
     });
   }
 
+  const timingMarks = createTimingMarks(questionBlocks, [col1BaseU, col2BaseU], 10);
+
   return {
     canvasWidth: CANVAS_W,
     canvasHeight: CANVAS_H,
@@ -262,7 +325,8 @@ export function generate20ItemGridMetadata(choiceCount: number = 4): TemplateGri
     qrCodeAnchor: createQrAnchor(),
     studentIdGrid: createStudentIdGrid(),
     versionCodeGrid: createVersionCodeGrid(),
-    subjectiveScores: createSubjectiveScores(2),
+    subjectiveScores: createCombinedSubjectiveScore(),
+    timingMarks,
     questionBlocks,
     choiceCount: choices.length,
     scanZoneAspectRatio: calcScanZoneAspectRatio()
@@ -312,6 +376,8 @@ export function generate40ItemGridMetadata(choiceCount: number = 4): TemplateGri
     });
   }
 
+  const timingMarks = createTimingMarks(questionBlocks, [col1BaseU, col2BaseU], 20);
+
   return {
     canvasWidth: CANVAS_W,
     canvasHeight: CANVAS_H,
@@ -319,7 +385,8 @@ export function generate40ItemGridMetadata(choiceCount: number = 4): TemplateGri
     qrCodeAnchor: createQrAnchor(),
     studentIdGrid: createStudentIdGrid(),
     versionCodeGrid: createVersionCodeGrid(),
-    subjectiveScores: createSubjectiveScores(2),
+    subjectiveScores: createCombinedSubjectiveScore(),
+    timingMarks,
     questionBlocks,
     choiceCount: choices.length,
     scanZoneAspectRatio: calcScanZoneAspectRatio()
@@ -356,6 +423,8 @@ export function generate60ItemGridMetadata(choiceCount: number = 4): TemplateGri
     });
   }
 
+  const timingMarks = createTimingMarks(questionBlocks, colBaseUs, 20);
+
   return {
     canvasWidth: CANVAS_W,
     canvasHeight: CANVAS_H,
@@ -363,7 +432,8 @@ export function generate60ItemGridMetadata(choiceCount: number = 4): TemplateGri
     qrCodeAnchor: createQrAnchor(),
     studentIdGrid: createStudentIdGrid(),
     versionCodeGrid: createVersionCodeGrid(),
-    subjectiveScores: createSubjectiveScores(2),
+    subjectiveScores: createCombinedSubjectiveScore(),
+    timingMarks,
     questionBlocks,
     choiceCount: choices.length,
     scanZoneAspectRatio: calcScanZoneAspectRatio()
