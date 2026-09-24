@@ -31,6 +31,20 @@ export interface VersionCodeCoordinate {
   radius: number;
 }
 
+export interface SubjectiveScoreCoordinate {
+  itemNo: number;
+  tens: { value: number; u: number; v: number; radius: number }[];
+  units: { value: number; u: number; v: number; radius: number }[];
+}
+
+export interface TimingMark {
+  rowIndex: number;
+  colIndex: number;
+  u: number;
+  v: number;
+  size: number;
+}
+
 export interface TemplateGridMetadata {
   canvasWidth: number;
   canvasHeight: number;
@@ -39,6 +53,8 @@ export interface TemplateGridMetadata {
     topRight: { u: number; v: number; width: number; height: number };
     bottomLeft: { u: number; v: number; width: number; height: number };
     bottomRight: { u: number; v: number; width: number; height: number };
+    midLeft?: { u: number; v: number; width: number; height: number };
+    midRight?: { u: number; v: number; width: number; height: number };
   };
   qrCodeAnchor?: {
     u: number;
@@ -52,7 +68,11 @@ export interface TemplateGridMetadata {
   versionCodeGrid: {
     versions: VersionCodeCoordinate[];
   };
+  subjectiveScores?: SubjectiveScoreCoordinate[];
+  timingMarks?: TimingMark[];
   questionBlocks: QuestionCoordinate[];
+  choiceCount?: number;
+  scanZoneAspectRatio?: number;
 }
 
 export interface Point2D {
@@ -65,6 +85,8 @@ export interface QuadPoints {
   topRight: Point2D;
   bottomRight: Point2D;
   bottomLeft: Point2D;
+  midLeft?: Point2D;
+  midRight?: Point2D;
 }
 
 export interface RawImageData {
@@ -87,6 +109,9 @@ export interface BubbleReadResult {
   choice: string;
   fillRatio: number;
   meanLuminance: number;
+  u?: number;
+  v?: number;
+  radius?: number;
 }
 
 export interface QuestionReadResult {
@@ -94,6 +119,8 @@ export interface QuestionReadResult {
   detectedChoices: string[];
   fillRatios: Record<string, number>;
   confidenceScore: number;
+  /** พิกัดวงกลมแต่ละตัวเลือกหลังปรับแก้ด้วย Timing Mark (สำหรับวาดวงกลมชี้จุดสแกน) */
+  bubblePositions?: { choice: string; u: number; v: number; radius: number; fillRatio: number; isMarked: boolean }[];
 }
 
 export interface OmrScanResult {
@@ -103,17 +130,24 @@ export interface OmrScanResult {
   studentIdConfidence: number;
   versionCode: string;
   versionCodeConfidence: number;
+  /** คะแนนรวมอัตนัย (0-30 คะแนน) */
+  subjectiveScore?: number | null;
+  subjectiveScoreConfidence?: number;
   items: QuestionReadResult[];
   confidenceAvg: number;
   hasAnomalies: boolean;
   executionTimeMs: number;
+  /** พิกัด Timing Marks ที่ตรวจพบจริงในแต่ละแถว */
+  detectedTimingMarks?: { rowIndex: number; colIndex: number; u: number; v: number; detected: boolean }[];
+  /** จำนวนมาร์กเกอร์หลักที่ใช้คำนวณ (4 หรือ 6 จุด) */
+  markersUsed?: number;
   error?: string;
 }
 
 export interface OmrProcessOptions {
   /** Expected aspect ratio of scan zone for IQG validation (default: 1.0 for compact) */
   expectedAspectRatio?: number;
-  /** Fill threshold multiplier (default: 0.35) */
+  /** Fill threshold multiplier (default: 0.28) */
   fillThresholdMultiplier?: number;
 }
 
@@ -238,31 +272,91 @@ export function projectPoint(H: number[], p: Point2D): Point2D {
 }
 
 /**
- * Warps a region defined by 4 corners into canonical canvas (e.g. 1654 x 2339 px)
+ * Warps a region defined by 4 or 6 markers into canonical canvas (e.g. 1654 x 2339 px)
  * using inverse mapping with bilinear interpolation.
+ * Supports ZipGrade-style 6-Point Piecewise Dual-Zone Homography (Upper + Lower Quads)
+ * and exact fiducial marker centroid alignment.
  */
 export function warpPerspectiveBilinear(
   src: RawImageData,
   srcCorners: QuadPoints,
   targetWidth: number,
-  targetHeight: number
+  targetHeight: number,
+  templateMarkers?: TemplateGridMetadata["fiducialMarkers"]
 ): RawImageData {
-  const srcPts: Point2D[] = [
-    srcCorners.topLeft,
-    srcCorners.topRight,
-    srcCorners.bottomRight,
-    srcCorners.bottomLeft
-  ];
+  const dstTL: Point2D = templateMarkers
+    ? {
+        x: (templateMarkers.topLeft.u + templateMarkers.topLeft.width / 2) * targetWidth,
+        y: (templateMarkers.topLeft.v + templateMarkers.topLeft.height / 2) * targetHeight
+      }
+    : { x: 0, y: 0 };
 
-  const dstPts: Point2D[] = [
-    { x: 0, y: 0 },
-    { x: targetWidth, y: 0 },
-    { x: targetWidth, y: targetHeight },
-    { x: 0, y: targetHeight }
-  ];
+  const dstTR: Point2D = templateMarkers
+    ? {
+        x: (templateMarkers.topRight.u + templateMarkers.topRight.width / 2) * targetWidth,
+        y: (templateMarkers.topRight.v + templateMarkers.topRight.height / 2) * targetHeight
+      }
+    : { x: targetWidth, y: 0 };
 
-  // Inverse mapping: Dst (canonical) -> Src (camera frame)
-  const Hinv = computeHomography(dstPts, srcPts);
+  const dstBR: Point2D = templateMarkers
+    ? {
+        x: (templateMarkers.bottomRight.u + templateMarkers.bottomRight.width / 2) * targetWidth,
+        y: (templateMarkers.bottomRight.v + templateMarkers.bottomRight.height / 2) * targetHeight
+      }
+    : { x: targetWidth, y: targetHeight };
+
+  const dstBL: Point2D = templateMarkers
+    ? {
+        x: (templateMarkers.bottomLeft.u + templateMarkers.bottomLeft.width / 2) * targetWidth,
+        y: (templateMarkers.bottomLeft.v + templateMarkers.bottomLeft.height / 2) * targetHeight
+      }
+    : { x: 0, y: targetHeight };
+
+  const hasSixPoints =
+    Boolean(srcCorners.midLeft && srcCorners.midRight) &&
+    Boolean(templateMarkers?.midLeft && templateMarkers?.midRight);
+
+  let HinvSingle: number[] | null = null;
+  let HinvUpper: number[] | null = null;
+  let HinvLower: number[] | null = null;
+  let midSplitY = targetHeight * 0.30;
+
+  if (hasSixPoints && templateMarkers?.midLeft && templateMarkers?.midRight && srcCorners.midLeft && srcCorners.midRight) {
+    const dstML: Point2D = {
+      x: (templateMarkers.midLeft.u + templateMarkers.midLeft.width / 2) * targetWidth,
+      y: (templateMarkers.midLeft.v + templateMarkers.midLeft.height / 2) * targetHeight
+    };
+    const dstMR: Point2D = {
+      x: (templateMarkers.midRight.u + templateMarkers.midRight.width / 2) * targetWidth,
+      y: (templateMarkers.midRight.v + templateMarkers.midRight.height / 2) * targetHeight
+    };
+    midSplitY = (dstML.y + dstMR.y) / 2;
+
+    try {
+      HinvUpper = computeHomography(
+        [dstTL, dstTR, dstMR, dstML],
+        [srcCorners.topLeft, srcCorners.topRight, srcCorners.midRight, srcCorners.midLeft]
+      );
+      HinvLower = computeHomography(
+        [dstML, dstMR, dstBR, dstBL],
+        [srcCorners.midLeft, srcCorners.midRight, srcCorners.bottomRight, srcCorners.bottomLeft]
+      );
+    } catch {
+      HinvUpper = null;
+      HinvLower = null;
+    }
+  }
+
+  if (!HinvUpper || !HinvLower) {
+    const srcPts: Point2D[] = [
+      srcCorners.topLeft,
+      srcCorners.topRight,
+      srcCorners.bottomRight,
+      srcCorners.bottomLeft
+    ];
+    const dstPts: Point2D[] = [dstTL, dstTR, dstBR, dstBL];
+    HinvSingle = computeHomography(dstPts, srcPts);
+  }
 
   const outData = new Uint8ClampedArray(targetWidth * targetHeight * 4);
   const srcW = src.width;
@@ -271,6 +365,8 @@ export function warpPerspectiveBilinear(
 
   for (let y = 0; y < targetHeight; y++) {
     const rowOffset = y * targetWidth * 4;
+    const Hinv = HinvUpper && HinvLower ? (y <= midSplitY ? HinvUpper : HinvLower) : HinvSingle!;
+
     for (let x = 0; x < targetWidth; x++) {
       const w = Hinv[6] * x + Hinv[7] * y + Hinv[8];
       const sx = (Hinv[0] * x + Hinv[1] * y + Hinv[2]) / w;
@@ -471,11 +567,12 @@ export interface ContrastCalibration {
 
 /**
  * Calibrates white paper luminance vs solid black fiducial marker luminance
+ * Samples multiple fiducial markers (topLeft + midLeft) when available
  */
 export function calibrateContrast(
   image: RawImageData,
   template: TemplateGridMetadata,
-  fillThresholdMultiplier: number = 0.35
+  fillThresholdMultiplier: number = 0.28
 ): ContrastCalibration {
   const { width, height, data } = image;
 
@@ -486,33 +583,37 @@ export function calibrateContrast(
     return 0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2];
   };
 
-  // 1. Sample Marker Luminance (Top-Left marker center)
-  const marker = template.fiducialMarkers.topLeft;
-  const markerCenterX = (marker.u + marker.width / 2) * width;
-  const markerCenterY = (marker.v + marker.height / 2) * height;
-
-  let markerSum = 0;
-  let markerCount = 0;
-  const sampleRadius = Math.max(3, Math.floor(marker.width * width * 0.2));
-
-  for (let dy = -sampleRadius; dy <= sampleRadius; dy++) {
-    for (let dx = -sampleRadius; dx <= sampleRadius; dx++) {
-      if (dx * dx + dy * dy <= sampleRadius * sampleRadius) {
-        markerSum += getLuminance(markerCenterX + dx, markerCenterY + dy);
-        markerCount++;
+  const sampleMarker = (m: { u: number; v: number; width: number; height: number }) => {
+    const cx = (m.u + m.width / 2) * width;
+    const cy = (m.v + m.height / 2) * height;
+    const r = Math.max(3, Math.floor(m.width * width * 0.2));
+    let sum = 0;
+    let count = 0;
+    for (let dy = -r; dy <= r; dy++) {
+      for (let dx = -r; dx <= r; dx++) {
+        if (dx * dx + dy * dy <= r * r) {
+          sum += getLuminance(cx + dx, cy + dy);
+          count++;
+        }
       }
     }
+    return sum / (count || 1);
+  };
+
+  let lMarker = sampleMarker(template.fiducialMarkers.topLeft);
+  if (template.fiducialMarkers.midLeft) {
+    const lMid = sampleMarker(template.fiducialMarkers.midLeft);
+    lMarker = Math.min(lMarker, (lMarker + lMid) / 2);
   }
-  const lMarker = markerSum / (markerCount || 1);
 
   // 2. Sample Paper Margin Luminance (Safe white margins)
   let paperSum = 0;
   let paperCount = 0;
   const marginSamples = [
-    { x: width * 0.5, y: height * 0.05 }, // top center margin
-    { x: width * 0.05, y: height * 0.5 }, // left center margin
-    { x: width * 0.95, y: height * 0.5 }, // right center margin
-    { x: width * 0.5, y: height * 0.95 }  // bottom center margin
+    { x: width * 0.5, y: height * 0.05 },
+    { x: width * 0.05, y: height * 0.30 },
+    { x: width * 0.95, y: height * 0.30 },
+    { x: width * 0.5, y: height * 0.55 }
   ];
 
   for (const pt of marginSamples) {
@@ -526,7 +627,6 @@ export function calibrateContrast(
   const lPaper = paperSum / (paperCount || 1);
 
   const contrastRange = Math.max(10, lPaper - lMarker);
-  // Threshold for marked bubble: default 35% darker than paper reference
   const fillThreshold = lPaper - fillThresholdMultiplier * contrastRange;
 
   return {
@@ -539,6 +639,7 @@ export function calibrateContrast(
 
 /**
  * Reads optical density of a single bubble circular ROI
+ * Includes micro-centroid search (±2px) to lock onto the darkest center of a marked bubble
  */
 export function readBubbleFill(
   image: RawImageData,
@@ -548,48 +649,147 @@ export function readBubbleFill(
   calibration: ContrastCalibration
 ): { fillRatio: number; meanLuminance: number } {
   const { width, height, data } = image;
-  const cx = Math.floor(u * width);
-  const cy = Math.floor(v * height);
-  // Inner inspection radius (shrink 20% to avoid bubble rim)
-  const r = Math.max(2, Math.floor(radiusNorm * width * 0.80));
+  const baseCx = Math.floor(u * width);
+  const baseCy = Math.floor(v * height);
+  const r = Math.max(2, Math.floor(radiusNorm * width * 0.82));
 
-  let darkPixelCount = 0;
-  let totalPixels = 0;
-  let sumLuminance = 0;
+  const evalCircle = (cx: number, cy: number) => {
+    let darkPixelCount = 0;
+    let totalPixels = 0;
+    let sumLuminance = 0;
 
-  for (let dy = -r; dy <= r; dy++) {
-    const py = cy + dy;
-    if (py < 0 || py >= height) continue;
-    const rowOffset = py * width * 4;
+    for (let dy = -r; dy <= r; dy++) {
+      const py = cy + dy;
+      if (py < 0 || py >= height) continue;
+      const rowOffset = py * width * 4;
 
-    for (let dx = -r; dx <= r; dx++) {
-      if (dx * dx + dy * dy <= r * r) {
-        const px = cx + dx;
-        if (px < 0 || px >= width) continue;
+      for (let dx = -r; dx <= r; dx++) {
+        if (dx * dx + dy * dy <= r * r) {
+          const px = cx + dx;
+          if (px < 0 || px >= width) continue;
 
-        const idx = rowOffset + px * 4;
-        const lum = 0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2];
-        sumLuminance += lum;
-        totalPixels++;
+          const idx = rowOffset + px * 4;
+          const lum = 0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2];
+          sumLuminance += lum;
+          totalPixels++;
 
-        if (lum <= calibration.fillThreshold) {
-          darkPixelCount++;
+          if (lum <= calibration.fillThreshold) {
+            darkPixelCount++;
+          }
+        }
+      }
+    }
+
+    const pixelFill = totalPixels > 0 ? darkPixelCount / totalPixels : 0;
+    const meanLum = totalPixels > 0 ? sumLuminance / totalPixels : calibration.lPaper;
+    return { pixelFill, meanLum };
+  };
+
+  let best = evalCircle(baseCx, baseCy);
+
+  if (width >= 400) {
+    const step = Math.max(1, Math.round(r * 0.25));
+    const offsets = [-step, 0, step];
+    for (const oy of offsets) {
+      for (const ox of offsets) {
+        if (ox === 0 && oy === 0) continue;
+        const cand = evalCircle(baseCx + ox, baseCy + oy);
+        if (cand.pixelFill > best.pixelFill || (cand.pixelFill === best.pixelFill && cand.meanLum < best.meanLum)) {
+          best = cand;
         }
       }
     }
   }
 
-  const fillRatio = totalPixels > 0 ? darkPixelCount / totalPixels : 0;
-  const meanLuminance = totalPixels > 0 ? sumLuminance / totalPixels : calibration.lPaper;
-
   return {
-    fillRatio,
-    meanLuminance
+    fillRatio: best.pixelFill,
+    meanLuminance: best.meanLum
   };
 }
 
+/**
+ * ZipGrade-style Row Timing Mark Detector:
+ * Locates the black square timing mark at the left of each question row and computes
+ * per-row (du, dv) micro-alignment shifts so bubble sampling tracks any paper/print skew.
+ */
+export function detectTimingMarksAndAlign(
+  image: RawImageData,
+  timingMarks: TimingMark[] | undefined,
+  calibration: ContrastCalibration
+): {
+  rowOffsets: Map<string, { du: number; dv: number }>;
+  detectedMarks: { rowIndex: number; colIndex: number; u: number; v: number; detected: boolean }[];
+} {
+  const rowOffsets = new Map<string, { du: number; dv: number }>();
+  const detectedMarks: { rowIndex: number; colIndex: number; u: number; v: number; detected: boolean }[] = [];
+
+  if (!timingMarks || timingMarks.length === 0) {
+    return { rowOffsets, detectedMarks };
+  }
+
+  const { width, height, data } = image;
+  const searchRx = Math.max(2, Math.floor(width * 0.008));
+  const searchRy = Math.max(2, Math.floor(height * 0.006));
+  const halfBox = Math.max(2, Math.floor((timingMarks[0].size * width) / 2));
+
+  for (const mark of timingMarks) {
+    const nomX = Math.floor(mark.u * width);
+    const nomY = Math.floor(mark.v * height);
+
+    let bestX = nomX;
+    let bestY = nomY;
+    let minMeanLum = calibration.lPaper;
+
+    for (let sy = -searchRy; sy <= searchRy; sy += 2) {
+      for (let sx = -searchRx; sx <= searchRx; sx += 2) {
+        let sum = 0;
+        let cnt = 0;
+        for (let dy = -halfBox; dy <= halfBox; dy++) {
+          const py = nomY + sy + dy;
+          if (py < 0 || py >= height) continue;
+          const rOff = py * width * 4;
+          for (let dx = -halfBox; dx <= halfBox; dx++) {
+            const px = nomX + sx + dx;
+            if (px < 0 || px >= width) continue;
+            const idx = rOff + px * 4;
+            sum += 0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2];
+            cnt++;
+          }
+        }
+        if (cnt > 0) {
+          const mean = sum / cnt;
+          if (mean < minMeanLum) {
+            minMeanLum = mean;
+            bestX = nomX + sx;
+            bestY = nomY + sy;
+          }
+        }
+      }
+    }
+
+    const isDetected = minMeanLum <= calibration.fillThreshold;
+    const actualU = isDetected ? bestX / width : mark.u;
+    const actualV = isDetected ? bestY / height : mark.v;
+
+    rowOffsets.set(`${mark.colIndex}_${mark.rowIndex}`, {
+      du: isDetected ? actualU - mark.u : 0,
+      dv: isDetected ? actualV - mark.v : 0
+    });
+
+    detectedMarks.push({
+      rowIndex: mark.rowIndex,
+      colIndex: mark.colIndex,
+      u: actualU,
+      v: actualV,
+      detected: isDetected
+    });
+  }
+
+  return { rowOffsets, detectedMarks };
+}
+
 // =============================================================================
-// 4. BUBBLE GRID DECODING (STUDENT ID, VERSION, QUESTIONS)
+// 4. BUBBLE GRID DECODING (STUDENT ID, VERSION, SUBJECTIVE, QUESTIONS)
 // =============================================================================
 
 export function decodeStudentIdGrid(
@@ -612,13 +812,12 @@ export function decodeStudentIdGrid(
     const top = readings[0];
     const second = readings[1] || { fillRatio: 0 };
 
-    if (top.fillRatio >= 0.35) {
+    if (top && (top.fillRatio >= 0.22 || top.fillRatio - second.fillRatio >= 0.12)) {
       detectedDigits.push(String(top.value));
       const margin = top.fillRatio - second.fillRatio;
-      const conf = Math.min(1.0, Math.max(0.5, margin / 0.30));
+      const conf = Math.min(1.0, Math.max(0.5, margin / 0.25));
       totalConf += conf;
     } else {
-      // Inconclusive: fallback to '0'
       detectedDigits.push("0");
       totalConf += 0.3;
     }
@@ -644,7 +843,7 @@ export function decodeVersionCodeGrid(
   const top = readings[0];
   const second = readings[1] || { fillRatio: 0 };
 
-  if (top.fillRatio >= 0.30) {
+  if (top && (top.fillRatio >= 0.22 || top.fillRatio - second.fillRatio >= 0.12)) {
     const margin = top.fillRatio - second.fillRatio;
     return {
       versionCode: top.versionCode,
@@ -658,60 +857,130 @@ export function decodeVersionCodeGrid(
   };
 }
 
+/**
+ * Decodes combined subjective score (0-30 points: Tens 0-3, Units 0-9)
+ */
+export function decodeSubjectiveScore(
+  image: RawImageData,
+  subjectiveScores: SubjectiveScoreCoordinate[] | undefined,
+  calibration: ContrastCalibration
+): { score: number | null; confidence: number } {
+  if (!subjectiveScores || subjectiveScores.length === 0) {
+    return { score: null, confidence: 1.0 };
+  }
+
+  const combined = subjectiveScores[0];
+  const tensRead = combined.tens.map(t => ({
+    value: t.value,
+    ...readBubbleFill(image, t.u, t.v, t.radius, calibration)
+  })).sort((a, b) => b.fillRatio - a.fillRatio);
+
+  const unitsRead = combined.units.map(u => ({
+    value: u.value,
+    ...readBubbleFill(image, u.u, u.v, u.radius, calibration)
+  })).sort((a, b) => b.fillRatio - a.fillRatio);
+
+  const topTen = tensRead[0];
+  const secondTen = tensRead[1] || { fillRatio: 0 };
+  const topUnit = unitsRead[0];
+  const secondUnit = unitsRead[1] || { fillRatio: 0 };
+
+  const hasTenMark = topTen && (topTen.fillRatio >= 0.22 || topTen.fillRatio - secondTen.fillRatio >= 0.12);
+  const hasUnitMark = topUnit && (topUnit.fillRatio >= 0.22 || topUnit.fillRatio - secondUnit.fillRatio >= 0.12);
+
+  if (!hasTenMark && !hasUnitMark) {
+    return { score: null, confidence: 0.9 };
+  }
+
+  const tensVal = hasTenMark ? topTen.value : 0;
+  const unitsVal = hasUnitMark ? topUnit.value : 0;
+  const totalScore = Math.min(30, tensVal * 10 + unitsVal);
+
+  return {
+    score: totalScore,
+    confidence: 0.9
+  };
+}
+
+/**
+ * Decodes all question blocks using ZipGrade-style Intra-Row Relative Differential Scoring
+ * and Timing-Mark Row Alignment.
+ */
 export function decodeQuestionBlocks(
   image: RawImageData,
   questionBlocks: TemplateGridMetadata["questionBlocks"],
-  calibration: ContrastCalibration
+  calibration: ContrastCalibration,
+  rowOffsets?: Map<string, { du: number; dv: number }>,
+  rowsPerCol: number = 20
 ): QuestionReadResult[] {
-  return questionBlocks.map(q => {
+  return questionBlocks.map((q, idx) => {
+    const colIdx = Math.floor(idx / rowsPerCol);
+    const rowIdx = idx % rowsPerCol;
+    const offset = rowOffsets?.get(`${colIdx}_${rowIdx}`) || { du: 0, dv: 0 };
+
     const choicesRead = q.bubbles.map(b => {
-      const read = readBubbleFill(image, b.u, b.v, b.radius, calibration);
+      const adjU = b.u + offset.du;
+      const adjV = b.v + offset.dv;
+      const read = readBubbleFill(image, adjU, adjV, b.radius, calibration);
       return {
         choice: b.choice,
+        u: adjU,
+        v: adjV,
+        radius: b.radius,
         fillRatio: read.fillRatio,
         meanLum: read.meanLuminance
       };
     });
 
-    // Fill ratio map
     const fillRatios: Record<string, number> = {};
     for (const cr of choicesRead) {
       fillRatios[cr.choice] = Math.round(cr.fillRatio * 1000) / 1000;
     }
 
-    choicesRead.sort((a, b) => b.fillRatio - a.fillRatio);
-    const first = choicesRead[0];
-    const second = choicesRead[1] || { fillRatio: 0 };
+    const sorted = [...choicesRead].sort((a, b) => b.fillRatio - a.fillRatio);
+    const first = sorted[0];
+    const second = sorted[1] || { fillRatio: 0, meanLum: calibration.lPaper };
+    const minFillInRow = sorted[sorted.length - 1]?.fillRatio ?? 0;
+
+    const marginToSecond = first.fillRatio - second.fillRatio;
+    const marginToBaseline = first.fillRatio - minFillInRow;
 
     const detectedChoices: string[] = [];
     let confidenceScore = 1.0;
 
-    // Disambiguation Logic
-    if (first.fillRatio < 0.20) {
-      // Blank
+    if (first.fillRatio < 0.16 && marginToBaseline < 0.12) {
       confidenceScore = Math.max(0.8, 1.0 - first.fillRatio);
-    } else if (first.fillRatio >= 0.35 && second.fillRatio >= 0.30) {
-      // Multiple marks
+    } else if (first.fillRatio >= 0.30 && second.fillRatio >= 0.28 && second.fillRatio >= first.fillRatio * 0.72) {
       detectedChoices.push(first.choice, second.choice);
-      confidenceScore = 0.50; // Multiple marks flag
-    } else if (first.fillRatio >= 0.30) {
-      // Single marked choice
+      confidenceScore = 0.50;
+    } else if (first.fillRatio >= 0.22 || (first.fillRatio >= 0.16 && marginToSecond >= 0.10)) {
       detectedChoices.push(first.choice);
-      const margin = first.fillRatio - second.fillRatio;
-      if (margin >= 0.25) {
-        confidenceScore = 0.95; // High confidence
-      } else if (margin >= 0.15) {
-        confidenceScore = 0.78; // Medium confidence (erased mark smudge)
+      if (marginToSecond >= 0.22) {
+        confidenceScore = 0.96;
+      } else if (marginToSecond >= 0.12) {
+        confidenceScore = 0.84;
       } else {
-        confidenceScore = 0.60; // Low confidence
+        confidenceScore = 0.68;
       }
+    } else {
+      confidenceScore = Math.max(0.75, 1.0 - first.fillRatio);
     }
+
+    const bubblePositions = choicesRead.map(cr => ({
+      choice: cr.choice,
+      u: cr.u,
+      v: cr.v,
+      radius: cr.radius,
+      fillRatio: cr.fillRatio,
+      isMarked: detectedChoices.includes(cr.choice)
+    }));
 
     return {
       itemNo: q.itemNo,
       detectedChoices,
       fillRatios,
-      confidenceScore
+      confidenceScore,
+      bubblePositions
     };
   });
 }
@@ -729,7 +998,7 @@ export function processOmrSheet(
   const startTime = Date.now();
 
   const expectedAspect = options?.expectedAspectRatio ?? template.scanZoneAspectRatio ?? 1.0;
-  const fillMultiplier = options?.fillThresholdMultiplier ?? 0.35;
+  const fillMultiplier = options?.fillThresholdMultiplier ?? 0.28;
 
   // 1. Image Quality Gate
   const iqg = evaluateImageQuality(image, corners, expectedAspect);
@@ -741,6 +1010,8 @@ export function processOmrSheet(
       studentIdConfidence: 0,
       versionCode: "01",
       versionCodeConfidence: 0,
+      subjectiveScore: null,
+      subjectiveScoreConfidence: 0,
       items: [],
       confidenceAvg: 0,
       hasAnomalies: true,
@@ -749,28 +1020,44 @@ export function processOmrSheet(
     };
   }
 
-  // 2. Perspective Warp (if 4 corners provided)
+  // 2. Perspective Warp (4-corner or 6-point Piecewise Homography mapped to canonical marker positions)
   let canonicalImage = image;
+  let markersUsed = 4;
   if (corners) {
+    if (corners.midLeft && corners.midRight && template.fiducialMarkers.midLeft && template.fiducialMarkers.midRight) {
+      markersUsed = 6;
+    }
     canonicalImage = warpPerspectiveBilinear(
       image,
       corners,
       template.canvasWidth,
-      template.canvasHeight
+      template.canvasHeight,
+      template.fiducialMarkers
     );
   }
 
   // 3. Dynamic Contrast Calibration
   const calibration = calibrateContrast(canonicalImage, template, fillMultiplier);
 
-  // 4. Decode Student ID & Version Code
+  // 4. ZipGrade Timing-Mark Row Detection & Micro-Alignment
+  const rowsPerCol = template.questionBlocks.length <= 20 ? 10 : 20;
+  const timingAlignment = detectTimingMarksAndAlign(canonicalImage, template.timingMarks, calibration);
+
+  // 5. Decode Student ID, Version Code & Combined Subjective Score
   const studentResult = decodeStudentIdGrid(canonicalImage, template.studentIdGrid, calibration);
   const versionResult = decodeVersionCodeGrid(canonicalImage, template.versionCodeGrid, calibration);
+  const subjectiveResult = decodeSubjectiveScore(canonicalImage, template.subjectiveScores, calibration);
 
-  // 5. Decode Questions
-  const items = decodeQuestionBlocks(canonicalImage, template.questionBlocks, calibration);
+  // 6. Decode Questions with Timing-Mark Row Offsets
+  const items = decodeQuestionBlocks(
+    canonicalImage,
+    template.questionBlocks,
+    calibration,
+    timingAlignment.rowOffsets,
+    rowsPerCol
+  );
 
-  // 6. Aggregate Metrics
+  // 7. Aggregate Metrics
   const totalConf = items.reduce((acc, curr) => acc + curr.confidenceScore, 0);
   const confidenceAvg = items.length > 0 ? totalConf / items.length : 1.0;
   const hasAnomalies = items.some(i => i.confidenceScore < 0.65 || i.detectedChoices.length > 1);
@@ -782,9 +1069,13 @@ export function processOmrSheet(
     studentIdConfidence: studentResult.confidence,
     versionCode: versionResult.versionCode,
     versionCodeConfidence: versionResult.confidence,
+    subjectiveScore: subjectiveResult.score,
+    subjectiveScoreConfidence: subjectiveResult.confidence,
     items,
     confidenceAvg,
     hasAnomalies,
+    detectedTimingMarks: timingAlignment.detectedMarks,
+    markersUsed,
     executionTimeMs: Date.now() - startTime
   };
 }

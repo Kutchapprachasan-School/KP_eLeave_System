@@ -140,4 +140,48 @@ describe('OMR Marker Detector & Compact Geometry Unit Tests', () => {
     assert.equal(grid6.choiceCount, 6);
     assert.deepEqual(grid6.questionBlocks[0].bubbles.map(b => b.choice), ['A', 'B', 'C', 'D', 'E', 'F']);
   });
+
+  it('detectFiducialMarkers should detect all 6 black square markers (4 corners + 2 mid-side)', () => {
+    const width = 400;
+    const height = 400;
+    const data = new Uint8ClampedArray(width * height * 4).fill(255);
+
+    const drawSquare = (startX, startY, size = 20) => {
+      for (let y = startY; y < startY + size; y++) {
+        for (let x = startX; x < startX + size; x++) {
+          const idx = (y * width + x) * 4;
+          data[idx] = 10;
+          data[idx + 1] = 10;
+          data[idx + 2] = 10;
+          data[idx + 3] = 255;
+        }
+      }
+    };
+
+    drawSquare(20, 20, 20);   // TL
+    drawSquare(360, 20, 20);  // TR
+    drawSquare(20, 190, 18);  // ML
+    drawSquare(360, 190, 18); // MR
+    drawSquare(20, 360, 20);  // BL
+    drawSquare(360, 360, 20); // BR
+
+    const result = detectFiducialMarkers(data, width, height, 1.0);
+    assert.equal(result.found, true);
+    assert.equal(result.markersDetected, 6);
+    assert.ok(result.corners.midLeft !== undefined);
+    assert.ok(result.corners.midRight !== undefined);
+    assert.ok(result.midPoints !== null);
+  });
+
+  it('all 5 tiers should include 6 fiducial markers, row timingMarks, and single combined subjectiveScore', () => {
+    for (const count of [20, 40, 60, 80, 100]) {
+      const grid = getTemplateGridForItems(count, 4);
+      assert.ok(grid.fiducialMarkers.midLeft, `Tier ${count} missing midLeft marker`);
+      assert.ok(grid.fiducialMarkers.midRight, `Tier ${count} missing midRight marker`);
+      assert.ok(Array.isArray(grid.timingMarks), `Tier ${count} missing timingMarks`);
+      assert.equal(grid.timingMarks.length, count, `Tier ${count} should have ${count} row timing marks`);
+      assert.equal(grid.subjectiveScores.length, 1, `Tier ${count} should have 1 combined subjective score block`);
+      assert.equal(grid.subjectiveScores[0].itemNo, 0);
+    }
+  });
 });

@@ -24,7 +24,7 @@ import {
   Sliders,
   Check
 } from "lucide-react";
-import { processOmrSheet, OmrScanResult, RawImageData, QuadPoints } from "@/lib/omr/omrEngine";
+import { processOmrSheet, warpPerspectiveBilinear, OmrScanResult, RawImageData, QuadPoints } from "@/lib/omr/omrEngine";
 import { getTemplateGridForItems, TemplateGridMetadata } from "@/lib/omr/omrTemplateGeometry";
 import { detectFiducialMarkers, MarkerDetectionResult } from "@/lib/omr/omrMarkerDetector";
 import { ingestExamSubmissionAction } from "@/app/actions/omr";
@@ -75,8 +75,10 @@ export function OmrCameraScanner({
   const [isCountdownPaused, setIsCountdownPaused] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
 
-  // Scan Result Modal State
+  // Scan Result Modal State + Visual Bubble Alignment Overlay
   const [scanResult, setScanResult] = useState<OmrScanResult | null>(null);
+  const [diagnosticImageUrl, setDiagnosticImageUrl] = useState<string | null>(null);
+  const [showBubbleOverlay, setShowBubbleOverlay] = useState<boolean>(true);
   const [savedSubmission, setSavedSubmission] = useState<any | null>(null);
   const [ingestLoading, setIngestLoading] = useState(false);
 
@@ -208,9 +210,111 @@ export function OmrCameraScanner({
     return () => stopCamera();
   }, [startCamera, stopCamera]);
 
+  // Visual Bubble Alignment Overlay Generator (ชี้วงกลมแต่ละข้อ + Timing Marks + 6 Fiducial Markers)
+  const buildDiagnosticOverlayUrl = useCallback((
+    rawImage: RawImageData,
+    cornersToUse: QuadPoints | undefined,
+    result: OmrScanResult
+  ): string | null => {
+    try {
+      const canonical = cornersToUse
+        ? warpPerspectiveBilinear(
+            rawImage,
+            cornersToUse,
+            templateGrid.canvasWidth,
+            templateGrid.canvasHeight,
+            templateGrid.fiducialMarkers
+          )
+        : rawImage;
+
+      const scanZoneCropHeight = Math.min(
+        canonical.height,
+        Math.round(canonical.height * 0.64)
+      );
+      const outCanvas = document.createElement("canvas");
+      outCanvas.width = canonical.width;
+      outCanvas.height = scanZoneCropHeight;
+      const octx = outCanvas.getContext("2d");
+      if (!octx) return null;
+
+      const fullImgData = new ImageData(
+        new Uint8ClampedArray(canonical.data),
+        canonical.width,
+        canonical.height
+      );
+      octx.putImageData(fullImgData, 0, 0);
+
+      // 1. วาดกรอบ Fiducial Markers ทั้ง 6 จุด (4 มุม + 2 จุดกลาง)
+      const fm = templateGrid.fiducialMarkers;
+      const markerEntries = [
+        { label: "M1:TL", m: fm.topLeft },
+        { label: "M2:TR", m: fm.topRight },
+        { label: "M3:ML", m: fm.midLeft },
+        { label: "M4:MR", m: fm.midRight },
+        { label: "M5:BL", m: fm.bottomLeft },
+        { label: "M6:BR", m: fm.bottomRight }
+      ];
+      octx.lineWidth = 4;
+      octx.font = "bold 20px monospace";
+      for (const entry of markerEntries) {
+        if (!entry.m) continue;
+        const mx = entry.m.u * canonical.width;
+        const my = entry.m.v * canonical.height;
+        const mw = entry.m.width * canonical.width;
+        const mh = entry.m.height * canonical.height;
+        octx.strokeStyle = "#06b6d4";
+        octx.strokeRect(mx - 2, my - 2, mw + 4, mh + 4);
+        octx.fillStyle = "#06b6d4";
+        octx.fillText(entry.label, mx, Math.max(22, my - 6));
+      }
+
+      // 2. วาดจุด Timing Marks ของแต่ละแถวข้อสอบ (ZipGrade Row Timing Marks)
+      if (result.detectedTimingMarks && result.detectedTimingMarks.length > 0) {
+        for (const tm of result.detectedTimingMarks) {
+          const tx = tm.u * canonical.width;
+          const ty = tm.v * canonical.height;
+          octx.strokeStyle = tm.detected ? "#22d3ee" : "#94a3b8";
+          octx.lineWidth = 2.5;
+          octx.strokeRect(tx - 10, ty - 10, 20, 20);
+        }
+      }
+
+      // 3. วาดวงกลมชี้แต่ละข้อและแต่ละตัวเลือก (Bubble ROI Inspection Overlay)
+      for (const item of result.items) {
+        if (item.itemNo > totalItems) continue;
+        const positions = item.bubblePositions || [];
+        for (const bp of positions) {
+          const bx = bp.u * canonical.width;
+          const by = bp.v * canonical.height;
+          const br = Math.max(8, bp.radius * canonical.width);
+
+          octx.beginPath();
+          octx.arc(bx, by, br, 0, Math.PI * 2);
+          if (bp.isMarked) {
+            octx.strokeStyle = item.detectedChoices.length > 1 ? "#f59e0b" : "#10b981";
+            octx.lineWidth = 4.5;
+            octx.fillStyle = item.detectedChoices.length > 1
+              ? "rgba(245, 158, 11, 0.28)"
+              : "rgba(16, 185, 129, 0.28)";
+            octx.fill();
+          } else {
+            octx.strokeStyle = "rgba(168, 85, 247, 0.75)";
+            octx.lineWidth = 2;
+          }
+          octx.stroke();
+        }
+      }
+
+      return outCanvas.toDataURL("image/jpeg", 0.85);
+    } catch {
+      return null;
+    }
+  }, [templateGrid, totalItems]);
+
   // Reset / Next Scan Action
   const resetForNextScan = useCallback(() => {
     setScanResult(null);
+    setDiagnosticImageUrl(null);
     setSavedSubmission(null);
     setCountdownRemaining(null);
     setIsCountdownPaused(false);
@@ -219,6 +323,129 @@ export function OmrCameraScanner({
     detectedCornersRef.current = null;
     setMarkerStatus("searching");
   }, []);
+
+  // Built-in Scan Calibration & Visual Bubble Pointer Simulator
+  const runSimulationDiagnosticScan = useCallback(() => {
+    setIsProcessing(true);
+    try {
+      const w = templateGrid.canvasWidth;
+      const h = templateGrid.canvasHeight;
+      const simCanvas = document.createElement("canvas");
+      simCanvas.width = w;
+      simCanvas.height = h;
+      const sctx = simCanvas.getContext("2d");
+      if (!sctx) return;
+
+      // 1. พื้นหลังกระดาษสีขาว
+      sctx.fillStyle = "#f8fafc";
+      sctx.fillRect(0, 0, w, h);
+
+      // 2. วาด Fiducial Markers ทั้ง 6 จุด
+      const fm = templateGrid.fiducialMarkers;
+      sctx.fillStyle = "#0f172a";
+      for (const m of [fm.topLeft, fm.topRight, fm.midLeft, fm.midRight, fm.bottomLeft, fm.bottomRight]) {
+        if (!m) continue;
+        sctx.fillRect(m.u * w, m.v * h, m.width * w, m.height * h);
+      }
+
+      // 3. วาด Timing Marks ประจำแถวข้อสอบ (ZipGrade-style)
+      if (templateGrid.timingMarks) {
+        for (const tm of templateGrid.timingMarks) {
+          const sz = tm.size * w;
+          sctx.fillRect(tm.u * w - sz / 2, tm.v * h - sz / 2, sz, sz);
+        }
+      }
+
+      // 4. จำลองการฝนรหัสนักเรียน (12345) และชุดข้อสอบ (01)
+      const targetStudentDigits = [1, 2, 3, 4, 5];
+      for (const d of templateGrid.studentIdGrid.digits) {
+        const cx = d.u * w;
+        const cy = d.v * h;
+        const r = d.radius * w;
+        sctx.beginPath();
+        sctx.arc(cx, cy, r, 0, Math.PI * 2);
+        if (targetStudentDigits[d.digitIndex] === d.value) {
+          sctx.fillStyle = "#1e293b";
+          sctx.fill();
+        } else {
+          sctx.strokeStyle = "#64748b";
+          sctx.lineWidth = 1.5;
+          sctx.stroke();
+        }
+      }
+
+      // 5. จำลองการฝนข้อสอบครบทุกข้อ (1..totalItems)
+      const choices = ["A", "B", "C", "D", "E", "F"].slice(0, choiceCount);
+      for (const q of templateGrid.questionBlocks) {
+        if (q.itemNo > totalItems) continue;
+        const chosenChoice = choices[(q.itemNo - 1) % choices.length];
+        for (const b of q.bubbles) {
+          const cx = b.u * w;
+          const cy = b.v * h;
+          const r = b.radius * w;
+          sctx.beginPath();
+          sctx.arc(cx, cy, r, 0, Math.PI * 2);
+          if (b.choice === chosenChoice) {
+            sctx.fillStyle = "#1e293b";
+            sctx.fill();
+          } else {
+            sctx.strokeStyle = "#475569";
+            sctx.lineWidth = 2;
+            sctx.stroke();
+          }
+        }
+      }
+
+      // 6. จำลองการฝนคะแนนรวมอัตนัย (25 คะแนน: หลักสิบ=2, หลักหน่วย=5)
+      if (templateGrid.subjectiveScores && templateGrid.subjectiveScores.length > 0) {
+        const sub = templateGrid.subjectiveScores[0];
+        for (const t of sub.tens) {
+          sctx.beginPath();
+          sctx.arc(t.u * w, t.v * h, t.radius * w, 0, Math.PI * 2);
+          if (t.value === 2) {
+            sctx.fillStyle = "#1e293b";
+            sctx.fill();
+          } else {
+            sctx.strokeStyle = "#64748b";
+            sctx.stroke();
+          }
+        }
+        for (const u of sub.units) {
+          sctx.beginPath();
+          sctx.arc(u.u * w, u.v * h, u.radius * w, 0, Math.PI * 2);
+          if (u.value === 5) {
+            sctx.fillStyle = "#1e293b";
+            sctx.fill();
+          } else {
+            sctx.strokeStyle = "#64748b";
+            sctx.stroke();
+          }
+        }
+      }
+
+      const simImgData = sctx.getImageData(0, 0, w, h);
+      const rawImage: RawImageData = { width: w, height: h, data: simImgData.data };
+
+      const simCorners: QuadPoints = {
+        topLeft: { x: (fm.topLeft.u + fm.topLeft.width / 2) * w, y: (fm.topLeft.v + fm.topLeft.height / 2) * h },
+        topRight: { x: (fm.topRight.u + fm.topRight.width / 2) * w, y: (fm.topRight.v + fm.topRight.height / 2) * h },
+        bottomLeft: { x: (fm.bottomLeft.u + fm.bottomLeft.width / 2) * w, y: (fm.bottomLeft.v + fm.bottomLeft.height / 2) * h },
+        bottomRight: { x: (fm.bottomRight.u + fm.bottomRight.width / 2) * w, y: (fm.bottomRight.v + fm.bottomRight.height / 2) * h },
+        midLeft: fm.midLeft ? { x: (fm.midLeft.u + fm.midLeft.width / 2) * w, y: (fm.midLeft.v + fm.midLeft.height / 2) * h } : undefined,
+        midRight: fm.midRight ? { x: (fm.midRight.u + fm.midRight.width / 2) * w, y: (fm.midRight.v + fm.midRight.height / 2) * h } : undefined
+      };
+
+      const result = processOmrSheet(rawImage, templateGrid, simCorners, {
+        expectedAspectRatio: templateGrid.scanZoneAspectRatio
+      });
+      const overlayUrl = buildDiagnosticOverlayUrl(rawImage, simCorners, result);
+      setDiagnosticImageUrl(overlayUrl);
+      setScanResult(result);
+      playChime(result.success);
+    } finally {
+      setIsProcessing(false);
+    }
+  }, [templateGrid, totalItems, choiceCount, buildDiagnosticOverlayUrl, playChime]);
 
   // Frame Capture & Processing Function
   const captureAndProcess = useCallback(async (explicitCorners?: QuadPoints | null) => {
@@ -246,19 +473,19 @@ export function OmrCameraScanner({
         data: imgData.data
       };
 
-      // Use explicit corners or detected corners
       const cornersToUse = explicitCorners || detectedCornersRef.current || undefined;
 
-      // Execute OMR processing with perspective warp
+      // Execute OMR processing with 6-point perspective warp + timing marks
       const result = processOmrSheet(rawImage, templateGrid, cornersToUse, {
         expectedAspectRatio: templateGrid.scanZoneAspectRatio
       });
+      const overlayUrl = buildDiagnosticOverlayUrl(rawImage, cornersToUse, result);
+      setDiagnosticImageUrl(overlayUrl);
 
       if (result.success) {
         playChime(true);
         setScanResult(result);
 
-        // Ingest into Database if paperId and session available
         if (paperId && session?.user?.id) {
           setIngestLoading(true);
           const clientScanId = `scan_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
@@ -296,9 +523,9 @@ export function OmrCameraScanner({
     } finally {
       setIsProcessing(false);
     }
-  }, [isProcessing, paperId, session, templateGrid, playChime, onScanComplete]);
+  }, [isProcessing, paperId, session, templateGrid, playChime, onScanComplete, buildDiagnosticOverlayUrl]);
 
-  // Real-Time Fiducial Marker Detection Analysis Loop (~250ms interval)
+  // Real-Time 6-Point Fiducial Marker Detection Analysis Loop (~250ms interval)
   useEffect(() => {
     if (!streamActive || isProcessing || scanResult) {
       return;
@@ -311,7 +538,6 @@ export function OmrCameraScanner({
 
       try {
         const offscreenCanvas = document.createElement("canvas");
-        // Downscale for fast marker detection
         const maxSide = 480;
         const scale = Math.min(1.0, maxSide / Math.max(video.videoWidth, video.videoHeight));
         offscreenCanvas.width = Math.round(video.videoWidth * scale);
@@ -333,20 +559,24 @@ export function OmrCameraScanner({
         setMarkersDetectedCount(detection.markersDetected);
 
         if (detection.found && detection.corners) {
-          // Scale corners back to original video dimensions
           const invScale = 1 / scale;
           const fullCorners: QuadPoints = {
             topLeft: { x: detection.corners.topLeft.x * invScale, y: detection.corners.topLeft.y * invScale },
             topRight: { x: detection.corners.topRight.x * invScale, y: detection.corners.topRight.y * invScale },
             bottomLeft: { x: detection.corners.bottomLeft.x * invScale, y: detection.corners.bottomLeft.y * invScale },
-            bottomRight: { x: detection.corners.bottomRight.x * invScale, y: detection.corners.bottomRight.y * invScale }
+            bottomRight: { x: detection.corners.bottomRight.x * invScale, y: detection.corners.bottomRight.y * invScale },
+            midLeft: detection.corners.midLeft
+              ? { x: detection.corners.midLeft.x * invScale, y: detection.corners.midLeft.y * invScale }
+              : undefined,
+            midRight: detection.corners.midRight
+              ? { x: detection.corners.midRight.x * invScale, y: detection.corners.midRight.y * invScale }
+              : undefined
           };
 
           detectedCornersRef.current = fullCorners;
           lockStreakRef.current += 1;
           setMarkerStatus("locked");
 
-          // Auto-capture when locked stably for 2 consecutive cycles (~500ms)
           if (autoCaptureEnabled && lockStreakRef.current >= 2 && !isCapturingRef.current) {
             captureAndProcess(fullCorners);
           }
@@ -435,6 +665,8 @@ export function OmrCameraScanner({
           const result = processOmrSheet(rawImage, templateGrid, cornersToUse, {
             expectedAspectRatio: templateGrid.scanZoneAspectRatio
           });
+          const overlayUrl = buildDiagnosticOverlayUrl(rawImage, cornersToUse, result);
+          setDiagnosticImageUrl(overlayUrl);
           setScanResult(result);
           playChime(result.success);
 
@@ -496,11 +728,11 @@ export function OmrCameraScanner({
           }`} />
           <span className="text-xs font-bold tracking-wider uppercase">
             {markerStatus === "locked" ? (
-              <span className="text-emerald-400 flex items-center gap-1">🎯 LOCKED 4 มาร์กเกอร์</span>
+              <span className="text-emerald-400 flex items-center gap-1">🎯 LOCKED {markersDetectedCount >= 6 ? "6/6" : "4/6"} มาร์กเกอร์</span>
             ) : markerStatus === "partial" ? (
-              <span className="text-amber-400">🔍 กำลังล็อค ({markersDetectedCount}/4)</span>
+              <span className="text-amber-400">🔍 กำลังล็อค ({markersDetectedCount}/6)</span>
             ) : (
-              <span className="text-slate-300">เล็งมาร์กเกอร์ 4 มุม</span>
+              <span className="text-slate-300">เล็งมาร์กเกอร์ 6 จุด</span>
             )}
           </span>
           <span className="hidden sm:inline-block text-[11px] bg-white/10 backdrop-blur-md border border-white/20 text-purple-300 font-mono px-2 py-0.5 rounded-full">
@@ -509,6 +741,16 @@ export function OmrCameraScanner({
         </div>
 
         <div className="flex items-center gap-1.5 sm:gap-2">
+          {/* Test / Simulate Scan & Visual Bubble Pointer */}
+          <button
+            type="button"
+            onClick={runSimulationDiagnosticScan}
+            className="px-2.5 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400/40 backdrop-blur-md transition text-emerald-300 text-[11px] font-bold flex items-center gap-1"
+            title="ทดสอบระบบสแกนและแสดงวงกลมชี้แต่ละข้อ (ZipGrade 6-Point Mode)"
+          >
+            🎯 ทดสอบชี้วงกลม
+          </button>
+
           {/* Settings Trigger */}
           <button
             type="button"
@@ -555,10 +797,19 @@ export function OmrCameraScanner({
           <div className="p-6 text-center space-y-3 max-w-sm">
             <AlertTriangle className="w-12 h-12 text-amber-400 mx-auto" />
             <div className="text-sm font-bold text-white">{cameraError}</div>
-            <label className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-semibold text-xs cursor-pointer shadow-lg">
-              <Upload className="w-4 h-4" /> เลือกไฟล์รูปภาพเพื่อตรวจ
-              <input type="file" accept="image/*" onChange={handleFileUpload} className="hidden" />
-            </label>
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              <label className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-semibold text-xs cursor-pointer shadow-lg">
+                <Upload className="w-4 h-4" /> เลือกไฟล์รูปภาพเพื่อตรวจ
+                <input type="file" accept="image/*" onChange={handleFileUpload} className="hidden" />
+              </label>
+              <button
+                type="button"
+                onClick={runSimulationDiagnosticScan}
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs shadow-lg"
+              >
+                🎯 ทดสอบชี้วงกลมสแกน
+              </button>
+            </div>
           </div>
         ) : (
           <>
@@ -570,12 +821,16 @@ export function OmrCameraScanner({
               muted
             />
 
-            {/* 4 Corner Guide Reticles - Dynamic Color by Lock Status */}
+            {/* 6-Point Guide Reticles (4 Corners + 2 Mid-Side Markers) - Dynamic Color by Lock Status */}
             <div className="absolute inset-6 sm:inset-12 pointer-events-none border border-white/20 rounded-3xl transition-all duration-200">
               {/* Top-Left Reticle */}
               <div className={`absolute -top-1 -left-1 w-12 h-12 border-t-4 border-l-4 rounded-tl-2xl transition-all duration-200 ${reticleBorderClass}`} />
               {/* Top-Right Reticle */}
               <div className={`absolute -top-1 -right-1 w-12 h-12 border-t-4 border-r-4 rounded-tr-2xl transition-all duration-200 ${reticleBorderClass}`} />
+              {/* Mid-Left Reticle (Point 3) */}
+              <div className={`absolute top-1/2 -translate-y-1/2 -left-1 w-4 h-10 border-l-4 border-y-2 rounded-l-lg transition-all duration-200 ${reticleBorderClass}`} />
+              {/* Mid-Right Reticle (Point 4) */}
+              <div className={`absolute top-1/2 -translate-y-1/2 -right-1 w-4 h-10 border-r-4 border-y-2 rounded-r-lg transition-all duration-200 ${reticleBorderClass}`} />
               {/* Bottom-Left Reticle */}
               <div className={`absolute -bottom-1 -left-1 w-12 h-12 border-b-4 border-l-4 rounded-bl-2xl transition-all duration-200 ${reticleBorderClass}`} />
               {/* Bottom-Right Reticle */}
@@ -597,10 +852,10 @@ export function OmrCameraScanner({
                     : "bg-black/60 text-slate-300 border border-white/10"
                 }`}>
                   {markerStatus === "locked" 
-                    ? "🎯 ล็อค 4 มุมแล้ว - กำลังถ่ายภาพอัตโนมัติ" 
+                    ? `🎯 ล็อคมาร์กเกอร์ ${markersDetectedCount}/6 จุดสำเร็จ - กำลังถ่ายภาพอัตโนมัติ` 
                     : markerStatus === "partial"
-                    ? `🔍 ตรวจพบ ${markersDetectedCount}/4 มุม (จัดกระดาษให้อยู่ในกรอบ)`
-                    : "วางกระดาษคำตอบให้มาร์กเกอร์ 4 มุมอยู่ในกรอบ"}
+                    ? `🔍 ตรวจพบ ${markersDetectedCount}/6 จุด (จัดกระดาษให้อยู่ในกรอบ)`
+                    : "วางกระดาษคำตอบให้มาร์กเกอร์ 6 จุด (4 มุม + 2 ข้าง) อยู่ในกรอบ"}
                 </div>
               </div>
             </div>
@@ -618,14 +873,23 @@ export function OmrCameraScanner({
         <div className="text-xs text-slate-300 flex items-center gap-2">
           <ShieldCheck className="w-4 h-4 text-purple-400 shrink-0" />
           <span className="hidden sm:inline">
-            {autoCaptureEnabled ? "โหมดถ่ายอัตโนมัติเปิดอยู่" : "โหมดกดถ่ายด้วยตัวเอง"}
+            {autoCaptureEnabled ? "โหมดถ่ายอัตโนมัติ 6 จุด (ZipGrade)" : "โหมดกดถ่ายด้วยตัวเอง"}
           </span>
           <span className="text-[11px] text-purple-300 font-mono">
             {advanceMode === "auto" ? `• ถัดไปอัตโนมัติ ${advanceSeconds}s` : "• กดเปลี่ยนแผ่น"}
           </span>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
+          <button
+            type="button"
+            disabled={isProcessing}
+            onClick={runSimulationDiagnosticScan}
+            className="h-12 px-3.5 rounded-2xl font-bold text-xs bg-slate-800 hover:bg-slate-700 border border-emerald-500/40 text-emerald-300 transition flex items-center gap-1.5"
+          >
+            🎯 ชี้วงกลมทดสอบ
+          </button>
+
           {/* Manual Capture Button (Always available as fallback) */}
           <button
             type="button"
@@ -652,8 +916,8 @@ export function OmrCameraScanner({
 
       {/* Result Bottom Sheet / Modal */}
       {scanResult && (
-        <div className="absolute inset-0 z-30 bg-black/85 backdrop-blur-md p-4 sm:p-6 flex flex-col justify-end transition-all">
-          <div className="bg-slate-900 border border-slate-700 rounded-3xl p-5 sm:p-6 space-y-4 max-w-lg mx-auto w-full shadow-2xl">
+        <div className="absolute inset-0 z-30 bg-black/85 backdrop-blur-md p-4 sm:p-6 flex flex-col justify-end transition-all overflow-y-auto">
+          <div className="bg-slate-900 border border-slate-700 rounded-3xl p-5 sm:p-6 space-y-4 max-w-lg mx-auto w-full shadow-2xl max-h-[92vh] overflow-y-auto">
             <div className="flex items-start justify-between">
               <div className="flex items-center gap-3">
                 {scanResult.success ? (
@@ -670,7 +934,7 @@ export function OmrCameraScanner({
                     {scanResult.success ? "ตรวจคำตอบสำเร็จ!" : "ไม่สามารถตรวจคะแนนได้"}
                   </h3>
                   <div className="text-xs text-slate-400">
-                    ประมวลผล: {scanResult.executionTimeMs} ms • ความเชื่อมั่น: {(scanResult.confidenceAvg * 100).toFixed(1)}%
+                    ประมวลผล: {scanResult.executionTimeMs} ms • มาร์กเกอร์: {scanResult.markersUsed || 6} จุด • ความเชื่อมั่น: {(scanResult.confidenceAvg * 100).toFixed(1)}%
                   </div>
                 </div>
               </div>
@@ -687,22 +951,68 @@ export function OmrCameraScanner({
             {scanResult.success ? (
               <div className="space-y-3">
                 {/* Score Big Display */}
-                <div className="grid grid-cols-3 gap-2 py-3 px-4 rounded-2xl bg-slate-800/80 border border-slate-700 text-center">
+                <div className="grid grid-cols-4 gap-2 py-3 px-3 rounded-2xl bg-slate-800/80 border border-slate-700 text-center">
                   <div>
-                    <div className="text-[11px] text-slate-400">รหัสนักเรียน</div>
-                    <div className="text-base font-bold text-purple-400">{scanResult.studentId || "00000"}</div>
+                    <div className="text-[10px] text-slate-400">รหัสนักเรียน</div>
+                    <div className="text-sm font-bold text-purple-400">{scanResult.studentId || "00000"}</div>
                   </div>
                   <div>
-                    <div className="text-[11px] text-slate-400">ชุดข้อสอบ</div>
-                    <div className="text-base font-bold text-indigo-400">ชุด {scanResult.versionCode}</div>
+                    <div className="text-[10px] text-slate-400">ชุดข้อสอบ</div>
+                    <div className="text-sm font-bold text-indigo-400">ชุด {scanResult.versionCode}</div>
                   </div>
                   <div>
-                    <div className="text-[11px] text-slate-400">คะแนนสุทธิ</div>
-                    <div className="text-base font-bold text-emerald-400">
-                      {savedSubmission ? `${Number(savedSubmission.netScore)} คะแนน` : "กำลังบันทึก..."}
+                    <div className="text-[10px] text-slate-400">คะแนนอัตนัยรวม</div>
+                    <div className="text-sm font-bold text-cyan-400">
+                      {scanResult.subjectiveScore != null ? `${scanResult.subjectiveScore} คะแนน` : "-"}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] text-slate-400">คะแนนสุทธิ</div>
+                    <div className="text-sm font-bold text-emerald-400">
+                      {savedSubmission ? `${Number(savedSubmission.netScore)} คะแนน` : `ตอบ ${scanResult.items.filter(i => i.itemNo <= totalItems && i.detectedChoices.length > 0).length}/${totalItems} ข้อ`}
                     </div>
                   </div>
                 </div>
+
+                {/* Visual Bubble Alignment Inspection Overlay ("ชี้ช่วงวงกลมแต่ละข้อในการแสกน") */}
+                {diagnosticImageUrl && (
+                  <div className="rounded-2xl border border-slate-700 bg-slate-950/90 p-2.5 space-y-2">
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="font-bold text-emerald-300 flex items-center gap-1.5">
+                        🎯 ภาพชี้ตำแหน่งวงกลมแต่ละข้อ &amp; Timing Marks (ZipGrade Mode)
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setShowBubbleOverlay(!showBubbleOverlay)}
+                        className="text-purple-300 hover:text-white underline text-[10.5px]"
+                      >
+                        {showBubbleOverlay ? "ซ่อนภาพวงกลม" : "แสดงภาพวงกลม"}
+                      </button>
+                    </div>
+                    {showBubbleOverlay && (
+                      <>
+                        <div className="rounded-xl overflow-hidden border border-slate-800 max-h-56 overflow-y-auto bg-black">
+                          <img
+                            src={diagnosticImageUrl}
+                            alt="OMR Bubble Alignment Overlay"
+                            className="w-full h-auto object-contain"
+                          />
+                        </div>
+                        <div className="flex flex-wrap items-center gap-3 text-[10px] text-slate-300 px-1">
+                          <span className="inline-flex items-center gap-1">
+                            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" /> วงกลมที่ตรวจพบการฝน
+                          </span>
+                          <span className="inline-flex items-center gap-1">
+                            <span className="w-2.5 h-2.5 rounded-full border border-purple-400 inline-block" /> วงกลมตัวเลือกแต่ละข้อ
+                          </span>
+                          <span className="inline-flex items-center gap-1">
+                            <span className="w-2.5 h-2.5 bg-cyan-400 inline-block" /> 6 จุดมาร์กเกอร์ &amp; Timing Marks
+                          </span>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
 
                 {savedSubmission && (
                   <div className="flex items-center justify-between text-xs text-slate-300 px-1 py-1 rounded-xl bg-slate-800/50">

@@ -429,7 +429,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
   const [academicPlanningAllowedUserIds, setAcademicPlanningAllowedUserIds] = useState<string[]>([]);
   const [brandSubheader, setBrandSubheader] = useState("ระบบจัดการการลา");
   const [classroomPortalUrl, setClassroomPortalUrl] = useState(
-    process.env.NEXT_PUBLIC_CLASSROOM_PORTAL_URL || "http://localhost:5173"
+    process.env.NEXT_PUBLIC_CLASSROOM_PORTAL_URL || "https://kp-classroom-management.vercel.app"
   );
   const [isLoadingSettings, setIsLoadingSettings] = useState(true);
   const [userDuties, setUserDuties] = useState<any[]>([]);
@@ -534,8 +534,10 @@ function AppContent({ children }: { children: React.ReactNode }) {
       setBrandName(finalSchoolName);
       setBrandLogo(finalLogoUrl);
       setBrandSubheader(finalSubheader);
-      if ((s as any).classroomPortalUrl) {
+      if ((s as any).classroomPortalUrl && !String((s as any).classroomPortalUrl).includes("localhost")) {
         setClassroomPortalUrl((s as any).classroomPortalUrl);
+      } else {
+        setClassroomPortalUrl(process.env.NEXT_PUBLIC_CLASSROOM_PORTAL_URL || "https://kp-classroom-management.vercel.app");
       }
       setEnableLeave(finalEnableLeave);
       setEnableAttendance(finalEnableAttendance);

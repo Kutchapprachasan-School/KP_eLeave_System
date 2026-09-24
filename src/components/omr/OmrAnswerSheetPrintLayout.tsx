@@ -364,7 +364,7 @@ export function OmrAnswerSheet({
             </div>
           </div>
 
-          {/* Question Bubbles Grid: Structured by Standardized Tiers */}
+          {/* Question Bubbles Grid: Structured by Standardized Tiers (Enlarged Bubbles Rev 10.0) */}
           <div className="my-0.5">
             {tierMax === 20 ? (
               /* 20 ITEMS: 2 Columns of 10 items (Col 1: 1-10, Col 2: 11-20) */
@@ -374,6 +374,8 @@ export function OmrAnswerSheet({
                   endItem={10}
                   totalItems={totalItems}
                   colTitle="ข้อ 1 - 10"
+                  bubbleSize="w-[17px] h-[17px] text-[8.5px]"
+                  itemPadding="py-0.5"
                   choiceCount={choiceCount}
                 />
                 <MultipleChoiceColumn
@@ -381,6 +383,8 @@ export function OmrAnswerSheet({
                   endItem={20}
                   totalItems={totalItems}
                   colTitle="ข้อ 11 - 20"
+                  bubbleSize="w-[17px] h-[17px] text-[8.5px]"
+                  itemPadding="py-0.5"
                   choiceCount={choiceCount}
                 />
               </div>
@@ -392,6 +396,7 @@ export function OmrAnswerSheet({
                   endItem={20}
                   totalItems={totalItems}
                   colTitle="ข้อ 1 - 20"
+                  bubbleSize="w-4 h-4 text-[8px]"
                   choiceCount={choiceCount}
                 />
                 <MultipleChoiceColumn
@@ -399,6 +404,7 @@ export function OmrAnswerSheet({
                   endItem={40}
                   totalItems={totalItems}
                   colTitle={`ข้อ 21 - ${totalItems}`}
+                  bubbleSize="w-4 h-4 text-[8px]"
                   choiceCount={choiceCount}
                 />
               </div>
@@ -410,7 +416,7 @@ export function OmrAnswerSheet({
                   endItem={20}
                   totalItems={totalItems}
                   colTitle="ข้อ 1 - 20"
-                  bubbleSize="w-3 h-3 text-[7px]"
+                  bubbleSize="w-3.5 h-3.5 text-[7.5px]"
                   choiceCount={choiceCount}
                 />
                 <MultipleChoiceColumn
@@ -418,7 +424,7 @@ export function OmrAnswerSheet({
                   endItem={40}
                   totalItems={totalItems}
                   colTitle="ข้อ 21 - 40"
-                  bubbleSize="w-3 h-3 text-[7px]"
+                  bubbleSize="w-3.5 h-3.5 text-[7.5px]"
                   choiceCount={choiceCount}
                 />
                 <MultipleChoiceColumn
@@ -426,7 +432,7 @@ export function OmrAnswerSheet({
                   endItem={60}
                   totalItems={totalItems}
                   colTitle={`ข้อ 41 - ${totalItems}`}
-                  bubbleSize="w-3 h-3 text-[7px]"
+                  bubbleSize="w-3.5 h-3.5 text-[7.5px]"
                   choiceCount={choiceCount}
                 />
               </div>
@@ -438,7 +444,7 @@ export function OmrAnswerSheet({
                   endItem={20}
                   totalItems={totalItems}
                   colTitle="1 - 20"
-                  bubbleSize="w-3 h-3 text-[6.5px]"
+                  bubbleSize="w-3.5 h-3.5 text-[7px]"
                   choiceCount={choiceCount}
                 />
                 <MultipleChoiceColumn
@@ -446,7 +452,7 @@ export function OmrAnswerSheet({
                   endItem={40}
                   totalItems={totalItems}
                   colTitle="21 - 40"
-                  bubbleSize="w-3 h-3 text-[6.5px]"
+                  bubbleSize="w-3.5 h-3.5 text-[7px]"
                   choiceCount={choiceCount}
                 />
                 <MultipleChoiceColumn
@@ -454,7 +460,7 @@ export function OmrAnswerSheet({
                   endItem={60}
                   totalItems={totalItems}
                   colTitle="41 - 60"
-                  bubbleSize="w-3 h-3 text-[6.5px]"
+                  bubbleSize="w-3.5 h-3.5 text-[7px]"
                   choiceCount={choiceCount}
                 />
                 <MultipleChoiceColumn
@@ -462,7 +468,7 @@ export function OmrAnswerSheet({
                   endItem={80}
                   totalItems={totalItems}
                   colTitle={`61 - ${totalItems}`}
-                  bubbleSize="w-3 h-3 text-[6.5px]"
+                  bubbleSize="w-3.5 h-3.5 text-[7px]"
                   choiceCount={choiceCount}
                 />
               </div>
@@ -474,7 +480,7 @@ export function OmrAnswerSheet({
                   endItem={20}
                   totalItems={totalItems}
                   colTitle="1 - 20"
-                  bubbleSize="w-2.5 h-2.5 text-[6px]"
+                  bubbleSize="w-3 h-3 text-[6.5px]"
                   choiceCount={choiceCount}
                 />
                 <MultipleChoiceColumn
@@ -482,7 +488,7 @@ export function OmrAnswerSheet({
                   endItem={40}
                   totalItems={totalItems}
                   colTitle="21 - 40"
-                  bubbleSize="w-2.5 h-2.5 text-[6px]"
+                  bubbleSize="w-3 h-3 text-[6.5px]"
                   choiceCount={choiceCount}
                 />
                 <MultipleChoiceColumn
@@ -490,7 +496,7 @@ export function OmrAnswerSheet({
                   endItem={60}
                   totalItems={totalItems}
                   colTitle="41 - 60"
-                  bubbleSize="w-2.5 h-2.5 text-[6px]"
+                  bubbleSize="w-3 h-3 text-[6.5px]"
                   choiceCount={choiceCount}
                 />
                 <MultipleChoiceColumn
@@ -498,7 +504,7 @@ export function OmrAnswerSheet({
                   endItem={80}
                   totalItems={totalItems}
                   colTitle="61 - 80"
-                  bubbleSize="w-2.5 h-2.5 text-[6px]"
+                  bubbleSize="w-3 h-3 text-[6.5px]"
                   choiceCount={choiceCount}
                 />
                 <MultipleChoiceColumn
@@ -506,7 +512,7 @@ export function OmrAnswerSheet({
                   endItem={100}
                   totalItems={totalItems}
                   colTitle={`81 - ${totalItems}`}
-                  bubbleSize="w-2.5 h-2.5 text-[6px]"
+                  bubbleSize="w-3 h-3 text-[6.5px]"
                   choiceCount={choiceCount}
                 />
               </div>

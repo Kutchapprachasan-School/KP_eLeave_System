@@ -470,6 +470,8 @@ export function generate80ItemGridMetadata(choiceCount: number = 4): TemplateGri
     });
   }
 
+  const timingMarks = createTimingMarks(questionBlocks, colBaseUs, 20);
+
   return {
     canvasWidth: CANVAS_W,
     canvasHeight: CANVAS_H,
@@ -477,7 +479,8 @@ export function generate80ItemGridMetadata(choiceCount: number = 4): TemplateGri
     qrCodeAnchor: createQrAnchor(),
     studentIdGrid: createStudentIdGrid(),
     versionCodeGrid: createVersionCodeGrid(),
-    subjectiveScores: createSubjectiveScores(2),
+    subjectiveScores: createCombinedSubjectiveScore(),
+    timingMarks,
     questionBlocks,
     choiceCount: choices.length,
     scanZoneAspectRatio: calcScanZoneAspectRatio()
@@ -514,6 +517,8 @@ export function generate100ItemGridMetadata(choiceCount: number = 4): TemplateGr
     });
   }
 
+  const timingMarks = createTimingMarks(questionBlocks, colBaseUs, 20);
+
   return {
     canvasWidth: CANVAS_W,
     canvasHeight: CANVAS_H,
@@ -521,7 +526,8 @@ export function generate100ItemGridMetadata(choiceCount: number = 4): TemplateGr
     qrCodeAnchor: createQrAnchor(),
     studentIdGrid: createStudentIdGrid(),
     versionCodeGrid: createVersionCodeGrid(),
-    subjectiveScores: createSubjectiveScores(2),
+    subjectiveScores: createCombinedSubjectiveScore(),
+    timingMarks,
     questionBlocks,
     choiceCount: choices.length,
     scanZoneAspectRatio: calcScanZoneAspectRatio()
