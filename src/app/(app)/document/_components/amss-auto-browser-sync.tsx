@@ -7,6 +7,7 @@ import {
   syncAMSSDocumentsAutomatically, 
   getAMSSCredentials,
   fetchAmssPreviewDocs,
+  syncLatestAMSSDocuments,
   importSelectedAMSSDocuments,
   AMSSPreviewItem 
 } from "@/app/actions/incoming";
@@ -232,29 +233,31 @@ export default function AmssAutoBrowserSync({ onSuccess, showToast, autoTrigger 
   };
 
   const handleDirectOneClickSync = async () => {
-    try {
-      const res = await fetchAmssPreviewDocs({
-        yearFilter: getEffectiveYear(),
-        monthFilter: selectedMonth,
-        maxPages: maxPages
-      });
+    setSyncing(true);
+    setStatusMsg("กำลังตรวจสอบและดึงหนังสือรับล่าสุดจาก AMSS++ ใน 1 คลิก...");
 
-      if (res.success && res.data && res.data.items && res.data.items.length > 0) {
-        setPreviewItems(res.data.items);
-        const newKeys = new Set<string>();
-        res.data.items.forEach(i => {
-          if (!i.isExisting) {
-            newKeys.add(i.amssLink || `${i.receiveNo}-${i.docRefNo}`);
+    try {
+      const res = await syncLatestAMSSDocuments({ maxPages: 1 });
+      if (res.success && res.data) {
+        setSyncing(false);
+        setStatusMsg(null);
+        if (res.data.isUpToDate) {
+          if (showToast) showToast("✨ ข้อมูลเป็นปัจจุบันแล้ว (ไม่มีหนังสือรับใหม่ล่าสุดเพิ่มเติม)", "success");
+        } else {
+          if (showToast) {
+            showToast(`⚡ ลงทะเบียนรับหนังสือใหม่ล่าสุดสำเร็จ ${res.data.importedCount} เรื่อง!`, "success");
           }
-        });
-        setSelectedKeys(newKeys);
-        setShowPreviewModal(true);
+          if (onSuccess) onSuccess(res.data.importedCount);
+        }
       } else {
-        // Fallback to opening browser pop-up sync automatically
+        // Fallback to opening browser pop-up sync automatically if server action returns failure
         await handleAutoBrowserSync();
       }
-    } catch (err) {
+    } catch (err: any) {
+      // If Cloudflare WAF or credential error occurs, fallback gracefully to browser helper
       await handleAutoBrowserSync();
+    } finally {
+      setSyncing(false);
     }
   };
 

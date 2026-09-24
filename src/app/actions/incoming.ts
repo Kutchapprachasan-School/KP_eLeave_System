@@ -1116,6 +1116,62 @@ export const fetchAmssPreviewDocs = safeAction(async (options: {
   };
 });
 
+// 1-Click Instant Sync of Latest AMSS++ Documents
+export const syncLatestAMSSDocuments = safeAction(async (options?: { maxPages?: number }) => {
+  const user = await getSessionUser();
+  const credentials = await prisma.aMSSCredentials.findUnique({
+    where: { userId: user.id }
+  });
+
+  if (!credentials || !credentials.url || !credentials.username || !credentials.password) {
+    throw new Error("ยังไม่ได้ตั้งค่าข้อมูลบัญชี AMSS++ (ไปที่ตั้งค่าระบบเอกสารรับ-ส่งเพื่อกรอกรหัสผ่าน)");
+  }
+
+  const maxPages = options?.maxPages || 1; // Default to 1 page for instant 1-click sync of latest docs
+  const targetYear = new Date().getFullYear() + 543;
+
+  const previewRes = await fetchAmssPreviewDocs({
+    yearFilter: targetYear,
+    monthFilter: 0,
+    maxPages
+  });
+
+  if (!previewRes.success || !previewRes.data) {
+    throw new Error(previewRes.error || "ไม่สามารถดึงข้อมูลรายการล่าสุดจาก AMSS++ ได้");
+  }
+
+  const items = previewRes.data.items || [];
+  const newItems = items.filter(i => !i.isExisting);
+
+  if (newItems.length === 0) {
+    return {
+      importedCount: 0,
+      totalLatestFound: items.length,
+      alreadyExisted: items.length,
+      isUpToDate: true
+    };
+  }
+
+  // Import new items automatically
+  const importRes = await importSelectedAMSSDocuments(newItems);
+  if (!importRes.success || !importRes.data) {
+    throw new Error(importRes.error || "เกิดข้อผิดพลาดในการลงทะเบียนรับหนังสือ");
+  }
+
+  // Save last sync time
+  await prisma.aMSSCredentials.update({
+    where: { userId: user.id },
+    data: { lastSyncAt: new Date() }
+  });
+
+  return {
+    importedCount: importRes.data.importedCount,
+    totalLatestFound: items.length,
+    alreadyExisted: items.length - newItems.length,
+    isUpToDate: false
+  };
+});
+
 export const importSelectedAMSSDocuments = safeAction(async (selectedItems: AMSSPreviewItem[]) => {
   const user = await getSessionUser();
   if (!selectedItems || selectedItems.length === 0) {
