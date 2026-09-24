@@ -1,20 +1,27 @@
 /**
- * KP Academic OMR - Real-Time Fiducial Marker Detection Engine
+ * KP Academic OMR - Real-Time 6-Point Fiducial Marker Detection Engine (ZipGrade Architecture)
  * 
- * ตรวจจับมาร์กเกอร์สี่เหลี่ยมดำ 4 มุมจากเฟรมกล้องมือถือแบบ real-time
- * Algorithm: Downsample → Grayscale → Otsu Threshold → Connected Components → Square Filter
+ * ตรวจจับมาร์กเกอร์สี่เหลี่ยมดำ 6 จุด (4 มุมหลัก + 2 จุดกึ่งกลางซ้าย-ขวา) จากเฟรมกล้องมือถือแบบ real-time
+ * Algorithm: Downsample → Grayscale → Otsu Threshold → Connected Components → Square Filter → 6-Point Collinearity Validation
  * เป้าหมาย: ≤200ms ต่อเฟรม @ 480p บนมือถือ
  */
 
 import type { Point2D, QuadPoints } from "./omrEngine";
 
+export interface SixPointMarkers extends QuadPoints {
+  midLeft?: Point2D;
+  midRight?: Point2D;
+}
+
 export interface MarkerDetectionResult {
-  /** ตรวจพบครบ 4 มุมหรือไม่ */
+  /** ตรวจพบครบอย่างน้อย 4 มุมหลักหรือไม่ (6 จุดจะได้ความแม่นยำสูงสุดแบบ Piecewise Homography) */
   found: boolean;
-  /** จำนวนมาร์กเกอร์ที่ตรวจพบ (0-4) */
+  /** จำนวนมาร์กเกอร์ที่ตรวจพบ (0-6) */
   markersDetected: number;
-  /** พิกัด 4 มุมที่ตรวจพบ (null หากไม่ครบ) */
-  corners: QuadPoints | null;
+  /** พิกัด 4 มุมหลัก + 2 จุดกึ่งกลาง (null หากไม่ครบ) */
+  corners: SixPointMarkers | null;
+  /** จุดกึ่งกลางซ้าย-ขวา สำหรับทำ Piecewise Dual-Zone Homography แบบ ZipGrade */
+  midPoints?: { midLeft: Point2D; midRight: Point2D } | null;
   /** ระดับความเชื่อมั่น 0.0 - 1.0 */
   confidence: number;
   /** เวลาประมวลผล (ms) */
@@ -219,10 +226,53 @@ function filterSquareMarkers(
 }
 
 /**
- * จัดเรียง 4 มาร์กเกอร์เป็น TL, TR, BL, BR
+ * จัดเรียง 4-6 มาร์กเกอร์เป็น TL, TR, BL, BR (+ ML, MR สำหรับระบบ 6 จุดแบบ ZipGrade)
  */
-function assignCorners(markers: BlobInfo[], scaleX: number, scaleY: number): QuadPoints {
-  // คำนวณ centroid ของทั้ง 4 จุด
+function assignMarkers(
+  markers: BlobInfo[],
+  scaleX: number,
+  scaleY: number
+): { corners: SixPointMarkers; midPoints: { midLeft: Point2D; midRight: Point2D } | null; matchedCount: number } {
+  if (markers.length >= 6) {
+    const top6 = markers.slice(0, 6);
+    const sortedByY = [...top6].sort((a, b) => a.cy - b.cy);
+    const topPair = [sortedByY[0], sortedByY[1]].sort((a, b) => a.cx - b.cx);
+    const midPair = [sortedByY[2], sortedByY[3]].sort((a, b) => a.cx - b.cx);
+    const botPair = [sortedByY[4], sortedByY[5]].sort((a, b) => a.cx - b.cx);
+
+    const tl: Point2D = { x: topPair[0].cx * scaleX, y: topPair[0].cy * scaleY };
+    const tr: Point2D = { x: topPair[1].cx * scaleX, y: topPair[1].cy * scaleY };
+    const ml: Point2D = { x: midPair[0].cx * scaleX, y: midPair[0].cy * scaleY };
+    const mr: Point2D = { x: midPair[1].cx * scaleX, y: midPair[1].cy * scaleY };
+    const bl: Point2D = { x: botPair[0].cx * scaleX, y: botPair[0].cy * scaleY };
+    const br: Point2D = { x: botPair[1].cx * scaleX, y: botPair[1].cy * scaleY };
+
+    const expectedMlX = (tl.x + bl.x) / 2;
+    const expectedMlY = (tl.y + bl.y) / 2;
+    const expectedMrX = (tr.x + br.x) / 2;
+    const expectedMrY = (tr.y + br.y) / 2;
+    const widthSpan = Math.max(1, Math.hypot(tr.x - tl.x, tr.y - tl.y));
+    const heightSpan = Math.max(1, Math.hypot(bl.x - tl.x, bl.y - tl.y));
+
+    const mlErr = Math.hypot(ml.x - expectedMlX, ml.y - expectedMlY) / Math.max(widthSpan, heightSpan);
+    const mrErr = Math.hypot(mr.x - expectedMrX, mr.y - expectedMrY) / Math.max(widthSpan, heightSpan);
+
+    if (mlErr < 0.22 && mrErr < 0.22) {
+      return {
+        corners: {
+          topLeft: tl,
+          topRight: tr,
+          bottomLeft: bl,
+          bottomRight: br,
+          midLeft: ml,
+          midRight: mr
+        },
+        midPoints: { midLeft: ml, midRight: mr },
+        matchedCount: 6
+      };
+    }
+  }
+
   const avgX = markers.reduce((s, m) => s + m.cx, 0) / markers.length;
   const avgY = markers.reduce((s, m) => s + m.cy, 0) / markers.length;
 
@@ -234,29 +284,38 @@ function assignCorners(markers: BlobInfo[], scaleX: number, scaleY: number): Qua
   for (const m of markers) {
     const isLeft = m.cx < avgX;
     const isTop = m.cy < avgY;
+    const dist = Math.hypot(m.cx - avgX, m.cy - avgY);
 
-    if (isLeft && isTop) tl = m;
-    else if (!isLeft && isTop) tr = m;
-    else if (isLeft && !isTop) bl = m;
-    else br = m;
+    if (isLeft && isTop) {
+      if (!tl || dist > Math.hypot(tl.cx - avgX, tl.cy - avgY)) tl = m;
+    } else if (!isLeft && isTop) {
+      if (!tr || dist > Math.hypot(tr.cx - avgX, tr.cy - avgY)) tr = m;
+    } else if (isLeft && !isTop) {
+      if (!bl || dist > Math.hypot(bl.cx - avgX, bl.cy - avgY)) bl = m;
+    } else {
+      if (!br || dist > Math.hypot(br.cx - avgX, br.cy - avgY)) br = m;
+    }
   }
 
-  // Fallback: ถ้า assign ไม่ได้ ใช้ sorting
   if (!tl || !tr || !bl || !br) {
-    const sorted = [...markers].sort((a, b) => (a.cx + a.cy) - (b.cx + b.cy));
+    const top4 = markers.slice(0, 4);
+    const sorted = [...top4].sort((a, b) => (a.cx + a.cy) - (b.cx + b.cy));
     tl = sorted[0];
     br = sorted[3];
-    // จาก 2 ตัวที่เหลือ เลือกตาม x
     const mid = [sorted[1], sorted[2]].sort((a, b) => a.cx - b.cx);
     bl = mid[0].cy > mid[1].cy ? mid[0] : mid[1];
     tr = mid[0].cy > mid[1].cy ? mid[1] : mid[0];
   }
 
   return {
-    topLeft: { x: tl.cx * scaleX, y: tl.cy * scaleY },
-    topRight: { x: tr.cx * scaleX, y: tr.cy * scaleY },
-    bottomLeft: { x: bl.cx * scaleX, y: bl.cy * scaleY },
-    bottomRight: { x: br.cx * scaleX, y: br.cy * scaleY }
+    corners: {
+      topLeft: { x: tl.cx * scaleX, y: tl.cy * scaleY },
+      topRight: { x: tr.cx * scaleX, y: tr.cy * scaleY },
+      bottomLeft: { x: bl.cx * scaleX, y: bl.cy * scaleY },
+      bottomRight: { x: br.cx * scaleX, y: br.cy * scaleY }
+    },
+    midPoints: null,
+    matchedCount: 4
   };
 }
 
@@ -286,7 +345,7 @@ function validateQuad(quad: QuadPoints): boolean {
 }
 
 /**
- * ตรวจจับมาร์กเกอร์สี่เหลี่ยมดำ 4 มุมจากเฟรมกล้อง
+ * ตรวจจับมาร์กเกอร์สี่เหลี่ยมดำ 6 จุด (4 มุม + 2 จุดกลาง) จากเฟรมกล้อง
  * 
  * @param imageData - RGBA pixel data จาก canvas.getImageData()
  * @param width - ความกว้างของภาพต้นฉบับ
@@ -343,48 +402,54 @@ export function detectFiducialMarkers(
   const allBlobs = extractBlobs(labels, dw, dh);
   const squareMarkers = filterSquareMarkers(allBlobs, dw, dh);
 
-  // 7. เลือก 4 ตัวที่ใหญ่ที่สุด
+  // 7. เลือกสูงสุด 6 ตัวที่ใหญ่ที่สุด (4 มุม + 2 กึ่งกลาง)
   squareMarkers.sort((a, b) => b.area - a.area);
-  const top4 = squareMarkers.slice(0, 4);
+  const topCandidates = squareMarkers.slice(0, 6);
 
   const processingTimeMs = Math.round(performance.now() - startTime);
 
-  if (top4.length < 4) {
+  if (topCandidates.length < 4) {
     return {
       found: false,
-      markersDetected: top4.length,
+      markersDetected: topCandidates.length,
       corners: null,
-      confidence: top4.length / 4,
+      midPoints: null,
+      confidence: topCandidates.length / 6,
       processingTimeMs
     };
   }
 
-  // 8. Assign corners (scale back to original coordinates)
+  // 8. Assign corners & midPoints (scale back to original coordinates)
   const scaleX = 1 / scale;
   const scaleY = 1 / scale;
-  const corners = assignCorners(top4, scaleX, scaleY);
+  const assigned = assignMarkers(topCandidates, scaleX, scaleY);
 
   // 9. Validate quad shape
-  if (!validateQuad(corners)) {
+  if (!validateQuad(assigned.corners)) {
     return {
       found: false,
-      markersDetected: top4.length,
+      markersDetected: topCandidates.length,
       corners: null,
+      midPoints: null,
       confidence: 0.3,
       processingTimeMs
     };
   }
 
-  // 10. คำนวณ confidence จากความสม่ำเสมอของขนาดมาร์กเกอร์
-  const areas = top4.map(m => m.area);
+  // 10. คำนวณ confidence จากความสม่ำเสมอของขนาดมาร์กเกอร์ + โบนัส 6 จุด
+  const areas = topCandidates.slice(0, 4).map(m => m.area);
   const avgArea = areas.reduce((s, a) => s + a, 0) / 4;
   const areaVariance = areas.reduce((s, a) => s + Math.abs(a - avgArea) / avgArea, 0) / 4;
-  const confidence = Math.max(0.5, Math.min(1.0, 1.0 - areaVariance * 2));
+  let confidence = Math.max(0.5, Math.min(1.0, 1.0 - areaVariance * 2));
+  if (assigned.matchedCount === 6) {
+    confidence = Math.min(1.0, confidence + 0.08);
+  }
 
   return {
     found: true,
-    markersDetected: 4,
-    corners,
+    markersDetected: assigned.matchedCount,
+    corners: assigned.corners,
+    midPoints: assigned.midPoints,
     confidence,
     processingTimeMs
   };
