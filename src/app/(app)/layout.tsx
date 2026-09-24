@@ -889,24 +889,6 @@ function AppContent({ children }: { children: React.ReactNode }) {
       ]
     : [];
 
-  // Sub-items for Student Affairs System (ระบบบริหารงานกิจการนักเรียน & วินัย)
-  const studentAffairsSubItems = showStudentAffairs
-    ? [
-        { href: "/student-affairs", label: "บริหารงานกิจการนักเรียน", icon: Users },
-        { href: "/student-affairs?view=discipline", label: "บันทึกวินัย & พฤติกรรม", icon: CheckSquare },
-        { href: "/student-affairs?view=care", label: "ระบบดูแลช่วยเหลือนักเรียน", icon: BookOpen },
-      ]
-    : [];
-
-  // Sub-items for Student Council System (ระบบบริหารงานสภานักเรียน E-Voting)
-  const studentCouncilSubItems = showStudentCouncil
-    ? [
-        { href: "/student-council", label: "เลือกตั้งออนไลน์ E-Voting", icon: Vote },
-        { href: "/student-council?view=activities", label: "กิจกรรมสภานักเรียน", icon: Calendar },
-        { href: "/student-council?view=suggestions", label: "ตู้รับข้อเสนอแนะนักเรียน", icon: Archive },
-      ]
-    : [];
-
   // Items for Settings category (ตั้งค่าระบบ)
   const settingsNavItems = [];
   if (activePermissions.settings?.includes(userRole)) {
@@ -1119,7 +1101,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
                 <ExternalLink className="w-3.5 h-3.5 opacity-60 group-hover:opacity-100 group-hover:translate-x-0.5 -translate-y-0.5 transition-all shrink-0 text-emerald-600 dark:text-emerald-400" />
               </div>
               <div className="text-[10.5px] text-emerald-600/80 dark:text-emerald-400/80 truncate font-normal">
-                Classroom Portal
+                {lang === "en" ? "Classroom & Student Affairs" : "ชั้นเรียน • กิจการนักเรียน • สภานักเรียน"}
               </div>
             </div>
           </a>
@@ -1295,41 +1277,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
             </div>
           )}
 
-          {/* Section 5: กิจการนักเรียน */}
-          {studentAffairsSubItems.length > 0 && (
-            <div className="space-y-1.5">
-              <div className="px-3 pb-0.5 text-[11.5px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-                กิจการนักเรียน
-              </div>
-              <CollapsibleGroup
-                title="ระบบกิจการนักเรียน"
-                icon={Users}
-                items={studentAffairsSubItems}
-                pathname={pathname}
-                searchParams={searchParams}
-                renderNavItem={renderNavItem}
-              />
-            </div>
-          )}
-
-          {/* Section 6: สภานักเรียน */}
-          {studentCouncilSubItems.length > 0 && (
-            <div className="space-y-1.5">
-              <div className="px-3 pb-0.5 text-[11.5px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-                สภานักเรียน
-              </div>
-              <CollapsibleGroup
-                title="ระบบสภานักเรียน"
-                icon={Vote}
-                items={studentCouncilSubItems}
-                pathname={pathname}
-                searchParams={searchParams}
-                renderNavItem={renderNavItem}
-              />
-            </div>
-          )}
-
-          {/* Section 7: ตั้งค่าระบบ */}
+          {/* Section 5: ตั้งค่าระบบ */}
           {settingsNavItems.length > 0 && (
             <div className="space-y-1.5">
               <div className="px-3 pb-0.5 text-[11.5px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">

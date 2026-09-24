@@ -7927,32 +7927,6 @@ function doPost(e) {
         saveKey: "enableBudget",
         customPath: "/budget",
       },
-      {
-        id: "student_affairs",
-        icon: <Users className="w-5 h-5" />,
-        activeColor: "text-rose-600 dark:text-rose-400",
-        activeBg: "bg-rose-100 dark:bg-rose-950/40",
-        activeBorder: "bg-rose-50/40 dark:bg-rose-950/10 border-rose-200 dark:border-rose-800",
-        toggleColor: "bg-rose-600",
-        title: lang === "en" ? "Student Affairs & Discipline" : "ระบบบริหารงานกิจการนักเรียน & วินัย",
-        desc: lang === "en" ? "Student discipline, behavior scoring, care system & morning attendance" : "บันทึกวินัยนักเรียน ตัดคะแนนพฤติกรรม ระบบดูแลช่วยเหลือ และเช็คชื่อเสาธง",
-        enabled: enableStudentAffairs,
-        saveKey: "enableStudentAffairs",
-        customPath: "/student-affairs",
-      },
-      {
-        id: "student_council",
-        icon: <Vote className="w-5 h-5" />,
-        activeColor: "text-blue-600 dark:text-blue-400",
-        activeBg: "bg-blue-100 dark:bg-blue-950/40",
-        activeBorder: "bg-blue-50/40 dark:bg-blue-950/10 border-blue-200 dark:border-blue-800",
-        toggleColor: "bg-blue-600",
-        title: lang === "en" ? "Student Council E-Voting" : "ระบบบริหารงานสภานักเรียน E-Voting",
-        desc: lang === "en" ? "Student e-voting election, student council activities & student voice" : "เลือกตั้งสภานักเรียนออนไลน์ E-Voting ปฏิทินกิจกรรมนักเรียน และตู้รับข้อเสนอแนะ",
-        enabled: enableStudentCouncil,
-        saveKey: "enableStudentCouncil",
-        customPath: "/student-council",
-      },
     ];
 
     const SUB_CATEGORIES = [
@@ -7983,20 +7957,6 @@ function doPost(e) {
         desc: lang === "en" ? "Project budgeting, procurement, and financial disbursement tracking" : "ตั้งงบประมาณโครงการ ควบคุมการเบิกจ่าย พัสดุ และรายงานทางการเงิน",
         badgeColor: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800",
         items: SUBS.filter((s) => ["budget"].includes(s.id)),
-      },
-      {
-        id: "student_affairs",
-        title: lang === "en" ? "Student Affairs Systems" : "🧑‍🤝‍🧑 หมวดงานฝ่ายกิจการนักเรียน (Student Affairs)",
-        desc: lang === "en" ? "Student discipline, behavior score system, student care, & morning attendance" : "บันทึกวินัยนักเรียน ตัดคะแนนพฤติกรรม ระบบดูแลช่วยเหลือ และเช็คชื่อเสาธง",
-        badgeColor: "bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 border-rose-200 dark:border-rose-800",
-        items: SUBS.filter((s) => ["student_affairs"].includes(s.id)),
-      },
-      {
-        id: "student_council",
-        title: lang === "en" ? "Student Council Systems" : "🗳️ หมวดงานสภานักเรียน (Student Council)",
-        desc: lang === "en" ? "E-voting student council elections, student activities & suggestion box" : "เลือกตั้งสภานักเรียนออนไลน์ E-Voting ปฏิทินกิจกรรม และตู้รับข้อเสนอแนะ",
-        badgeColor: "bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 border-blue-200 dark:border-blue-800",
-        items: SUBS.filter((s) => ["student_council"].includes(s.id)),
       },
     ];
 
