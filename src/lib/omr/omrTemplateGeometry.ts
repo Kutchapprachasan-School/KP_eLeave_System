@@ -1,558 +1,612 @@
 /**
- * KP Academic OMR - Compact Scan Zone Template Geometry (Rev 10.0)
- * 
- * รองรับ 5 แม่แบบมาตรฐาน (20, 40, 60, 80, 100 ข้อ):
- * - 20 ข้อ: 2 คอลัมน์ คอลัมน์ละ 10 ข้อ (ปัดทุก 10 ข้อ)
- * - 40 ข้อ: 2 คอลัมน์ คอลัมน์ละ 20 ข้อ
- * - 60 ข้อ: 3 คอลัมน์ คอลัมน์ละ 20 ข้อ
- * - 80 ข้อ: 4 คอลัมน์ คอลัมน์ละ 20 ข้อ
- * - 100 ข้อ: 5 คอลัมน์ คอลัมน์ละ 20 ข้อ
- * 
- * รองรับตัวเลือก A-F (สูงสุด 6 ตัวเลือก ตามที่ครูกำหนด)
- * รองรับคะแนนอัตนัยแบบยืดหยุ่น 0-30 คะแนน (หลักสิบ 0-3, หลักหน่วย 0-9)
+ * OMR Rev 11.0 Template Geometry Specification (Full-Page Side-by-Side Architecture)
+ * Canonical Resolution: 1000 x 1414 pixels (Full A4 Portrait 210mm x 297mm)
+ *
+ * Key Architectural Upgrades (ADR-20260925):
+ * 1. Full-Page Side-by-Side Layout (No Subjective Half-Page):
+ *    - Left Sidebar (u = 0.095..0.305):
+ *      a) 5-Digit Student ID (`เลขประจำตัว` 0-9)
+ *      b) 2-Digit Seat No (`เลขที่` 0-9) + 1-Column Exam Version (`รหัสชุด` ก ข ค ง)
+ *      c) Shading Example Box (`ตัวอย่างการระบาย`)
+ *    - Right Zone (u = 0.340..0.915):
+ *      a) Multiple-Choice Answer Columns with 5-row visual block grouping (`1-5`, `6-10`, ...)
+ *      b) Column Header Timing Squares (`■`) at the top of every answer column
+ *      c) Right-Edge Horizontal Timing Bars (`▬`) aligned with every question row
+ * 2. Multi-Mode Choice Support (`numChoices = 4 | 5 | 6`):
+ *    - Standard 4-choice (`ก ข ค ง` / `A B C D`) with extra-large bubbles
+ *    - Special 5-choice (`ก ข ค ง จ` / `A B C D E`) and 6-choice (`ก ข ค ง จ ฉ` / `A B C D E F`)
  */
 
+import type {
+  TemplateGridMetadata,
+  StudentIdDigitCoordinate,
+  VersionCodeCoordinate,
+  QuestionCoordinate,
+  TimingMark as EngineTimingMark
+} from "./omrEngine.ts";
+
+export type ChoiceLabel = "A" | "B" | "C" | "D" | "E" | "F";
+export type ChoiceCount = 4 | 5 | 6;
+
+export const ALL_CHOICE_LABELS: ChoiceLabel[] = ["A", "B", "C", "D", "E", "F"];
+export const THAI_CHOICE_LABELS: Record<ChoiceLabel, string> = {
+  A: "ก",
+  B: "ข",
+  C: "ค",
+  D: "ง",
+  E: "จ",
+  F: "ฉ"
+};
+
+export const DEFAULT_CALIBRATION_PARAMS = {
+  fillThresholdMultiplier: 0.28,
+  minConfidenceThreshold: 0.65,
+  multipleMarkRatioThreshold: 0.72,
+  scanZoneAspectRatio: 0.6761
+};
+
+export interface NormalizedPoint {
+  u: number; // 0.0 to 1.0 (Horizontal X / Width)
+  v: number; // 0.0 to 1.0 (Vertical Y / Height)
+}
+
 export interface BubbleCoordinate {
-  choice: string;
-  u: number; // 0.0 - 1.0 (normalized X)
-  v: number; // 0.0 - 1.0 (normalized Y)
-  radius: number; // normalized radius
-}
-
-export interface QuestionCoordinate {
-  itemNo: number;
-  bubbles: BubbleCoordinate[];
-}
-
-export interface StudentIdDigitCoordinate {
-  digitIndex: number; // 0 to 4 (5 digits)
-  value: number; // 0 to 9
   u: number;
   v: number;
-  radius: number;
+  radius: number; // Normalized radius relative to width (e.g. 0.011 = 11px on 1000px width)
 }
 
-export interface VersionCodeCoordinate {
-  versionCode: string; // "01", "02", "03", "04"
-  u: number;
-  v: number;
-  radius: number;
-}
-
-export interface SubjectiveScoreCoordinate {
+export interface QuestionRowGeometry {
   itemNo: number;
-  tens: { value: number; u: number; v: number; radius: number }[]; // 0, 1, 2, 3 (for 0-30 points)
-  units: { value: number; u: number; v: number; radius: number }[]; // 0 to 9
+  columnIndex: number; // 0-indexed column
+  rowIndexInColumn: number; // 0-indexed row inside column
+  numberLabelPos: NormalizedPoint; // Position of question number label
+  choices: Partial<Record<ChoiceLabel, BubbleCoordinate>> & Record<"A" | "B" | "C" | "D", BubbleCoordinate>;
 }
 
-/** ZipGrade-style row timing marks for scan alignment */
+export interface ColumnHeaderGeometry {
+  columnIndex: number;
+  markerPos: NormalizedPoint; // Position of black square `■` at top of column
+  choiceLabelPositions: { label: ChoiceLabel; thaiLabel: string; u: number; v: number }[];
+}
+
+export interface DigitColumnGeometry {
+  columnIndex: number; // 0 to 4 for 5-digit student ID, or 0 to 1 for 2-digit Seat No
+  boxCenter: NormalizedPoint; // Center of the top [ _ ] digit box
+  digits: Record<number, BubbleCoordinate>; // 0 to 9
+}
+
+export interface SubjectiveScoreColumn {
+  tens: Record<number, BubbleCoordinate>;
+  units: Record<number, BubbleCoordinate>;
+}
+
 export interface TimingMark {
-  /** 0-based row index within the column */
-  rowIndex: number;
-  /** 0-based column index */
-  colIndex: number;
-  /** normalized X (left edge of timing mark) */
-  u: number;
-  /** normalized Y (same as question row center) */
-  v: number;
-  /** normalized width/height of the timing mark square */
-  size: number;
+  rowIndex: number; // 0-based row index within column
+  columnIndex: number; // 0-based column index
+  u: number; // Normalized X center of timing mark
+  v: number; // Normalized Y center of timing mark
+  width: number; // Normalized width
+  height: number; // Normalized height
+  kind?: "ROW_BAR" | "COLUMN_HEADER";
 }
 
-export interface TemplateGridMetadata {
-  canvasWidth: number;
-  canvasHeight: number;
+export interface OmrTemplateGeometry {
+  code: string;
+  version: number;
+  canonicalWidth: number;
+  canonicalHeight: number;
+  scanZoneAspectRatio: number; // Width / Height of the fiducial marker bounding box
+  totalItems: number;
+  numChoices: ChoiceCount;
+  choiceLabels: ChoiceLabel[];
+  rowsPerColumn: number;
+  numColumns: number;
   fiducialMarkers: {
     topLeft: { u: number; v: number; width: number; height: number };
     topRight: { u: number; v: number; width: number; height: number };
+    midLeft: { u: number; v: number; width: number; height: number };
+    midRight: { u: number; v: number; width: number; height: number };
     bottomLeft: { u: number; v: number; width: number; height: number };
     bottomRight: { u: number; v: number; width: number; height: number };
-    midLeft?: { u: number; v: number; width: number; height: number };
-    midRight?: { u: number; v: number; width: number; height: number };
   };
-  qrCodeAnchor: {
-    u: number;
-    v: number;
-    size: number;
+  studentIdMatrix: DigitColumnGeometry[]; // 5 columns (00000 - 99999)
+  seatNoMatrix: DigitColumnGeometry[]; // 2 columns (00 - 99) (`เลขที่`)
+  versionMatrix: {
+    boxCenter: NormalizedPoint;
+    bubbles: Record<string, BubbleCoordinate>; // "01"(ก), "02"(ข), "03"(ค), "04"(ง)
   };
-  studentIdGrid: {
-    digitsCount: number;
-    digits: StudentIdDigitCoordinate[];
-  };
-  versionCodeGrid: {
-    versions: VersionCodeCoordinate[];
-  };
-  subjectiveScores?: SubjectiveScoreCoordinate[];
-  /** Row-level timing marks for scan alignment (ZipGrade-style) */
-  timingMarks?: TimingMark[];
-  questionBlocks: QuestionCoordinate[];
-  /** จำนวนตัวเลือกที่ใช้ (2-6) */
-  choiceCount: number;
-  /** สัดส่วนของ scan zone (width/height) สำหรับ IQG validation */
-  scanZoneAspectRatio: number;
+  columnHeaders: ColumnHeaderGeometry[];
+  questions: QuestionRowGeometry[];
+  timingMarks: TimingMark[]; // Right-edge horizontal row timing bars `▬` + column header marks `■`
+  subjectiveScoreMatrix: SubjectiveScoreColumn | null; // Null in Rev 11.0 (Multiple-Choice Only)
 }
 
-export const DEFAULT_CALIBRATION_PARAMS = {
-  minContrast: 80,
-  targetMargin: 0.25,
-  confidenceTiers: {
-    high: 0.85,
-    medium: 0.65
-  },
-  iqgTolerances: {
-    blurVarianceMin: 60.0,
-    glareMaxPercentage: 4.0,
-    curvatureMaxPercentage: 20.0,
-    aspectRatioTolerance: 0.20
-  }
-};
-
-const ALL_CHOICES = ["A", "B", "C", "D", "E", "F"];
-
-/** ขนาด canvas มาตรฐาน A4 @ 200 DPI */
-const CANVAS_W = 1654;
-const CANVAS_H = 2339;
-
-/** มาร์กเกอร์สี่เหลี่ยมดำ ~12mm = 94px @ 200DPI */
-const MARKER_W = 94 / CANVAS_W;
-const MARKER_H = 94 / CANVAS_H;
-const MARGIN_X = 50 / CANVAS_W;
-const MARGIN_Y = 40 / CANVAS_H;
-
-/** Mid-side markers 8mm = 63px @ 200DPI */
-const MARKER_MID_W = 63 / CANVAS_W;
-const MARKER_MID_H = 63 / CANVAS_H;
-
-/** Timing mark ~3mm = 24px @ 200DPI */
-const TIMING_MARK_SIZE = 24 / CANVAS_W;
-
-/** ขอบเขต Scan Zone: ด้านบน v=MARGIN_Y ถึง v=SCAN_ZONE_BOTTOM */
-const SCAN_ZONE_BOTTOM = 0.575;
-
-/** Bubble radius ใหญ่ขึ้นสำหรับสแกนมือถือ (Rev 10.0: 16px จากเดิม 13.5px) */
-const BUBBLE_R = 16 / CANVAS_W;
+const CANVAS_W = 1000;
+const CANVAS_H = 1414;
 
 /**
- * สร้าง fiducial markers 6 จุดรอบ Scan Zone (4 มุม + 2 กลาง)
- * Rev 10.0: เพิ่ม midLeft/midRight เพื่อเพิ่มความแม่นยำในการสแกน
+ * 6-Point Full-Page Fiducial Markers (`TL, TR, ML, MR, BL, BR`)
+ * Framing the entire A4 Answer Sheet (mirrors the standard Thai OMR layout).
+ * Horizontal span: u = 0.065 .. 0.935 (du = 0.870 -> 182.7mm)
+ * Vertical span:   v = 0.045 .. 0.955 (dv = 0.910 -> 270.3mm)
+ * Aspect Ratio:    (0.870 * 1000) / (0.910 * 1414) = 870 / 1286.74 = 0.6761
  */
-function createScanZoneMarkers() {
-  const midV = (MARGIN_Y + SCAN_ZONE_BOTTOM) / 2 - MARKER_MID_H / 2;
+function createFullPageFiducialMarkers() {
+  const mw = 26 / CANVAS_W; // 26px (~5.5mm square)
+  const mh = 26 / CANVAS_H;
   return {
-    topLeft: { u: MARGIN_X, v: MARGIN_Y, width: MARKER_W, height: MARKER_H },
-    topRight: { u: 1.0 - MARGIN_X - MARKER_W, v: MARGIN_Y, width: MARKER_W, height: MARKER_H },
-    bottomLeft: { u: MARGIN_X, v: SCAN_ZONE_BOTTOM, width: MARKER_W, height: MARKER_H },
-    bottomRight: { u: 1.0 - MARGIN_X - MARKER_W, v: SCAN_ZONE_BOTTOM, width: MARKER_W, height: MARKER_H },
-    midLeft: { u: MARGIN_X, v: midV, width: MARKER_MID_W, height: MARKER_MID_H },
-    midRight: { u: 1.0 - MARGIN_X - MARKER_MID_W, v: midV, width: MARKER_MID_W, height: MARKER_MID_H }
+    topLeft: { u: 0.065 - mw / 2, v: 0.045 - mh / 2, width: mw, height: mh },
+    topRight: { u: 0.935 - mw / 2, v: 0.045 - mh / 2, width: mw, height: mh },
+    midLeft: { u: 0.045 - mw / 2, v: 0.500 - mh / 2, width: mw, height: mh },
+    midRight: { u: 0.955 - mw / 2, v: 0.500 - mh / 2, width: mw, height: mh },
+    bottomLeft: { u: 0.065 - mw / 2, v: 0.955 - mh / 2, width: mw, height: mh },
+    bottomRight: { u: 0.935 - mw / 2, v: 0.955 - mh / 2, width: mw, height: mh }
   };
 }
 
 /**
- * สร้าง Student ID Grid (5 หลัก, ค่า 0-9)
+ * Left Sidebar Section 1: 5-Digit Student ID (`เลขประจำตัว`)
+ * 5 columns x 10 rows (0-9)
+ * Situated at u = 0.115 .. 0.235, v = 0.285 .. 0.510
  */
-function createStudentIdGrid(): TemplateGridMetadata["studentIdGrid"] {
+function createStudentIdMatrix(): DigitColumnGeometry[] {
+  const startU = 0.115;
+  const stepU = 0.030;
+  const boxV = 0.246;
+  const startV = 0.285;
+  const stepV = 0.025;
+  const radius = 10.2 / CANVAS_W; // ~4.3mm diameter
+
+  const columns: DigitColumnGeometry[] = [];
+  for (let col = 0; col < 5; col++) {
+    const u = Number((startU + col * stepU).toFixed(4));
+    const digits: Record<number, BubbleCoordinate> = {};
+    for (let d = 0; d <= 9; d++) {
+      digits[d] = {
+        u,
+        v: Number((startV + d * stepV).toFixed(4)),
+        radius
+      };
+    }
+    columns.push({
+      columnIndex: col,
+      boxCenter: { u, v: boxV },
+      digits
+    });
+  }
+  return columns;
+}
+
+/**
+ * Left Sidebar Section 2A: 2-Digit Seat Number (`เลขที่` 00-99)
+ * 2 columns x 10 rows (0-9)
+ * Situated directly below Student ID at u = 0.115 .. 0.145, v = 0.610 .. 0.835
+ */
+function createSeatNoMatrix(): DigitColumnGeometry[] {
+  const startU = 0.115;
+  const stepU = 0.030;
+  const boxV = 0.572;
+  const startV = 0.610;
+  const stepV = 0.025;
+  const radius = 10.2 / CANVAS_W;
+
+  const columns: DigitColumnGeometry[] = [];
+  for (let col = 0; col < 2; col++) {
+    const u = Number((startU + col * stepU).toFixed(4));
+    const digits: Record<number, BubbleCoordinate> = {};
+    for (let d = 0; d <= 9; d++) {
+      digits[d] = {
+        u,
+        v: Number((startV + d * stepV).toFixed(4)),
+        radius
+      };
+    }
+    columns.push({
+      columnIndex: col,
+      boxCenter: { u, v: boxV },
+      digits
+    });
+  }
+  return columns;
+}
+
+/**
+ * Left Sidebar Section 2B: Exam Version (`รหัสชุด` ก ข ค ง -> "01", "02", "03", "04")
+ * 1 column x 4 rows right next to Seat No at u = 0.195, v = 0.610 .. 0.685
+ */
+function createVersionMatrix(): {
+  boxCenter: NormalizedPoint;
+  bubbles: Record<string, BubbleCoordinate>;
+} {
+  const u = 0.195;
+  const boxV = 0.572;
+  const startV = 0.610;
+  const stepV = 0.025;
+  const radius = 10.2 / CANVAS_W;
+  const codes = ["01", "02", "03", "04"];
+  const bubbles: Record<string, BubbleCoordinate> = {};
+  codes.forEach((code, idx) => {
+    bubbles[code] = {
+      u,
+      v: Number((startV + idx * stepV).toFixed(4)),
+      radius
+    };
+  });
+  return {
+    boxCenter: { u, v: boxV },
+    bubbles
+  };
+}
+
+/**
+ * Computes the exact vertical coordinate `v` of row `r` (0-based)
+ * incorporating a subtle 5-item visual group spacing (`1-5`, `6-10`, `11-15`, ...)
+ */
+export function computeQuestionRowV(
+  rowIndex: number,
+  startV: number,
+  stepV: number,
+  blockGapV: number
+): number {
+  const groupIndex = Math.floor(rowIndex / 5);
+  return Number((startV + rowIndex * stepV + groupIndex * blockGapV).toFixed(4));
+}
+
+/**
+ * Generates Right-Side Answer Columns, Column Headers (`■`), and Right-Edge Row Timing Bars (`▬`)
+ */
+function buildAnswerZoneGeometry(params: {
+  totalItems: number;
+  numChoices: ChoiceCount;
+  rowsPerColumn: number;
+  columnStartUs: number[]; // U position of the first choice bubble ('A'/'ก') in each column
+  choiceStepU: number;
+  bubbleRadius: number;
+  headerV: number;
+  startV: number;
+  stepV: number;
+  blockGapV: number;
+  rightTimingBarU: number;
+}) {
+  const choiceLabels = ALL_CHOICE_LABELS.slice(0, params.numChoices);
+  const questions: QuestionRowGeometry[] = [];
+  const columnHeaders: ColumnHeaderGeometry[] = [];
+  const timingMarks: TimingMark[] = [];
+
+  const barW = 18 / CANVAS_W; // ~3.8mm horizontal bar `▬`
+  const barH = 8 / CANVAS_H; // ~1.7mm thick bar
+
+  // 1. Build Column Headers (`■` + ก ข ค ง ...)
+  params.columnStartUs.forEach((firstBubbleU, colIdx) => {
+    const markerU = Number((firstBubbleU - 0.032).toFixed(4));
+    const choiceLabelPositions = choiceLabels.map((label, cIdx) => ({
+      label,
+      thaiLabel: THAI_CHOICE_LABELS[label],
+      u: Number((firstBubbleU + cIdx * params.choiceStepU).toFixed(4)),
+      v: params.headerV
+    }));
+    columnHeaders.push({
+      columnIndex: colIdx,
+      markerPos: { u: markerU, v: params.headerV },
+      choiceLabelPositions
+    });
+  });
+
+  // 2. Build Right-Edge Row Timing Bars (`▬`) for every row `0 .. rowsPerColumn - 1`
+  for (let r = 0; r < params.rowsPerColumn; r++) {
+    const v = computeQuestionRowV(r, params.startV, params.stepV, params.blockGapV);
+    for (let colIdx = 0; colIdx < params.columnStartUs.length; colIdx++) {
+      timingMarks.push({
+        rowIndex: r,
+        columnIndex: colIdx,
+        u: params.rightTimingBarU,
+        v,
+        width: barW,
+        height: barH,
+        kind: "ROW_BAR"
+      });
+    }
+  }
+
+  // 3. Build Question Rows (`1 .. totalItems`)
+  for (let itemNo = 1; itemNo <= params.totalItems; itemNo++) {
+    const colIdx = Math.floor((itemNo - 1) / params.rowsPerColumn);
+    const rowIdx = (itemNo - 1) % params.rowsPerColumn;
+    const firstBubbleU = params.columnStartUs[colIdx];
+    const v = computeQuestionRowV(rowIdx, params.startV, params.stepV, params.blockGapV);
+
+    const choices: any = {};
+    choiceLabels.forEach((label, cIdx) => {
+      choices[label] = {
+        u: Number((firstBubbleU + cIdx * params.choiceStepU).toFixed(4)),
+        v,
+        radius: params.bubbleRadius
+      };
+    });
+
+    questions.push({
+      itemNo,
+      columnIndex: colIdx,
+      rowIndexInColumn: rowIdx,
+      numberLabelPos: {
+        u: Number((firstBubbleU - 0.032).toFixed(4)),
+        v
+      },
+      choices
+    });
+  }
+
+  return { choiceLabels, columnHeaders, questions, timingMarks };
+}
+
+/**
+ * Dynamic Template Generator supporting all 5 Tiers (20, 40, 60, 80, 100)
+ * and 3 Choice Modes (4 = ก-ง Standard, 5 = ก-จ Special, 6 = ก-ฉ Special)
+ */
+export function buildOmrTemplateGeometry(
+  totalItemsInput: number,
+  numChoicesInput: ChoiceCount = 4
+): OmrTemplateGeometry {
+  const numChoices: ChoiceCount =
+    numChoicesInput === 5 ? 5 : numChoicesInput === 6 ? 6 : 4;
+
+  const tier =
+    totalItemsInput <= 20
+      ? 20
+      : totalItemsInput <= 40
+      ? 40
+      : totalItemsInput <= 60
+      ? 60
+      : totalItemsInput <= 80
+      ? 80
+      : 100;
+
+  let rowsPerColumn = 14;
+  let columnStartUs: number[] = [0.382, 0.560, 0.738];
+  let choiceStepU = 0.031;
+  let bubbleRadius = 10.8 / CANVAS_W;
+  const headerV = 0.242;
+  let startV = 0.282;
+  let stepV = 0.033;
+  let blockGapV = 0.012;
+  const rightTimingBarU = 0.912;
+
+  if (tier === 20) {
+    // 2 columns x 10 rows (1-10, 11-20)
+    rowsPerColumn = 10;
+    columnStartUs = [0.405, 0.655];
+    choiceStepU = numChoices === 4 ? 0.038 : numChoices === 5 ? 0.031 : 0.026;
+    bubbleRadius = (numChoices === 4 ? 12.5 : numChoices === 5 ? 11.2 : 10.0) / CANVAS_W;
+    startV = 0.285;
+    stepV = 0.042;
+    blockGapV = 0.016;
+  } else if (tier === 40) {
+    // 3 columns x 14 rows (1-14, 15-28, 29-40) — Exact Reference Layout
+    rowsPerColumn = 14;
+    columnStartUs = [0.382, 0.560, 0.738];
+    choiceStepU = numChoices === 4 ? 0.031 : numChoices === 5 ? 0.0245 : 0.0202;
+    bubbleRadius = (numChoices === 4 ? 10.8 : numChoices === 5 ? 9.4 : 8.2) / CANVAS_W;
+    startV = 0.282;
+    stepV = 0.033;
+    blockGapV = 0.012;
+  } else if (tier === 60) {
+    // 3 columns x 20 rows (1-20, 21-40, 41-60)
+    rowsPerColumn = 20;
+    columnStartUs = [0.382, 0.560, 0.738];
+    choiceStepU = numChoices === 4 ? 0.031 : numChoices === 5 ? 0.0245 : 0.0202;
+    bubbleRadius = (numChoices === 4 ? 10.2 : numChoices === 5 ? 9.0 : 8.0) / CANVAS_W;
+    startV = 0.278;
+    stepV = 0.0275;
+    blockGapV = 0.009;
+  } else if (tier === 80) {
+    // 4 columns x 20 rows (1-20, 21-40, 41-60, 61-80)
+    rowsPerColumn = 20;
+    columnStartUs = [0.362, 0.496, 0.630, 0.764];
+    choiceStepU = numChoices === 4 ? 0.0242 : numChoices === 5 ? 0.0192 : 0.0158;
+    bubbleRadius = (numChoices === 4 ? 9.0 : numChoices === 5 ? 7.8 : 6.8) / CANVAS_W;
+    startV = 0.278;
+    stepV = 0.0275;
+    blockGapV = 0.009;
+  } else {
+    // 100 items: 4 columns x 25 rows (1-25, 26-50, 51-75, 76-100)
+    rowsPerColumn = 25;
+    columnStartUs = [0.362, 0.496, 0.630, 0.764];
+    choiceStepU = numChoices === 4 ? 0.0242 : numChoices === 5 ? 0.0192 : 0.0158;
+    bubbleRadius = (numChoices === 4 ? 8.6 : numChoices === 5 ? 7.5 : 6.6) / CANVAS_W;
+    startV = 0.274;
+    stepV = 0.0232;
+    blockGapV = 0.0075;
+  }
+
+  const { choiceLabels, columnHeaders, questions, timingMarks } = buildAnswerZoneGeometry({
+    totalItems: tier,
+    numChoices,
+    rowsPerColumn,
+    columnStartUs,
+    choiceStepU,
+    bubbleRadius,
+    headerV,
+    startV,
+    stepV,
+    blockGapV,
+    rightTimingBarU
+  });
+
+  const codeSuffix = numChoices === 4 ? `${tier}` : `${tier}-${numChoices}C`;
+
+  return {
+    code: `KP-OMR-A4-${codeSuffix}`,
+    version: 11,
+    canonicalWidth: CANVAS_W,
+    canonicalHeight: CANVAS_H,
+    scanZoneAspectRatio: 0.6761, // Full-page A4 fiducial frame (870px / 1286.7px)
+    totalItems: tier,
+    numChoices,
+    choiceLabels,
+    rowsPerColumn,
+    numColumns: columnStartUs.length,
+    fiducialMarkers: createFullPageFiducialMarkers(),
+    studentIdMatrix: createStudentIdMatrix(),
+    seatNoMatrix: createSeatNoMatrix(),
+    versionMatrix: createVersionMatrix(),
+    columnHeaders,
+    questions,
+    timingMarks,
+    subjectiveScoreMatrix: null
+  };
+}
+
+export const OMR_TEMPLATE_20: OmrTemplateGeometry = buildOmrTemplateGeometry(20, 4);
+export const OMR_TEMPLATE_40: OmrTemplateGeometry = buildOmrTemplateGeometry(40, 4);
+export const OMR_TEMPLATE_60: OmrTemplateGeometry = buildOmrTemplateGeometry(60, 4);
+export const OMR_TEMPLATE_80: OmrTemplateGeometry = buildOmrTemplateGeometry(80, 4);
+export const OMR_TEMPLATE_100: OmrTemplateGeometry = buildOmrTemplateGeometry(100, 4);
+
+/**
+ * Helper to select the appropriate geometry template based on totalItems and numChoices (4, 5, 6)
+ */
+export function getTemplateGeometry(
+  totalItems: number,
+  numChoices: ChoiceCount = 4
+): OmrTemplateGeometry {
+  if (numChoices === 4) {
+    if (totalItems <= 20) return OMR_TEMPLATE_20;
+    if (totalItems <= 40) return OMR_TEMPLATE_40;
+    if (totalItems <= 60) return OMR_TEMPLATE_60;
+    if (totalItems <= 80) return OMR_TEMPLATE_80;
+    return OMR_TEMPLATE_100;
+  }
+  return buildOmrTemplateGeometry(totalItems, numChoices);
+}
+
+/**
+ * Converts OmrTemplateGeometry into TemplateGridMetadata for `omrEngine.ts` and DB persistence
+ */
+export function convertGeometryToGridMetadata(geom: OmrTemplateGeometry): TemplateGridMetadata {
   const digits: StudentIdDigitCoordinate[] = [];
-  const startU = 0.10;
-  const startV = 0.105;
-  const stepU = 0.040;
-  const stepV = 0.0125;
-
-  for (let digit = 0; digit < 5; digit++) {
-    for (let val = 0; val <= 9; val++) {
+  for (const col of geom.studentIdMatrix) {
+    for (let d = 0; d <= 9; d++) {
+      const b = col.digits[d];
       digits.push({
-        digitIndex: digit,
-        value: val,
-        u: startU + digit * stepU,
-        v: startV + val * stepV,
-        radius: BUBBLE_R * 0.85
+        digitIndex: col.columnIndex,
+        value: d,
+        u: b.u,
+        v: b.v,
+        radius: b.radius
       });
     }
   }
 
-  return { digitsCount: 5, digits };
-}
-
-/**
- * สร้าง Version Code Grid (01-04)
- */
-function createVersionCodeGrid(): TemplateGridMetadata["versionCodeGrid"] {
-  return {
-    versions: [
-      { versionCode: "01", u: 0.42, v: 0.125, radius: BUBBLE_R },
-      { versionCode: "02", u: 0.465, v: 0.125, radius: BUBBLE_R },
-      { versionCode: "03", u: 0.51, v: 0.125, radius: BUBBLE_R },
-      { versionCode: "04", u: 0.555, v: 0.125, radius: BUBBLE_R }
-    ]
-  };
-}
-
-/**
- * สร้าง Combined Subjective Score Grid (0-30 คะแนนรวม: หลักสิบ 0-3, หลักหน่วย 0-9)
- * Rev 10.0: คะแนนรวมทุกข้ออัตนัยในช่องเดียว
- */
-function createCombinedSubjectiveScore(): SubjectiveScoreCoordinate[] {
-  const baseV = 0.17;
-
-  // Single combined entry (itemNo = 0 means "total")
-  const vTens = baseV;
-  const vUnits = vTens + 0.015;
-
-  // Tens: 0, 1, 2, 3
-  const tens = [0, 1, 2, 3].map((val, idx) => ({
-    value: val,
-    u: 0.45 + idx * 0.032,
-    v: vTens,
-    radius: BUBBLE_R * 0.8
-  }));
-
-  // Units: 0 to 9
-  const units = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((val, idx) => ({
-    value: val,
-    u: 0.45 + idx * 0.032,
-    v: vUnits,
-    radius: BUBBLE_R * 0.8
-  }));
-
-  return [{ itemNo: 0, tens, units }];
-}
-
-/**
- * สร้าง QR Code Anchor
- */
-function createQrAnchor() {
-  return { u: 0.82, v: 0.035, size: 130 / CANVAS_W };
-}
-
-/**
- * คำนวณ aspect ratio ของ scan zone
- */
-function calcScanZoneAspectRatio(): number {
-  const zoneW = (1.0 - 2 * MARGIN_X) * CANVAS_W;
-  const zoneH = (SCAN_ZONE_BOTTOM - MARGIN_Y) * CANVAS_H;
-  return zoneH / zoneW;
-}
-
-// =============================================================================
-// TIMING MARKS GENERATOR (ZipGrade-style row alignment)
-// =============================================================================
-
-/**
- * สร้าง Timing Marks สำหรับทุกแถวข้อสอบในแต่ละคอลัมน์ (ZipGrade-style)
- * ใช้เป็นจุดอ้างอิงแถวเพื่อให้สแกนแม่นยำ
- */
-function createTimingMarks(
-  questionBlocks: QuestionCoordinate[],
-  colBaseUs: number[],
-  rowsPerCol: number
-): TimingMark[] {
-  const marks: TimingMark[] = [];
-  const offset = 0.022; // offset ทางซ้ายจาก column base
-
-  for (let colIdx = 0; colIdx < colBaseUs.length; colIdx++) {
-    const colStartItem = colIdx * rowsPerCol + 1;
-    for (let rowIdx = 0; rowIdx < rowsPerCol; rowIdx++) {
-      const itemNo = colStartItem + rowIdx;
-      const question = questionBlocks.find(q => q.itemNo === itemNo);
-      if (!question || question.bubbles.length === 0) continue;
-
-      marks.push({
-        rowIndex: rowIdx,
-        colIndex: colIdx,
-        u: colBaseUs[colIdx] - offset,
-        v: question.bubbles[0].v,
-        size: TIMING_MARK_SIZE
+  const seatDigits: StudentIdDigitCoordinate[] = [];
+  for (const col of geom.seatNoMatrix) {
+    for (let d = 0; d <= 9; d++) {
+      const b = col.digits[d];
+      seatDigits.push({
+        digitIndex: col.columnIndex,
+        value: d,
+        u: b.u,
+        v: b.v,
+        radius: b.radius
       });
     }
   }
 
-  return marks;
-}
+  const versions: VersionCodeCoordinate[] = Object.entries(geom.versionMatrix.bubbles).map(
+    ([code, b]) => ({
+      versionCode: code,
+      u: b.u,
+      v: b.v,
+      radius: b.radius
+    })
+  );
 
-// =============================================================================
-// STANDARDIZED 5-TIER GRID GENERATORS (20, 40, 60, 80, 100)
-// =============================================================================
+  const questionBlocks: QuestionCoordinate[] = geom.questions.map(q => ({
+    itemNo: q.itemNo,
+    bubbles: geom.choiceLabels.map(choice => {
+      const coord = q.choices[choice]!;
+      return {
+        choice,
+        u: coord.u,
+        v: coord.v,
+        radius: coord.radius
+      };
+    })
+  }));
 
-/**
- * 1. แม่แบบ 20 ข้อ: 2 คอลัมน์ x 10 ข้อ (ปัดทุก 10 ข้อ)
- * Col 1: ข้อ 1 - 10 | Col 2: ข้อ 11 - 20
- */
-export function generate20ItemGridMetadata(choiceCount: number = 4): TemplateGridMetadata {
-  const choices = ALL_CHOICES.slice(0, Math.min(6, Math.max(2, choiceCount)));
-  const rowStepV = 0.022; // ระยะห่างกว้าง โล่ง สบายตา
-  const startV = 0.280;
-  const choiceStepU = choices.length <= 4 ? 0.052 : 0.042;
-
-  const col1BaseU = 0.18;
-  const col2BaseU = 0.58;
-
-  const questionBlocks: QuestionCoordinate[] = [];
-
-  // Col 1: ข้อ 1 - 10
-  for (let i = 1; i <= 10; i++) {
-    const v = startV + (i - 1) * rowStepV;
-    questionBlocks.push({
-      itemNo: i,
-      bubbles: choices.map((c, cIdx) => ({
-        choice: c,
-        u: col1BaseU + cIdx * choiceStepU,
-        v,
-        radius: BUBBLE_R * 1.1
-      }))
-    });
-  }
-
-  // Col 2: ข้อ 11 - 20
-  for (let i = 11; i <= 20; i++) {
-    const v = startV + (i - 11) * rowStepV;
-    questionBlocks.push({
-      itemNo: i,
-      bubbles: choices.map((c, cIdx) => ({
-        choice: c,
-        u: col2BaseU + cIdx * choiceStepU,
-        v,
-        radius: BUBBLE_R * 1.1
-      }))
-    });
-  }
-
-  const timingMarks = createTimingMarks(questionBlocks, [col1BaseU, col2BaseU], 10);
+  const timingMarks: EngineTimingMark[] = geom.timingMarks.map(tm => ({
+    rowIndex: tm.rowIndex,
+    colIndex: tm.columnIndex,
+    u: tm.u,
+    v: tm.v,
+    size: tm.width
+  }));
 
   return {
-    canvasWidth: CANVAS_W,
-    canvasHeight: CANVAS_H,
-    fiducialMarkers: createScanZoneMarkers(),
-    qrCodeAnchor: createQrAnchor(),
-    studentIdGrid: createStudentIdGrid(),
-    versionCodeGrid: createVersionCodeGrid(),
-    subjectiveScores: createCombinedSubjectiveScore(),
+    canvasWidth: geom.canonicalWidth,
+    canvasHeight: geom.canonicalHeight,
+    fiducialMarkers: geom.fiducialMarkers,
+    studentIdGrid: {
+      digitsCount: 5,
+      digits
+    },
+    seatNoGrid: {
+      digitsCount: 2,
+      digits: seatDigits
+    },
+    versionCodeGrid: {
+      versions
+    },
+    subjectiveScores: [],
     timingMarks,
     questionBlocks,
-    choiceCount: choices.length,
-    scanZoneAspectRatio: calcScanZoneAspectRatio()
+    choiceCount: geom.numChoices,
+    rowsPerColumn: geom.rowsPerColumn,
+    scanZoneAspectRatio: geom.scanZoneAspectRatio
   };
 }
 
-/**
- * 2. แม่แบบ 40 ข้อ: 2 คอลัมน์ x 20 ข้อ
- * Col 1: ข้อ 1 - 20 | Col 2: ข้อ 21 - 40
- */
-export function generate40ItemGridMetadata(choiceCount: number = 4): TemplateGridMetadata {
-  const choices = ALL_CHOICES.slice(0, Math.min(6, Math.max(2, choiceCount)));
-  const rowStepV = 0.0132;
-  const startV = 0.270;
-  const choiceStepU = choices.length <= 4 ? 0.050 : 0.040;
-
-  const col1BaseU = 0.14;
-  const col2BaseU = 0.57;
-
-  const questionBlocks: QuestionCoordinate[] = [];
-
-  // Col 1: 1 - 20
-  for (let i = 1; i <= 20; i++) {
-    const v = startV + (i - 1) * rowStepV;
-    questionBlocks.push({
-      itemNo: i,
-      bubbles: choices.map((c, cIdx) => ({
-        choice: c,
-        u: col1BaseU + cIdx * choiceStepU,
-        v,
-        radius: BUBBLE_R
-      }))
-    });
-  }
-
-  // Col 2: 21 - 40
-  for (let i = 21; i <= 40; i++) {
-    const v = startV + (i - 21) * rowStepV;
-    questionBlocks.push({
-      itemNo: i,
-      bubbles: choices.map((c, cIdx) => ({
-        choice: c,
-        u: col2BaseU + cIdx * choiceStepU,
-        v,
-        radius: BUBBLE_R
-      }))
-    });
-  }
-
-  const timingMarks = createTimingMarks(questionBlocks, [col1BaseU, col2BaseU], 20);
-
-  return {
-    canvasWidth: CANVAS_W,
-    canvasHeight: CANVAS_H,
-    fiducialMarkers: createScanZoneMarkers(),
-    qrCodeAnchor: createQrAnchor(),
-    studentIdGrid: createStudentIdGrid(),
-    versionCodeGrid: createVersionCodeGrid(),
-    subjectiveScores: createCombinedSubjectiveScore(),
-    timingMarks,
-    questionBlocks,
-    choiceCount: choices.length,
-    scanZoneAspectRatio: calcScanZoneAspectRatio()
-  };
+export function generate20ItemGridMetadata(numChoices: ChoiceCount = 4): TemplateGridMetadata {
+  return convertGeometryToGridMetadata(getTemplateGeometry(20, numChoices));
 }
 
-/**
- * 3. แม่แบบ 60 ข้อ: 3 คอลัมน์ x 20 ข้อ
- * Col 1: 1 - 20 | Col 2: 21 - 40 | Col 3: 41 - 60
- */
-export function generate60ItemGridMetadata(choiceCount: number = 4): TemplateGridMetadata {
-  const choices = ALL_CHOICES.slice(0, Math.min(6, Math.max(2, choiceCount)));
-  const rowStepV = 0.0132;
-  const startV = 0.270;
-  const choiceStepU = choices.length <= 4 ? 0.038 : 0.031;
-
-  const colBaseUs = [0.08, 0.38, 0.68];
-  const questionBlocks: QuestionCoordinate[] = [];
-
-  for (let i = 1; i <= 60; i++) {
-    const colIdx = Math.floor((i - 1) / 20);
-    const rowIdx = (i - 1) % 20;
-    const v = startV + rowIdx * rowStepV;
-    const baseU = colBaseUs[colIdx];
-
-    questionBlocks.push({
-      itemNo: i,
-      bubbles: choices.map((c, cIdx) => ({
-        choice: c,
-        u: baseU + cIdx * choiceStepU,
-        v,
-        radius: BUBBLE_R * 0.9
-      }))
-    });
-  }
-
-  const timingMarks = createTimingMarks(questionBlocks, colBaseUs, 20);
-
-  return {
-    canvasWidth: CANVAS_W,
-    canvasHeight: CANVAS_H,
-    fiducialMarkers: createScanZoneMarkers(),
-    qrCodeAnchor: createQrAnchor(),
-    studentIdGrid: createStudentIdGrid(),
-    versionCodeGrid: createVersionCodeGrid(),
-    subjectiveScores: createCombinedSubjectiveScore(),
-    timingMarks,
-    questionBlocks,
-    choiceCount: choices.length,
-    scanZoneAspectRatio: calcScanZoneAspectRatio()
-  };
+export function generate40ItemGridMetadata(numChoices: ChoiceCount = 4): TemplateGridMetadata {
+  return convertGeometryToGridMetadata(getTemplateGeometry(40, numChoices));
 }
 
-/**
- * 4. แม่แบบ 80 ข้อ: 4 คอลัมน์ x 20 ข้อ
- * Col 1: 1-20 | Col 2: 21-40 | Col 3: 41-60 | Col 4: 61-80
- */
-export function generate80ItemGridMetadata(choiceCount: number = 4): TemplateGridMetadata {
-  const choices = ALL_CHOICES.slice(0, Math.min(6, Math.max(2, choiceCount)));
-  const rowStepV = 0.0132;
-  const startV = 0.270;
-  const choiceStepU = choices.length <= 4 ? 0.033 : 0.026;
-
-  const colBaseUs = [0.06, 0.29, 0.52, 0.75];
-  const questionBlocks: QuestionCoordinate[] = [];
-
-  for (let i = 1; i <= 80; i++) {
-    const colIdx = Math.floor((i - 1) / 20);
-    const rowIdx = (i - 1) % 20;
-    const v = startV + rowIdx * rowStepV;
-    const baseU = colBaseUs[colIdx];
-
-    questionBlocks.push({
-      itemNo: i,
-      bubbles: choices.map((c, cIdx) => ({
-        choice: c,
-        u: baseU + cIdx * choiceStepU,
-        v,
-        radius: BUBBLE_R * 0.8
-      }))
-    });
-  }
-
-  const timingMarks = createTimingMarks(questionBlocks, colBaseUs, 20);
-
-  return {
-    canvasWidth: CANVAS_W,
-    canvasHeight: CANVAS_H,
-    fiducialMarkers: createScanZoneMarkers(),
-    qrCodeAnchor: createQrAnchor(),
-    studentIdGrid: createStudentIdGrid(),
-    versionCodeGrid: createVersionCodeGrid(),
-    subjectiveScores: createCombinedSubjectiveScore(),
-    timingMarks,
-    questionBlocks,
-    choiceCount: choices.length,
-    scanZoneAspectRatio: calcScanZoneAspectRatio()
-  };
+export function generate50ItemGridMetadata(numChoices: ChoiceCount = 4): TemplateGridMetadata {
+  const meta = convertGeometryToGridMetadata(getTemplateGeometry(60, numChoices));
+  meta.questionBlocks = meta.questionBlocks.slice(0, 50);
+  return meta;
 }
 
-/**
- * 5. แม่แบบ 100 ข้อ: 5 คอลัมน์ x 20 ข้อ
- * Col 1..5 x 20 items each
- */
-export function generate100ItemGridMetadata(choiceCount: number = 4): TemplateGridMetadata {
-  const choices = ALL_CHOICES.slice(0, Math.min(6, Math.max(2, choiceCount)));
-  const rowStepV = 0.0132;
-  const startV = 0.270;
-  const choiceStepU = choices.length <= 4 ? 0.028 : 0.022;
-
-  const colBaseUs = [0.05, 0.235, 0.42, 0.605, 0.79];
-  const questionBlocks: QuestionCoordinate[] = [];
-
-  for (let i = 1; i <= 100; i++) {
-    const colIdx = Math.floor((i - 1) / 20);
-    const rowIdx = (i - 1) % 20;
-    const v = startV + rowIdx * rowStepV;
-    const baseU = colBaseUs[colIdx];
-
-    questionBlocks.push({
-      itemNo: i,
-      bubbles: choices.map((c, cIdx) => ({
-        choice: c,
-        u: baseU + cIdx * choiceStepU,
-        v,
-        radius: BUBBLE_R * 0.75
-      }))
-    });
-  }
-
-  const timingMarks = createTimingMarks(questionBlocks, colBaseUs, 20);
-
-  return {
-    canvasWidth: CANVAS_W,
-    canvasHeight: CANVAS_H,
-    fiducialMarkers: createScanZoneMarkers(),
-    qrCodeAnchor: createQrAnchor(),
-    studentIdGrid: createStudentIdGrid(),
-    versionCodeGrid: createVersionCodeGrid(),
-    subjectiveScores: createCombinedSubjectiveScore(),
-    timingMarks,
-    questionBlocks,
-    choiceCount: choices.length,
-    scanZoneAspectRatio: calcScanZoneAspectRatio()
-  };
+export function generate60ItemGridMetadata(numChoices: ChoiceCount = 4): TemplateGridMetadata {
+  return convertGeometryToGridMetadata(getTemplateGeometry(60, numChoices));
 }
 
-// Aliases for backward compatibility
-export const generate50ItemGridMetadata = generate60ItemGridMetadata;
-export const generate75ItemGridMetadata = generate80ItemGridMetadata;
+export function generate75ItemGridMetadata(numChoices: ChoiceCount = 4): TemplateGridMetadata {
+  const meta = convertGeometryToGridMetadata(getTemplateGeometry(80, numChoices));
+  meta.questionBlocks = meta.questionBlocks.slice(0, 75);
+  return meta;
+}
 
-/**
- * Dispatcher: เลือก TemplateGridMetadata อัตโนมัติตาม totalItems
- * - <= 20: แม่แบบ 20 (2 x 10)
- * - <= 40: แม่แบบ 40 (2 x 20)
- * - <= 60: แม่แบบ 60 (3 x 20)
- * - <= 80: แม่แบบ 80 (4 x 20)
- * - > 80: แม่แบบ 100 (5 x 20)
- */
+export function generate80ItemGridMetadata(numChoices: ChoiceCount = 4): TemplateGridMetadata {
+  return convertGeometryToGridMetadata(getTemplateGeometry(80, numChoices));
+}
+
+export function generate100ItemGridMetadata(numChoices: ChoiceCount = 4): TemplateGridMetadata {
+  return convertGeometryToGridMetadata(getTemplateGeometry(100, numChoices));
+}
+
 export function getTemplateGridForItems(
   totalItems: number,
-  choiceCount: number = 4
+  numChoices: ChoiceCount = 4
 ): TemplateGridMetadata {
-  if (totalItems <= 20) return generate20ItemGridMetadata(choiceCount);
-  if (totalItems <= 40) return generate40ItemGridMetadata(choiceCount);
-  if (totalItems <= 60) return generate60ItemGridMetadata(choiceCount);
-  if (totalItems <= 80) return generate80ItemGridMetadata(choiceCount);
-  return generate100ItemGridMetadata(choiceCount);
+  if (totalItems <= 20) return generate20ItemGridMetadata(numChoices);
+  if (totalItems <= 40) return generate40ItemGridMetadata(numChoices);
+  if (totalItems <= 50) return generate50ItemGridMetadata(numChoices);
+  if (totalItems <= 60) return generate60ItemGridMetadata(numChoices);
+  if (totalItems <= 75) return generate75ItemGridMetadata(numChoices);
+  if (totalItems <= 80) return generate80ItemGridMetadata(numChoices);
+  return generate100ItemGridMetadata(numChoices);
 }

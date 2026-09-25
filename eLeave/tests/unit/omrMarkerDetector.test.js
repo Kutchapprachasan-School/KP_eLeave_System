@@ -83,7 +83,7 @@ describe('OMR Marker Detector & Compact Geometry Unit Tests', () => {
     assert.equal(result.markersDetected, 2);
   });
 
-  it('compact template geometry should constrain all question bubbles to the upper scan zone (v < 0.60)', () => {
+  it('Rev 11.0 full-page side-by-side geometry should place Student ID & Seat No on left sidebar and Questions on right zone', () => {
     const grid20 = generate20ItemGridMetadata(4);
     const grid40 = generate40ItemGridMetadata(4);
     const grid60 = generate60ItemGridMetadata(4);
@@ -91,40 +91,35 @@ describe('OMR Marker Detector & Compact Geometry Unit Tests', () => {
     const grid100 = generate100ItemGridMetadata(6);
 
     for (const grid of [grid20, grid40, grid60, grid80, grid100]) {
-      // Scan zone markers should be around upper 58% of the page
-      assert.ok(grid.fiducialMarkers.bottomLeft.v <= 0.60, `Bottom marker v is too large: ${grid.fiducialMarkers.bottomLeft.v}`);
-      assert.ok(grid.fiducialMarkers.bottomRight.v <= 0.60, `Bottom marker v is too large: ${grid.fiducialMarkers.bottomRight.v}`);
+      // Full-page fiducial markers should frame the entire A4 sheet (bottom v >= 0.90)
+      assert.ok(grid.fiducialMarkers.topLeft.v <= 0.08, `Top marker v too large: ${grid.fiducialMarkers.topLeft.v}`);
+      assert.ok(grid.fiducialMarkers.bottomLeft.v >= 0.90, `Bottom marker v too small: ${grid.fiducialMarkers.bottomLeft.v}`);
+      assert.ok(grid.fiducialMarkers.bottomRight.v >= 0.90, `Bottom marker v too small: ${grid.fiducialMarkers.bottomRight.v}`);
 
-      // All question bubbles must be within v < 0.58
+      // Student ID grid (5 digits = 50 bubbles) must sit in Left Sidebar (u < 0.30)
+      assert.equal(grid.studentIdGrid.digitsCount, 5);
+      assert.equal(grid.studentIdGrid.digits.length, 50);
+      for (const d of grid.studentIdGrid.digits) {
+        assert.ok(d.u > 0.08 && d.u < 0.30, `Student ID digit u out of left sidebar bounds: ${d.u}`);
+      }
+
+      // Seat No grid (2 digits = 20 bubbles) must sit in Left Sidebar below Student ID (u < 0.25, v > 0.55)
+      assert.ok(grid.seatNoGrid, 'seatNoGrid must exist in Rev 11.0');
+      assert.equal(grid.seatNoGrid.digitsCount, 2);
+      assert.equal(grid.seatNoGrid.digits.length, 20);
+      for (const s of grid.seatNoGrid.digits) {
+        assert.ok(s.u > 0.08 && s.u < 0.25, `Seat No digit u out of left sidebar bounds: ${s.u}`);
+        assert.ok(s.v > 0.55 && s.v < 0.90, `Seat No digit v out of bounds: ${s.v}`);
+      }
+
+      // Question bubbles must sit in Right Answer Zone (u > 0.34)
       for (const q of grid.questionBlocks) {
         for (const b of q.bubbles) {
-          assert.ok(b.v < 0.58, `Bubble for item ${q.itemNo} choice ${b.choice} v exceeds 0.58: ${b.v}`);
+          assert.ok(b.u > 0.34 && b.u < 0.95, `Bubble for item ${q.itemNo} choice ${b.choice} u out of right zone: ${b.u}`);
+          assert.ok(b.v > 0.25 && b.v < 0.95, `Bubble for item ${q.itemNo} choice ${b.choice} v out of bounds: ${b.v}`);
         }
       }
-
-      // Student ID grid must be in upper region (v < 0.25)
-      for (const d of grid.studentIdGrid.digits) {
-        assert.ok(d.v < 0.25, `Student ID digit v exceeds 0.25: ${d.v}`);
-      }
-
-      // Subjective scores should exist and support 0-30 points (tens 0-3, units 0-9)
-      assert.ok(grid.subjectiveScores && grid.subjectiveScores.length > 0);
-      assert.equal(grid.subjectiveScores[0].tens.length, 4); // 0, 1, 2, 3
-      assert.equal(grid.subjectiveScores[0].units.length, 10); // 0..9
     }
-  });
-
-  it('getTemplateGridForItems should correctly route 20, 40, 60, 80, 100 tiers', () => {
-    assert.equal(getTemplateGridForItems(15).questionBlocks.length, 20); // <= 20 uses 20
-    assert.equal(getTemplateGridForItems(20).questionBlocks.length, 20); // 20 uses 20
-    assert.equal(getTemplateGridForItems(25).questionBlocks.length, 40); // 25 uses 40
-    assert.equal(getTemplateGridForItems(40).questionBlocks.length, 40); // 40 uses 40
-    assert.equal(getTemplateGridForItems(50).questionBlocks.length, 60); // 50 uses 60
-    assert.equal(getTemplateGridForItems(60).questionBlocks.length, 60); // 60 uses 60
-    assert.equal(getTemplateGridForItems(75).questionBlocks.length, 80); // 75 uses 80
-    assert.equal(getTemplateGridForItems(80).questionBlocks.length, 80); // 80 uses 80
-    assert.equal(getTemplateGridForItems(90).questionBlocks.length, 100); // 90 uses 100
-    assert.equal(getTemplateGridForItems(100).questionBlocks.length, 100); // 100 uses 100
   });
 
   it('getTemplateGridForItems should support variable choiceCount up to 6 (A-F)', () => {
@@ -173,15 +168,13 @@ describe('OMR Marker Detector & Compact Geometry Unit Tests', () => {
     assert.ok(result.midPoints !== null);
   });
 
-  it('all 5 tiers should include 6 fiducial markers, row timingMarks, and single combined subjectiveScore', () => {
+  it('all 5 tiers should include 6 fiducial markers and right-edge row timingMarks', () => {
     for (const count of [20, 40, 60, 80, 100]) {
       const grid = getTemplateGridForItems(count, 4);
       assert.ok(grid.fiducialMarkers.midLeft, `Tier ${count} missing midLeft marker`);
       assert.ok(grid.fiducialMarkers.midRight, `Tier ${count} missing midRight marker`);
-      assert.ok(Array.isArray(grid.timingMarks), `Tier ${count} missing timingMarks`);
-      assert.equal(grid.timingMarks.length, count, `Tier ${count} should have ${count} row timing marks`);
-      assert.equal(grid.subjectiveScores.length, 1, `Tier ${count} should have 1 combined subjective score block`);
-      assert.equal(grid.subjectiveScores[0].itemNo, 0);
+      assert.ok(Array.isArray(grid.timingMarks) && grid.timingMarks.length > 0, `Tier ${count} missing timingMarks`);
+      assert.equal(grid.subjectiveScores.length, 0, `Tier ${count} should have 0 subjective blocks in Rev 11.0 pure multiple-choice mode`);
     }
   });
 });

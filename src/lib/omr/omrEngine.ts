@@ -65,6 +65,10 @@ export interface TemplateGridMetadata {
     digitsCount: number;
     digits: StudentIdDigitCoordinate[];
   };
+  seatNoGrid?: {
+    digitsCount: number;
+    digits: StudentIdDigitCoordinate[];
+  };
   versionCodeGrid: {
     versions: VersionCodeCoordinate[];
   };
@@ -72,6 +76,7 @@ export interface TemplateGridMetadata {
   timingMarks?: TimingMark[];
   questionBlocks: QuestionCoordinate[];
   choiceCount?: number;
+  rowsPerColumn?: number;
   scanZoneAspectRatio?: number;
 }
 
@@ -127,7 +132,13 @@ export interface OmrScanResult {
   success: boolean;
   iqg: IQGResult;
   studentId: string;
+  /** รหัสประจำตัวดิบที่มี ? หากลืมระบายบางหลัก เช่น "69?01" */
+  rawDetectedStudentId?: string;
   studentIdConfidence: number;
+  /** เลขที่นักเรียน (2 หลัก 00-99) ที่อ่านได้จากกระดาษคำตอบ */
+  seatNo?: number | null;
+  seatNoStr?: string;
+  seatNoConfidence?: number;
   versionCode: string;
   versionCodeConfidence: number;
   /** คะแนนรวมอัตนัย (0-30 คะแนน) */
@@ -796,9 +807,10 @@ export function decodeStudentIdGrid(
   image: RawImageData,
   studentGrid: TemplateGridMetadata["studentIdGrid"],
   calibration: ContrastCalibration
-): { studentId: string; confidence: number } {
+): { studentId: string; rawDetectedStudentId: string; confidence: number } {
   const digitsCount = studentGrid.digitsCount || 5;
   const detectedDigits: string[] = [];
+  const rawDigits: string[] = [];
   let totalConf = 0;
 
   for (let d = 0; d < digitsCount; d++) {
@@ -814,17 +826,69 @@ export function decodeStudentIdGrid(
 
     if (top && (top.fillRatio >= 0.22 || top.fillRatio - second.fillRatio >= 0.12)) {
       detectedDigits.push(String(top.value));
+      rawDigits.push(String(top.value));
       const margin = top.fillRatio - second.fillRatio;
       const conf = Math.min(1.0, Math.max(0.5, margin / 0.25));
       totalConf += conf;
     } else {
       detectedDigits.push("0");
+      rawDigits.push("?");
       totalConf += 0.3;
     }
   }
 
   return {
     studentId: detectedDigits.join(""),
+    rawDetectedStudentId: rawDigits.join(""),
+    confidence: totalConf / digitsCount
+  };
+}
+
+export function decodeSeatNoGrid(
+  image: RawImageData,
+  seatNoGrid: TemplateGridMetadata["seatNoGrid"],
+  calibration: ContrastCalibration
+): { seatNo: number | null; seatNoStr: string; confidence: number } {
+  if (!seatNoGrid || !seatNoGrid.digits || seatNoGrid.digits.length === 0) {
+    return { seatNo: null, seatNoStr: "", confidence: 0.8 };
+  }
+
+  const digitsCount = seatNoGrid.digitsCount || 2;
+  const rawDigits: string[] = [];
+  let totalConf = 0;
+  let anyMarked = false;
+
+  for (let d = 0; d < digitsCount; d++) {
+    const digitBubbles = seatNoGrid.digits.filter(item => item.digitIndex === d);
+    const readings = digitBubbles.map(b => {
+      const read = readBubbleFill(image, b.u, b.v, b.radius, calibration);
+      return { value: b.value, fillRatio: read.fillRatio };
+    });
+
+    readings.sort((a, b) => b.fillRatio - a.fillRatio);
+    const top = readings[0];
+    const second = readings[1] || { fillRatio: 0 };
+
+    if (top && (top.fillRatio >= 0.22 || top.fillRatio - second.fillRatio >= 0.12)) {
+      rawDigits.push(String(top.value));
+      anyMarked = true;
+      const margin = top.fillRatio - second.fillRatio;
+      totalConf += Math.min(1.0, Math.max(0.6, margin / 0.25));
+    } else {
+      rawDigits.push("0");
+      totalConf += 0.4;
+    }
+  }
+
+  if (!anyMarked) {
+    return { seatNo: null, seatNoStr: "", confidence: 0.8 };
+  }
+
+  const seatNoStr = rawDigits.join("");
+  const parsed = parseInt(seatNoStr, 10);
+  return {
+    seatNo: !isNaN(parsed) && parsed > 0 ? parsed : null,
+    seatNoStr,
     confidence: totalConf / digitsCount
   };
 }
@@ -1040,11 +1104,20 @@ export function processOmrSheet(
   const calibration = calibrateContrast(canonicalImage, template, fillMultiplier);
 
   // 4. ZipGrade Timing-Mark Row Detection & Micro-Alignment
-  const rowsPerCol = template.questionBlocks.length <= 20 ? 10 : 20;
+  const rowsPerCol =
+    template.rowsPerColumn ||
+    (template.questionBlocks.length <= 20
+      ? 10
+      : template.questionBlocks.length <= 40
+      ? 14
+      : template.questionBlocks.length <= 80
+      ? 20
+      : 25);
   const timingAlignment = detectTimingMarksAndAlign(canonicalImage, template.timingMarks, calibration);
 
-  // 5. Decode Student ID, Version Code & Combined Subjective Score
+  // 5. Decode Student ID (5 digits), Seat No (2 digits), Version Code & Subjective Score
   const studentResult = decodeStudentIdGrid(canonicalImage, template.studentIdGrid, calibration);
+  const seatResult = decodeSeatNoGrid(canonicalImage, template.seatNoGrid, calibration);
   const versionResult = decodeVersionCodeGrid(canonicalImage, template.versionCodeGrid, calibration);
   const subjectiveResult = decodeSubjectiveScore(canonicalImage, template.subjectiveScores, calibration);
 
@@ -1060,13 +1133,20 @@ export function processOmrSheet(
   // 7. Aggregate Metrics
   const totalConf = items.reduce((acc, curr) => acc + curr.confidenceScore, 0);
   const confidenceAvg = items.length > 0 ? totalConf / items.length : 1.0;
-  const hasAnomalies = items.some(i => i.confidenceScore < 0.65 || i.detectedChoices.length > 1);
+  const hasUnreadStudentId = studentResult.rawDetectedStudentId.includes("?");
+  const hasAnomalies =
+    hasUnreadStudentId ||
+    items.some(i => i.confidenceScore < 0.65 || i.detectedChoices.length > 1);
 
   return {
     success: true,
     iqg,
     studentId: studentResult.studentId,
+    rawDetectedStudentId: studentResult.rawDetectedStudentId,
     studentIdConfidence: studentResult.confidence,
+    seatNo: seatResult.seatNo,
+    seatNoStr: seatResult.seatNoStr,
+    seatNoConfidence: seatResult.confidence,
     versionCode: versionResult.versionCode,
     versionCodeConfidence: versionResult.confidence,
     subjectiveScore: subjectiveResult.score,
