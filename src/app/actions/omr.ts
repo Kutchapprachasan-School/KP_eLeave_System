@@ -73,9 +73,10 @@ export type IngestSubmissionInput = {
   clientScanId: string;
   examPaperId: string;
   studentId: string;
+  rawDetectedStudentId?: string;
   studentName?: string;
   classroom?: string;
-  seatNo?: number;
+  seatNo?: number | null;
   versionCode: string;
   attemptNo?: number;
   scannedImageKey?: string;
@@ -267,12 +268,12 @@ export async function configureAnswerKeyAction(data: ConfigureAnswerKeyInput) {
     if (item.itemNo !== expectedNo) {
       throw new Error(`ข้อสอบต้องเรียงลำดับต่อเนื่อง 1 ถึง ${paper.totalItems} (พบข้อ ${item.itemNo} แทนที่ข้อ ${expectedNo})`);
     }
-    if (!item.correctChoices || item.correctChoices.length === 0 || item.correctChoices.length > 5) {
-      throw new Error(`ข้อ ${item.itemNo} ต้องมีตัวเลือกที่ถูกต้อง 1-5 ตัวเลือก`);
+    if (!item.correctChoices || item.correctChoices.length === 0 || item.correctChoices.length > 6) {
+      throw new Error(`ข้อ ${item.itemNo} ต้องมีตัวเลือกที่ถูกต้อง 1-6 ตัวเลือก`);
     }
     for (const c of item.correctChoices) {
-      if (!["A", "B", "C", "D", "E"].includes(c)) {
-        throw new Error(`ข้อ ${item.itemNo} ตัวเลือก ${c} ไม่ถูกต้อง (ต้องเป็น A, B, C, D หรือ E)`);
+      if (!["A", "B", "C", "D", "E", "F"].includes(c)) {
+        throw new Error(`ข้อ ${item.itemNo} ตัวเลือก ${c} ไม่ถูกต้อง (ต้องเป็น A, B, C, D, E หรือ F)`);
       }
     }
   }
@@ -1032,12 +1033,76 @@ export async function getSubmissionDetailsAction(submissionId: string, userConte
 }
 
 /**
- * 12. Ingest Exam Submission
+ * 12. Ingest Exam Submission (ADR-20260925 Rev 11.0 Invariants)
+ * - Auto-Quarantine (`UNREAD_<pattern>_<hash>`) for blank/partial Student IDs so Auto-Advance never overwrites
+ * - Roster Auto-Enrichment from `ExamPrintedSheet` (by studentId or fallback by seatNo)
+ * - Atomic `attemptNo = MAX(attemptNo) + 1` under `pg_advisory_xact_lock`
  */
 export async function ingestExamSubmissionAction(input: IngestSubmissionInput) {
   return await prisma.$transaction(async (tx) => {
+    const rawPattern = input.rawDetectedStudentId || input.studentId || "?????";
+    let resolvedStudentId = (input.studentId || "").trim();
+    let resolvedName = input.studentName || null;
+    let resolvedClassroom = input.classroom || null;
+    let resolvedSeatNo: number | null =
+      input.seatNo !== undefined && input.seatNo !== null ? Number(input.seatNo) : null;
+
+    const isInitiallyUnresolved =
+      !resolvedStudentId ||
+      resolvedStudentId === "00000" ||
+      /^0+$/.test(resolvedStudentId) ||
+      rawPattern.includes("?");
+
+    // 1. Try Roster Lookup via ExamPrintedSheet by Student ID
+    if (!isInitiallyUnresolved) {
+      const printedByStudentId = await tx.examPrintedSheet.findFirst({
+        where: {
+          examPaperId: input.examPaperId,
+          studentId: resolvedStudentId
+        }
+      });
+      if (printedByStudentId) {
+        resolvedName = resolvedName || printedByStudentId.studentName;
+        resolvedClassroom = resolvedClassroom || printedByStudentId.classroom;
+        if (resolvedSeatNo === null && printedByStudentId.seatNo !== null) {
+          resolvedSeatNo = printedByStudentId.seatNo;
+        }
+      }
+    } else if (resolvedSeatNo !== null && resolvedSeatNo > 0) {
+      // 2. Fallback Roster Recovery: Student forgot Student ID, but shaded Seat No (`เลขที่`)!
+      const matchingSeatSheets = await tx.examPrintedSheet.findMany({
+        where: {
+          examPaperId: input.examPaperId,
+          seatNo: resolvedSeatNo
+        }
+      });
+      if (matchingSeatSheets.length === 1) {
+        const recovered = matchingSeatSheets[0];
+        resolvedStudentId = recovered.studentId;
+        resolvedName = resolvedName || recovered.studentName;
+        resolvedClassroom = resolvedClassroom || recovered.classroom;
+      }
+    }
+
+    const isStillUnresolved =
+      !resolvedStudentId ||
+      resolvedStudentId === "00000" ||
+      /^0+$/.test(resolvedStudentId) ||
+      (rawPattern.includes("?") && resolvedStudentId === input.studentId);
+
+    const quarantineSuffix = crypto
+      .createHash("md5")
+      .update(input.clientScanId)
+      .digest("hex")
+      .slice(0, 4);
+
+    const effectiveStudentId = isStillUnresolved
+      ? `UNREAD_${rawPattern.replace(/[^0-9?]/g, "") || "00000"}_${quarantineSuffix}`
+      : resolvedStudentId;
+
+    // Acquire advisory lock scoped to (examPaperId, effectiveStudentId)
     await tx.$executeRaw`
-      SELECT pg_advisory_xact_lock(hashtextextended(${input.examPaperId} || ':' || ${input.studentId}, 0));
+      SELECT pg_advisory_xact_lock(hashtextextended(${input.examPaperId} || ':' || ${effectiveStudentId}, 0));
     `;
 
     const existing = await tx.examSubmission.findUnique({
@@ -1048,20 +1113,42 @@ export async function ingestExamSubmissionAction(input: IngestSubmissionInput) {
       return existing;
     }
 
-    const attemptNo = input.attemptNo || 1;
-
-    await tx.examSubmission.updateMany({
+    // Check previous attempts for this student to enrich metadata & compute monotonic attemptNo
+    const previousSubmission = await tx.examSubmission.findFirst({
       where: {
         examPaperId: input.examPaperId,
-        studentId: input.studentId,
-        isLatestAttempt: true
+        studentId: effectiveStudentId
       },
-      data: { isLatestAttempt: false }
+      orderBy: { attemptNo: "desc" }
     });
+
+    if (previousSubmission) {
+      resolvedName = resolvedName || previousSubmission.studentName;
+      resolvedClassroom = resolvedClassroom || previousSubmission.classroom;
+      if (resolvedSeatNo === null && previousSubmission.seatNo !== null) {
+        resolvedSeatNo = previousSubmission.seatNo;
+      }
+    }
+
+    const attemptNo = input.attemptNo || (previousSubmission ? previousSubmission.attemptNo + 1 : 1);
+
+    // Only supersede previous attempts when studentId is a resolved real student (Invariant 2)
+    if (!isStillUnresolved) {
+      await tx.examSubmission.updateMany({
+        where: {
+          examPaperId: input.examPaperId,
+          studentId: effectiveStudentId,
+          isLatestAttempt: true
+        },
+        data: { isLatestAttempt: false }
+      });
+    }
 
     const totalConf = input.items.reduce((acc, curr) => acc + (curr.confidenceScore || 0), 0);
     const confidenceAvg = input.items.length > 0 ? totalConf / input.items.length : 1.0;
-    const hasAnomalies = input.items.some(i => i.confidenceScore < 0.65 || i.detectedChoices.length > 1);
+    const hasAnomalies =
+      isStillUnresolved ||
+      input.items.some(i => i.confidenceScore < 0.65 || i.detectedChoices.length > 1);
 
     const latestKeyVersion = await tx.examAnswerKeyVersion.findFirst({
       where: { examPaperId: input.examPaperId },
@@ -1072,10 +1159,10 @@ export async function ingestExamSubmissionAction(input: IngestSubmissionInput) {
       data: {
         clientScanId: input.clientScanId,
         examPaperId: input.examPaperId,
-        studentId: input.studentId,
-        studentName: input.studentName,
-        classroom: input.classroom,
-        seatNo: input.seatNo,
+        studentId: effectiveStudentId,
+        studentName: resolvedName || (isStillUnresolved ? `รอระบุรหัสนักเรียน (${rawPattern})` : null),
+        classroom: resolvedClassroom,
+        seatNo: resolvedSeatNo,
         versionCode: input.versionCode || "01",
         attemptNo,
         isLatestAttempt: true,
@@ -1615,3 +1702,106 @@ export async function deleteExamSubmissionAction(submissionId: string) {
 
   return { success: true, deletedSubmissionId: submissionId };
 }
+
+/**
+ * 18. Update Student ID & Seat No for a Submission (Camera Modal Quick-Edit / Unread Quarantine Resolution)
+ */
+export async function updateSubmissionStudentIdentityAction(params: {
+  submissionId: string;
+  studentId: string;
+  seatNo?: number | null;
+  performedByUserId?: string;
+}) {
+  const cleanId = (params.studentId || "").trim();
+  if (!cleanId || cleanId.length < 3) {
+    throw new Error("กรุณาระบุรหัสประจำตัวนักเรียนให้ถูกต้อง");
+  }
+
+  return await prisma.$transaction(async (tx) => {
+    const sub = await tx.examSubmission.findUnique({
+      where: { id: params.submissionId }
+    });
+    if (!sub) {
+      throw new Error("ไม่พบรายการผลการตรวจข้อสอบ");
+    }
+
+    await tx.$executeRaw`
+      SELECT pg_advisory_xact_lock(hashtextextended(${sub.examPaperId} || ':' || ${cleanId}, 0));
+    `;
+
+    // Enrich studentName, classroom, seatNo from ExamPrintedSheet if available
+    let enrichedName = sub.studentName?.startsWith("รอระบุ") ? null : sub.studentName;
+    let enrichedClassroom = sub.classroom;
+    let enrichedSeatNo = params.seatNo !== undefined ? params.seatNo : sub.seatNo;
+
+    const printed = await tx.examPrintedSheet.findFirst({
+      where: {
+        examPaperId: sub.examPaperId,
+        studentId: cleanId
+      }
+    });
+
+    if (printed) {
+      enrichedName = printed.studentName || enrichedName;
+      enrichedClassroom = printed.classroom || enrichedClassroom;
+      if (enrichedSeatNo === null && printed.seatNo !== null) {
+        enrichedSeatNo = printed.seatNo;
+      }
+    }
+
+    // Archive any previous latest attempt for this studentId
+    const prevLatest = await tx.examSubmission.findFirst({
+      where: {
+        examPaperId: sub.examPaperId,
+        studentId: cleanId,
+        id: { not: sub.id }
+      },
+      orderBy: { attemptNo: "desc" }
+    });
+
+    await tx.examSubmission.updateMany({
+      where: {
+        examPaperId: sub.examPaperId,
+        studentId: cleanId,
+        id: { not: sub.id },
+        isLatestAttempt: true
+      },
+      data: { isLatestAttempt: false }
+    });
+
+    const nextAttemptNo = prevLatest ? prevLatest.attemptNo + 1 : sub.attemptNo;
+
+    const updated = await tx.examSubmission.update({
+      where: { id: sub.id },
+      data: {
+        studentId: cleanId,
+        studentName: enrichedName,
+        classroom: enrichedClassroom,
+        seatNo: enrichedSeatNo,
+        attemptNo: nextAttemptNo,
+        isLatestAttempt: true,
+        isVerifiedByTeacher: true
+      },
+      include: { itemSubmissions: true }
+    });
+
+    if (params.performedByUserId) {
+      await tx.examAuditLog.create({
+        data: {
+          examPaperIdSnapshot: sub.examPaperId,
+          submissionIdSnapshot: sub.id,
+          action: "STUDENT_IDENTITY_MANUAL_UPDATE",
+          performedByUserId: params.performedByUserId,
+          details: {
+            previousStudentId: sub.studentId,
+            newStudentId: cleanId,
+            seatNo: enrichedSeatNo
+          }
+        }
+      });
+    }
+
+    return updated;
+  });
+}
+

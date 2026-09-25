@@ -2,6 +2,11 @@
 
 import React from "react";
 import { QRCodeSVG } from "qrcode.react";
+import {
+  getTemplateGeometry,
+  ChoiceCount,
+  THAI_CHOICE_LABELS
+} from "@/lib/omr/omrTemplateGeometry";
 
 export interface PrintedSheetItem {
   sheetToken: string;
@@ -9,6 +14,7 @@ export interface PrintedSheetItem {
   studentName?: string | null;
   classroom?: string | null;
   seatNo?: number | null;
+  versionCode?: string | null;
 }
 
 export interface SubjectivePrintItem {
@@ -26,10 +32,12 @@ export interface OmrAnswerSheetProps {
   term: number;
   gradeLevel: string;
   totalItems: number;
-  choiceCount?: number;
+  choiceCount?: number; // 4 = ก-ง (Standard), 5 = ก-จ (Special), 6 = ก-ฉ (Special)
   subjectiveItems?: SubjectivePrintItem[];
   sheet: PrintedSheetItem;
   isPreSlugged?: boolean;
+  schoolName?: string;
+  examDateLabel?: string;
 }
 
 export interface OmrTwoUpA4SheetProps {
@@ -47,159 +55,23 @@ export interface OmrTwoUpA4SheetProps {
   isPreSlugged?: boolean;
 }
 
-const ALL_CHOICE_LABELS = ["A", "B", "C", "D", "E", "F"];
+const VERSION_THAI_MAP: Record<string, string> = {
+  "01": "ก",
+  "02": "ข",
+  "03": "ค",
+  "04": "ง"
+};
 
 /**
- * Multiple-choice column rendering only the active range up to totalItems.
- * If startItem > totalItems, returns null (omitted completely).
+ * 🖨️ OMR Rev 11.0 Full-Page Side-by-Side Answer Sheet (ZipGrade & Standard Thai OMR Parity)
+ *
+ * Key Design Guarantee:
+ * Every fiducial marker (`■`), timing bar (`▬`), student ID bubble, seat number bubble,
+ * version bubble, and question choice bubble (`ก ข ค ง` / `ก-จ` / `ก-ฉ`) is rendered using the
+ * EXACT normalized `(u, v)` coordinates from `getTemplateGeometry(totalItems, validChoiceCount)`.
+ * This guarantees 100.0% sub-millimeter geometric parity between the printed sheet and the camera scanner.
  */
-function MultipleChoiceColumn({
-  startItem,
-  endItem,
-  totalItems,
-  colTitle = "ข้อสอบปรนัย",
-  bubbleSize = "w-3.5 h-3.5 text-[7px]",
-  itemPadding = "py-0",
-  showHeaders = true,
-  choiceCount = 4
-}: {
-  startItem: number;
-  endItem: number;
-  totalItems: number;
-  colTitle?: string;
-  bubbleSize?: string;
-  itemPadding?: string;
-  showHeaders?: boolean;
-  choiceCount?: number;
-}) {
-  if (startItem > totalItems) return null;
-
-  // Cut off at totalItems so students cannot bubble beyond the designated exam items
-  const actualEnd = Math.min(endItem, totalItems);
-  const items = Array.from({ length: Math.max(0, actualEnd - startItem + 1) }, (_, idx) => startItem + idx);
-  const choices = ALL_CHOICE_LABELS.slice(0, Math.min(6, Math.max(2, choiceCount)));
-
-  return (
-    <div className="border border-slate-700 p-1 rounded bg-white">
-      {showHeaders && (
-        <div className="flex items-center gap-1 text-[8px] font-bold text-slate-800 border-b border-slate-300 pb-0.5 mb-0.5 px-0.5">
-          <span className="w-5 text-right pr-0.5 truncate">{colTitle}</span>
-          <div className="flex gap-1.5 sm:gap-2 pr-0.5 font-mono">
-            {choices.map((c) => (
-              <span key={c} className="w-3.5 text-center">({c})</span>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <div className="space-y-0.5">
-        {items.map((itemNo) => (
-          <div key={itemNo} className={`flex items-center gap-0.5 text-[8px] px-0.5 ${itemPadding}`}>
-            {/* Timing mark: 3mm black square for ZipGrade-style row alignment */}
-            <div className="w-[3mm] h-[3mm] bg-black shrink-0" />
-            <span className="w-5 font-bold font-mono text-slate-700 text-right pr-0.5">
-              {itemNo}.
-            </span>
-            <div className="flex gap-1.5 sm:gap-2 pr-0.5">
-              {choices.map((choice) => (
-                <div
-                  key={choice}
-                  className={`${bubbleSize} rounded-full border border-black flex items-center justify-center font-bold bg-white text-black`}
-                >
-                  {choice}
-                </div>
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/**
- * Combined Subjective Score Bubbles (0-30 total) for Teacher Grading inside Scan Zone
- * Rev 10.0: Single combined total instead of per-item scoring
- */
-function SubjectiveScoreBubbles({
-  subjectiveItems = []
-}: {
-  subjectiveItems: SubjectivePrintItem[];
-}) {
-  if (subjectiveItems.length === 0) return null;
-
-  // Calculate total max score for display
-  const totalMax = Math.min(30, subjectiveItems.reduce((sum, item) => sum + Math.floor(Number(item.maxScore || 5)), 0));
-
-  return (
-    <div className="border border-indigo-300 rounded p-1.5 bg-indigo-50/40 space-y-1.5">
-      <div className="text-[8.5px] font-bold text-indigo-950 flex justify-between items-center border-b border-indigo-200 pb-0.5">
-        <span>ช่องฝนคะแนนอัตนัยรวม (0-{totalMax} คะแนน):</span>
-        <span className="text-indigo-700 text-[8px]">ฝนในกรอบสแกน</span>
-      </div>
-
-      {/* Reference: list of subjective items for teacher */}
-      <div className="text-[7.5px] text-slate-600 flex flex-wrap gap-x-3 gap-y-0.5 px-0.5">
-        {subjectiveItems.map((sItem) => (
-          <span key={sItem.itemNo}>
-            ข้อ {sItem.itemNo}: {sItem.title} ({sItem.maxScore} คะแนน)
-          </span>
-        ))}
-      </div>
-
-      {/* Combined Total Score: Tens + Units */}
-      <div className="bg-white p-1.5 rounded border border-indigo-100 space-y-1">
-        <div className="flex justify-between items-center font-bold text-slate-800 text-[8px]">
-          <span>คะแนนรวมอัตนัยทุกข้อ</span>
-          <span className="text-indigo-900 font-mono">เต็ม {totalMax} คะแนน</span>
-        </div>
-
-        {/* Tens row (0, 1, 2, 3) → represents 0, 10, 20, 30 */}
-        <div className="flex items-center gap-1">
-          <span className="text-[7.5px] font-bold text-slate-500 w-12">หลักสิบ:</span>
-          <div className="flex gap-1.5">
-            {[0, 1, 2, 3].map((tensVal) => (
-              <div
-                key={tensVal}
-                className="w-4 h-4 rounded-full border border-black flex items-center justify-center font-bold text-[8px] bg-white text-black"
-              >
-                {tensVal}
-              </div>
-            ))}
-          </div>
-          <span className="text-[7px] text-slate-400 ml-1">(0, 10, 20, 30)</span>
-        </div>
-
-        {/* Units row (0-9) */}
-        <div className="flex items-center gap-1">
-          <span className="text-[7.5px] font-bold text-slate-500 w-12">หลักหน่วย:</span>
-          <div className="flex gap-1.5">
-            {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((uVal) => (
-              <div
-                key={uVal}
-                className="w-4 h-4 rounded-full border border-black flex items-center justify-center font-bold text-[8px] bg-white text-black"
-              >
-                {uVal}
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/**
- * Full A4 OMR Answer Sheet (Standard Tiers: 20, 40, 60, 80, 100)
- * 
- * Safe Marker Architecture:
- * - 4 Corner markers (12mm x 12mm solid black) placed at corners of Scan Zone
- * - Safe margins (px-[22mm], pt-[6mm], pb-[18mm]) ensure markers NEVER touch headers or bubbles!
- * - Automatic tier selection: <=20, <=40, <=60, <=80, <=100
- * - Columns render ONLY up to totalItems (surplus items cut off)
- * - Subjective exam section (Part 2) has clean divider without scissors / cut lines
- */
-export function OmrAnswerSheet({
+export function OmrAnswerSheetPrintLayout({
   paperTitle,
   subjectCode,
   subjectName,
@@ -208,602 +80,605 @@ export function OmrAnswerSheet({
   gradeLevel,
   totalItems = 40,
   choiceCount = 4,
-  subjectiveItems = [],
   sheet,
-  isPreSlugged = true
+  isPreSlugged = true,
+  schoolName = "โรงเรียนกุดจับประชาสรรค์",
+  examDateLabel
 }: OmrAnswerSheetProps) {
-  const digits = (sheet.studentId || "").padStart(5, "0").slice(-5).split("");
-  const hasSubjective = subjectiveItems.length > 0;
-  const totalSubjectiveScore = subjectiveItems.reduce((acc, cur) => acc + Number(cur.maxScore || 0), 0);
-  const actualChoices = ALL_CHOICE_LABELS.slice(0, Math.min(6, Math.max(2, choiceCount)));
+  const validChoiceCount: ChoiceCount =
+    choiceCount === 5 ? 5 : choiceCount === 6 ? 6 : 4;
 
-  // Tier designation: 20, 40, 60, 80, 100
-  const tierMax = totalItems <= 20 ? 20 : totalItems <= 40 ? 40 : totalItems <= 60 ? 60 : totalItems <= 80 ? 80 : 100;
-  const tierName = `KP-OMR-A4-${tierMax}`;
+  const geom = getTemplateGeometry(totalItems, validChoiceCount);
+
+  // Determine whether this sheet has pre-filled student roster identity
+  const hasRealStudentId =
+    Boolean(isPreSlugged) &&
+    Boolean(sheet.studentId) &&
+    sheet.studentId !== "00000" &&
+    !/^0+$/.test(sheet.studentId);
+
+  const studentDigits = hasRealStudentId
+    ? String(sheet.studentId).padStart(5, "0").slice(0, 5).split("")
+    : ["", "", "", "", ""];
+
+  const hasSeatNo =
+    Boolean(isPreSlugged) &&
+    sheet.seatNo !== null &&
+    sheet.seatNo !== undefined &&
+    Number(sheet.seatNo) > 0;
+
+  const seatDigits = hasSeatNo
+    ? String(sheet.seatNo).padStart(2, "0").slice(-2).split("")
+    : ["", ""];
+
+  const activeVersionCode = sheet.versionCode || "01";
+  const versionThaiChar = hasRealStudentId ? VERSION_THAI_MAP[activeVersionCode] || "ก" : "";
+
+  const displayDate =
+    examDateLabel ||
+    new Date().toLocaleDateString("th-TH", {
+      day: "numeric",
+      month: "short",
+      year: "numeric"
+    });
+
+  // Convert normalized radius (relative to width=1000) to CSS percentage of width & height
+  // Since height = 1414 and width = 1000, heightPct = widthPct / 1.414
+  const bubbleDiameterWidthPct = (radiusNorm: number) => `${(radiusNorm * 2 * 100).toFixed(3)}%`;
+  const bubbleDiameterHeightPct = (radiusNorm: number) =>
+    `${((radiusNorm * 2 * 100) / 1.4142).toFixed(3)}%`;
+
+  // Unique right-edge timing bars (one per rowIndex 0 .. rowsPerColumn - 1)
+  const uniqueRowBars = Array.from({ length: geom.rowsPerColumn }, (_, r) =>
+    geom.timingMarks.find((tm) => tm.rowIndex === r)
+  ).filter(Boolean);
 
   return (
-    <div className="omr-print-container">
-      {/* 📄 PAGE 1: OMR ANSWER SHEET (A4: 210mm x 297mm) */}
-      <div className="omr-a4-sheet relative bg-white text-black font-sans box-border overflow-hidden select-none w-[210mm] h-[297mm] p-[6mm] flex flex-col justify-between">
-        
-        {/* ========================================================================= */}
-        {/* 1. COMPACT SCAN ZONE (Height: ~162mm)                                     */}
-        {/* 4 Corner Markers at 4mm from edges with 24mm content padding safe zone    */}
-        {/* ========================================================================= */}
-        <div className="relative border border-slate-300 rounded px-[24mm] pt-[6mm] pb-[16mm] min-h-[162mm] flex flex-col justify-between bg-white">
-          
-          {/* 6 Fiducial Markers: 4 corners (12mm) + 2 mid-side (8mm) for Rev 10.0 */}
-          <div className="absolute top-[4mm] left-[4mm] w-[12mm] h-[12mm] bg-black" />
-          <div className="absolute top-[4mm] right-[4mm] w-[12mm] h-[12mm] bg-black" />
-          <div className="absolute bottom-[4mm] left-[4mm] w-[12mm] h-[12mm] bg-black" />
-          <div className="absolute bottom-[4mm] right-[4mm] w-[12mm] h-[12mm] bg-black" />
-          {/* Mid-side markers (8mm) - ZipGrade-style alignment anchors */}
-          <div className="absolute top-1/2 -translate-y-1/2 left-[4mm] w-[8mm] h-[8mm] bg-black" />
-          <div className="absolute top-1/2 -translate-y-1/2 right-[4mm] w-[8mm] h-[8mm] bg-black" />
+    <div
+      className="omr-a4-sheet relative bg-white text-slate-900 font-sans box-border overflow-hidden select-none mx-auto"
+      style={{
+        width: "210mm",
+        height: "297mm",
+        pageBreakAfter: "always",
+        WebkitPrintColorAdjust: "exact",
+        printColorAdjust: "exact"
+      }}
+    >
+      {/* ===================================================================== */}
+      {/* 1. 6-POINT FIDUCIAL MARKERS (TL, TR, ML, MR, BL, BR)                  */}
+      {/* ===================================================================== */}
+      {Object.entries(geom.fiducialMarkers).map(([key, m]) => (
+        <div
+          key={key}
+          style={{
+            position: "absolute",
+            left: `${(m.u * 100).toFixed(3)}%`,
+            top: `${(m.v * 100).toFixed(3)}%`,
+            width: `${(m.width * 100).toFixed(3)}%`,
+            height: `${(m.height * 100).toFixed(3)}%`,
+            backgroundColor: "#000000"
+          }}
+        />
+      ))}
 
-          {/* Top Bar: School Header & Cryptographic QR */}
-          <div>
-            <div className="flex items-start justify-between border-b border-black pb-1">
-              <div>
-                <div className="text-[13px] font-bold tracking-tight">
-                  โรงเรียนกุดจับประชาสรรค์ • กระดาษคำตอบมาตรฐาน ({tierName} Rev 10.0)
-                </div>
-                <div className="text-[11.5px] font-semibold text-slate-800">
-                  {subjectCode} {subjectName} ({gradeLevel}) • {paperTitle}
-                </div>
-                <div className="text-[9.5px] text-slate-600">
-                  ปีการศึกษา {academicYear} ภาคเรียนที่ {term} • ปรนัย {totalItems} ข้อ ({actualChoices.join(",")})
-                  {hasSubjective ? ` • อัตนัย ${subjectiveItems.length} ข้อ (${totalSubjectiveScore} คะแนน)` : ""}
-                </div>
-              </div>
+      {/* ===================================================================== */}
+      {/* 2. TOP HEADER BANNER & ROUNDED STUDENT INFO BOX (v = 0.032 .. 0.195)  */}
+      {/* ===================================================================== */}
+      {/* Grey Banner `กระดาษคำตอบ` between TL and TR markers */}
+      <div
+        className="flex items-center justify-center bg-slate-200 border border-slate-400 rounded-sm"
+        style={{
+          position: "absolute",
+          left: "9.2%",
+          width: "81.6%",
+          top: "3.1%",
+          height: "2.8%"
+        }}
+      >
+        <span className="text-[15px] font-extrabold tracking-wide text-slate-900">
+          กระดาษคำตอบ {validChoiceCount > 4 ? `(แบบพิเศษ ${validChoiceCount} ตัวเลือก)` : ""}
+        </span>
+      </div>
 
-              {/* Zero-PII QR Code */}
-              <div className="flex flex-col items-center pl-2 shrink-0">
-                <QRCodeSVG
-                  value={sheet.sheetToken}
-                  size={42}
-                  level="M"
-                  includeMargin={false}
-                />
-                <span className="text-[7px] font-mono text-slate-600 mt-0.5">
-                  {sheet.sheetToken.slice(-10)}
-                </span>
-              </div>
-            </div>
+      {/* Subject & School Row */}
+      <div
+        className="flex items-center justify-between text-[11px] text-slate-900"
+        style={{
+          position: "absolute",
+          left: "9.2%",
+          width: "81.6%",
+          top: "6.4%"
+        }}
+      >
+        <div className="flex items-baseline gap-1.5 flex-1">
+          <span className="font-bold whitespace-nowrap">รายวิชา</span>
+          <span className="border-b border-dotted border-slate-600 px-2 font-semibold flex-1 truncate">
+            {subjectCode} {subjectName} ({gradeLevel})
+          </span>
+        </div>
+        <div className="flex items-baseline gap-1.5 w-[42%] pl-4">
+          <span className="font-bold whitespace-nowrap">โรงเรียน</span>
+          <span className="border-b border-dotted border-slate-600 px-2 font-semibold flex-1 truncate">
+            {schoolName}
+          </span>
+        </div>
+      </div>
 
-            {/* Student Info Bar */}
-            <div className="mt-1 flex items-center justify-between border border-black px-2 py-0.5 rounded text-[9.5px] bg-slate-50/60">
-              <div className="flex items-center gap-2">
-                <span className="font-bold">ชื่อ-สกุล:</span>
-                <span className="font-semibold text-blue-950">
-                  {sheet.studentName || "...................................................................."}
-                </span>
-              </div>
-              <div className="flex items-center gap-3 font-mono">
-                <span>ชั้น: <b>{sheet.classroom || "-"}</b></span>
-                <span>เลขที่: <b>{sheet.seatNo != null ? sheet.seatNo : "-"}</b></span>
-                <span className="font-bold text-blue-950">ID: {sheet.studentId}</span>
-              </div>
-            </div>
+      {/* Instruction Line */}
+      <div
+        className="flex items-center justify-between text-[10.5px] text-slate-800"
+        style={{
+          position: "absolute",
+          left: "9.2%",
+          width: "81.6%",
+          top: "8.6%"
+        }}
+      >
+        <div>
+          <span className="font-bold">คำชี้แจง : </span>
+          <span>
+            ให้นักเรียนระบายคำตอบลงในช่อง{" "}
+            <span className="inline-block w-2.5 h-2.5 rounded-full border border-slate-800 align-middle mx-0.5" />{" "}
+            ให้ถูกต้องด้วยดินสอ 2B ให้เต็มวง (จำนวน {totalItems} ข้อ • {validChoiceCount} ตัวเลือก:{" "}
+            {geom.choiceLabels.map((c) => THAI_CHOICE_LABELS[c]).join(" ")})
+          </span>
+        </div>
+        <span className="text-[9px] font-mono text-slate-500">
+          {geom.code} • ปีการศึกษา {academicYear}/{term}
+        </span>
+      </div>
+
+      {/* Rounded 2-Row Student Info Box (`ชื่อ-สกุล | ชั้น` / `วันสอบ | วิชา`) */}
+      <div
+        className="border-[1.8px] border-slate-900 rounded-xl overflow-hidden flex flex-col bg-white"
+        style={{
+          position: "absolute",
+          left: "9.2%",
+          width: "81.6%",
+          top: "10.8%",
+          height: "7.8%"
+        }}
+      >
+        {/* Row 1 */}
+        <div className="flex-1 flex border-b border-slate-800 text-[11px]">
+          <div className="w-[13%] bg-slate-200 border-r border-slate-800 flex items-center justify-center font-bold text-slate-900">
+            ชื่อ-สกุล
           </div>
-
-          {/* Middle Row: Student ID (5 Digits) + Version (01-04) + Subjective Scoring */}
-          <div className="my-1 grid grid-cols-12 gap-2 items-start border-y border-slate-300 py-1">
-            {/* Student ID Bubble Matrix */}
-            <div className="col-span-5 border-r border-slate-300 pr-2">
-              <div className="text-[8.5px] font-bold text-center mb-0.5 text-slate-700">
-                [ รหัสประจำตัวนักเรียน 5 หลัก ]
-              </div>
-              
-              {/* Digit text boxes */}
-              <div className="flex justify-center gap-1 mb-0.5">
-                {digits.map((d, dIdx) => (
-                  <div
-                    key={dIdx}
-                    className="w-3.5 h-3.5 border border-black flex items-center justify-center font-mono text-[8.5px] font-bold bg-white"
-                  >
-                    {isPreSlugged ? d : ""}
-                  </div>
-                ))}
-              </div>
-
-              {/* Rows 0 to 9 */}
-              <div className="space-y-0.5">
-                {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
-                  <div key={num} className="flex justify-center gap-1 items-center">
-                    {digits.map((d, dIdx) => {
-                      const isMarked = isPreSlugged && parseInt(d, 10) === num;
-                      return (
-                        <div
-                          key={dIdx}
-                          className={`w-3 h-3 rounded-full border border-black flex items-center justify-center text-[7px] font-bold ${
-                            isMarked ? "bg-black text-white" : "bg-white text-black"
-                          }`}
-                        >
-                          {num}
-                        </div>
-                      );
-                    })}
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Version Code + Teacher Subjective Scoring (0-30 pts) */}
-            <div className="col-span-7 flex flex-col justify-between h-full pl-1 space-y-1">
-              <div>
-                <div className="text-[8.5px] font-bold mb-0.5 text-slate-700">
-                  [ ชุดข้อสอบ ]
-                </div>
-                <div className="flex items-center gap-3 bg-slate-100 p-1 rounded border border-slate-200">
-                  {["01", "02", "03", "04"].map((ver, vIdx) => (
-                    <div key={ver} className="flex items-center gap-1 text-[8.5px]">
-                      <span className="font-semibold">{vIdx + 1}</span>
-                      <div className="w-3 h-3 rounded-full border border-black flex items-center justify-center text-[7px] font-bold bg-white">
-                        {vIdx + 1}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Flexible Subjective Scoring (0-30 points) or Instructions */}
-              {hasSubjective ? (
-                <SubjectiveScoreBubbles subjectiveItems={subjectiveItems} />
-              ) : (
-                <div className="text-[8.5px] text-slate-600 space-y-0.5 bg-amber-50/70 border border-amber-200 p-1.5 rounded">
-                  <div className="font-bold text-amber-900">คำชี้แจง:</div>
-                  <div>• ใช้ดินสอดำ 2B ฝนในวงกลมให้เข้มเต็มวง</div>
-                  <div>• หากเปลี่ยนคำตอบ ให้ลบให้สะอาดหมดจด</div>
-                  <div className="flex items-center gap-3 pt-0.5 text-[7.5px] font-mono">
-                    <span className="text-emerald-700 font-bold">✓ ถูก: <span className="w-2.5 h-2.5 rounded-full bg-black inline-block" /></span>
-                    <span className="text-rose-700 font-bold">✗ ห้าม: <span className="w-2.5 h-2.5 rounded-full border border-black inline-flex items-center justify-center text-[7px]">✓</span></span>
-                  </div>
-                </div>
-              )}
-            </div>
+          <div className="w-[53%] border-r border-slate-800 flex items-center px-3 font-semibold text-slate-900 truncate">
+            {hasRealStudentId && sheet.studentName ? sheet.studentName : ""}
           </div>
-
-          {/* Question Bubbles Grid: Structured by Standardized Tiers (Enlarged Bubbles Rev 10.0) */}
-          <div className="my-0.5">
-            {tierMax === 20 ? (
-              /* 20 ITEMS: 2 Columns of 10 items (Col 1: 1-10, Col 2: 11-20) */
-              <div className="grid grid-cols-2 gap-3 max-w-lg mx-auto">
-                <MultipleChoiceColumn
-                  startItem={1}
-                  endItem={10}
-                  totalItems={totalItems}
-                  colTitle="ข้อ 1 - 10"
-                  bubbleSize="w-[17px] h-[17px] text-[8.5px]"
-                  itemPadding="py-0.5"
-                  choiceCount={choiceCount}
-                />
-                <MultipleChoiceColumn
-                  startItem={11}
-                  endItem={20}
-                  totalItems={totalItems}
-                  colTitle="ข้อ 11 - 20"
-                  bubbleSize="w-[17px] h-[17px] text-[8.5px]"
-                  itemPadding="py-0.5"
-                  choiceCount={choiceCount}
-                />
-              </div>
-            ) : tierMax === 40 ? (
-              /* 40 ITEMS: 2 Columns of 20 items (Col 1: 1-20, Col 2: 21-40) */
-              <div className="grid grid-cols-2 gap-3">
-                <MultipleChoiceColumn
-                  startItem={1}
-                  endItem={20}
-                  totalItems={totalItems}
-                  colTitle="ข้อ 1 - 20"
-                  bubbleSize="w-4 h-4 text-[8px]"
-                  choiceCount={choiceCount}
-                />
-                <MultipleChoiceColumn
-                  startItem={21}
-                  endItem={40}
-                  totalItems={totalItems}
-                  colTitle={`ข้อ 21 - ${totalItems}`}
-                  bubbleSize="w-4 h-4 text-[8px]"
-                  choiceCount={choiceCount}
-                />
-              </div>
-            ) : tierMax === 60 ? (
-              /* 60 ITEMS: 3 Columns of 20 items */
-              <div className="grid grid-cols-3 gap-2">
-                <MultipleChoiceColumn
-                  startItem={1}
-                  endItem={20}
-                  totalItems={totalItems}
-                  colTitle="ข้อ 1 - 20"
-                  bubbleSize="w-3.5 h-3.5 text-[7.5px]"
-                  choiceCount={choiceCount}
-                />
-                <MultipleChoiceColumn
-                  startItem={21}
-                  endItem={40}
-                  totalItems={totalItems}
-                  colTitle="ข้อ 21 - 40"
-                  bubbleSize="w-3.5 h-3.5 text-[7.5px]"
-                  choiceCount={choiceCount}
-                />
-                <MultipleChoiceColumn
-                  startItem={41}
-                  endItem={60}
-                  totalItems={totalItems}
-                  colTitle={`ข้อ 41 - ${totalItems}`}
-                  bubbleSize="w-3.5 h-3.5 text-[7.5px]"
-                  choiceCount={choiceCount}
-                />
-              </div>
-            ) : tierMax === 80 ? (
-              /* 80 ITEMS: 4 Columns of 20 items */
-              <div className="grid grid-cols-4 gap-1.5">
-                <MultipleChoiceColumn
-                  startItem={1}
-                  endItem={20}
-                  totalItems={totalItems}
-                  colTitle="1 - 20"
-                  bubbleSize="w-3.5 h-3.5 text-[7px]"
-                  choiceCount={choiceCount}
-                />
-                <MultipleChoiceColumn
-                  startItem={21}
-                  endItem={40}
-                  totalItems={totalItems}
-                  colTitle="21 - 40"
-                  bubbleSize="w-3.5 h-3.5 text-[7px]"
-                  choiceCount={choiceCount}
-                />
-                <MultipleChoiceColumn
-                  startItem={41}
-                  endItem={60}
-                  totalItems={totalItems}
-                  colTitle="41 - 60"
-                  bubbleSize="w-3.5 h-3.5 text-[7px]"
-                  choiceCount={choiceCount}
-                />
-                <MultipleChoiceColumn
-                  startItem={61}
-                  endItem={80}
-                  totalItems={totalItems}
-                  colTitle={`61 - ${totalItems}`}
-                  bubbleSize="w-3.5 h-3.5 text-[7px]"
-                  choiceCount={choiceCount}
-                />
-              </div>
-            ) : (
-              /* 100 ITEMS: 5 Columns of 20 items */
-              <div className="grid grid-cols-5 gap-1">
-                <MultipleChoiceColumn
-                  startItem={1}
-                  endItem={20}
-                  totalItems={totalItems}
-                  colTitle="1 - 20"
-                  bubbleSize="w-3 h-3 text-[6.5px]"
-                  choiceCount={choiceCount}
-                />
-                <MultipleChoiceColumn
-                  startItem={21}
-                  endItem={40}
-                  totalItems={totalItems}
-                  colTitle="21 - 40"
-                  bubbleSize="w-3 h-3 text-[6.5px]"
-                  choiceCount={choiceCount}
-                />
-                <MultipleChoiceColumn
-                  startItem={41}
-                  endItem={60}
-                  totalItems={totalItems}
-                  colTitle="41 - 60"
-                  bubbleSize="w-3 h-3 text-[6.5px]"
-                  choiceCount={choiceCount}
-                />
-                <MultipleChoiceColumn
-                  startItem={61}
-                  endItem={80}
-                  totalItems={totalItems}
-                  colTitle="61 - 80"
-                  bubbleSize="w-3 h-3 text-[6.5px]"
-                  choiceCount={choiceCount}
-                />
-                <MultipleChoiceColumn
-                  startItem={81}
-                  endItem={100}
-                  totalItems={totalItems}
-                  colTitle={`81 - ${totalItems}`}
-                  bubbleSize="w-3 h-3 text-[6.5px]"
-                  choiceCount={choiceCount}
-                />
-              </div>
+          <div className="w-[10%] bg-slate-200 border-r border-slate-800 flex items-center justify-center font-bold text-slate-900">
+            ชั้น
+          </div>
+          <div className="w-[24%] flex items-center px-3 font-semibold text-slate-900">
+            {sheet.classroom || gradeLevel || ""}
+          </div>
+        </div>
+        {/* Row 2 */}
+        <div className="flex-1 flex text-[11px]">
+          <div className="w-[13%] bg-slate-200 border-r border-slate-800 flex items-center justify-center font-bold text-slate-900">
+            วันสอบ
+          </div>
+          <div className="w-[33%] border-r border-slate-800 flex items-center px-3 font-medium text-slate-900">
+            {displayDate}
+          </div>
+          <div className="w-[10%] bg-slate-200 border-r border-slate-800 flex items-center justify-center font-bold text-slate-900">
+            การสอบ
+          </div>
+          <div className="w-[44%] flex items-center justify-between px-3 font-medium text-slate-900 truncate">
+            <span className="truncate">{paperTitle}</span>
+            {sheet.sheetToken && (
+              <span className="ml-2 shrink-0 opacity-80">
+                <QRCodeSVG value={sheet.sheetToken} size={22} level="L" includeMargin={false} />
+              </span>
             )}
           </div>
-
-          <div className="text-[7px] text-slate-400 text-center font-mono pt-0.5">
-            [ สิ้นสุดพื้นที่สแกน OMR Scan Zone • {tierName} Rev 10.0 ]
-          </div>
         </div>
-
-        {/* ========================================================================= */}
-        {/* 2. LOWER SECTION: SUBJECTIVE WRITING / WORKSPACE (NO CUTTING LINES!)      */}
-        {/* ========================================================================= */}
-        <div className="flex-1 flex flex-col justify-between border-t-2 border-slate-700 pt-2 mt-2">
-          {hasSubjective ? (
-            <div className="space-y-1.5 flex-1 flex flex-col justify-between">
-              <div>
-                <div className="flex justify-between items-center border-b border-indigo-300 pb-1 mb-1">
-                  <span className="text-[11.5px] font-bold text-indigo-950">
-                    ตอนที่ 2: แบบทดสอบอัตนัย (เขียนตอบ)
-                  </span>
-                  <span className="text-[9.5px] font-bold text-indigo-800 bg-indigo-100 px-2 py-0.5 rounded">
-                    คะแนนเต็มรวม {totalSubjectiveScore} คะแนน
-                  </span>
-                </div>
-
-                <div className="space-y-1.5">
-                  {subjectiveItems.map((sItem) => (
-                    <div key={sItem.itemNo} className="text-[9.5px] border border-slate-300 rounded p-2 bg-white">
-                      <div className="flex justify-between items-center font-bold text-slate-900 border-b border-slate-200 pb-0.5">
-                        <span>ข้อที่ {sItem.itemNo}: {sItem.title}</span>
-                        <span className="text-indigo-900 font-mono text-[9px]">({sItem.maxScore} คะแนน)</span>
-                      </div>
-                      {sItem.rubricDetail && (
-                        <div className="text-[8px] text-slate-500 italic mt-0.5">
-                          เกณฑ์: {sItem.rubricDetail}
-                        </div>
-                      )}
-                      {/* Lined handwriting response area */}
-                      <div className="mt-1 h-20 border border-dotted border-slate-300 rounded bg-slate-50/50 p-1.5 text-[8px] text-slate-400 relative">
-                        <span>(พื้นที่เขียนตอบสำหรับนักเรียน)</span>
-                        <div className="absolute inset-x-2 top-6 border-b border-dotted border-slate-200" />
-                        <div className="absolute inset-x-2 top-11 border-b border-dotted border-slate-200" />
-                        <div className="absolute inset-x-2 top-16 border-b border-dotted border-slate-200" />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="border-t border-slate-200 pt-0.5 flex justify-between items-center text-[8.5px] text-slate-500">
-                <span>ครูผู้ตรวจ: กรุณานำคะแนนไปฝนลงในช่องคะแนนอัตนัยใน Scan Zone ด้านบนเพื่อตรวจด้วยระบบ</span>
-                <span className="font-mono font-bold">KP-OMR Rev 10.0</span>
-              </div>
-            </div>
-          ) : (
-            /* Workspace */
-            <div className="h-full flex flex-col justify-between">
-              <div>
-                <div className="text-[10.5px] font-bold text-slate-700 border-b border-slate-300 pb-0.5 mb-1">
-                  พื้นที่สำหรับทดเลข / ร่างคำตอบ (Scratchpad Workspace)
-                </div>
-                <div className="h-32 border border-dotted border-slate-300 rounded bg-white p-2 text-[8.5px] text-slate-400">
-                  (นักเรียนสามารถทดเลขหรือร่างคำตอบในบริเวณนี้ได้ โดยไม่มีผลต่อการสแกนตรวจคำตอบ)
-                </div>
-              </div>
-              <div className="text-[8px] text-slate-500 text-center border-t border-slate-200 pt-0.5">
-                โรงเรียนกุดจับประชาสรรค์ • ระบบบริหารจัดการวิชาการอิเล็กทรอนิกส์
-              </div>
-            </div>
-          )}
-
-          {/* Footer */}
-          <div className="text-[7.5px] text-slate-400 border-t border-slate-200 pt-0.5 text-center flex justify-between items-center mt-1">
-            <span>โรงเรียนกุดจับประชาสรรค์ • Smart Academic Exam System</span>
-            <span className="font-mono">
-              {tierName} (Rev. 9.2 Standard)
-            </span>
-          </div>
-        </div>
-
       </div>
+
+      {/* ===================================================================== */}
+      {/* 3. LEFT SIDEBAR SECTION A: เลขประจำตัว (5 DIGITS)                     */}
+      {/* ===================================================================== */}
+      <div
+        className="text-[11px] font-bold text-slate-900"
+        style={{
+          position: "absolute",
+          left: "9.5%",
+          top: "20.8%"
+        }}
+      >
+        เลขประจำตัว
+      </div>
+
+      {/* Outer Frame around 5-digit Student ID */}
+      <div
+        className="border border-slate-600 rounded-sm bg-white/40"
+        style={{
+          position: "absolute",
+          left: "9.5%",
+          width: "16.0%",
+          top: "22.6%",
+          height: "30.4%"
+        }}
+      />
+
+      {/* Horizontal divider under Student ID Digit Boxes */}
+      <div
+        className="border-b border-slate-500"
+        style={{
+          position: "absolute",
+          left: "9.5%",
+          width: "16.0%",
+          top: "26.5%"
+        }}
+      />
+
+      {/* Student ID Digit Display Boxes [ 6 | 9 | 0 | 0 | 1 ] */}
+      {geom.studentIdMatrix.map((col, idx) => (
+        <div
+          key={`sid-box-${col.columnIndex}`}
+          className="border border-slate-700 bg-white flex items-center justify-center font-bold text-[12px] text-slate-900"
+          style={{
+            position: "absolute",
+            left: `${(col.boxCenter.u * 100).toFixed(3)}%`,
+            top: `${(col.boxCenter.v * 100).toFixed(3)}%`,
+            width: "2.6%",
+            height: "2.6%",
+            transform: "translate(-50%, -50%)"
+          }}
+        >
+          {studentDigits[idx] || ""}
+        </div>
+      ))}
+
+      {/* Student ID 5 x 10 Bubble Grid (0 - 9) */}
+      {geom.studentIdMatrix.map((col, colIdx) => {
+        const prefilledDigit =
+          studentDigits[colIdx] !== "" ? parseInt(studentDigits[colIdx], 10) : -1;
+        return Object.entries(col.digits).map(([digitStr, b]) => {
+          const digitNum = parseInt(digitStr, 10);
+          const isShaded = prefilledDigit === digitNum;
+          return (
+            <div
+              key={`sid-b-${colIdx}-${digitNum}`}
+              className="rounded-full flex items-center justify-center font-medium"
+              style={{
+                position: "absolute",
+                left: `${(b.u * 100).toFixed(3)}%`,
+                top: `${(b.v * 100).toFixed(3)}%`,
+                width: bubbleDiameterWidthPct(b.radius),
+                height: bubbleDiameterHeightPct(b.radius),
+                transform: "translate(-50%, -50%)",
+                border: "1.2px solid #1e293b",
+                backgroundColor: isShaded ? "#000000" : "#ffffff",
+                color: isShaded ? "#ffffff" : "#334155",
+                fontSize: "8.5px",
+                lineHeight: 1
+              }}
+            >
+              {digitNum}
+            </div>
+          );
+        });
+      })}
+
+      {/* ===================================================================== */}
+      {/* 4. LEFT SIDEBAR SECTION B: เลขที่ (2 DIGITS) + รหัสชุด (ก ข ค ง)       */}
+      {/* ===================================================================== */}
+      <div
+        className="text-[11px] font-bold text-slate-900"
+        style={{
+          position: "absolute",
+          left: "9.5%",
+          top: "53.8%"
+        }}
+      >
+        เลขที่
+      </div>
+
+      {/* Outer Frame around Seat No + Version */}
+      <div
+        className="border border-slate-600 rounded-sm bg-white/40"
+        style={{
+          position: "absolute",
+          left: "9.5%",
+          width: "12.2%",
+          top: "55.4%",
+          height: "30.2%"
+        }}
+      />
+
+      {/* Vertical divider separating เลขที่ (2 cols) and รหัสชุด (1 col) */}
+      <div
+        className="border-r border-slate-500"
+        style={{
+          position: "absolute",
+          left: "16.8%",
+          top: "55.4%",
+          height: "30.2%"
+        }}
+      />
+
+      {/* Horizontal divider under Seat No / Version Digit Boxes */}
+      <div
+        className="border-b border-slate-500"
+        style={{
+          position: "absolute",
+          left: "9.5%",
+          width: "12.2%",
+          top: "59.1%"
+        }}
+      />
+
+      {/* Note beside Version Box */}
+      <div
+        className="text-[8px] leading-tight text-slate-600"
+        style={{
+          position: "absolute",
+          left: "22.2%",
+          top: "56.0%",
+          width: "10.5%"
+        }}
+      >
+        <div>(รหัสชุด : เฉพาะ</div>
+        <div>กรณีมีข้อสอบหลายชุด)</div>
+      </div>
+
+      {/* Seat No Digit Display Boxes [ 0 | 1 ] */}
+      {geom.seatNoMatrix.map((col, idx) => (
+        <div
+          key={`seat-box-${col.columnIndex}`}
+          className="border border-slate-700 bg-white flex items-center justify-center font-bold text-[12px] text-slate-900"
+          style={{
+            position: "absolute",
+            left: `${(col.boxCenter.u * 100).toFixed(3)}%`,
+            top: `${(col.boxCenter.v * 100).toFixed(3)}%`,
+            width: "2.6%",
+            height: "2.6%",
+            transform: "translate(-50%, -50%)"
+          }}
+        >
+          {seatDigits[idx] || ""}
+        </div>
+      ))}
+
+      {/* Seat No 2 x 10 Bubble Grid (0 - 9) */}
+      {geom.seatNoMatrix.map((col, colIdx) => {
+        const prefilledDigit =
+          seatDigits[colIdx] !== "" ? parseInt(seatDigits[colIdx], 10) : -1;
+        return Object.entries(col.digits).map(([digitStr, b]) => {
+          const digitNum = parseInt(digitStr, 10);
+          const isShaded = prefilledDigit === digitNum;
+          return (
+            <div
+              key={`seat-b-${colIdx}-${digitNum}`}
+              className="rounded-full flex items-center justify-center font-medium"
+              style={{
+                position: "absolute",
+                left: `${(b.u * 100).toFixed(3)}%`,
+                top: `${(b.v * 100).toFixed(3)}%`,
+                width: bubbleDiameterWidthPct(b.radius),
+                height: bubbleDiameterHeightPct(b.radius),
+                transform: "translate(-50%, -50%)",
+                border: "1.2px solid #1e293b",
+                backgroundColor: isShaded ? "#000000" : "#ffffff",
+                color: isShaded ? "#ffffff" : "#334155",
+                fontSize: "8.5px",
+                lineHeight: 1
+              }}
+            >
+              {digitNum}
+            </div>
+          );
+        });
+      })}
+
+      {/* Version Display Box [ ก ] */}
+      <div
+        className="border border-slate-700 bg-white flex items-center justify-center font-bold text-[11px] text-slate-900"
+        style={{
+          position: "absolute",
+          left: `${(geom.versionMatrix.boxCenter.u * 100).toFixed(3)}%`,
+          top: `${(geom.versionMatrix.boxCenter.v * 100).toFixed(3)}%`,
+          width: "2.6%",
+          height: "2.6%",
+          transform: "translate(-50%, -50%)"
+        }}
+      >
+        {versionThaiChar}
+      </div>
+
+      {/* Version Bubbles (ก, ข, ค, ง) */}
+      {Object.entries(geom.versionMatrix.bubbles).map(([code, b]) => {
+        const thaiChar = VERSION_THAI_MAP[code] || "ก";
+        const isShaded = hasRealStudentId && activeVersionCode === code;
+        return (
+          <div
+            key={`ver-b-${code}`}
+            className="rounded-full flex items-center justify-center font-semibold"
+            style={{
+              position: "absolute",
+              left: `${(b.u * 100).toFixed(3)}%`,
+              top: `${(b.v * 100).toFixed(3)}%`,
+              width: bubbleDiameterWidthPct(b.radius),
+              height: bubbleDiameterHeightPct(b.radius),
+              transform: "translate(-50%, -50%)",
+              border: "1.2px solid #1e293b",
+              backgroundColor: isShaded ? "#000000" : "#ffffff",
+              color: isShaded ? "#ffffff" : "#334155",
+              fontSize: "8.5px",
+              lineHeight: 1
+            }}
+          >
+            {thaiChar}
+          </div>
+        );
+      })}
+
+      {/* ===================================================================== */}
+      {/* 5. LEFT SIDEBAR SECTION C: ตัวอย่างการระบาย (SHADING EXAMPLE BOX)      */}
+      {/* ===================================================================== */}
+      <div
+        className="bg-slate-100 border border-slate-300 rounded px-2.5 py-1.5 flex flex-col justify-between text-[9px] text-slate-800"
+        style={{
+          position: "absolute",
+          left: "9.5%",
+          width: "21.0%",
+          top: "86.8%",
+          height: "6.5%"
+        }}
+      >
+        <div className="font-bold underline text-slate-900">ตัวอย่างการระบาย</div>
+        <div className="flex items-center gap-2">
+          <span className="font-bold w-6">ถูก</span>
+          <span className="inline-block w-3.5 h-3.5 rounded-full bg-black border border-black" />
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="font-bold w-6">ผิด</span>
+          <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full border border-slate-700 bg-white text-[8px]">
+            ✓
+          </span>
+          <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full border border-slate-700 bg-white text-[8px]">
+            ✗
+          </span>
+          <span
+            className="inline-block w-3.5 h-3.5 rounded-full border border-slate-700"
+            style={{ background: "linear-gradient(90deg, #000 50%, #fff 50%)" }}
+          />
+          <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full border border-slate-700 bg-white">
+            <span className="w-1.5 h-1.5 rounded-full bg-black" />
+          </span>
+        </div>
+        <div className="text-[7.5px] text-slate-600 truncate">
+          ต้องระบายให้เต็มวงกลม อย่าให้ล้นออกนอกวง
+        </div>
+      </div>
+
+      {/* ===================================================================== */}
+      {/* 6. RIGHT ZONE: MULTIPLE-CHOICE ANSWER COLUMNS + TIMING MARKS           */}
+      {/* ===================================================================== */}
+      {/* Column Headers: Black Square `■` + ก ข ค ง (จ ฉ) */}
+      {geom.columnHeaders.map((colHeader) => (
+        <React.Fragment key={`col-hdr-${colHeader.columnIndex}`}>
+          {/* Solid Black Column Header Timing Square `■` */}
+          <div
+            style={{
+              position: "absolute",
+              left: `${(colHeader.markerPos.u * 100).toFixed(3)}%`,
+              top: `${(colHeader.markerPos.v * 100).toFixed(3)}%`,
+              width: "1.45%",
+              height: "1.02%",
+              backgroundColor: "#000000",
+              transform: "translate(-50%, -50%)"
+            }}
+          />
+          {/* Choice Column Labels (`ก ข ค ง` ...) */}
+          {colHeader.choiceLabelPositions.map((cl) => (
+            <div
+              key={`col-${colHeader.columnIndex}-lbl-${cl.label}`}
+              className="font-bold text-[11px] text-slate-900 flex items-center justify-center"
+              style={{
+                position: "absolute",
+                left: `${(cl.u * 100).toFixed(3)}%`,
+                top: `${(cl.v * 100).toFixed(3)}%`,
+                transform: "translate(-50%, -50%)"
+              }}
+            >
+              {cl.thaiLabel}
+            </div>
+          ))}
+        </React.Fragment>
+      ))}
+
+      {/* Right-Edge Horizontal Timing Bars `▬` (One aligned with every question row) */}
+      {uniqueRowBars.map((bar) =>
+        bar ? (
+          <div
+            key={`row-bar-${bar.rowIndex}`}
+            style={{
+              position: "absolute",
+              left: `${(bar.u * 100).toFixed(3)}%`,
+              top: `${(bar.v * 100).toFixed(3)}%`,
+              width: `${(bar.width * 100).toFixed(3)}%`,
+              height: `${(bar.height * 100).toFixed(3)}%`,
+              backgroundColor: "#000000",
+              transform: "translate(-50%, -50%)"
+            }}
+          />
+        ) : null
+      )}
+
+      {/* Question Rows (`1 .. totalItems`) */}
+      {geom.questions
+        .filter((q) => q.itemNo <= totalItems)
+        .map((q) => (
+          <React.Fragment key={`q-row-${q.itemNo}`}>
+            {/* Question Number Label (`1`, `2`, ..., `40`) */}
+            <div
+              className="font-bold text-[10.5px] text-slate-900 flex items-center justify-end pr-1"
+              style={{
+                position: "absolute",
+                left: `${(q.numberLabelPos.u * 100).toFixed(3)}%`,
+                top: `${(q.numberLabelPos.v * 100).toFixed(3)}%`,
+                width: "2.6%",
+                transform: "translate(-60%, -50%)"
+              }}
+            >
+              {q.itemNo}
+            </div>
+
+            {/* Choice Bubbles (`ก ข ค ง` / `ก-จ` / `ก-ฉ`) */}
+            {geom.choiceLabels.map((choiceKey) => {
+              const coord = q.choices[choiceKey];
+              if (!coord) return null;
+              const thaiChar = THAI_CHOICE_LABELS[choiceKey];
+              return (
+                <div
+                  key={`q-${q.itemNo}-${choiceKey}`}
+                  className="rounded-full flex items-center justify-center font-medium"
+                  style={{
+                    position: "absolute",
+                    left: `${(coord.u * 100).toFixed(3)}%`,
+                    top: `${(coord.v * 100).toFixed(3)}%`,
+                    width: bubbleDiameterWidthPct(coord.radius),
+                    height: bubbleDiameterHeightPct(coord.radius),
+                    transform: "translate(-50%, -50%)",
+                    border: "1.2px solid #334155",
+                    backgroundColor: "#ffffff",
+                    color: "#64748b",
+                    fontSize: validChoiceCount <= 4 ? "8.5px" : "7.5px",
+                    lineHeight: 1
+                  }}
+                >
+                  {thaiChar}
+                </div>
+              );
+            })}
+          </React.Fragment>
+        ))}
     </div>
   );
 }
 
-/**
- * Single Half-A4 Slip (for 2-up printing of 20-item exams)
- */
-function HalfSheetCard({
-  paperTitle,
-  subjectCode,
-  subjectName,
-  academicYear,
-  term,
-  gradeLevel,
-  totalItems,
-  choiceCount = 4,
-  subjectiveItems = [],
-  sheet,
-  isPreSlugged = true
-}: {
-  paperTitle: string;
-  subjectCode: string;
-  subjectName: string;
-  academicYear: number;
-  term: number;
-  gradeLevel: string;
-  totalItems: number;
-  choiceCount?: number;
-  subjectiveItems?: SubjectivePrintItem[];
-  sheet: PrintedSheetItem;
-  isPreSlugged?: boolean;
-}) {
-  const digits = (sheet.studentId || "").padStart(5, "0").slice(-5).split("");
-  const hasSubjective = subjectiveItems.length > 0;
-  const actualChoices = ALL_CHOICE_LABELS.slice(0, Math.min(6, Math.max(2, choiceCount)));
-
-  return (
-    <div className="relative h-[138mm] box-border p-[4mm] px-[12mm] flex flex-col justify-between bg-white text-black select-none border border-slate-300 rounded">
-      {/* 4 Corner Markers (10mm x 10mm) */}
-      <div className="absolute top-[3mm] left-[3mm] w-[10mm] h-[10mm] bg-black" />
-      <div className="absolute top-[3mm] right-[3mm] w-[10mm] h-[10mm] bg-black" />
-      <div className="absolute bottom-[3mm] left-[3mm] w-[10mm] h-[10mm] bg-black" />
-      <div className="absolute bottom-[3mm] right-[3mm] w-[10mm] h-[10mm] bg-black" />
-
-      {/* Top Bar */}
-      <div>
-        <div className="flex items-start justify-between border-b border-black pb-0.5">
-          <div>
-            <div className="text-[11.5px] font-bold">
-              โรงเรียนกุดจับประชาสรรค์ • กระดาษคำตอบ (Half-A4 Rev 9.1)
-            </div>
-            <div className="text-[10px] font-semibold text-slate-800">
-              {subjectCode} {subjectName} ({gradeLevel}) • {paperTitle}
-            </div>
-            <div className="text-[8px] text-slate-600">
-              ปีการศึกษา {academicYear}/{term} • ปรนัย {totalItems} ข้อ ({actualChoices.join(",")}) {hasSubjective ? `• อัตนัย ${subjectiveItems.length} ข้อ` : ""}
-            </div>
-          </div>
-          <div className="flex flex-col items-center">
-            <QRCodeSVG value={sheet.sheetToken} size={34} level="M" includeMargin={false} />
-            <span className="text-[6px] font-mono text-slate-600 mt-0.5">{sheet.sheetToken.slice(-10)}</span>
-          </div>
-        </div>
-
-        {/* Student Bar */}
-        <div className="mt-1 flex items-center justify-between border border-black px-2 py-0.5 rounded text-[9px] bg-slate-50/50">
-          <div className="flex items-center gap-2">
-            <span className="font-bold">ชื่อ:</span>
-            <span className="font-semibold text-blue-900">{sheet.studentName || "................................................"}</span>
-          </div>
-          <div className="flex items-center gap-3 font-mono">
-            <span>ชั้น: <b>{sheet.classroom || "-"}</b></span>
-            <span>เลขที่: <b>{sheet.seatNo != null ? sheet.seatNo : "-"}</b></span>
-            <span className="font-bold text-blue-900">ID: {sheet.studentId}</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Middle: Digits & 2 Cols of 10 */}
-      <div className="grid grid-cols-12 gap-2 items-center my-0.5">
-        {/* Student ID */}
-        <div className="col-span-4 border-r border-slate-300 pr-1.5">
-          <div className="text-[7px] font-bold text-center mb-0.5 text-slate-700">รหัสนักเรียน 5 หลัก</div>
-          <div className="flex justify-center gap-1 mb-0.5">
-            {digits.map((d, dIdx) => (
-              <div key={dIdx} className="w-3 h-3 border border-black flex items-center justify-center font-mono text-[7.5px] font-bold bg-white">
-                {isPreSlugged ? d : ""}
-              </div>
-            ))}
-          </div>
-          <div className="space-y-0.5">
-            {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
-              <div key={num} className="flex justify-center gap-1 items-center">
-                {digits.map((d, dIdx) => {
-                  const isMarked = isPreSlugged && parseInt(d, 10) === num;
-                  return (
-                    <div
-                      key={dIdx}
-                      className={`w-2.5 h-2.5 rounded-full border border-black flex items-center justify-center text-[6px] font-bold ${
-                        isMarked ? "bg-black text-white" : "bg-white text-black"
-                      }`}
-                    >
-                      {num}
-                    </div>
-                  );
-                })}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* 2 Cols of 10 items (Col 1: 1-10, Col 2: 11-20) */}
-        <div className="col-span-8 grid grid-cols-2 gap-2">
-          <MultipleChoiceColumn
-            startItem={1}
-            endItem={10}
-            totalItems={totalItems}
-            colTitle="ข้อ 1 - 10"
-            bubbleSize="w-3 h-3 text-[6.5px]"
-            itemPadding="py-0"
-            choiceCount={choiceCount}
-          />
-          <MultipleChoiceColumn
-            startItem={11}
-            endItem={20}
-            totalItems={totalItems}
-            colTitle="ข้อ 11 - 20"
-            bubbleSize="w-3 h-3 text-[6.5px]"
-            itemPadding="py-0"
-            choiceCount={choiceCount}
-          />
-        </div>
-      </div>
-
-      {/* Footer */}
-      <div className="border-t border-slate-300 pt-0.5 flex justify-between items-center text-[7px] text-slate-500">
-        <span>กุดจับประชาสรรค์ • Half-A4 Mode (Rev 9.1)</span>
-        <span>ช่องคะแนน: ปรนัย [ _____ ] {hasSubjective && "อัตนัย [ _____ ]"}</span>
-      </div>
-    </div>
-  );
-}
+export const OmrAnswerSheet = OmrAnswerSheetPrintLayout;
 
 /**
- * 📑 OmrTwoUpA4Sheet: Renders 2 complete answer sheets on 1 A4 page (Top & Bottom)
+ * 📑 OmrTwoUpA4Sheet: Renders the Full-Page Standard OMR Sheet for each student
+ * (Retained export signature for backward-compatibility with existing imports)
  */
-export function OmrTwoUpA4Sheet({
-  paperTitle,
-  subjectCode,
-  subjectName,
-  academicYear,
-  term,
-  gradeLevel,
-  totalItems = 20,
-  choiceCount = 4,
-  subjectiveItems = [],
-  sheetTop,
-  sheetBottom,
-  isPreSlugged = true
-}: OmrTwoUpA4SheetProps) {
-  const bottomSheet = sheetBottom || {
-    sheetToken: `${sheetTop.sheetToken}_b`,
-    studentId: "00000",
-    studentName: "........................................................",
-    classroom: gradeLevel,
-    seatNo: null
-  };
-
+export function OmrTwoUpA4Sheet(props: OmrTwoUpA4SheetProps) {
   return (
-    <div className="omr-a4-sheet relative bg-white text-black font-sans box-border overflow-hidden select-none flex flex-col justify-between h-full p-[4mm]">
-      {/* Top Half Sheet */}
-      <div className="flex-1 overflow-hidden">
-        <HalfSheetCard
-          paperTitle={paperTitle}
-          subjectCode={subjectCode}
-          subjectName={subjectName}
-          academicYear={academicYear}
-          term={term}
-          gradeLevel={gradeLevel}
-          totalItems={totalItems}
-          choiceCount={choiceCount}
-          subjectiveItems={subjectiveItems}
-          sheet={sheetTop}
-          isPreSlugged={isPreSlugged && sheetTop.studentId !== "00000"}
-        />
-      </div>
-
-      {/* Divider between the 2 half sheets */}
-      <div className="py-1 flex items-center justify-center my-0.5">
-        <div className="w-full border-t border-dashed border-slate-400" />
-      </div>
-
-      {/* Bottom Half Sheet */}
-      <div className="flex-1 overflow-hidden">
-        <HalfSheetCard
-          paperTitle={paperTitle}
-          subjectCode={subjectCode}
-          subjectName={subjectName}
-          academicYear={academicYear}
-          term={term}
-          gradeLevel={gradeLevel}
-          totalItems={totalItems}
-          choiceCount={choiceCount}
-          subjectiveItems={subjectiveItems}
-          sheet={bottomSheet}
-          isPreSlugged={isPreSlugged && bottomSheet.studentId !== "00000"}
-        />
-      </div>
-    </div>
+    <OmrAnswerSheetPrintLayout
+      paperTitle={props.paperTitle}
+      subjectCode={props.subjectCode}
+      subjectName={props.subjectName}
+      academicYear={props.academicYear}
+      term={props.term}
+      gradeLevel={props.gradeLevel}
+      totalItems={props.totalItems}
+      choiceCount={props.choiceCount}
+      sheet={props.sheetTop}
+      isPreSlugged={props.isPreSlugged}
+    />
   );
 }

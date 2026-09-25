@@ -25,9 +25,10 @@ import {
   Check
 } from "lucide-react";
 import { processOmrSheet, warpPerspectiveBilinear, OmrScanResult, RawImageData, QuadPoints } from "@/lib/omr/omrEngine";
-import { getTemplateGridForItems, TemplateGridMetadata } from "@/lib/omr/omrTemplateGeometry";
+import { getTemplateGridForItems, ChoiceCount } from "@/lib/omr/omrTemplateGeometry";
+import type { TemplateGridMetadata } from "@/lib/omr/omrEngine";
 import { detectFiducialMarkers, MarkerDetectionResult } from "@/lib/omr/omrMarkerDetector";
-import { ingestExamSubmissionAction } from "@/app/actions/omr";
+import { ingestExamSubmissionAction, updateSubmissionStudentIdentityAction } from "@/app/actions/omr";
 import { useSession } from "@/lib/auth-client";
 
 interface OmrCameraScannerProps {
@@ -43,7 +44,7 @@ type AdvanceMode = "auto" | "manual";
 
 export function OmrCameraScanner({ 
   paperId, 
-  totalItems = 50, 
+  totalItems = 40, 
   choiceCount = 4,
   initialFullscreen = false,
   onScanComplete,
@@ -59,6 +60,9 @@ export function OmrCameraScanner({
   const [isProcessing, setIsProcessing] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(initialFullscreen);
+  const [activeChoiceCount, setActiveChoiceCount] = useState<ChoiceCount>(
+    choiceCount === 5 ? 5 : choiceCount === 6 ? 6 : 4
+  );
 
   // Auto-Capture & Marker Lock States
   const [autoCaptureEnabled, setAutoCaptureEnabled] = useState(true);
@@ -75,24 +79,27 @@ export function OmrCameraScanner({
   const [isCountdownPaused, setIsCountdownPaused] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
 
-  // Scan Result Modal State + Visual Bubble Alignment Overlay
+  // Scan Result Modal State + Visual Bubble Alignment Overlay + Quick Identity Edit
   const [scanResult, setScanResult] = useState<OmrScanResult | null>(null);
   const [diagnosticImageUrl, setDiagnosticImageUrl] = useState<string | null>(null);
   const [showBubbleOverlay, setShowBubbleOverlay] = useState<boolean>(true);
   const [savedSubmission, setSavedSubmission] = useState<any | null>(null);
   const [ingestLoading, setIngestLoading] = useState(false);
+  const [editStudentId, setEditStudentId] = useState<string>("");
+  const [editSeatNo, setEditSeatNo] = useState<string>("");
+  const [savingIdentity, setSavingIdentity] = useState<boolean>(false);
 
   // Template metadata
-  const templateGrid: TemplateGridMetadata = getTemplateGridForItems(totalItems, choiceCount);
+  const templateGrid: TemplateGridMetadata = getTemplateGridForItems(totalItems, activeChoiceCount);
   const templateLabel = totalItems <= 20
-    ? `20 ข้อ (${choiceCount} ตัวเลือก)`
+    ? `20 ข้อ (${activeChoiceCount} ตัวเลือก)`
     : totalItems <= 40
-    ? `40 ข้อ (${choiceCount} ตัวเลือก)`
+    ? `40 ข้อ (${activeChoiceCount} ตัวเลือก)`
     : totalItems <= 60
-    ? `60 ข้อ (${choiceCount} ตัวเลือก)`
+    ? `60 ข้อ (${activeChoiceCount} ตัวเลือก)`
     : totalItems <= 80
-    ? `80 ข้อ (${choiceCount} ตัวเลือก)`
-    : `100 ข้อ (${choiceCount} ตัวเลือก)`;
+    ? `80 ข้อ (${activeChoiceCount} ตัวเลือก)`
+    : `100 ข้อ (${activeChoiceCount} ตัวเลือก)`;
 
   // Load preferences from localStorage
   useEffect(() => {
@@ -356,8 +363,8 @@ export function OmrCameraScanner({
         }
       }
 
-      // 4. จำลองการฝนรหัสนักเรียน (12345) และชุดข้อสอบ (01)
-      const targetStudentDigits = [1, 2, 3, 4, 5];
+      // 4. จำลองการฝนรหัสนักเรียน (69001), เลขที่ (01) และชุดข้อสอบ (01)
+      const targetStudentDigits = [6, 9, 0, 0, 1];
       for (const d of templateGrid.studentIdGrid.digits) {
         const cx = d.u * w;
         const cy = d.v * h;
@@ -365,7 +372,7 @@ export function OmrCameraScanner({
         sctx.beginPath();
         sctx.arc(cx, cy, r, 0, Math.PI * 2);
         if (targetStudentDigits[d.digitIndex] === d.value) {
-          sctx.fillStyle = "#1e293b";
+          sctx.fillStyle = "#0f172a";
           sctx.fill();
         } else {
           sctx.strokeStyle = "#64748b";
@@ -374,8 +381,27 @@ export function OmrCameraScanner({
         }
       }
 
+      if (templateGrid.seatNoGrid) {
+        const targetSeatDigits = [0, 1];
+        for (const d of templateGrid.seatNoGrid.digits) {
+          const cx = d.u * w;
+          const cy = d.v * h;
+          const r = d.radius * w;
+          sctx.beginPath();
+          sctx.arc(cx, cy, r, 0, Math.PI * 2);
+          if (targetSeatDigits[d.digitIndex] === d.value) {
+            sctx.fillStyle = "#0f172a";
+            sctx.fill();
+          } else {
+            sctx.strokeStyle = "#64748b";
+            sctx.lineWidth = 1.5;
+            sctx.stroke();
+          }
+        }
+      }
+
       // 5. จำลองการฝนข้อสอบครบทุกข้อ (1..totalItems)
-      const choices = ["A", "B", "C", "D", "E", "F"].slice(0, choiceCount);
+      const choices = ["A", "B", "C", "D", "E", "F"].slice(0, activeChoiceCount);
       for (const q of templateGrid.questionBlocks) {
         if (q.itemNo > totalItems) continue;
         const chosenChoice = choices[(q.itemNo - 1) % choices.length];
@@ -386,38 +412,11 @@ export function OmrCameraScanner({
           sctx.beginPath();
           sctx.arc(cx, cy, r, 0, Math.PI * 2);
           if (b.choice === chosenChoice) {
-            sctx.fillStyle = "#1e293b";
+            sctx.fillStyle = "#0f172a";
             sctx.fill();
           } else {
             sctx.strokeStyle = "#475569";
             sctx.lineWidth = 2;
-            sctx.stroke();
-          }
-        }
-      }
-
-      // 6. จำลองการฝนคะแนนรวมอัตนัย (25 คะแนน: หลักสิบ=2, หลักหน่วย=5)
-      if (templateGrid.subjectiveScores && templateGrid.subjectiveScores.length > 0) {
-        const sub = templateGrid.subjectiveScores[0];
-        for (const t of sub.tens) {
-          sctx.beginPath();
-          sctx.arc(t.u * w, t.v * h, t.radius * w, 0, Math.PI * 2);
-          if (t.value === 2) {
-            sctx.fillStyle = "#1e293b";
-            sctx.fill();
-          } else {
-            sctx.strokeStyle = "#64748b";
-            sctx.stroke();
-          }
-        }
-        for (const u of sub.units) {
-          sctx.beginPath();
-          sctx.arc(u.u * w, u.v * h, u.radius * w, 0, Math.PI * 2);
-          if (u.value === 5) {
-            sctx.fillStyle = "#1e293b";
-            sctx.fill();
-          } else {
-            sctx.strokeStyle = "#64748b";
             sctx.stroke();
           }
         }
@@ -441,11 +440,13 @@ export function OmrCameraScanner({
       const overlayUrl = buildDiagnosticOverlayUrl(rawImage, simCorners, result);
       setDiagnosticImageUrl(overlayUrl);
       setScanResult(result);
+      setEditStudentId(result.studentId || "69001");
+      setEditSeatNo(result.seatNoStr || (result.seatNo ? String(result.seatNo) : "01"));
       playChime(result.success);
     } finally {
       setIsProcessing(false);
     }
-  }, [templateGrid, totalItems, choiceCount, buildDiagnosticOverlayUrl, playChime]);
+  }, [templateGrid, totalItems, activeChoiceCount, buildDiagnosticOverlayUrl, playChime]);
 
   // Frame Capture & Processing Function
   const captureAndProcess = useCallback(async (explicitCorners?: QuadPoints | null) => {
@@ -485,6 +486,8 @@ export function OmrCameraScanner({
       if (result.success) {
         playChime(true);
         setScanResult(result);
+        setEditStudentId(result.studentId || "");
+        setEditSeatNo(result.seatNoStr || (result.seatNo ? String(result.seatNo) : ""));
 
         if (paperId && session?.user?.id) {
           setIngestLoading(true);
@@ -495,6 +498,8 @@ export function OmrCameraScanner({
               clientScanId,
               examPaperId: paperId,
               studentId: result.studentId || "00000",
+              rawDetectedStudentId: result.rawDetectedStudentId,
+              seatNo: result.seatNo ?? null,
               versionCode: result.versionCode || "01",
               scannedByUserId: session.user.id,
               items: result.items.map(item => ({
@@ -506,6 +511,12 @@ export function OmrCameraScanner({
             });
 
             setSavedSubmission(submission);
+            if (submission?.studentId && !submission.studentId.startsWith("UNREAD_")) {
+              setEditStudentId(submission.studentId);
+            }
+            if (submission?.seatNo != null) {
+              setEditSeatNo(String(submission.seatNo).padStart(2, "0"));
+            }
             if (onScanComplete) onScanComplete(submission);
           } catch (err: any) {
             console.error("Failed to ingest submission:", err);
@@ -524,6 +535,41 @@ export function OmrCameraScanner({
       setIsProcessing(false);
     }
   }, [isProcessing, paperId, session, templateGrid, playChime, onScanComplete, buildDiagnosticOverlayUrl]);
+
+  // Quick-Edit Student ID / Seat No Handler inside Camera Modal (Q2 - Option C)
+  const handleSaveStudentIdentity = useCallback(async () => {
+    const cleanId = editStudentId.trim();
+    const parsedSeat = editSeatNo.trim() ? parseInt(editSeatNo.trim(), 10) : null;
+    if (!cleanId) return;
+
+    if (scanResult) {
+      setScanResult({
+        ...scanResult,
+        studentId: cleanId,
+        rawDetectedStudentId: cleanId,
+        seatNo: parsedSeat,
+        seatNoStr: editSeatNo.trim()
+      });
+    }
+
+    if (savedSubmission?.id) {
+      setSavingIdentity(true);
+      try {
+        const updated = await updateSubmissionStudentIdentityAction({
+          submissionId: savedSubmission.id,
+          studentId: cleanId,
+          seatNo: parsedSeat,
+          performedByUserId: session?.user?.id
+        });
+        setSavedSubmission(updated);
+        if (onScanComplete) onScanComplete(updated);
+      } catch (err) {
+        console.error("Failed to update student identity:", err);
+      } finally {
+        setSavingIdentity(false);
+      }
+    }
+  }, [editStudentId, editSeatNo, scanResult, savedSubmission, session, onScanComplete]);
 
   // Real-Time 6-Point Fiducial Marker Detection Analysis Loop (~250ms interval)
   useEffect(() => {
@@ -668,6 +714,8 @@ export function OmrCameraScanner({
           const overlayUrl = buildDiagnosticOverlayUrl(rawImage, cornersToUse, result);
           setDiagnosticImageUrl(overlayUrl);
           setScanResult(result);
+          setEditStudentId(result.studentId || "");
+          setEditSeatNo(result.seatNoStr || (result.seatNo ? String(result.seatNo) : ""));
           playChime(result.success);
 
           if (result.success && paperId && session?.user?.id) {
@@ -677,6 +725,8 @@ export function OmrCameraScanner({
               clientScanId,
               examPaperId: paperId,
               studentId: result.studentId || "00000",
+              rawDetectedStudentId: result.rawDetectedStudentId,
+              seatNo: result.seatNo ?? null,
               versionCode: result.versionCode || "01",
               scannedByUserId: session.user.id,
               items: result.items.map(item => ({
@@ -687,6 +737,12 @@ export function OmrCameraScanner({
               }))
             });
             setSavedSubmission(submission);
+            if (submission?.studentId && !submission.studentId.startsWith("UNREAD_")) {
+              setEditStudentId(submission.studentId);
+            }
+            if (submission?.seatNo != null) {
+              setEditSeatNo(String(submission.seatNo).padStart(2, "0"));
+            }
             if (onScanComplete) onScanComplete(submission);
             setIngestLoading(false);
           }
@@ -741,6 +797,18 @@ export function OmrCameraScanner({
         </div>
 
         <div className="flex items-center gap-1.5 sm:gap-2">
+          {/* 4 / 5 / 6 Choice Mode Switcher */}
+          <button
+            type="button"
+            onClick={() =>
+              setActiveChoiceCount((prev) => (prev === 4 ? 5 : prev === 5 ? 6 : 4))
+            }
+            className="px-2.5 py-1.5 rounded-xl bg-purple-500/25 hover:bg-purple-500/40 border border-purple-400/50 backdrop-blur-md transition text-purple-200 text-[11px] font-bold"
+            title="คลิกเพื่อสลับแบบกระดาษคำตอบ: 4 ตัวเลือก (ก-ง มาตรฐาน), 5 ตัวเลือก (ก-จ พิเศษ), 6 ตัวเลือก (ก-ฉ พิเศษ)"
+          >
+            {activeChoiceCount} ตัวเลือก ({activeChoiceCount === 4 ? "ก-ง" : activeChoiceCount === 5 ? "ก-จ" : "ก-ฉ"})
+          </button>
+
           {/* Test / Simulate Scan & Visual Bubble Pointer */}
           <button
             type="button"
@@ -950,27 +1018,89 @@ export function OmrCameraScanner({
 
             {scanResult.success ? (
               <div className="space-y-3">
-                {/* Score Big Display */}
+                {/* Score Big Display (Pure Multiple-Choice + Student ID + Seat No + Version) */}
                 <div className="grid grid-cols-4 gap-2 py-3 px-3 rounded-2xl bg-slate-800/80 border border-slate-700 text-center">
                   <div>
-                    <div className="text-[10px] text-slate-400">รหัสนักเรียน</div>
-                    <div className="text-sm font-bold text-purple-400">{scanResult.studentId || "00000"}</div>
+                    <div className="text-[10px] text-slate-400">เลขประจำตัว</div>
+                    <div className="text-sm font-bold text-purple-400">
+                      {savedSubmission?.studentId && !savedSubmission.studentId.startsWith("UNREAD_")
+                        ? savedSubmission.studentId
+                        : scanResult.rawDetectedStudentId?.includes("?")
+                        ? scanResult.rawDetectedStudentId
+                        : scanResult.studentId || "00000"}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] text-slate-400">เลขที่</div>
+                    <div className="text-sm font-bold text-cyan-400">
+                      {savedSubmission?.seatNo != null
+                        ? String(savedSubmission.seatNo).padStart(2, "0")
+                        : scanResult.seatNoStr || (scanResult.seatNo ? String(scanResult.seatNo).padStart(2, "0") : "-")}
+                    </div>
                   </div>
                   <div>
                     <div className="text-[10px] text-slate-400">ชุดข้อสอบ</div>
                     <div className="text-sm font-bold text-indigo-400">ชุด {scanResult.versionCode}</div>
                   </div>
                   <div>
-                    <div className="text-[10px] text-slate-400">คะแนนอัตนัยรวม</div>
-                    <div className="text-sm font-bold text-cyan-400">
-                      {scanResult.subjectiveScore != null ? `${scanResult.subjectiveScore} คะแนน` : "-"}
+                    <div className="text-[10px] text-slate-400">คะแนนปรนัย</div>
+                    <div className="text-sm font-bold text-emerald-400">
+                      {savedSubmission
+                        ? `${Number(savedSubmission.netScore)} คะแนน`
+                        : `ตอบ ${scanResult.items.filter(i => i.itemNo <= totalItems && i.detectedChoices.length > 0).length}/${totalItems} ข้อ`}
                     </div>
                   </div>
-                  <div>
-                    <div className="text-[10px] text-slate-400">คะแนนสุทธิ</div>
-                    <div className="text-sm font-bold text-emerald-400">
-                      {savedSubmission ? `${Number(savedSubmission.netScore)} คะแนน` : `ตอบ ${scanResult.items.filter(i => i.itemNo <= totalItems && i.detectedChoices.length > 0).length}/${totalItems} ข้อ`}
+                </div>
+
+                {/* Inline Quick-Edit Student Identity Bar (Q2 - Option C) */}
+                <div className="p-2.5 rounded-2xl bg-slate-800/60 border border-slate-700/80 space-y-2">
+                  <div className="flex items-center justify-between text-[11px]">
+                    <span className="font-bold text-slate-200">
+                      {savedSubmission?.studentName
+                        ? `👤 ${savedSubmission.studentName} ${savedSubmission.classroom ? `(${savedSubmission.classroom})` : ""}`
+                        : scanResult.rawDetectedStudentId?.includes("?")
+                        ? "⚠️ พบรหัสนักเรียนไม่ครบ (แยกเก็บในคิวตรวจสอบแล้ว หรือพิมพ์แก้ด้านล่างได้ทันที)"
+                        : "✏️ แก้ไขเลขประจำตัว / เลขที่ด่วน"}
+                    </span>
+                    {savedSubmission?.attemptNo > 1 && (
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30 font-semibold">
+                        สแกนครั้งที่ {savedSubmission.attemptNo}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 flex items-center gap-1.5">
+                      <span className="text-[10px] text-slate-400 whitespace-nowrap">รหัส 5 หลัก:</span>
+                      <input
+                        type="text"
+                        maxLength={10}
+                        value={editStudentId}
+                        onFocus={() => setIsCountdownPaused(true)}
+                        onChange={(e) => setEditStudentId(e.target.value)}
+                        placeholder="เช่น 69001"
+                        className="w-full h-8 px-2.5 rounded-lg bg-slate-900 border border-slate-600 text-xs font-mono font-bold text-white focus:border-purple-400 outline-none"
+                      />
                     </div>
+                    <div className="w-24 flex items-center gap-1">
+                      <span className="text-[10px] text-slate-400 whitespace-nowrap">เลขที่:</span>
+                      <input
+                        type="text"
+                        maxLength={3}
+                        value={editSeatNo}
+                        onFocus={() => setIsCountdownPaused(true)}
+                        onChange={(e) => setEditSeatNo(e.target.value)}
+                        placeholder="01"
+                        className="w-full h-8 px-2 rounded-lg bg-slate-900 border border-slate-600 text-xs font-mono font-bold text-white text-center focus:border-purple-400 outline-none"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      disabled={savingIdentity}
+                      onClick={handleSaveStudentIdentity}
+                      className="h-8 px-3 rounded-lg bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white font-bold text-[11px] whitespace-nowrap transition"
+                    >
+                      {savingIdentity ? "กำลังบันทึก..." : "บันทึกรหัส"}
+                    </button>
                   </div>
                 </div>
 
