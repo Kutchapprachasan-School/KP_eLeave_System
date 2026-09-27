@@ -17,16 +17,36 @@ import {
   HelpCircle,
   ShieldCheck,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Lock
 } from "lucide-react";
+import { useSession } from "@/lib/auth-client";
 import { useToast } from "@/components/toast-provider";
 import { reserveFacilityAction } from "@/app/actions/facility";
-import { formatISODateInput, type ModuleMode, parseRoomConfig, ROOM_LAYOUT_LABELS } from "./facility-shared";
+import {
+  formatISODateInput,
+  type ModuleMode,
+  parseRoomConfig,
+  ROOM_LAYOUT_LABELS,
+  STANDARD_DEPARTMENT_OPTIONS,
+  type FacilitySemesterConfig,
+  evaluateVehicleRecurringSlotsForDate,
+  isDateInActiveSemester
+} from "./facility-shared";
 import RoomBlueprintCards from "./RoomBlueprintCards";
 
 interface FacilityBookingFormProps {
   resources: any[];
   onSuccess?: () => void;
+  currentUserProfile?: {
+    id?: string;
+    name?: string | null;
+    subjectGroup?: string | null;
+    phoneNumber?: string | null;
+    position?: string | null;
+  } | null;
+  semesterConfig?: FacilitySemesterConfig | null;
+  holidays?: any[];
   initialSelection?: {
     resourceId?: string;
     resourceType?: ModuleMode;
@@ -37,8 +57,16 @@ interface FacilityBookingFormProps {
   } | null;
 }
 
-export default function FacilityBookingForm({ resources, onSuccess, initialSelection }: FacilityBookingFormProps) {
+export default function FacilityBookingForm({
+  resources,
+  onSuccess,
+  currentUserProfile,
+  semesterConfig,
+  holidays = [],
+  initialSelection
+}: FacilityBookingFormProps) {
   const { showToast } = useToast();
+  const { data: session } = useSession();
 
   const [resourceType, setResourceType] = useState<ModuleMode>("MEETING_ROOM");
   const [selectedResourceId, setSelectedResourceId] = useState<string>("");
@@ -86,9 +114,108 @@ export default function FacilityBookingForm({ resources, onSuccess, initialSelec
   const [startTime, setStartTime] = useState("09:00");
   const [endDate, setEndDate] = useState(formatISODateInput(new Date()));
   const [endTime, setEndTime] = useState("12:00");
-  const [department, setDepartment] = useState("กลุ่มสาระการเรียนรู้");
-  const [contactPhone, setContactPhone] = useState("");
+
+  // Department & Contact Phone initialized from User Profile
+  const [departmentSelect, setDepartmentSelect] = useState<string>("กลุ่มบริหารงานวิชาการ");
+  const [customDepartment, setCustomDepartment] = useState<string>("");
+  const [contactPhone, setContactPhone] = useState<string>("");
+  const [profileInitialized, setProfileInitialized] = useState(false);
   const [attendeeCount, setAttendeeCount] = useState<number>(15);
+
+  const departmentOptions = useMemo(() => {
+    const profileDept = (
+      currentUserProfile?.subjectGroup ||
+      (session?.user as any)?.subjectGroup ||
+      ""
+    ).trim();
+    const list = [...STANDARD_DEPARTMENT_OPTIONS];
+    if (profileDept && !list.includes(profileDept)) {
+      list.unshift(profileDept);
+    }
+    return list;
+  }, [currentUserProfile?.subjectGroup, session?.user]);
+
+  useEffect(() => {
+    if (profileInitialized) return;
+    const profileDept = (
+      currentUserProfile?.subjectGroup ||
+      (session?.user as any)?.subjectGroup ||
+      ""
+    ).trim();
+    const profilePhone = (
+      currentUserProfile?.phoneNumber ||
+      (session?.user as any)?.phoneNumber ||
+      ""
+    ).trim();
+
+    if (profileDept || profilePhone || currentUserProfile) {
+      if (profileDept) {
+        setDepartmentSelect(profileDept);
+      }
+      if (profilePhone) {
+        setContactPhone(profilePhone);
+      }
+      setProfileInitialized(true);
+    }
+  }, [currentUserProfile, session?.user, profileInitialized]);
+
+  const resolvedDepartment =
+    departmentSelect === "__OTHER__" ? customDepartment.trim() : departmentSelect.trim();
+
+  // Evaluate recurring vehicle schedule & semester status for selected vehicle + date/time
+  const vehicleScheduleCheck = useMemo(() => {
+    if (resourceType !== "VEHICLE" || !selectedResource) return null;
+    const sDt = new Date(`${startDate}T${startTime}:00`);
+    const eDt = new Date(`${endDate}T${endTime}:00`);
+    if (isNaN(sDt.getTime()) || isNaN(eDt.getTime()) || eDt <= sDt) return null;
+
+    const semState = isDateInActiveSemester(sDt, semesterConfig, holidays);
+    const conflicts: Array<{ title: string; startTime: string; endTime: string; dateStr: string }> = [];
+    const unlockedSlots: Array<{ title: string; startTime: string; endTime: string; reason: string }> = [];
+
+    const cursor = new Date(sDt.getFullYear(), sDt.getMonth(), sDt.getDate());
+    const lastDay = new Date(eDt.getFullYear(), eDt.getMonth(), eDt.getDate());
+
+    while (cursor <= lastDay) {
+      const daySlots = evaluateVehicleRecurringSlotsForDate(
+        selectedResource,
+        cursor,
+        semesterConfig,
+        holidays
+      );
+      for (const slot of daySlots) {
+        const [sh, sm] = (slot.rule.startTime || "06:30").split(":").map(Number);
+        const [eh, em] = (slot.rule.endTime || "08:15").split(":").map(Number);
+        const slotStart = new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate(), sh || 0, sm || 0, 0);
+        const slotEnd = new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate(), eh || 0, em || 0, 0);
+
+        if (sDt < slotEnd && eDt > slotStart) {
+          if (slot.isLocked) {
+            conflicts.push({
+              title: slot.rule.title,
+              startTime: slot.rule.startTime,
+              endTime: slot.rule.endTime,
+              dateStr: formatISODateInput(cursor)
+            });
+          } else {
+            unlockedSlots.push({
+              title: slot.rule.title,
+              startTime: slot.rule.startTime,
+              endTime: slot.rule.endTime,
+              reason: slot.statusReason
+            });
+          }
+        }
+      }
+      cursor.setDate(cursor.getDate() + 1);
+    }
+
+    return {
+      semState,
+      conflicts,
+      unlockedSlots
+    };
+  }, [resourceType, selectedResource, startDate, startTime, endDate, endTime, semesterConfig, holidays]);
 
   // Room Specific Fields
   const [layoutType, setLayoutType] = useState("THEATER");
@@ -162,6 +289,20 @@ export default function FacilityBookingForm({ resources, onSuccess, initialSelec
       return;
     }
 
+    if (!resolvedDepartment) {
+      showToast("error", "กรุณาเลือกหรือระบุกลุ่มงาน / กลุ่มสาระการเรียนรู้");
+      return;
+    }
+
+    if (resourceType === "VEHICLE" && vehicleScheduleCheck && vehicleScheduleCheck.conflicts.length > 0) {
+      const c = vehicleScheduleCheck.conflicts[0];
+      showToast(
+        "error",
+        `ช่วงเวลาที่เลือกติดคิวรถประจำสัปดาห์ "${c.title}" (${c.startTime} - ${c.endTime} น.) ในช่วงเปิดภาคเรียน`
+      );
+      return;
+    }
+
     try {
       setSubmitting(true);
       const isVehicleTarget = resourceType === "VEHICLE";
@@ -175,7 +316,7 @@ export default function FacilityBookingForm({ resources, onSuccess, initialSelec
         startAt: startDt.toISOString(),
         endAt: endDt.toISOString(),
         attendeeCount: Number(attendeeCount) || 10,
-        department: department.trim(),
+        department: resolvedDepartment,
         contactPhone: contactPhone.trim() || undefined,
         idempotencyKey: typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : undefined,
         ...(!isVehicleTarget ? {
@@ -406,6 +547,36 @@ export default function FacilityBookingForm({ resources, onSuccess, initialSelec
                       />
                     </div>
                   </div>
+                  {/* Recurring Vehicle Schedule & Semester Status Banner */}
+                  {resourceType === "VEHICLE" && vehicleScheduleCheck && (
+                    <div className="pt-1">
+                      {vehicleScheduleCheck.conflicts.length > 0 ? (
+                        <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800/80 text-xs text-rose-900 dark:text-rose-200 space-y-1">
+                          <div className="font-bold flex items-center gap-1.5">
+                            <Lock className="w-4 h-4 text-rose-600 shrink-0" />
+                            <span>
+                              ติดคิวเดินรถประจำสัปดาห์ (ช่วงเปิดภาคเรียน): &ldquo;{vehicleScheduleCheck.conflicts[0].title}&rdquo; ({vehicleScheduleCheck.conflicts[0].startTime} – {vehicleScheduleCheck.conflicts[0].endTime} น.)
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-rose-700 dark:text-rose-300 pl-5.5">
+                            วันที่เลือกอยู่ใน{vehicleScheduleCheck.semState.semesterName || "ช่วงเปิดภาคเรียน"} กรุณาเลือกช่วงเวลาอื่นที่ไม่ชนกับเวลารับ-ส่งนักเรียนประจำวัน หรือเลือกคันอื่นที่ว่าง
+                          </p>
+                        </div>
+                      ) : vehicleScheduleCheck.unlockedSlots.length > 0 ? (
+                        <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/80 text-xs text-emerald-900 dark:text-emerald-200 space-y-1">
+                          <div className="font-bold flex items-center gap-1.5">
+                            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                            <span>
+                              ปลดล็อคคิวรับ-ส่งนักเรียนประจำวันแล้ว ({vehicleScheduleCheck.semState.reason})
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-emerald-700 dark:text-emerald-300 pl-5.5">
+                            เนื่องจากวันที่เลือกไม่ใช่วันเปิดเรียนปกติ จึงสามารถจองใช้รถพานักเรียนไปแข่งขันหรือทำกิจกรรมในช่วงเวลา {vehicleScheduleCheck.unlockedSlots[0].startTime} – {vehicleScheduleCheck.unlockedSlots[0].endTime} น. ได้ตามปกติ
+                          </p>
+                        </div>
+                      ) : null}
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -415,13 +586,31 @@ export default function FacilityBookingForm({ resources, onSuccess, initialSelec
                   <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">
                     กลุ่มงาน / กลุ่มสาระการเรียนรู้
                   </label>
-                  <input
-                    type="text"
-                    value={department}
-                    onChange={(e) => setDepartment(e.target.value)}
-                    className="w-full h-10 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs"
-                    placeholder="เช่น กลุ่มสาระฯ วิทยาศาสตร์"
-                  />
+                  <div className="space-y-2">
+                    <select
+                      value={departmentSelect}
+                      onChange={(e) => setDepartmentSelect(e.target.value)}
+                      className="w-full h-10 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-900 dark:text-white cursor-pointer"
+                    >
+                      {departmentOptions.map((opt) => (
+                        <option key={opt} value={opt}>
+                          {opt}
+                        </option>
+                      ))}
+                      <option value="__OTHER__">อื่นๆ (ระบุเอง)...</option>
+                    </select>
+
+                    {departmentSelect === "__OTHER__" && (
+                      <input
+                        type="text"
+                        value={customDepartment}
+                        onChange={(e) => setCustomDepartment(e.target.value)}
+                        className="w-full h-10 px-3 rounded-xl border border-indigo-300 dark:border-indigo-700 bg-white dark:bg-slate-800 text-xs text-slate-900 dark:text-white"
+                        placeholder="ระบุกลุ่มงาน / กลุ่มสาระฯ / หน่วยงาน..."
+                        autoFocus
+                      />
+                    )}
+                  </div>
                 </div>
 
                 <div>

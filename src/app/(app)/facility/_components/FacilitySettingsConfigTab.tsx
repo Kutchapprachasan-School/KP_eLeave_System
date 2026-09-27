@@ -20,6 +20,12 @@ import {
   updateFacilitySettingsAction,
   getFacilityEligibleUsersAction
 } from "@/app/actions/facility";
+import {
+  parseSemesterConfigFromGuidelines,
+  injectSemesterConfigIntoGuidelines,
+  type FacilitySemesterConfig,
+  getDefaultSemesterConfig
+} from "./facility-shared";
 
 interface FacilitySettingsConfigTabProps {
   onSaved?: () => void;
@@ -34,6 +40,7 @@ export default function FacilitySettingsConfigTab({ onSaved }: FacilitySettingsC
   // Form State
   const [hotlinePhone, setHotlinePhone] = useState("042-261234");
   const [guidelinesHtml, setGuidelinesHtml] = useState("");
+  const [semesterConfig, setSemesterConfig] = useState<FacilitySemesterConfig>(getDefaultSemesterConfig());
   const [step1UserIds, setStep1UserIds] = useState<string[]>([]);
   const [step2UserIds, setStep2UserIds] = useState<string[]>([]);
   const [driverAssignerUserIds, setDriverAssignerUserIds] = useState<string[]>([]);
@@ -59,8 +66,10 @@ export default function FacilitySettingsConfigTab({ onSaved }: FacilitySettingsC
 
       setUsers(userList || []);
       if (settings) {
+        const parsed = parseSemesterConfigFromGuidelines(settings.guidelinesHtml);
         setHotlinePhone(settings.hotlinePhone || "042-261234");
-        setGuidelinesHtml(settings.guidelinesHtml || "");
+        setGuidelinesHtml(parsed.cleanGuidelinesHtml || "");
+        setSemesterConfig(parsed.semesterConfig);
         setStep1UserIds(parseUserIds(settings.approverStep1UserIds));
         setStep2UserIds(parseUserIds(settings.approverStep2UserIds));
         setDriverAssignerUserIds(parseUserIds(settings.driverAssignerUserIds));
@@ -86,9 +95,13 @@ export default function FacilitySettingsConfigTab({ onSaved }: FacilitySettingsC
     e.preventDefault();
     try {
       setSaving(true);
+      const combinedGuidelines = injectSemesterConfigIntoGuidelines(
+        guidelinesHtml.trim(),
+        semesterConfig
+      );
       await updateFacilitySettingsAction({
         hotlinePhone: hotlinePhone.trim(),
-        guidelinesHtml: guidelinesHtml.trim(),
+        guidelinesHtml: combinedGuidelines,
         approverStep1UserIds: step1UserIds.join(","),
         approverStep2UserIds: step2UserIds.join(","),
         driverAssignerUserIds: driverAssignerUserIds.join(","),

@@ -19,14 +19,19 @@ import {
   getCurrentFacilityUserRoleAction,
   getFacilitySettingsAction
 } from "@/app/actions/facility";
+import { getHolidays } from "@/app/actions/holiday";
 
 import FacilityBookingForm from "./_components/FacilityBookingForm";
 import FacilityUnifiedCalendar from "./_components/FacilityUnifiedCalendar";
 import FacilityHistoryView from "./_components/FacilityHistoryView";
 import FacilityApprovalView from "./_components/FacilityApprovalView";
 import FacilityManagementView from "./_components/FacilityManagementView";
-import FacilityGuidelinesBanner from "./_components/FacilityGuidelinesBanner";
-import { type FacilityView, formatISODateInput, type ModuleMode } from "./_components/facility-shared";
+import {
+  type FacilityView,
+  formatISODateInput,
+  type ModuleMode,
+  parseSemesterConfigFromGuidelines
+} from "./_components/facility-shared";
 
 function FacilityPortalContent() {
   const searchParams = useSearchParams();
@@ -43,8 +48,9 @@ function FacilityPortalContent() {
   const [drivers, setDrivers] = useState<any[]>([]);
   const [userRoleInfo, setUserRoleInfo] = useState<any>(null);
   const [facilitySettings, setFacilitySettings] = useState<any>(null);
+  const [holidays, setHolidays] = useState<any[]>([]);
 
-  const [isCalendarOpen, setIsCalendarOpen] = useState(true);
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
 
   // Selected slot from calendar to populate booking form
   const [selectedSlot, setSelectedSlot] = useState<{
@@ -59,13 +65,14 @@ function FacilityPortalContent() {
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
-      const [resList, allBookings, myBookings, driverList, roleInfo, settings] = await Promise.all([
+      const [resList, allBookings, myBookings, driverList, roleInfo, settings, holidayList] = await Promise.all([
         getFacilityResourcesAction().catch(() => []),
         getFacilityReservationsAction().catch(() => []),
         getFacilityReservationsAction({ onlyMine: true }).catch(() => []),
         getDriverProfilesAction().catch(() => []),
         getCurrentFacilityUserRoleAction().catch(() => null),
-        getFacilitySettingsAction().catch(() => null)
+        getFacilitySettingsAction().catch(() => null),
+        getHolidays().catch(() => [])
       ]);
 
       setResources(resList || []);
@@ -74,6 +81,7 @@ function FacilityPortalContent() {
       setDrivers(driverList || []);
       setUserRoleInfo(roleInfo);
       setFacilitySettings(settings);
+      setHolidays(holidayList || []);
     } catch (err: any) {
       console.error("Failed to load facility data:", err);
       showToast("error", "ไม่สามารถดึงข้อมูลระบบได้: " + err.message);
@@ -249,6 +257,8 @@ function FacilityPortalContent() {
                     <FacilityUnifiedCalendar
                       resources={resources}
                       reservations={reservations}
+                      semesterConfig={parseSemesterConfigFromGuidelines(facilitySettings?.guidelinesHtml).semesterConfig}
+                      holidays={holidays}
                       onSelectSlot={handleSelectSlot}
                       onSelectReservation={(item) => {
                         if (item.reservedByUserId === userRoleInfo?.userId) {
@@ -267,6 +277,9 @@ function FacilityPortalContent() {
                 <FacilityBookingForm
                   resources={resources}
                   initialSelection={selectedSlot}
+                  currentUserProfile={userRoleInfo?.user}
+                  semesterConfig={parseSemesterConfigFromGuidelines(facilitySettings?.guidelinesHtml).semesterConfig}
+                  holidays={holidays}
                   onSuccess={() => {
                     loadData();
                     navigateToView("history");
@@ -299,6 +312,8 @@ function FacilityPortalContent() {
             <FacilityManagementView
               resources={resources}
               drivers={drivers}
+              facilitySettings={facilitySettings}
+              holidays={holidays}
               onRefresh={loadData}
             />
           )}
