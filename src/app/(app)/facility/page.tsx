@@ -209,12 +209,6 @@ function FacilityPortalContent() {
         </div>
       </div>
 
-      {/* Hotline & Regulations Banner */}
-      <FacilityGuidelinesBanner
-        hotlinePhone={facilitySettings?.hotlinePhone}
-        guidelinesHtml={facilitySettings?.guidelinesHtml}
-      />
-
       {/* Sub-Views Routing */}
       {loading && resources.length === 0 ? (
         <div className="py-24 text-center space-y-4">
@@ -238,16 +232,10 @@ function FacilityPortalContent() {
                     </div>
                     <div>
                       <h2 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                        ปฏิทินการใช้ทรัพยากรส่วนกลาง
-                        <span className="text-[11px] font-semibold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 px-2 py-0.5 rounded-full">
-                          {isCalendarOpen ? "กำลังแสดง (คลิกเพื่อพับเก็บ)" : "พับเก็บอยู่ (คลิกเพื่อเปิดดู)"}
-                        </span>
-                      </h2>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                         {isCalendarOpen
-                          ? "ตรวจสอบสถานะและช่วงเวลาว่างของห้องประชุมและรถโรงเรียนแบบเรียลไทม์ (คลิกช่องเวลาเพื่อเริ่มจอง)"
-                          : "พับปฏิทินเก็บแล้ว — ท่านสามารถกรอกแบบฟอร์มยื่นจองด้านล่างได้ทันทีโดยไม่ต้องเลื่อนหน้าจอ"}
-                      </p>
+                          ? "ปฏิทินการใช้ทรัพยากรส่วนกลาง (คลิกเพื่อพับเก็บ)"
+                          : "ปฏิทินการใช้ทรัพยากรส่วนกลาง (คลิกเพื่อเปิดดู)"}
+                      </h2>
                     </div>
                   </div>
 
