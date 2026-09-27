@@ -25,11 +25,17 @@
 @custom-variant dark (&:is(.dark *));
 
 html {
-  font-size: 90%;
+  font-size: var(--app-font-size, 18px);
 }
 
 body {
-  zoom: 0.9;
+  zoom: 1;
+}
+
+@media print {
+  html {
+    font-size: 16px !important;
+  }
 }
 
 :root {

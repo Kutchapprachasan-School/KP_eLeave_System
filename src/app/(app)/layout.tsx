@@ -54,6 +54,7 @@ import { getNotifications } from "@/app/actions/admin";
 import { getMyPendingRoutingCount } from "@/app/actions/incoming";
 import { getSystemSettings, getMyDutyAssignments } from "@/app/actions/settings";
 import { PolicyUpdateNotifier } from "@/components/privacy/PolicyUpdateNotifier";
+import { FontSizeSwitcher } from "@/components/layout/FontSizeSwitcher";
 
 function ToolbarButtons({ isAdmin, isApprover }: { isAdmin: boolean; isApprover: boolean }) {
   const { theme, setTheme } = useTheme();
@@ -137,6 +138,8 @@ function ToolbarButtons({ isAdmin, isApprover }: { isAdmin: boolean; isApprover:
 
   return (
     <div className="flex items-center gap-2">
+      <FontSizeSwitcher />
+
       <button
         onClick={() => setLang(lang === "th" ? "en" : "th")}
         className="flex items-center justify-center w-10 h-10 rounded-full hover:bg-gray-100 dark:hover:bg-slate-800 text-gray-500 transition-all duration-300 font-bold text-sm"
