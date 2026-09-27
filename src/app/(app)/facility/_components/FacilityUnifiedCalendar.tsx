@@ -42,6 +42,8 @@ interface FacilityUnifiedCalendarProps {
   reservations: any[];
   semesterConfig?: FacilitySemesterConfig | null;
   holidays?: any[];
+  activeResourceFilter?: ResourceFilter;
+  onResourceFilterChange?: (filter: ResourceFilter) => void;
   onSelectSlot?: (resource: any, date: Date, hour?: number) => void;
   onSelectReservation?: (reservation: any) => void;
 }
@@ -51,14 +53,22 @@ export default function FacilityUnifiedCalendar({
   reservations,
   semesterConfig,
   holidays = [],
+  activeResourceFilter,
+  onResourceFilterChange,
   onSelectSlot,
   onSelectReservation
 }: FacilityUnifiedCalendarProps) {
   // 1. Controls State
   const [viewMode, setViewMode] = useState<CalendarViewMode>("WEEK"); // Default to compact WEEK view or easy switch to DAY/MONTH
-  const [resourceFilter, setResourceFilter] = useState<ResourceFilter>("ALL"); // Default is ALL
+  const [resourceFilter, setResourceFilter] = useState<ResourceFilter>(activeResourceFilter || "ALL"); // Default is ALL
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
   const [searchQuery, setSearchQuery] = useState("");
+
+  React.useEffect(() => {
+    if (activeResourceFilter) {
+      setResourceFilter(activeResourceFilter);
+    }
+  }, [activeResourceFilter]);
 
   // Filtered Resources
   const filteredResources = useMemo(() => {
@@ -235,7 +245,11 @@ export default function FacilityUnifiedCalendar({
               <Filter className="w-3.5 h-3.5 text-slate-400" />
               <select
                 value={resourceFilter}
-                onChange={(e) => setResourceFilter(e.target.value as ResourceFilter)}
+                onChange={(e) => {
+                  const val = e.target.value as ResourceFilter;
+                  setResourceFilter(val);
+                  if (onResourceFilterChange) onResourceFilterChange(val);
+                }}
                 className="bg-transparent border-none text-xs font-bold text-slate-700 dark:text-slate-200 focus:outline-hidden cursor-pointer"
               >
                 <option value="ALL">ทรัพยากร: ทั้งหมด (ห้อง + รถ)</option>

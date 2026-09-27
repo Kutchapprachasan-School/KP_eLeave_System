@@ -178,6 +178,12 @@ function FacilityPortalContent() {
                       reservations={reservations}
                       semesterConfig={parseSemesterConfigFromGuidelines(facilitySettings?.guidelinesHtml).semesterConfig}
                       holidays={holidays}
+                      activeResourceFilter={selectedSlot?.resourceType || "ALL"}
+                      onResourceFilterChange={(f) => {
+                        if (f === "MEETING_ROOM" || f === "VEHICLE") {
+                          setSelectedSlot((prev: any) => ({ ...(prev || {}), resourceType: f }));
+                        }
+                      }}
                       onSelectSlot={handleSelectSlot}
                       onSelectReservation={(item) => {
                         if (item.reservedByUserId === userRoleInfo?.userId) {
@@ -195,7 +201,11 @@ function FacilityPortalContent() {
               <div id="facility-booking-form-container" className="pt-4 border-t border-slate-200/60 dark:border-slate-800">
                 <FacilityBookingForm
                   resources={resources}
+                  reservations={reservations}
                   initialSelection={selectedSlot}
+                  onCategoryChange={(type) => {
+                    setSelectedSlot((prev: any) => ({ ...(prev || {}), resourceType: type, resourceId: "" }));
+                  }}
                   currentUserProfile={userRoleInfo?.user}
                   semesterConfig={parseSemesterConfigFromGuidelines(facilitySettings?.guidelinesHtml).semesterConfig}
                   holidays={holidays}
