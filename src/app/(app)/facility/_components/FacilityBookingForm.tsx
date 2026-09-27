@@ -16,7 +16,8 @@ import {
   Car, 
   HelpCircle,
   ShieldCheck,
-  ChevronDown
+  ChevronDown,
+  ChevronUp
 } from "lucide-react";
 import { useToast } from "@/components/toast-provider";
 import { reserveFacilityAction } from "@/app/actions/facility";
@@ -42,6 +43,7 @@ export default function FacilityBookingForm({ resources, onSuccess, initialSelec
   const [resourceType, setResourceType] = useState<ModuleMode>("MEETING_ROOM");
   const [selectedResourceId, setSelectedResourceId] = useState<string>("");
   const [submitting, setSubmitting] = useState(false);
+  const [isRoomSetupOpen, setIsRoomSetupOpen] = useState(false);
 
   // Synchronize initialSelection when passed from calendar slot selection
   useEffect(() => {
@@ -449,80 +451,104 @@ export default function FacilityBookingForm({ resources, onSuccess, initialSelec
                 </div>
               </div>
 
-              {/* Specific Options: Room Details */}
+              {/* Specific Options: Room Details (Collapsible, Collapsed by default) */}
               {resourceType === "MEETING_ROOM" && (
                 <div className="p-4 sm:p-5 rounded-2xl border border-indigo-100 dark:border-indigo-950/60 bg-indigo-50/30 dark:bg-indigo-950/10 space-y-4">
-                  <div className="text-xs font-bold text-indigo-700 dark:text-indigo-400 flex items-center gap-1.5">
-                    <Building className="w-4 h-4" />
-                    รายละเอียดการจัดห้องและอุปกรณ์
-                  </div>
-
-                  {/* Blueprint Layout Selection (6 Graphic Cards) */}
-                  <RoomBlueprintCards
-                    selected={layoutType}
-                    onSelect={(val) => setLayoutType(val)}
-                  />
-
-                  {selectedRoomConfig && (
-                    <div className="pt-1">
-                      {layoutType === (selectedRoomConfig.defaultLayout || "THEATER") ? (
-                        <div className="p-2.5 rounded-xl bg-slate-100/80 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-700/60 text-xs text-slate-600 dark:text-slate-300 flex items-center gap-2">
-                          <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                          <span>ใช้การจัดห้องตามมาตรฐานเดิมของห้อง ({ROOM_LAYOUT_LABELS[layoutType] || layoutType})</span>
-                        </div>
-                      ) : (
-                        <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/80 text-xs text-amber-900 dark:text-amber-200 space-y-1">
-                          <div className="font-bold flex items-center gap-1.5">
-                            <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
-                            <span>คุณกำลังเลือกจัดห้องแบบใหม่ ({ROOM_LAYOUT_LABELS[layoutType] || layoutType})</span>
-                          </div>
-                          <p className="text-[11px] text-amber-700 dark:text-amber-300 pl-5.5">
-                            แตกต่างจากผังมาตรฐานเดิม ({ROOM_LAYOUT_LABELS[selectedRoomConfig.defaultLayout] || selectedRoomConfig.defaultLayout}) ข้อมูลนี้จะแสดงบนใบขอใช้และแจ้งผู้ดูแลเพื่อเตรียมการจัดผังล่วงหน้า
-                          </p>
-                        </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsRoomSetupOpen(!isRoomSetupOpen)}
+                    className="w-full flex items-center justify-between text-left cursor-pointer group"
+                  >
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <div className="text-xs font-bold text-indigo-700 dark:text-indigo-400 flex items-center gap-1.5 group-hover:text-indigo-600 transition-colors">
+                        <Building className="w-4 h-4" />
+                        <span>
+                          {isRoomSetupOpen
+                            ? "รายละเอียดการจัดห้องและอุปกรณ์ (คลิกเพื่อพับเก็บ)"
+                            : "รายละเอียดการจัดห้องและอุปกรณ์ (คลิกเพื่อเปิดดู / เปลี่ยนผังห้อง)"}
+                        </span>
+                      </div>
+                      {!isRoomSetupOpen && (
+                        <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-white/80 dark:bg-slate-800/80 border border-indigo-200/60 dark:border-indigo-800/60 text-slate-600 dark:text-slate-300">
+                          ผังปัจจุบัน: {ROOM_LAYOUT_LABELS[layoutType] || layoutType}
+                        </span>
                       )}
                     </div>
+                    <div className="p-1.5 rounded-lg bg-white/80 dark:bg-slate-800/80 text-indigo-600 dark:text-indigo-400">
+                      {isRoomSetupOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                    </div>
+                  </button>
+
+                  {isRoomSetupOpen && (
+                    <div className="space-y-4 pt-2 border-t border-indigo-100/80 dark:border-indigo-900/40">
+                      {/* Blueprint Layout Selection (6 Graphic Cards) */}
+                      <RoomBlueprintCards
+                        selected={layoutType}
+                        onSelect={(val) => setLayoutType(val)}
+                      />
+
+                      {selectedRoomConfig && (
+                        <div className="pt-1">
+                          {layoutType === (selectedRoomConfig.defaultLayout || "THEATER") ? (
+                            <div className="p-2.5 rounded-xl bg-slate-100/80 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-700/60 text-xs text-slate-600 dark:text-slate-300 flex items-center gap-2">
+                              <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                              <span>ใช้การจัดห้องตามมาตรฐานเดิมของห้อง ({ROOM_LAYOUT_LABELS[layoutType] || layoutType})</span>
+                            </div>
+                          ) : (
+                            <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/80 text-xs text-amber-900 dark:text-amber-200 space-y-1">
+                              <div className="font-bold flex items-center gap-1.5">
+                                <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                                <span>คุณกำลังเลือกจัดห้องแบบใหม่ ({ROOM_LAYOUT_LABELS[layoutType] || layoutType})</span>
+                              </div>
+                              <p className="text-[11px] text-amber-700 dark:text-amber-300 pl-5.5">
+                                แตกต่างจากผังมาตรฐานเดิม ({ROOM_LAYOUT_LABELS[selectedRoomConfig.defaultLayout] || selectedRoomConfig.defaultLayout}) ข้อมูลนี้จะแสดงบนใบขอใช้และแจ้งผู้ดูแลเพื่อเตรียมการจัดผังล่วงหน้า
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      <div className="flex items-center pt-1">
+                        <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-700 dark:text-slate-300">
+                          <input
+                            type="checkbox"
+                            checked={requireAirCon}
+                            onChange={(e) => setRequireAirCon(e.target.checked)}
+                            className="w-4 h-4 rounded text-indigo-600 border-slate-300 focus:ring-indigo-500"
+                          />
+                          เปิดเครื่องปรับอากาศ (Air Conditioning)
+                        </label>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">
+                            อุปกรณ์โสตฯ ที่ต้องการเพิ่มเติม
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="เช่น ไมค์ลอย 2 ตัว, พอยเตอร์เลื่อนสไลด์..."
+                            value={audioVisualNotes}
+                            onChange={(e) => setAudioVisualNotes(e.target.value)}
+                            className="w-full h-10 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">
+                            อาหารว่างและเครื่องดื่ม (ถ้ามี)
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="เช่น เตรียมจุดวางอาหารว่าง พักเบรคช่วง 10:30 น."
+                            value={cateringNotes}
+                            onChange={(e) => setCateringNotes(e.target.value)}
+                            className="w-full h-10 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs"
+                          />
+                        </div>
+                      </div>
+                    </div>
                   )}
-
-                  <div className="flex items-center pt-1">
-                    <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-700 dark:text-slate-300">
-                      <input
-                        type="checkbox"
-                        checked={requireAirCon}
-                        onChange={(e) => setRequireAirCon(e.target.checked)}
-                        className="w-4 h-4 rounded text-indigo-600 border-slate-300 focus:ring-indigo-500"
-                      />
-                      เปิดเครื่องปรับอากาศ (Air Conditioning)
-                    </label>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">
-                        อุปกรณ์โสตฯ ที่ต้องการเพิ่มเติม
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="เช่น ไมค์ลอย 2 ตัว, พอยเตอร์เลื่อนสไลด์..."
-                        value={audioVisualNotes}
-                        onChange={(e) => setAudioVisualNotes(e.target.value)}
-                        className="w-full h-10 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">
-                        อาหารว่างและเครื่องดื่ม (ถ้ามี)
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="เช่น เตรียมจุดวางอาหารว่าง พักเบรคช่วง 10:30 น."
-                        value={cateringNotes}
-                        onChange={(e) => setCateringNotes(e.target.value)}
-                        className="w-full h-10 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs"
-                      />
-                    </div>
-                  </div>
                 </div>
               )}
 

@@ -13,7 +13,7 @@ import { getTodayAttendanceStats } from "@/app/actions/attendance-stats";
 import { getMyAttendanceToday, generateAttendanceNonce, clockIn, clockOut } from "@/app/actions/attendance";
 import { 
   CheckCircle2, AlertCircle, Briefcase, 
-  Users, Activity, Clock, Calendar, ChevronLeft, ChevronRight, X,
+  Users, Activity, Clock, Calendar, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, X,
   UserCheck, XCircle, MapPin, Fingerprint, CalendarDays, Loader2
 } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
@@ -57,6 +57,7 @@ export default function LeaveDashboardClient() {
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
   const [stats, setStats] = useState<any>(null);
+  const [isLeaveCalendarOpen, setIsLeaveCalendarOpen] = useState(false);
   const { t, lang, tPosition, tLeaveType } = useI18n();
 
   const monthNamesTh = [
@@ -1108,71 +1109,97 @@ export default function LeaveDashboardClient() {
       {hasCalendarPermission && (
         <motion.div 
           variants={itemVariants} 
-          className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white/60 dark:border-slate-800 rounded-3xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] mt-6 flex flex-col"
+          className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white/60 dark:border-slate-800 rounded-3xl p-4 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] mt-6 flex flex-col"
         >
-          {/* Calendar Toolbar */}
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 border-b border-slate-100 dark:border-slate-850 pb-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-purple-50 dark:bg-purple-500/10 flex items-center justify-center text-purple-600 dark:text-purple-400 shrink-0">
-                <Calendar className="w-5 h-5" />
+          {/* Calendar Toolbar / Collapsible Header */}
+          <div className={`flex flex-col md:flex-row md:items-center justify-between gap-4 ${isLeaveCalendarOpen ? "mb-6 border-b border-slate-100 dark:border-slate-850 pb-4" : ""}`}>
+            <button
+              type="button"
+              onClick={() => setIsLeaveCalendarOpen(!isLeaveCalendarOpen)}
+              className="flex items-center justify-between w-full md:w-auto gap-3 text-left cursor-pointer group"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-purple-50 dark:bg-purple-500/10 flex items-center justify-center text-purple-600 dark:text-purple-400 shrink-0">
+                  <Calendar className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors">
+                    {lang === "en"
+                      ? `Staff Leave Calendar (${isLeaveCalendarOpen ? "Click to collapse" : "Click to view"})`
+                      : `ปฏิทินการลาของบุคลากร (${isLeaveCalendarOpen ? "คลิกเพื่อพับเก็บ" : "คลิกเพื่อเปิดดู"})`}
+                  </h3>
+                  {isLeaveCalendarOpen && (
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                      {calendarView === "month" ? (lang === "en" ? `${monthNamesEn[calendarDate.getMonth()]} ${calendarDate.getFullYear()}` : `${monthNamesTh[calendarDate.getMonth()]} ${calendarDate.getFullYear() + 543}`) : 
+                       calendarView === "week" ? (lang === "en" ? `Week of ${calendarDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : `สัปดาห์วันที่ ${calendarDate.toLocaleDateString('th-TH', { month: 'short', day: 'numeric' })}`) :
+                       (lang === "en" ? `Year ${calendarDate.getFullYear()}` : `ปี พ.ศ. ${calendarDate.getFullYear() + 543}`)}
+                    </p>
+                  )}
+                </div>
               </div>
-              <div>
-                <h3 className="text-lg font-bold text-slate-900 dark:text-white">
-                  {lang === "en" ? "Staff Leave Calendar" : "ปฏิทินการลาของบุคลากร"}
-                </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  {calendarView === "month" ? (lang === "en" ? `${monthNamesEn[calendarDate.getMonth()]} ${calendarDate.getFullYear()}` : `${monthNamesTh[calendarDate.getMonth()]} ${calendarDate.getFullYear() + 543}`) : 
-                   calendarView === "week" ? (lang === "en" ? `Week of ${calendarDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : `สัปดาห์วันที่ ${calendarDate.toLocaleDateString('th-TH', { month: 'short', day: 'numeric' })}`) :
-                   (lang === "en" ? `Year ${calendarDate.getFullYear()}` : `ปี พ.ศ. ${calendarDate.getFullYear() + 543}`)}
-                </p>
+              <div className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 md:hidden">
+                {isLeaveCalendarOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
               </div>
-            </div>
+            </button>
 
             {/* Navigation and Segmented Control */}
             <div className="flex flex-wrap items-center gap-3">
-              <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
-                <button 
-                  onClick={handlePrev}
-                  className="p-1.5 hover:bg-white dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg transition-all"
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                </button>
-                <button 
-                  onClick={() => setCalendarDate(new Date())}
-                  className="px-2.5 py-1 hover:bg-white dark:hover:bg-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 rounded-lg transition-all"
-                >
-                  {lang === "en" ? "Today" : "วันนี้"}
-                </button>
-                <button 
-                  onClick={handleNext}
-                  className="p-1.5 hover:bg-white dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg transition-all"
-                >
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-              </div>
+              {isLeaveCalendarOpen && (
+                <>
+                  <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
+                    <button 
+                      onClick={handlePrev}
+                      className="p-1.5 hover:bg-white dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg transition-all"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                    </button>
+                    <button 
+                      onClick={() => setCalendarDate(new Date())}
+                      className="px-2.5 py-1 hover:bg-white dark:hover:bg-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 rounded-lg transition-all"
+                    >
+                      {lang === "en" ? "Today" : "วันนี้"}
+                    </button>
+                    <button 
+                      onClick={handleNext}
+                      className="p-1.5 hover:bg-white dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg transition-all"
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                  </div>
 
-              <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
-                {(["week", "month", "year"] as const).map(view => (
-                  <button
-                    key={view}
-                    onClick={() => setCalendarView(view)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                      calendarView === view
-                        ? "bg-white dark:bg-slate-700 text-purple-600 dark:text-purple-400 shadow-sm"
-                        : "text-slate-500 hover:text-slate-850 dark:hover:text-slate-200"
-                    }`}
-                  >
-                    {view === "week" ? (lang === "en" ? "Week" : "สัปดาห์") :
-                     view === "month" ? (lang === "en" ? "Month" : "เดือน") :
-                     (lang === "en" ? "Year" : "ปี")}
-                  </button>
-                ))}
-              </div>
+                  <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
+                    {(["week", "month", "year"] as const).map(view => (
+                      <button
+                        key={view}
+                        onClick={() => setCalendarView(view)}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                          calendarView === view
+                            ? "bg-white dark:bg-slate-700 text-purple-600 dark:text-purple-400 shadow-sm"
+                            : "text-slate-500 hover:text-slate-850 dark:hover:text-slate-200"
+                        }`}
+                      >
+                        {view === "week" ? (lang === "en" ? "Week" : "สัปดาห์") :
+                         view === "month" ? (lang === "en" ? "Month" : "เดือน") :
+                         (lang === "en" ? "Year" : "ปี")}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+
+              <button
+                type="button"
+                onClick={() => setIsLeaveCalendarOpen(!isLeaveCalendarOpen)}
+                className="hidden md:flex p-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+                title={isLeaveCalendarOpen ? "พับเก็บปฏิทิน" : "เปิดดูปฏิทิน"}
+              >
+                {isLeaveCalendarOpen ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+              </button>
             </div>
           </div>
 
           {/* View Content */}
-          {calendarView === "month" && (
+          {isLeaveCalendarOpen && calendarView === "month" && (
             <div className="space-y-2">
               {/* Week Headers */}
               <div className="grid grid-cols-7 gap-1 text-center text-xs font-bold text-slate-500 dark:text-slate-400 py-1">
@@ -1266,7 +1293,7 @@ export default function LeaveDashboardClient() {
             </div>
           )}
 
-          {calendarView === "week" && (
+          {isLeaveCalendarOpen && calendarView === "week" && (
             <div className="grid grid-cols-1 md:grid-cols-7 gap-4">
               {getDaysInWeek(calendarDate).map((day, idx) => {
                 const leaves = getLeavesForDay(day);
@@ -1330,7 +1357,7 @@ export default function LeaveDashboardClient() {
             </div>
           )}
 
-          {calendarView === "year" && (
+          {isLeaveCalendarOpen && calendarView === "year" && (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 font-sans">
               {(() => {
                 const year = calendarDate.getFullYear();
