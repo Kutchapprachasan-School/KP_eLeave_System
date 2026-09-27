@@ -227,59 +227,12 @@ export default function FacilitySettingsConfigTab({ onSaved }: FacilitySettingsC
 
   return (
     <form onSubmit={handleSave} className="space-y-6">
-      {/* 1. General Info & Hotline */}
-      <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white/60 dark:border-slate-800 rounded-3xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] space-y-4">
-        <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
-          <div>
-            <h2 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-              <Phone className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-              สายด่วนและข้อความประกาศประจำระบบ
-            </h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              กำหนดหมายเลขโทรศัพท์สายด่วนที่แสดงบนหน้าจองของครูและบุคลากร
-            </p>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-              หมายเลขโทรศัพท์สายด่วน (Hotline Phone) <span className="text-rose-500">*</span>
-            </label>
-            <input
-              type="text"
-              value={hotlinePhone}
-              onChange={(e) => setHotlinePhone(e.target.value)}
-              placeholder="เช่น 042-261234 หรือ 081-2345678"
-              className="w-full h-10 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-mono text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-indigo-500"
-              required
-            />
-          </div>
-        </div>
-
-        <div>
-          <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-            ระเบียบและแนวปฏิบัติการใช้ทรัพยากร (HTML หรือข้อความระเบียบราชการ)
-          </label>
-          <textarea
-            rows={4}
-            value={guidelinesHtml}
-            onChange={(e) => setGuidelinesHtml(e.target.value)}
-            placeholder="กรอกระเบียบ ประกาศ หรือแนวทางการใช้ห้องประชุมและรถโรงเรียน..."
-            className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-900 dark:text-slate-100 font-mono focus:ring-2 focus:ring-indigo-500"
-          />
-          <p className="text-[11px] text-slate-400 mt-1">
-            หากเว้นว่างไว้ ระบบจะแสดงตารางแนวปฏิบัติมาตรฐานของโรงเรียนโดยอัตโนมัติ
-          </p>
-        </div>
-      </div>
-
-      {/* 2. Approver & Driver Pool Configuration Grid */}
+      {/* Approver & Driver Pool Configuration Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Approver Step 1 */}
         {renderUserPicker(
-          "ผู้ตรวจสอบขั้นที่ 1 (Approver Step 1)",
-          "เจ้าหน้าที่ผู้รับผิดชอบห้อง / หัวหน้างานสถานที่ ตรวจสอบความพร้อม",
+          "ผู้ตรวจสอบขั้นที่ 1 (หัวหน้างานสถานที่ / ยานพาหนะ)",
+          "เจ้าหน้าที่ผู้รับผิดชอบห้องประชุมและยานพาหนะ ตรวจสอบความพร้อมเบื้องต้น",
           step1UserIds,
           setStep1UserIds,
           searchStep1,
@@ -289,8 +242,8 @@ export default function FacilitySettingsConfigTab({ onSaved }: FacilitySettingsC
 
         {/* Approver Step 2 */}
         {renderUserPicker(
-          "ผู้อนุมัติขั้นที่ 2 (Approver Step 2)",
-          "ผู้อำนวยการ / รองผู้อำนวยการฝ่ายบริหาร อนุมัติขั้นสุดท้าย",
+          "ผู้อนุมัติขั้นที่ 2 (ผู้อำนวยการ / รองผู้อำนวยการ)",
+          "ผู้อำนวยการ หรือรองผู้อำนวยการฝ่ายบริหาร อนุมัติขั้นสุดท้าย",
           step2UserIds,
           setStep2UserIds,
           searchStep2,
@@ -300,8 +253,8 @@ export default function FacilitySettingsConfigTab({ onSaved }: FacilitySettingsC
 
         {/* Driver Assigner */}
         {renderUserPicker(
-          "ผู้มีสิทธิ์จัดสรรคนขับรถ (Driver Assigner)",
-          "เจ้าหน้าที่งานยานพาหนะที่มีสิทธิ์มอบหมายคนขับในแต่ละภารกิจ",
+          "ผู้มีสิทธิ์จัดสรรพนักงานขับรถ",
+          "เจ้าหน้าที่งานยานพาหนะที่มีสิทธิ์มอบหมายคนขับรถในแต่ละภารกิจ",
           driverAssignerUserIds,
           setDriverAssignerUserIds,
           searchAssigner,
@@ -311,7 +264,7 @@ export default function FacilitySettingsConfigTab({ onSaved }: FacilitySettingsC
 
         {/* Driver Pool */}
         {renderUserPicker(
-          "รายชื่อคนขับรถในสังกัด (Driver Pool)",
+          "รายชื่อพนักงานขับรถในสังกัด",
           "บุคลากรที่มีใบอนุญาตขับขี่และได้รับมอบหมายให้ปฏิบัติหน้าที่ขับรถโรงเรียน",
           driverPoolUserIds,
           setDriverPoolUserIds,

@@ -25,6 +25,8 @@ import { useToast } from "@/components/toast-provider";
 import { reserveFacilityAction } from "@/app/actions/facility";
 import {
   formatISODateInput,
+  toThaiDateString,
+  toThaiTimeString,
   type ModuleMode,
   parseRoomConfig,
   ROOM_LAYOUT_LABELS,
@@ -37,7 +39,9 @@ import RoomBlueprintCards from "./RoomBlueprintCards";
 
 interface FacilityBookingFormProps {
   resources: any[];
+  reservations?: any[];
   onSuccess?: () => void;
+  onCategoryChange?: (type: ModuleMode) => void;
   currentUserProfile?: {
     id?: string;
     name?: string | null;
@@ -59,7 +63,9 @@ interface FacilityBookingFormProps {
 
 export default function FacilityBookingForm({
   resources,
+  reservations = [],
   onSuccess,
+  onCategoryChange,
   currentUserProfile,
   semesterConfig,
   holidays = [],
@@ -111,7 +117,7 @@ export default function FacilityBookingForm({
   const [title, setTitle] = useState("");
   const [purpose, setPurpose] = useState("");
   const [startDate, setStartDate] = useState(formatISODateInput(new Date()));
-  const [startTime, setStartTime] = useState("09:00");
+  const [startTime, setStartTime] = useState("08:30");
   const [endDate, setEndDate] = useState(formatISODateInput(new Date()));
   const [endTime, setEndTime] = useState("12:00");
 
@@ -217,6 +223,25 @@ export default function FacilityBookingForm({
     };
   }, [resourceType, selectedResource, startDate, startTime, endDate, endTime, semesterConfig, holidays]);
 
+  // Real-time conflict check against existing reservations
+  const conflictingReservations = useMemo(() => {
+    if (!selectedResourceId || !Array.isArray(reservations)) return [];
+    const sDt = new Date(`${startDate}T${startTime}:00`);
+    const eDt = new Date(`${endDate}T${endTime}:00`);
+    if (isNaN(sDt.getTime()) || isNaN(eDt.getTime()) || eDt <= sDt) return [];
+    return reservations.filter((r) => {
+      if (r.resourceId !== selectedResourceId) return false;
+      if (r.status === "CANCELLED" || r.status === "REJECTED") return false;
+      const bStart = new Date(r.startAt);
+      const bEnd = new Date(r.endAt);
+      return bStart < eDt && bEnd > sDt;
+    });
+  }, [selectedResourceId, reservations, startDate, startTime, endDate, endTime]);
+
+  const hasApprovedConflict = useMemo(() => {
+    return conflictingReservations.some((r) => r.status === "APPROVED" || r.status === "IN_USE");
+  }, [conflictingReservations]);
+
   // Room Specific Fields
   const [layoutType, setLayoutType] = useState("THEATER");
   const [layoutNotes, setLayoutNotes] = useState("");
@@ -253,6 +278,9 @@ export default function FacilityBookingForm({
   const handleTypeChange = (newType: ModuleMode) => {
     setResourceType(newType);
     setSelectedResourceId("");
+    if (onCategoryChange) {
+      onCategoryChange(newType);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -291,6 +319,15 @@ export default function FacilityBookingForm({
 
     if (!resolvedDepartment) {
       showToast("error", "กรุณาเลือกหรือระบุกลุ่มงาน / กลุ่มสาระการเรียนรู้");
+      return;
+    }
+
+    if (hasApprovedConflict) {
+      const c = conflictingReservations[0];
+      showToast(
+        "error",
+        `ช่วงเวลาที่เลือกมีรายการอนุมัติแล้ว (${c.title} เวลา ${toThaiTimeString(c.startAt)} - ${toThaiTimeString(c.endAt)}) กรุณาเลือกช่วงเวลาอื่น`
+      );
       return;
     }
 
@@ -479,7 +516,7 @@ export default function FacilityBookingForm({
                   required
                   placeholder={
                     resourceType === "MEETING_ROOM"
-                      ? "เช่น การประชุมกลุ่มสาระการเรียนรู้, อบรมเชิงปฏิบัติการ PLC..."
+                      ? "เช่น การประชุมกลุ่มสาระการเรียนรู้, อบรมเชิงปฏิบัติการ..."
                       : "เช่น นำนักเรียนเข้าร่วมการแข่งขันศิลปหัตถกรรมนักเรียน ระดับเขตพื้นที่..."
                   }
                   value={title}
@@ -490,9 +527,40 @@ export default function FacilityBookingForm({
 
               {/* Date & Time Range */}
               <div className="p-4 sm:p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 space-y-4">
-                <div className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                  <Calendar className="w-4 h-4 text-indigo-500" />
-                  วันและเวลาที่ต้องการใช้งาน
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                    <Calendar className="w-4 h-4 text-indigo-500" />
+                    วันและเวลาที่ต้องการใช้งาน
+                  </div>
+
+                  {/* Quick Time Slot Presets */}
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-[11px] text-slate-400 mr-0.5">เลือกช่วงเวลาด่วน:</span>
+                    {[
+                      { label: "ครึ่งเช้า (08:30–12:00)", start: "08:30", end: "12:00" },
+                      { label: "ครึ่งบ่าย (13:00–16:30)", start: "13:00", end: "16:30" },
+                      { label: "เต็มวัน (08:30–16:30)", start: "08:30", end: "16:30" }
+                    ].map((preset) => {
+                      const isActive = startTime === preset.start && endTime === preset.end;
+                      return (
+                        <button
+                          key={preset.label}
+                          type="button"
+                          onClick={() => {
+                            setStartTime(preset.start);
+                            setEndTime(preset.end);
+                          }}
+                          className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition cursor-pointer border ${
+                            isActive
+                              ? "bg-indigo-600 text-white border-indigo-600 shadow-2xs"
+                              : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-indigo-300"
+                          }`}
+                        >
+                          {preset.label}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -507,10 +575,11 @@ export default function FacilityBookingForm({
                         required
                         value={startDate}
                         onChange={(e) => {
-                          setStartDate(e.target.value);
-                          if (endDate < e.target.value) {
-                            setEndDate(e.target.value);
+                          const nextStart = e.target.value;
+                          if (endDate <= startDate || endDate < nextStart) {
+                            setEndDate(nextStart);
                           }
+                          setStartDate(nextStart);
                         }}
                         className="col-span-2 h-10 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-900 dark:text-white"
                       />
@@ -547,6 +616,36 @@ export default function FacilityBookingForm({
                       />
                     </div>
                   </div>
+
+                  {/* Real-Time Conflict Warning against Other Reservations */}
+                  {conflictingReservations.length > 0 && (
+                    <div className="sm:col-span-2 pt-1">
+                      <div
+                        className={`p-3 rounded-xl border text-xs space-y-1.5 ${
+                          hasApprovedConflict
+                            ? "bg-rose-50 dark:bg-rose-950/40 border-rose-300 dark:border-rose-800 text-rose-900 dark:text-rose-200"
+                            : "bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-800 text-amber-900 dark:text-amber-200"
+                        }`}
+                      >
+                        <div className="font-bold flex items-center gap-1.5">
+                          <AlertCircle className="w-4 h-4 shrink-0" />
+                          <span>
+                            {hasApprovedConflict
+                              ? "⚠️ ช่วงเวลานี้มีรายการที่อนุมัติแล้ว (ไม่สามารถจองซ้อนได้)"
+                              : "⚠️ ช่วงเวลานี้มีรายการที่กำลังรอพิจารณาอยู่แล้ว"}
+                          </span>
+                        </div>
+                        <ul className="space-y-1 pl-5 list-disc text-[11px]">
+                          {conflictingReservations.map((c) => (
+                            <li key={c.id}>
+                              <strong>{c.title}</strong> — ผู้ขอ: {c.reservedByUser?.name || "บุคลากร"} ({toThaiDateString(c.startAt)} เวลา {toThaiTimeString(c.startAt)} - {toThaiTimeString(c.endAt)}) [{c.status === "APPROVED" ? "อนุมัติแล้ว" : "รอพิจารณา"}]
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Recurring Vehicle Schedule & Semester Status Banner */}
                   {resourceType === "VEHICLE" && vehicleScheduleCheck && (
                     <div className="pt-1">

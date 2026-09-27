@@ -114,7 +114,7 @@ export default function FacilityApprovalView({
         return;
       }
 
-      showToast("success", "บันทึกผลการตรวจสอบจัดสรร (Step 1) และส่งต่อผู้อำนวยการเรียบร้อยแล้ว");
+      showToast("success", "บันทึกผลการตรวจสอบจัดสรร (ขั้นตอนที่ 1) และส่งต่อผู้อำนวยการเรียบร้อยแล้ว");
       setReviewingReservation(null);
       await onRefresh();
     } catch (err: any) {
@@ -138,7 +138,7 @@ export default function FacilityApprovalView({
         return;
       }
 
-      showToast("success", "ผู้อำนวยการอนุมัติคำขอจองเรียบร้อยแล้ว (Step 2)");
+      showToast("success", "ผู้อำนวยการอนุมัติคำขอจองเรียบร้อยแล้ว (ขั้นตอนที่ 2)");
       setDirectorApprovalTarget(null);
       await onRefresh();
     } catch (err: any) {
@@ -183,10 +183,10 @@ export default function FacilityApprovalView({
         <div>
           <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
             <ShieldCheck className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
-            ศูนย์พิจารณาอนุมัติคำขอจอง (Official 2-Tier Approval Hub)
+            ศูนย์พิจารณาอนุมัติคำขอจองทรัพยากรส่วนกลาง
           </h2>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-            กระบวนการอนุมัติ 2 ระดับ: Step 1 หัวหน้างานตรวจสอบจัดสรร ➔ Step 2 ผู้อำนวยการอนุมัติขั้นสุดท้าย
+            กระบวนการอนุมัติ 2 ระดับ: ขั้นตอนที่ 1 หัวหน้างานตรวจสอบจัดสรร ➔ ขั้นตอนที่ 2 ผู้อำนวยการอนุมัติขั้นสุดท้าย
           </p>
         </div>
 
@@ -380,8 +380,8 @@ export default function FacilityApprovalView({
                       status={res.status}
                       label={
                         res.status === "APPROVED" ? "อนุมัติแล้ว" :
-                        res.status === "PENDING" && isStep1 ? "รอหัวหน้างานจัดสรร (Step 1/2)" :
-                        res.status === "PENDING" && isStep2 ? "รอ ผอ.อนุมัติขั้นสุดท้าย (Step 2/2)" :
+                        res.status === "PENDING" && isStep1 ? "รอหัวหน้างานจัดสรร (ขั้นตอนที่ 1/2)" :
+                        res.status === "PENDING" && isStep2 ? "รอ ผอ.อนุมัติขั้นสุดท้าย (ขั้นตอนที่ 2/2)" :
                         res.status === "CANCELLED" ? "ยกเลิกแล้ว" :
                         res.status === "REJECTED" ? "ไม่อนุมัติ / ปฏิเสธ" : undefined
                       }
@@ -436,7 +436,7 @@ export default function FacilityApprovalView({
                           <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
                           <span>⚠️ มีการปรับเปลี่ยนผังจัดห้องใหม่: {ROOM_LAYOUT_LABELS[reqLayout] || reqLayout}</span>
                           <span className="text-[10px] text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/60 px-1.5 py-0.5 rounded font-normal">
-                            (มาตรฐานเดิม: {ROOM_LAYOUT_LABELS[defaultLayout] || "เธียเตอร์"})
+                            (มาตรฐานเดิม: {ROOM_LAYOUT_LABELS[defaultLayout] || "แบบเธียเตอร์"})
                           </span>
                         </div>
                         {hasCustomLayoutNotes && (
@@ -456,7 +456,7 @@ export default function FacilityApprovalView({
                   return (
                     <div className="text-[11px] text-slate-500 dark:text-slate-400 bg-slate-100/80 dark:bg-slate-800/60 px-2.5 py-1.5 rounded-xl inline-flex items-center gap-1.5 border border-slate-200/60 dark:border-slate-700/60">
                       <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                      <span>ผังห้อง: ตามมาตรฐานห้อง ({ROOM_LAYOUT_LABELS[defaultLayout] || "เธียเตอร์"})</span>
+                      <span>ผังห้อง: ตามมาตรฐานห้อง ({ROOM_LAYOUT_LABELS[defaultLayout] || "แบบเธียเตอร์"})</span>
                       {res.roomDetails?.requireAirCon ? " • เปิดแอร์" : " • ไม่เปิดแอร์"}
                       {hasExtraEquipment && (
                         <span className="text-slate-600 dark:text-slate-300 ml-1">
@@ -487,7 +487,7 @@ export default function FacilityApprovalView({
                           className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow-xs transition flex items-center gap-1.5 cursor-pointer"
                         >
                           <UserCheck className="w-3.5 h-3.5" />
-                          ตรวจสอบจัดสรร (Step 1)
+                          ตรวจสอบจัดสรร (ขั้นตอนที่ 1)
                         </button>
                       )}
 
@@ -500,7 +500,7 @@ export default function FacilityApprovalView({
                           className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs transition flex items-center gap-1.5 cursor-pointer"
                         >
                           <Check className="w-3.5 h-3.5" />
-                          ผู้อำนวยการอนุมัติ (Step 2)
+                          ผู้อำนวยการอนุมัติ (ขั้นตอนที่ 2)
                         </button>
                       )}
 
@@ -529,7 +529,7 @@ export default function FacilityApprovalView({
         size="md"
       >
         <UnifiedModalHeader
-          title="จัดสรรและตรวจสอบคำขอ (Step 1 Review)"
+          title="จัดสรรและตรวจสอบคำขอ (ขั้นตอนที่ 1)"
           subtitle={`รหัสการจอง: ${reviewingReservation?.bookingNumber || "-"}`}
           icon={UserCheck}
           iconClass="bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-400"
@@ -605,7 +605,7 @@ export default function FacilityApprovalView({
         size="md"
       >
         <UnifiedModalHeader
-          title="ผู้อำนวยการอนุมัติคำขอ (Step 2)"
+          title="ผู้อำนวยการอนุมัติคำขอ (ขั้นตอนที่ 2)"
           subtitle={`รหัสการจอง: ${directorApprovalTarget?.bookingNumber || "-"}`}
           icon={Check}
           iconClass="bg-emerald-50 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400"
