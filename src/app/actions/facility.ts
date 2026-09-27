@@ -311,7 +311,7 @@ export async function reserveFacilityAction(
         // 0. Physical Availability & Active Status Guard
         const targetResource = await tx.facilityResource.findUnique({
           where: { id: input.resourceId },
-          select: { id: true, name: true, status: true, type: true }
+          select: { id: true, name: true, code: true, status: true, type: true, description: true }
         });
 
         if (!targetResource) {
@@ -326,6 +326,90 @@ export async function reserveFacilityAction(
           }[targetResource.status] || targetResource.status;
 
           throw new Error(`ไม่สามารถทำรายการจองได้ เนื่องจากทรัพยากร "${targetResource.name}" อยู่ในสถานะ "${statusLabel}"`);
+        }
+
+        // 0.5 Weekly Recurring Vehicle Schedule Guard (Active Semester Only)
+        if (targetResource.type === "VEHICLE" && targetResource.description) {
+          const {
+            parseSemesterConfigFromGuidelines,
+            evaluateVehicleRecurringSlotsForDate
+          } = await import("@/app/(app)/facility/_components/facility-shared");
+
+          const [facSettings, dbHolidays] = await Promise.all([
+            tx.facilitySettings.findUnique({ where: { id: "default" } }),
+            tx.holiday.findMany({
+              where: {
+                date: {
+                  gte: new Date(startAt.getTime() - 24 * 60 * 60 * 1000),
+                  lte: new Date(endAt.getTime() + 24 * 60 * 60 * 1000)
+                }
+              }
+            }).catch(() => [])
+          ]);
+
+          const { semesterConfig } = parseSemesterConfigFromGuidelines(facSettings?.guidelinesHtml);
+
+          // Iterate each day in Thailand timezone (UTC+7) covered by [startAt, endAt]
+          const BKK_OFFSET_MS = 7 * 60 * 60 * 1000;
+          const bkkStartMs = startAt.getTime() + BKK_OFFSET_MS;
+          const bkkEndMs = endAt.getTime() + BKK_OFFSET_MS;
+
+          const startDayCursor = new Date(bkkStartMs);
+          startDayCursor.setUTCHours(0, 0, 0, 0);
+
+          const endDayCursor = new Date(bkkEndMs);
+          endDayCursor.setUTCHours(0, 0, 0, 0);
+
+          for (
+            let cursorMs = startDayCursor.getTime();
+            cursorMs <= endDayCursor.getTime();
+            cursorMs += 24 * 60 * 60 * 1000
+          ) {
+            const bkkDateObj = new Date(cursorMs);
+            const localDayDate = new Date(
+              bkkDateObj.getUTCFullYear(),
+              bkkDateObj.getUTCMonth(),
+              bkkDateObj.getUTCDate()
+            );
+
+            const slots = evaluateVehicleRecurringSlotsForDate(
+              targetResource,
+              localDayDate,
+              semesterConfig,
+              dbHolidays
+            );
+
+            for (const slot of slots) {
+              if (!slot.isLocked) continue; // Unlocked during semester break or holiday!
+              const [sh, sm] = (slot.rule.startTime || "06:30").split(":").map(Number);
+              const [eh, em] = (slot.rule.endTime || "08:15").split(":").map(Number);
+
+              const slotStartUtcMs =
+                Date.UTC(
+                  bkkDateObj.getUTCFullYear(),
+                  bkkDateObj.getUTCMonth(),
+                  bkkDateObj.getUTCDate(),
+                  sh || 0,
+                  sm || 0,
+                  0
+                ) - BKK_OFFSET_MS;
+              const slotEndUtcMs =
+                Date.UTC(
+                  bkkDateObj.getUTCFullYear(),
+                  bkkDateObj.getUTCMonth(),
+                  bkkDateObj.getUTCDate(),
+                  eh || 0,
+                  em || 0,
+                  0
+                ) - BKK_OFFSET_MS;
+
+              if (startAt.getTime() < slotEndUtcMs && endAt.getTime() > slotStartUtcMs) {
+                throw new Error(
+                  `ไม่สามารถจองรถ "${targetResource.name}" ในช่วงเวลาดังกล่าวได้ เนื่องจากติดคิวใช้งานประจำสัปดาห์ "${slot.rule.title}" (${slot.rule.startTime} - ${slot.rule.endTime} น.) ในช่วงเปิดภาคเรียน`
+                );
+              }
+            }
+          }
         }
 
         // 1. Application-level Overlap Pre-check (Resource)
@@ -1530,15 +1614,31 @@ export async function getCurrentFacilityUserRoleAction() {
       canManageVehicles: false
     };
   }
+  const dbUser = await prisma.user.findUnique({
+    where: { id: user.id },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      role: true,
+      position: true,
+      subjectGroup: true,
+      phoneNumber: true
+    }
+  }).catch(() => null);
+
   const role = getFacilityRole(user);
   const canManage = hasFacilityPermission(user, "facility:resource.manage");
   return {
+    userId: user.id,
     user: {
       id: user.id,
-      name: user.name,
-      email: user.email,
-      role: (user as any).role,
-      position: (user as any).position
+      name: dbUser?.name ?? user.name,
+      email: dbUser?.email ?? user.email,
+      role: dbUser?.role ?? (user as any).role,
+      position: dbUser?.position ?? (user as any).position,
+      subjectGroup: dbUser?.subjectGroup ?? (user as any).subjectGroup ?? "",
+      phoneNumber: dbUser?.phoneNumber ?? (user as any).phoneNumber ?? ""
     },
     role,
     canManage,

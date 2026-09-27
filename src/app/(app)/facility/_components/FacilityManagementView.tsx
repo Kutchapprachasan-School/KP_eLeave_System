@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Settings,
   Plus,
@@ -14,20 +14,34 @@ import {
   AlertCircle,
   Users,
   RefreshCw,
-  X
+  X,
+  Calendar,
+  Clock,
+  Lock,
+  Save
 } from "lucide-react";
 import { useToast } from "@/components/toast-provider";
 import {
   createFacilityResourceAction,
   updateFacilityResourceAction,
   toggleFacilityResourceStatusAction,
-  deleteFacilityResourceAction
+  deleteFacilityResourceAction,
+  updateFacilitySettingsAction
 } from "@/app/actions/facility";
 import {
   type ModuleMode,
   parseRoomConfig,
   serializeRoomConfig,
-  ROOM_LAYOUT_LABELS
+  ROOM_LAYOUT_LABELS,
+  parseVehicleConfig,
+  serializeVehicleConfig,
+  type VehicleRecurringScheduleRule,
+  parseSemesterConfigFromGuidelines,
+  injectSemesterConfigIntoGuidelines,
+  getDefaultSemesterConfig,
+  type FacilitySemesterConfig,
+  isDateInActiveSemester,
+  formatRecurringDaysLabel
 } from "./facility-shared";
 import {
   StatusPillBadge,
@@ -41,12 +55,16 @@ import FacilitySettingsConfigTab from "./FacilitySettingsConfigTab";
 interface FacilityManagementViewProps {
   resources: any[];
   drivers: any[];
+  facilitySettings?: any;
+  holidays?: any[];
   onRefresh: () => void;
 }
 
 export default function FacilityManagementView({
   resources,
   drivers,
+  facilitySettings,
+  holidays = [],
   onRefresh
 }: FacilityManagementViewProps) {
   const { showToast } = useToast();
@@ -54,6 +72,35 @@ export default function FacilityManagementView({
   const [resourceType, setResourceType] = useState<ModuleMode>("MEETING_ROOM");
   const [adding, setAdding] = useState(false);
   const [savingEdit, setSavingEdit] = useState(false);
+  const [savingSemester, setSavingSemester] = useState(false);
+
+  // Semester Config State
+  const [semesterConfig, setSemesterConfig] = useState<FacilitySemesterConfig>(
+    () => parseSemesterConfigFromGuidelines(facilitySettings?.guidelinesHtml).semesterConfig
+  );
+
+  useEffect(() => {
+    if (facilitySettings) {
+      setSemesterConfig(parseSemesterConfigFromGuidelines(facilitySettings.guidelinesHtml).semesterConfig);
+    }
+  }, [facilitySettings]);
+
+  const handleSaveSemesterConfig = async () => {
+    try {
+      setSavingSemester(true);
+      const { cleanGuidelinesHtml } = parseSemesterConfigFromGuidelines(facilitySettings?.guidelinesHtml);
+      const updatedHtml = injectSemesterConfigIntoGuidelines(cleanGuidelinesHtml, semesterConfig);
+      await updateFacilitySettingsAction({
+        guidelinesHtml: updatedHtml
+      });
+      showToast("success", "บันทึกการตั้งค่าวันเปิดเทอม – ปิดเทอมเรียบร้อยแล้ว");
+      onRefresh();
+    } catch (err: any) {
+      showToast("error", "บันทึกไม่สำเร็จ: " + (err.message || "เกิดข้อผิดพลาด"));
+    } finally {
+      setSavingSemester(false);
+    }
+  };
 
   // Quick Add Form State
   const [quickAddForm, setQuickAddForm] = useState({
@@ -84,7 +131,9 @@ export default function FacilityManagementView({
     model: "",
     defaultLayout: "THEATER",
     defaultEquipment: "",
-    roomNote: ""
+    roomNote: "",
+    vehicleNote: "",
+    recurringSchedules: [] as VehicleRecurringScheduleRule[]
   });
 
   // Create Resource
@@ -100,7 +149,10 @@ export default function FacilityManagementView({
       const isVehicle = resourceType === "VEHICLE";
 
       const descToSave = isVehicle
-        ? quickAddForm.description.trim() || undefined
+        ? serializeVehicleConfig({
+            note: quickAddForm.description.trim(),
+            recurringSchedules: []
+          })
         : serializeRoomConfig({
             defaultLayout: quickAddForm.defaultLayout,
             defaultEquipment: quickAddForm.defaultEquipment.trim(),
@@ -154,6 +206,7 @@ export default function FacilityManagementView({
   // Open Edit Modal
   const handleOpenEdit = (res: any) => {
     const parsedRoom = res.type === "MEETING_ROOM" ? parseRoomConfig(res.description) : null;
+    const parsedVeh = res.type === "VEHICLE" ? parseVehicleConfig(res.description) : null;
     setEditingResource(res);
     setEditForm({
       code: res.code || "",
@@ -168,8 +221,68 @@ export default function FacilityManagementView({
       model: res.vehicleProfile?.model || "",
       defaultLayout: parsedRoom?.defaultLayout || "THEATER",
       defaultEquipment: parsedRoom?.defaultEquipment || "",
-      roomNote: parsedRoom?.note || ""
+      roomNote: parsedRoom?.note || "",
+      vehicleNote: parsedVeh?.note || "",
+      recurringSchedules: parsedVeh?.recurringSchedules || []
     });
+  };
+
+  const addVehicleRecurringRule = (preset?: "MORNING_SHUTTLE" | "AFTERNOON_SHUTTLE") => {
+    const id = `rec-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    const newRule: VehicleRecurringScheduleRule =
+      preset === "MORNING_SHUTTLE"
+        ? {
+            id,
+            title: "รับนักเรียนช่วงเช้า (สายประจำ)",
+            daysOfWeek: [1, 2, 3, 4, 5],
+            startTime: "06:30",
+            endTime: "08:15",
+            activeOnlyDuringSemester: true,
+            enabled: true
+          }
+        : preset === "AFTERNOON_SHUTTLE"
+          ? {
+              id,
+              title: "ส่งนักเรียนกลับบ้านช่วงเย็น",
+              daysOfWeek: [1, 2, 3, 4, 5],
+              startTime: "15:30",
+              endTime: "17:15",
+              activeOnlyDuringSemester: true,
+              enabled: true
+            }
+          : {
+              id,
+              title: "คิวใช้รถประจำสัปดาห์",
+              daysOfWeek: [1, 2, 3, 4, 5],
+              startTime: "07:00",
+              endTime: "08:30",
+              activeOnlyDuringSemester: true,
+              enabled: true
+            };
+
+    setEditForm((prev) => ({
+      ...prev,
+      recurringSchedules: [...prev.recurringSchedules, newRule]
+    }));
+  };
+
+  const updateVehicleRecurringRule = (
+    ruleId: string,
+    patch: Partial<VehicleRecurringScheduleRule>
+  ) => {
+    setEditForm((prev) => ({
+      ...prev,
+      recurringSchedules: prev.recurringSchedules.map((r) =>
+        r.id === ruleId ? { ...r, ...patch } : r
+      )
+    }));
+  };
+
+  const removeVehicleRecurringRule = (ruleId: string) => {
+    setEditForm((prev) => ({
+      ...prev,
+      recurringSchedules: prev.recurringSchedules.filter((r) => r.id !== ruleId)
+    }));
   };
 
   // Save Edit
@@ -181,7 +294,10 @@ export default function FacilityManagementView({
       const isVehicle = editingResource.type === "VEHICLE";
 
       const descToSave = isVehicle
-        ? editForm.description
+        ? serializeVehicleConfig({
+            note: editForm.vehicleNote.trim(),
+            recurringSchedules: editForm.recurringSchedules
+          })
         : serializeRoomConfig({
             defaultLayout: editForm.defaultLayout,
             defaultEquipment: editForm.defaultEquipment.trim(),
@@ -252,6 +368,7 @@ export default function FacilityManagementView({
 
   const [activeTab, setActiveTab] = useState<"MEETING_ROOM" | "VEHICLE" | "SETTINGS">("MEETING_ROOM");
   const filteredResources = resources.filter((r) => r.type === activeTab);
+  const todaySemesterState = isDateInActiveSemester(new Date(), semesterConfig, holidays);
 
   return (
     <div className="space-y-6">
@@ -296,264 +413,435 @@ export default function FacilityManagementView({
         <FacilitySettingsConfigTab onSaved={onRefresh} />
       ) : (
         <>
+          {/* Semester Open/Break Configuration Card (For Vehicle Recurring Schedules) */}
+          {resourceType === "VEHICLE" && (
+            <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-emerald-200/80 dark:border-emerald-900/60 rounded-3xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
+                <div>
+                  <h2 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    <Calendar className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                    <span>กำหนดช่วงเปิดเทอม – ปิดเทอม (สำหรับคิวรถรับ-ส่งนักเรียนประจำสัปดาห์)</span>
+                  </h2>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    คิวรถรับ-ส่งนักเรียนจะถูกล็อคในตารางเฉพาะวันที่มีการเรียนการสอนในช่วงเปิดเทอมเท่านั้น เมื่อถึงช่วงปิดเทอมหรือวันหยุดจะปลดล็อคอัตโนมัติเพื่อให้ครูจองใช้รถพานักเรียนไปแข่งขัน/ทำกิจกรรมได้
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span
+                    className={`text-xs font-bold px-3 py-1 rounded-full border ${
+                      todaySemesterState.isSemesterOpen
+                        ? "bg-amber-50 dark:bg-amber-950/60 border-amber-300 dark:border-amber-800 text-amber-800 dark:text-amber-300"
+                        : "bg-emerald-50 dark:bg-emerald-950/60 border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300"
+                    }`}
+                  >
+                    {todaySemesterState.isSemesterOpen
+                      ? `🏫 วันนี้: เปิดภาคเรียน (${todaySemesterState.semesterName || "ล็อคคิวรถประจำ"})`
+                      : `🏖️ วันนี้: ปิดภาคเรียน / วันหยุด (ปลดล็อคคิวรถประจำ)`}
+                  </span>
+                </div>
+              </div>
 
-      {/* Quick Add Resource Card */}
-      <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white/60 dark:border-slate-800 rounded-3xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] space-y-4">
-        <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-          <Plus className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
-          เพิ่มทรัพยากรส่วนกลางใหม่ (Quick Add: {resourceType === "MEETING_ROOM" ? "ห้องประชุม" : "รถโรงเรียน"})
-        </h2>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    โหมดการตรวจสอบวันเปิด-ปิดภาคเรียน
+                  </label>
+                  <select
+                    value={semesterConfig.mode}
+                    onChange={(e) =>
+                      setSemesterConfig({
+                        ...semesterConfig,
+                        mode: e.target.value as FacilitySemesterConfig["mode"]
+                      })
+                    }
+                    className="w-full h-10 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-semibold text-slate-900 dark:text-white"
+                  >
+                    <option value="AUTO_DATE_RANGE">คำนวณอัตโนมัติตามช่วงวันที่เปิดเทอม–ปิดเทอม</option>
+                    <option value="FORCE_OPEN">บังคับสถานะ: เปิดภาคเรียน (ล็อคคิวรถรับ-ส่งทุกสัปดาห์)</option>
+                    <option value="FORCE_CLOSED">บังคับสถานะ: ปิดภาคเรียน (ปลดล็อคคิวรับ-ส่งทั้งหมด)</option>
+                  </select>
 
-        <form onSubmit={handleCreateResource} className="space-y-3">
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-            <div>
-              <label className="block font-bold text-xs text-slate-700 dark:text-slate-300 mb-1">
-                รหัสกำกับ <span className="text-rose-500">*</span>
-              </label>
-              <input
-                type="text"
-                required
-                placeholder={resourceType === "MEETING_ROOM" ? "เช่น ROOM-02" : "เช่น BUS-02"}
-                value={quickAddForm.code}
-                onChange={(e) => setQuickAddForm({ ...quickAddForm, code: e.target.value })}
-                className="w-full h-10 px-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-mono"
-              />
-            </div>
+                  <label className="flex items-center gap-2 mt-3 cursor-pointer text-xs text-slate-700 dark:text-slate-300 font-medium">
+                    <input
+                      type="checkbox"
+                      checked={semesterConfig.excludePublicHolidays}
+                      onChange={(e) =>
+                        setSemesterConfig({
+                          ...semesterConfig,
+                          excludePublicHolidays: e.target.checked
+                        })
+                      }
+                      className="w-4 h-4 rounded text-emerald-600"
+                    />
+                    <span>ปลดล็อคคิวรับ-ส่งนักเรียนอัตโนมัติในวันหยุดราชการ</span>
+                  </label>
+                </div>
 
-            <div>
-              <label className="block font-bold text-xs text-slate-700 dark:text-slate-300 mb-1">
-                ชื่อทรัพยากร <span className="text-rose-500">*</span>
-              </label>
-              <input
-                type="text"
-                required
-                placeholder={resourceType === "MEETING_ROOM" ? "เช่น ห้องประชุมกุญชร 2" : "เช่น รถตู้โตโยต้า 14 ที่นั่ง"}
-                value={quickAddForm.name}
-                onChange={(e) => setQuickAddForm({ ...quickAddForm, name: e.target.value })}
-                className="w-full h-10 px-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs"
-              />
-            </div>
+                {semesterConfig.semesters.map((sem, idx) => (
+                  <div
+                    key={sem.id || idx}
+                    className="p-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/40 space-y-2"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                        {sem.name}
+                      </span>
+                      <label className="flex items-center gap-1.5 text-[11px] text-slate-600 dark:text-slate-400 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={sem.enabled}
+                          onChange={(e) => {
+                            const updated = [...semesterConfig.semesters];
+                            updated[idx] = { ...sem, enabled: e.target.checked };
+                            setSemesterConfig({ ...semesterConfig, semesters: updated });
+                          }}
+                          className="w-3.5 h-3.5 rounded text-emerald-600"
+                        />
+                        เปิดใช้งาน
+                      </label>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">
+                          วันเปิดเทอม
+                        </label>
+                        <input
+                          type="date"
+                          value={sem.startDate}
+                          onChange={(e) => {
+                            const updated = [...semesterConfig.semesters];
+                            updated[idx] = { ...sem, startDate: e.target.value };
+                            setSemesterConfig({ ...semesterConfig, semesters: updated });
+                          }}
+                          className="w-full h-9 px-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">
+                          วันปิดเทอม
+                        </label>
+                        <input
+                          type="date"
+                          value={sem.endDate}
+                          onChange={(e) => {
+                            const updated = [...semesterConfig.semesters];
+                            updated[idx] = { ...sem, endDate: e.target.value };
+                            setSemesterConfig({ ...semesterConfig, semesters: updated });
+                          }}
+                          className="w-full h-9 px-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
 
-            <div>
-              <label className="block font-bold text-xs text-slate-700 dark:text-slate-300 mb-1">
-                {resourceType === "VEHICLE" ? "ทะเบียนรถ" : "สถานที่ / ชั้น"}
-              </label>
-              <input
-                type="text"
-                placeholder={resourceType === "VEHICLE" ? "เช่น นข-5678 อุดรธานี" : "เช่น อาคาร 1 ชั้น 2"}
-                value={resourceType === "VEHICLE" ? quickAddForm.licensePlate : quickAddForm.floor}
-                onChange={(e) =>
-                  resourceType === "VEHICLE"
-                    ? setQuickAddForm({ ...quickAddForm, licensePlate: e.target.value })
-                    : setQuickAddForm({ ...quickAddForm, floor: e.target.value })
-                }
-                className="w-full h-10 px-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs"
-              />
-            </div>
-
-            <div>
-              <label className="block font-bold text-xs text-slate-700 dark:text-slate-300 mb-1">
-                ความจุ (คน / ที่นั่ง)
-              </label>
-              <input
-                type="number"
-                min={1}
-                value={quickAddForm.capacity}
-                onChange={(e) => setQuickAddForm({ ...quickAddForm, capacity: Number(e.target.value) })}
-                className="w-full h-10 px-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs"
-              />
-            </div>
-          </div>
-
-          {resourceType === "MEETING_ROOM" && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 p-3 bg-indigo-50/40 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/40 rounded-2xl">
-              <div>
-                <label className="block font-bold text-xs text-indigo-900 dark:text-indigo-300 mb-1">
-                  รูปแบบจัดห้องมาตรฐาน (Default Layout)
-                </label>
-                <select
-                  value={quickAddForm.defaultLayout}
-                  onChange={(e) => setQuickAddForm({ ...quickAddForm, defaultLayout: e.target.value })}
-                  className="w-full h-10 px-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs"
+              <div className="flex justify-end pt-1">
+                <button
+                  type="button"
+                  onClick={handleSaveSemesterConfig}
+                  disabled={savingSemester}
+                  className="h-9 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                 >
-                  {Object.entries(ROOM_LAYOUT_LABELS).map(([k, v]) => (
-                    <option key={k} value={k}>{v}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block font-bold text-xs text-indigo-900 dark:text-indigo-300 mb-1">
-                  อุปกรณ์ประจำห้องมาตรฐาน
-                </label>
-                <input
-                  type="text"
-                  placeholder="เช่น โปรเจคเตอร์, ไมค์ 2 ตัว, จอ LED"
-                  value={quickAddForm.defaultEquipment}
-                  onChange={(e) => setQuickAddForm({ ...quickAddForm, defaultEquipment: e.target.value })}
-                  className="w-full h-10 px-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs"
-                />
-              </div>
-
-              <div>
-                <label className="block font-bold text-xs text-indigo-900 dark:text-indigo-300 mb-1">
-                  คำอธิบาย / หมายเหตุห้อง
-                </label>
-                <input
-                  type="text"
-                  placeholder="เช่น ห้องประชุมใหญ่ส่วนกลาง"
-                  value={quickAddForm.description}
-                  onChange={(e) => setQuickAddForm({ ...quickAddForm, description: e.target.value })}
-                  className="w-full h-10 px-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs"
-                />
+                  <Save className="w-3.5 h-3.5" />
+                  <span>{savingSemester ? "กำลังบันทึก..." : "บันทึกช่วงวันเปิด-ปิดภาคเรียน"}</span>
+                </button>
               </div>
             </div>
           )}
 
-          <div className="flex justify-end pt-1">
-            <button
-              type="submit"
-              disabled={adding}
-              className="h-10 px-6 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
-            >
-              <Plus className="w-4 h-4" />
-              {adding ? "กำลังเพิ่ม..." : "+ เพิ่มรายการทรัพยากร"}
-            </button>
+          {/* Quick Add Resource Card */}
+          <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white/60 dark:border-slate-800 rounded-3xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] space-y-4">
+            <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              <Plus className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+              เพิ่มทรัพยากรส่วนกลางใหม่ (Quick Add: {resourceType === "MEETING_ROOM" ? "ห้องประชุม" : "รถโรงเรียน"})
+            </h2>
+
+            <form onSubmit={handleCreateResource} className="space-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+                <div>
+                  <label className="block font-bold text-xs text-slate-700 dark:text-slate-300 mb-1">
+                    รหัสกำกับ <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder={resourceType === "MEETING_ROOM" ? "เช่น ROOM-02" : "เช่น BUS-02"}
+                    value={quickAddForm.code}
+                    onChange={(e) => setQuickAddForm({ ...quickAddForm, code: e.target.value })}
+                    className="w-full h-10 px-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-xs text-slate-700 dark:text-slate-300 mb-1">
+                    ชื่อทรัพยากร <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder={resourceType === "MEETING_ROOM" ? "เช่น ห้องประชุมกุญชร 2" : "เช่น รถตู้โตโยต้า 14 ที่นั่ง"}
+                    value={quickAddForm.name}
+                    onChange={(e) => setQuickAddForm({ ...quickAddForm, name: e.target.value })}
+                    className="w-full h-10 px-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-xs text-slate-700 dark:text-slate-300 mb-1">
+                    {resourceType === "VEHICLE" ? "ทะเบียนรถ" : "สถานที่ / ชั้น"}
+                  </label>
+                  <input
+                    type="text"
+                    placeholder={resourceType === "VEHICLE" ? "เช่น นข-5678 อุดรธานี" : "เช่น อาคาร 1 ชั้น 2"}
+                    value={resourceType === "VEHICLE" ? quickAddForm.licensePlate : quickAddForm.floor}
+                    onChange={(e) =>
+                      resourceType === "VEHICLE"
+                        ? setQuickAddForm({ ...quickAddForm, licensePlate: e.target.value })
+                        : setQuickAddForm({ ...quickAddForm, floor: e.target.value })
+                    }
+                    className="w-full h-10 px-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-xs text-slate-700 dark:text-slate-300 mb-1">
+                    ความจุ (คน / ที่นั่ง)
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={quickAddForm.capacity}
+                    onChange={(e) => setQuickAddForm({ ...quickAddForm, capacity: Number(e.target.value) })}
+                    className="w-full h-10 px-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs"
+                  />
+                </div>
+              </div>
+
+              {resourceType === "MEETING_ROOM" && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 p-3 bg-indigo-50/40 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/40 rounded-2xl">
+                  <div>
+                    <label className="block font-bold text-xs text-indigo-900 dark:text-indigo-300 mb-1">
+                      รูปแบบจัดห้องมาตรฐาน (Default Layout)
+                    </label>
+                    <select
+                      value={quickAddForm.defaultLayout}
+                      onChange={(e) => setQuickAddForm({ ...quickAddForm, defaultLayout: e.target.value })}
+                      className="w-full h-10 px-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs"
+                    >
+                      {Object.entries(ROOM_LAYOUT_LABELS).map(([k, v]) => (
+                        <option key={k} value={k}>{v}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-xs text-indigo-900 dark:text-indigo-300 mb-1">
+                      อุปกรณ์ประจำห้องมาตรฐาน
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="เช่น โปรเจคเตอร์, ไมค์ 2 ตัว, จอ LED"
+                      value={quickAddForm.defaultEquipment}
+                      onChange={(e) => setQuickAddForm({ ...quickAddForm, defaultEquipment: e.target.value })}
+                      className="w-full h-10 px-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-xs text-indigo-900 dark:text-indigo-300 mb-1">
+                      คำอธิบาย / หมายเหตุห้อง
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="เช่น ห้องประชุมใหญ่ส่วนกลาง"
+                      value={quickAddForm.description}
+                      onChange={(e) => setQuickAddForm({ ...quickAddForm, description: e.target.value })}
+                      className="w-full h-10 px-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs"
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div className="flex justify-end pt-1">
+                <button
+                  type="submit"
+                  disabled={adding}
+                  className="h-10 px-6 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                >
+                  <Plus className="w-4 h-4" />
+                  {adding ? "กำลังเพิ่ม..." : "+ เพิ่มรายการทรัพยากร"}
+                </button>
+              </div>
+            </form>
           </div>
-        </form>
-      </div>
 
-      {/* Central Resources Table */}
-      <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white/60 dark:border-slate-800 rounded-3xl overflow-hidden shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
-        <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
-          <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-            <Layers className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
-            ตารางข้อมูลทรัพยากร ({filteredResources.length} รายการ)
-          </h2>
-        </div>
+          {/* Central Resources Table */}
+          <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white/60 dark:border-slate-800 rounded-3xl overflow-hidden shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+            <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+              <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <Layers className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+                ตารางข้อมูลทรัพยากร ({filteredResources.length} รายการ)
+              </h2>
+            </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs border-collapse">
-            <thead>
-              <tr className="bg-slate-50/80 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-bold">
-                <th className="p-3.5 font-mono">รหัส</th>
-                <th className="p-3.5">ชื่อทรัพยากร</th>
-                <th className="p-3.5">รายละเอียด / ทะเบียน</th>
-                <th className="p-3.5 text-center">ความจุ</th>
-                <th className="p-3.5 text-center">สถานะ</th>
-                <th className="p-3.5 text-center">จัดการ</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {filteredResources.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="text-center py-12 text-slate-400">
-                    ไม่พบรายการทรัพยากรในหมวดนี้
-                  </td>
-                </tr>
-              ) : (
-                filteredResources.map((res) => (
-                  <tr key={res.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition">
-                    <td className="p-3.5 font-mono font-bold text-slate-700 dark:text-slate-300">{res.code}</td>
-                    <td className="p-3.5 font-bold text-slate-900 dark:text-white">{res.name}</td>
-                    <td className="p-3.5 text-slate-500 dark:text-slate-400">
-                      {res.vehicleProfile?.licensePlate ? (
-                        <div>
-                          <span className="font-semibold text-slate-700 dark:text-slate-300">ทะเบียน: </span>
-                          <span className="font-bold text-slate-900 dark:text-white">{res.vehicleProfile.licensePlate}</span>
-                          {res.vehicleProfile.brand && (
-                            <span className="text-[11px] text-slate-400 block">{res.vehicleProfile.brand} {res.vehicleProfile.model}</span>
-                          )}
-                        </div>
-                      ) : (
-                        <div className="space-y-1">
-                          <div className="font-medium text-slate-700 dark:text-slate-300">
-                            {res.location || res.roomProfile?.floor || "-"}
-                          </div>
-                          {(() => {
-                            const parsed = parseRoomConfig(res.description);
-                            return (
-                              <div className="space-y-0.5">
-                                <span className="inline-block px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 font-semibold text-[10px] border border-indigo-200/60 dark:border-indigo-800/60">
-                                  ผังมาตรฐาน: {ROOM_LAYOUT_LABELS[parsed.defaultLayout] || "เธียเตอร์"}
-                                </span>
-                                {parsed.defaultEquipment && (
-                                  <div className="text-[10px] text-slate-400 line-clamp-1" title={parsed.defaultEquipment}>
-                                    อุปกรณ์: {parsed.defaultEquipment}
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="bg-slate-50/80 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-bold">
+                    <th className="p-3.5 font-mono">รหัส</th>
+                    <th className="p-3.5">ชื่อทรัพยากร</th>
+                    <th className="p-3.5">รายละเอียด / ทะเบียน / คิวประจำสัปดาห์</th>
+                    <th className="p-3.5 text-center">ความจุ</th>
+                    <th className="p-3.5 text-center">สถานะ</th>
+                    <th className="p-3.5 text-center">จัดการ</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {filteredResources.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="text-center py-12 text-slate-400">
+                        ไม่พบรายการทรัพยากรในหมวดนี้
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredResources.map((res) => {
+                      const vCfg = res.type === "VEHICLE" ? parseVehicleConfig(res.description) : null;
+                      return (
+                        <tr key={res.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition">
+                          <td className="p-3.5 font-mono font-bold text-slate-700 dark:text-slate-300">{res.code}</td>
+                          <td className="p-3.5 font-bold text-slate-900 dark:text-white">{res.name}</td>
+                          <td className="p-3.5 text-slate-500 dark:text-slate-400">
+                            {res.type === "VEHICLE" ? (
+                              <div className="space-y-1.5">
+                                <div>
+                                  <span className="font-semibold text-slate-700 dark:text-slate-300">ทะเบียน: </span>
+                                  <span className="font-bold text-slate-900 dark:text-white">{res.vehicleProfile?.licensePlate || "-"}</span>
+                                  {res.vehicleProfile?.brand && (
+                                    <span className="text-[11px] text-slate-400 ml-1.5">({res.vehicleProfile.brand} {res.vehicleProfile.model})</span>
+                                  )}
+                                </div>
+                                {vCfg && vCfg.recurringSchedules.length > 0 ? (
+                                  <div className="flex flex-wrap gap-1">
+                                    {vCfg.recurringSchedules.map((rule) => (
+                                      <span
+                                        key={rule.id}
+                                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold border ${
+                                          rule.enabled
+                                            ? "bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border-slate-300 dark:border-slate-700"
+                                            : "bg-slate-50 text-slate-400 border-slate-200 line-through"
+                                        }`}
+                                      >
+                                        <Lock className="w-2.5 h-2.5 text-amber-600" />
+                                        <span>{rule.title}: {formatRecurringDaysLabel(rule.daysOfWeek)} ({rule.startTime}–{rule.endTime} น.)</span>
+                                      </span>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <div className="text-[11px] text-slate-400">
+                                    ยังไม่มีคิวรถประจำสัปดาห์ (กด &ldquo;ตั้งค่าคิวรถประจำ&rdquo; เพื่อกำหนดเวลารับ-ส่งนักเรียน)
                                   </div>
                                 )}
                               </div>
-                            );
-                          })()}
-                        </div>
-                      )}
-                    </td>
-                    <td className="p-3.5 text-center font-bold text-slate-800 dark:text-slate-200">
-                      {res.capacity ? `${res.capacity} ที่นั่ง` : "-"}
-                    </td>
-                    <td className="p-3.5 text-center">
-                      <StatusPillBadge status={res.status} size="sm" />
-                    </td>
-                    <td className="p-3.5 text-center">
-                      <div className="inline-flex items-center gap-1.5">
-                        <button
-                          onClick={() => handleOpenEdit(res)}
-                          className="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-medium cursor-pointer transition"
-                          title="แก้ไขข้อมูล"
-                        >
-                          <Edit2 className="w-3.5 h-3.5 inline mr-1" /> แก้ไข
-                        </button>
-                        <button
-                          onClick={() => handleToggleStatus(res)}
-                          className="px-2.5 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 text-xs font-medium cursor-pointer transition"
-                          title="สลับสถานะความพร้อม"
-                        >
-                          {res.status === "AVAILABLE" ? "ปิดซ่อม" : "เปิดใช้"}
-                        </button>
-                        <button
-                          onClick={() => handleDeleteResource(res)}
-                          className="px-2.5 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 text-rose-700 dark:text-rose-400 text-xs font-medium cursor-pointer transition"
-                          title="ลบหรือปลดระวาง"
-                        >
-                          <Trash2 className="w-3.5 h-3.5 inline" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Driver List Card (for vehicle mode) */}
-      {resourceType === "VEHICLE" && (
-        <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white/60 dark:border-slate-800 rounded-3xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] space-y-4">
-          <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-            <Users className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
-            รายชื่อพนักงานขับรถในระบบ ({drivers.length} ท่าน)
-          </h2>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-            {drivers.length === 0 ? (
-              <p className="text-xs text-slate-400 col-span-3">ยังไม่มีข้อมูลพนักงานขับรถในระบบ</p>
-            ) : (
-              drivers.map((d) => (
-                <div
-                  key={d.id}
-                  className="p-3.5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/30 text-xs space-y-1"
-                >
-                  <div className="font-bold text-slate-900 dark:text-white">{d.user?.name}</div>
-                  <div className="text-slate-500">ใบขับขี่: {d.licenseNumber || "-"}</div>
-                  <div className="text-slate-500">โทร: {d.phoneNumber || d.user?.phoneNumber || "-"}</div>
-                </div>
-              ))
-            )}
+                            ) : (
+                              <div className="space-y-1">
+                                <div className="font-medium text-slate-700 dark:text-slate-300">
+                                  {res.location || res.roomProfile?.floor || "-"}
+                                </div>
+                                {(() => {
+                                  const parsed = parseRoomConfig(res.description);
+                                  return (
+                                    <div className="space-y-0.5">
+                                      <span className="inline-block px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 font-semibold text-[10px] border border-indigo-200/60 dark:border-indigo-800/60">
+                                        ผังมาตรฐาน: {ROOM_LAYOUT_LABELS[parsed.defaultLayout] || "เธียเตอร์"}
+                                      </span>
+                                      {parsed.defaultEquipment && (
+                                        <div className="text-[10px] text-slate-400 line-clamp-1" title={parsed.defaultEquipment}>
+                                          อุปกรณ์: {parsed.defaultEquipment}
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })()}
+                              </div>
+                            )}
+                          </td>
+                          <td className="p-3.5 text-center font-bold text-slate-800 dark:text-slate-200">
+                            {res.capacity ? `${res.capacity} ที่นั่ง` : "-"}
+                          </td>
+                          <td className="p-3.5 text-center">
+                            <StatusPillBadge status={res.status} size="sm" />
+                          </td>
+                          <td className="p-3.5 text-center">
+                            <div className="inline-flex flex-wrap items-center justify-center gap-1.5">
+                              {res.type === "VEHICLE" && (
+                                <button
+                                  onClick={() => handleOpenEdit(res)}
+                                  className="px-2.5 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60 text-xs font-bold cursor-pointer transition"
+                                  title="ตั้งค่าคิวรถใช้งานประจำสัปดาห์ (เช่น รับ-ส่งนักเรียน)"
+                                >
+                                  <Clock className="w-3.5 h-3.5 inline mr-1" /> ตั้งค่าคิวรถประจำ
+                                </button>
+                              )}
+                              <button
+                                onClick={() => handleOpenEdit(res)}
+                                className="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-medium cursor-pointer transition"
+                                title="แก้ไขข้อมูล"
+                              >
+                                <Edit2 className="w-3.5 h-3.5 inline mr-1" /> แก้ไข
+                              </button>
+                              <button
+                                onClick={() => handleToggleStatus(res)}
+                                className="px-2.5 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 text-xs font-medium cursor-pointer transition"
+                                title="สลับสถานะความพร้อม"
+                              >
+                                {res.status === "AVAILABLE" ? "ปิดซ่อม" : "เปิดใช้"}
+                              </button>
+                              <button
+                                onClick={() => handleDeleteResource(res)}
+                                className="px-2.5 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 text-rose-700 dark:text-rose-400 text-xs font-medium cursor-pointer transition"
+                                title="ลบหรือปลดระวาง"
+                              >
+                                <Trash2 className="w-3.5 h-3.5 inline" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
-      )}
-      </>
+
+          {/* Driver List Card (for vehicle mode) */}
+          {resourceType === "VEHICLE" && (
+            <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white/60 dark:border-slate-800 rounded-3xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] space-y-4">
+              <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <Users className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                รายชื่อพนักงานขับรถในระบบ ({drivers.length} ท่าน)
+              </h2>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                {drivers.length === 0 ? (
+                  <p className="text-xs text-slate-400 col-span-3">ยังไม่มีข้อมูลพนักงานขับรถในระบบ</p>
+                ) : (
+                  drivers.map((d) => (
+                    <div
+                      key={d.id}
+                      className="p-3.5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/30 text-xs space-y-1"
+                    >
+                      <div className="font-bold text-slate-900 dark:text-white">{d.user?.name}</div>
+                      <div className="text-slate-500">ใบขับขี่: {d.licenseNumber || "-"}</div>
+                      <div className="text-slate-500">โทร: {d.phoneNumber || d.user?.phoneNumber || "-"}</div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+        </>
       )}
 
       {/* Edit Modal */}
@@ -632,36 +920,186 @@ export default function FacilityManagementView({
                 </div>
 
                 {editingResource.type === "VEHICLE" ? (
-                  <div className="p-3 bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 rounded-xl space-y-2">
-                    <span className="font-bold text-amber-800 dark:text-amber-300">ข้อมูลยานพาหนะ</span>
-                    <div className="grid grid-cols-3 gap-2">
-                      <div>
-                        <label className="block text-slate-600 dark:text-slate-400 mb-0.5">ทะเบียนรถ</label>
-                        <input
-                          type="text"
-                          value={editForm.licensePlate}
-                          onChange={(e) => setEditForm({ ...editForm, licensePlate: e.target.value })}
-                          className="w-full p-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs"
-                        />
+                  <div className="space-y-4">
+                    <div className="p-3 bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 rounded-xl space-y-2">
+                      <span className="font-bold text-amber-800 dark:text-amber-300">ข้อมูลยานพาหนะ</span>
+                      <div className="grid grid-cols-3 gap-2">
+                        <div>
+                          <label className="block text-slate-600 dark:text-slate-400 mb-0.5">ทะเบียนรถ</label>
+                          <input
+                            type="text"
+                            value={editForm.licensePlate}
+                            onChange={(e) => setEditForm({ ...editForm, licensePlate: e.target.value })}
+                            className="w-full p-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-slate-600 dark:text-slate-400 mb-0.5">ยี่ห้อ</label>
+                          <input
+                            type="text"
+                            value={editForm.brand}
+                            onChange={(e) => setEditForm({ ...editForm, brand: e.target.value })}
+                            className="w-full p-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-slate-600 dark:text-slate-400 mb-0.5">รุ่น</label>
+                          <input
+                            type="text"
+                            value={editForm.model}
+                            onChange={(e) => setEditForm({ ...editForm, model: e.target.value })}
+                            className="w-full p-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs"
+                          />
+                        </div>
                       </div>
-                      <div>
-                        <label className="block text-slate-600 dark:text-slate-400 mb-0.5">ยี่ห้อ</label>
-                        <input
-                          type="text"
-                          value={editForm.brand}
-                          onChange={(e) => setEditForm({ ...editForm, brand: e.target.value })}
-                          className="w-full p-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs"
-                        />
+                    </div>
+
+                    {/* Weekly Recurring Vehicle Schedules (e.g. Daily Student Pickup/Dropoff) */}
+                    <div className="p-3.5 bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900/50 rounded-2xl space-y-3">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <div>
+                          <div className="font-bold text-emerald-900 dark:text-emerald-300 flex items-center gap-1.5">
+                            <Clock className="w-4 h-4" />
+                            <span>ตารางรถใช้งานประจำสัปดาห์ (เช่น รับ-ส่งนักเรียนประจำวัน)</span>
+                          </div>
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                            ล็อคช่วงเวลาในตารางปฏิทินอัตโนมัติเฉพาะวันเปิดเรียน (ปลดล็อคอัตโนมัติช่วงปิดเทอม/วันหยุด)
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => addVehicleRecurringRule("MORNING_SHUTTLE")}
+                            className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] cursor-pointer transition"
+                          >
+                            + คิวรับเช้า (06:30-08:15)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => addVehicleRecurringRule("AFTERNOON_SHUTTLE")}
+                            className="px-2.5 py-1 rounded-lg bg-teal-600 hover:bg-teal-700 text-white font-bold text-[11px] cursor-pointer transition"
+                          >
+                            + คิวส่งเย็น (15:30-17:15)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => addVehicleRecurringRule()}
+                            className="px-2.5 py-1 rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 font-bold text-[11px] cursor-pointer transition"
+                          >
+                            + กำหนดเอง
+                          </button>
+                        </div>
                       </div>
-                      <div>
-                        <label className="block text-slate-600 dark:text-slate-400 mb-0.5">รุ่น</label>
-                        <input
-                          type="text"
-                          value={editForm.model}
-                          onChange={(e) => setEditForm({ ...editForm, model: e.target.value })}
-                          className="w-full p-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs"
-                        />
-                      </div>
+
+                      {editForm.recurringSchedules.length === 0 ? (
+                        <div className="py-4 text-center text-slate-400 bg-white/60 dark:bg-slate-900/40 rounded-xl border border-dashed border-slate-200 dark:border-slate-700">
+                          ยังไม่มีตารางเดินรถประจำสัปดาห์สำหรับรถคันนี้
+                        </div>
+                      ) : (
+                        <div className="space-y-2.5">
+                          {editForm.recurringSchedules.map((rule) => (
+                            <div
+                              key={rule.id}
+                              className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 space-y-2.5 shadow-2xs"
+                            >
+                              <div className="flex items-center justify-between gap-2">
+                                <input
+                                  type="text"
+                                  value={rule.title}
+                                  onChange={(e) =>
+                                    updateVehicleRecurringRule(rule.id, { title: e.target.value })
+                                  }
+                                  placeholder="เช่น รับนักเรียนช่วงเช้า (สายประจำ)"
+                                  className="flex-1 h-8 px-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => removeVehicleRecurringRule(rule.id)}
+                                  className="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 cursor-pointer"
+                                  title="ลบคิวประจำนี้"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+
+                              {/* Days of week selector + time range */}
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <div className="flex items-center gap-1 flex-wrap">
+                                  <span className="text-[11px] text-slate-500 mr-1">วันวิ่ง:</span>
+                                  {[
+                                    { dow: 1, label: "จ." },
+                                    { dow: 2, label: "อ." },
+                                    { dow: 3, label: "พ." },
+                                    { dow: 4, label: "พฤ." },
+                                    { dow: 5, label: "ศ." },
+                                    { dow: 6, label: "ส." },
+                                    { dow: 0, label: "อา." }
+                                  ].map(({ dow, label }) => {
+                                    const active = rule.daysOfWeek.includes(dow);
+                                    return (
+                                      <button
+                                        key={dow}
+                                        type="button"
+                                        onClick={() => {
+                                          const nextDays = active
+                                            ? rule.daysOfWeek.filter((d) => d !== dow)
+                                            : [...rule.daysOfWeek, dow];
+                                          updateVehicleRecurringRule(rule.id, { daysOfWeek: nextDays });
+                                        }}
+                                        className={`w-7 h-7 rounded-lg text-[11px] font-bold transition cursor-pointer ${
+                                          active
+                                            ? "bg-emerald-600 text-white shadow-2xs"
+                                            : "bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-slate-200"
+                                        }`}
+                                      >
+                                        {label}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+
+                                <div className="flex items-center gap-1.5">
+                                  <input
+                                    type="time"
+                                    value={rule.startTime}
+                                    onChange={(e) =>
+                                      updateVehicleRecurringRule(rule.id, { startTime: e.target.value })
+                                    }
+                                    className="h-8 px-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-mono"
+                                  />
+                                  <span className="text-slate-400">ถึง</span>
+                                  <input
+                                    type="time"
+                                    value={rule.endTime}
+                                    onChange={(e) =>
+                                      updateVehicleRecurringRule(rule.id, { endTime: e.target.value })
+                                    }
+                                    className="h-8 px-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-mono"
+                                  />
+                                </div>
+                              </div>
+
+                              <div className="flex items-center justify-between pt-1 border-t border-slate-100 dark:border-slate-800">
+                                <label className="flex items-center gap-1.5 cursor-pointer text-[11px] text-slate-600 dark:text-slate-300 font-medium">
+                                  <input
+                                    type="checkbox"
+                                    checked={rule.activeOnlyDuringSemester}
+                                    onChange={(e) =>
+                                      updateVehicleRecurringRule(rule.id, {
+                                        activeOnlyDuringSemester: e.target.checked
+                                      })
+                                    }
+                                    className="w-3.5 h-3.5 rounded text-emerald-600"
+                                  />
+                                  <span>
+                                    ล็อคเฉพาะวันเปิดเทอม (ช่วงปิดเทอม/วันหยุด ปลดล็อคให้จองพานักเรียนไปแข่ง/ทำกิจกรรมได้)
+                                  </span>
+                                </label>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
                 ) : (
