@@ -705,7 +705,7 @@ export default function FacilityBookingForm({
                             onChange={(e) => setRequireAirCon(e.target.checked)}
                             className="w-4 h-4 rounded text-indigo-600 border-slate-300 focus:ring-indigo-500"
                           />
-                          เปิดเครื่องปรับอากาศ (Air Conditioning)
+                          เปิดเครื่องปรับอากาศ
                         </label>
                       </div>
 
@@ -867,7 +867,7 @@ export default function FacilityBookingForm({
               </li>
               <li className="flex items-start gap-2">
                 <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 mt-1.5 shrink-0" />
-                <span><strong>ขั้นตอนการอนุมัติ 2 ระดับ:</strong> Step 1 หัวหน้างานตรวจสอบจัดสรรทรัพยากรและพนักงานขับรถ ➔ Step 2 ผู้อำนวยการอนุมัติขั้นสุดท้าย</span>
+                <span><strong>ขั้นตอนการอนุมัติ 2 ระดับ:</strong> ขั้นตอนที่ 1 หัวหน้างานตรวจสอบจัดสรรทรัพยากรและพนักงานขับรถ ➔ ขั้นตอนที่ 2 ผู้อำนวยการอนุมัติขั้นสุดท้าย</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 mt-1.5 shrink-0" />

@@ -25,6 +25,7 @@ import {
   getThaiMonthYear,
   type ModuleMode,
   type FacilitySemesterConfig,
+  parseVehicleConfig,
   evaluateVehicleRecurringSlotsForDate,
   isDateInActiveSemester
 } from "./facility-shared";
@@ -585,43 +586,27 @@ export default function FacilityUnifiedCalendar({
       {/* ========================================================= */}
       {viewMode === "DAY" && (
         <div className="space-y-4">
-          {(() => {
-            const semState = isDateInActiveSemester(currentDate, semesterConfig, holidays);
-            return (
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 rounded-2xl px-4 py-3">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-xs font-bold text-indigo-950 dark:text-indigo-200">
-                    📅 ตารางรายชั่วโมง (06:00 – 18:00 น.): {toThaiDateString(currentDate, true)}
-                  </span>
-                  <span
-                    className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${
-                      semState.isSemesterOpen
-                        ? "bg-amber-100/80 dark:bg-amber-950/60 border-amber-300 dark:border-amber-800 text-amber-900 dark:text-amber-200"
-                        : "bg-emerald-100/80 dark:bg-emerald-950/60 border-emerald-300 dark:border-emerald-800 text-emerald-900 dark:text-emerald-200"
-                    }`}
-                  >
-                    {semState.isSemesterOpen
-                      ? `🏫 ${semState.semesterName || "เปิดภาคเรียน"} (ล็อคคิวรถรับ-ส่งนักเรียนประจำวัน)`
-                      : `🏖️ ปิดภาคเรียน / วันหยุด (ปลดล็อคคิวรับ-ส่งนักเรียน จองไปกิจกรรม/แข่งขันได้)`}
-                  </span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={() => setViewMode("WEEK")}
-                    className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-200 flex items-center gap-1 transition cursor-pointer"
-                  >
-                    ← ดูรายสัปดาห์
-                  </button>
-                  <button
-                    onClick={() => setViewMode("MONTH")}
-                    className="text-xs font-bold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 flex items-center gap-1 transition cursor-pointer"
-                  >
-                    ดูรายเดือน
-                  </button>
-                </div>
-              </div>
-            );
-          })()}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 rounded-2xl px-4 py-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs font-bold text-indigo-950 dark:text-indigo-200">
+                📅 ตารางรายชั่วโมง (06:00 – 18:00 น.): {toThaiDateString(currentDate, true)}
+              </span>
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setViewMode("WEEK")}
+                className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-200 flex items-center gap-1 transition cursor-pointer"
+              >
+                ← ดูรายสัปดาห์
+              </button>
+              <button
+                onClick={() => setViewMode("MONTH")}
+                className="text-xs font-bold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 flex items-center gap-1 transition cursor-pointer"
+              >
+                ดูรายเดือน
+              </button>
+            </div>
+          </div>
 
           {filteredResources.length === 0 ? (
             <div className="p-12 text-center bg-white dark:bg-slate-900 rounded-3xl border border-dashed border-slate-200 dark:border-slate-800 text-slate-400 text-sm">
@@ -635,26 +620,48 @@ export default function FacilityUnifiedCalendar({
                     <th className="p-3 w-28 text-center font-mono text-slate-500 border-r border-slate-200 dark:border-slate-700">
                       ช่วงเวลารายชั่วโมง
                     </th>
-                    {filteredResources.map((res) => (
-                      <th
-                        key={res.id}
-                        className="p-3 text-left min-w-[200px] border-r border-slate-200 dark:border-slate-700 last:border-r-0"
-                      >
-                        <div className="font-bold text-slate-900 dark:text-white flex items-center justify-between">
-                          <span className="truncate">{res.name}</span>
-                          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-200/60 dark:bg-slate-700 font-semibold ml-1">
-                            {res.code}
-                          </span>
-                        </div>
-                        <div className="text-[11px] text-slate-500 font-normal mt-0.5 flex items-center gap-1">
-                          {res.type === "MEETING_ROOM" ? (
-                            <span>{res.capacity ? `${res.capacity} ที่นั่ง` : "-"} • {res.roomProfile?.floor || res.location || "ชั้น 1"}</span>
-                          ) : (
-                            <span>{res.vehicleProfile?.licensePlate || "-"} • {res.capacity || 12} ที่นั่ง</span>
+                    {filteredResources.map((res) => {
+                      const vCfg = res.type === "VEHICLE" ? parseVehicleConfig(res.description) : null;
+                      const vehSemState =
+                        vCfg && vCfg.hasRecurringSchedule && vCfg.recurringSchedules.length > 0
+                          ? isDateInActiveSemester(currentDate, vCfg.semesterConfig, holidays)
+                          : null;
+                      return (
+                        <th
+                          key={res.id}
+                          className="p-3 text-left min-w-[200px] border-r border-slate-200 dark:border-slate-700 last:border-r-0"
+                        >
+                          <div className="font-bold text-slate-900 dark:text-white flex items-center justify-between">
+                            <span className="truncate">{res.name}</span>
+                            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-200/60 dark:bg-slate-700 font-semibold ml-1">
+                              {res.code}
+                            </span>
+                          </div>
+                          <div className="text-[11px] text-slate-500 font-normal mt-0.5 flex items-center gap-1">
+                            {res.type === "MEETING_ROOM" ? (
+                              <span>{res.capacity ? `${res.capacity} ที่นั่ง` : "-"} • {res.roomProfile?.floor || res.location || "ชั้น 1"}</span>
+                            ) : (
+                              <span>{res.vehicleProfile?.licensePlate || "-"} • {res.capacity || 12} ที่นั่ง</span>
+                            )}
+                          </div>
+                          {vehSemState && (
+                            <div className="mt-1">
+                              <span
+                                className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded-md border ${
+                                  vehSemState.isSemesterOpen
+                                    ? "bg-amber-50 dark:bg-amber-950/60 border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300"
+                                    : "bg-emerald-50 dark:bg-emerald-950/60 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300"
+                                }`}
+                              >
+                                {vehSemState.isSemesterOpen
+                                  ? `🏫 ${vehSemState.semesterName || "เปิดเทอม"} (มีคิวรับ-ส่งนักเรียน)`
+                                  : `🏖️ ปิดเทอม/วันหยุด (ปลดล็อคคิวประจำ)`}
+                              </span>
+                            </div>
                           )}
-                        </div>
-                      </th>
-                    ))}
+                        </th>
+                      );
+                    })}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">

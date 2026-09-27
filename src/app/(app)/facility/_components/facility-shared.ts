@@ -59,12 +59,12 @@ export interface RoomConfigMetadata {
 }
 
 export const ROOM_LAYOUT_LABELS: Record<string, string> = {
-  THEATER: "เธียเตอร์ (Theater)",
-  CLASSROOM: "ห้องเรียน (Classroom)",
-  U_SHAPE: "ตัวยู (U-Shape)",
-  BOARDROOM: "โต๊ะประชุมยาว (Boardroom)",
-  BANQUET: "โต๊ะกลม (Banquet)",
-  HOLLOW_SQUARE: "สี่เหลี่ยมเปิดกลาง (Hollow Square)",
+  THEATER: "แบบเธียเตอร์ (เก้าอี้เรียงแถว)",
+  CLASSROOM: "แบบห้องเรียน (โต๊ะเรียงแถว)",
+  U_SHAPE: "แบบโต๊ะรูปตัวยู",
+  BOARDROOM: "แบบโต๊ะประชุมยาว",
+  BANQUET: "แบบโต๊ะกลม",
+  HOLLOW_SQUARE: "แบบโต๊ะสี่เหลี่ยมเปิดกลาง",
   OTHER: "รูปแบบอื่นๆ"
 };
 
@@ -132,34 +132,65 @@ export interface VehicleRecurringScheduleRule {
 
 export interface VehicleConfigMetadata {
   note: string;
+  hasRecurringSchedule: boolean;
   recurringSchedules: VehicleRecurringScheduleRule[];
+  semesterConfig: FacilitySemesterConfig;
 }
 
 export function parseVehicleConfig(description: string | null | undefined): VehicleConfigMetadata {
+  const defaultSem = getDefaultSemesterConfig();
   if (!description) {
-    return { note: "", recurringSchedules: [] };
+    return { note: "", hasRecurringSchedule: false, recurringSchedules: [], semesterConfig: defaultSem };
   }
   const trimmed = description.trim();
   if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
     try {
       const parsed = JSON.parse(trimmed);
-      if (Array.isArray(parsed.recurringSchedules) || parsed.note !== undefined) {
+      if (
+        Array.isArray(parsed.recurringSchedules) ||
+        parsed.note !== undefined ||
+        parsed.hasRecurringSchedule !== undefined ||
+        parsed.semesterConfig !== undefined
+      ) {
+        const schedules = Array.isArray(parsed.recurringSchedules) ? parsed.recurringSchedules : [];
+        const hasRecurring =
+          typeof parsed.hasRecurringSchedule === "boolean"
+            ? parsed.hasRecurringSchedule
+            : schedules.length > 0;
+        const semCfg: FacilitySemesterConfig =
+          parsed.semesterConfig && Array.isArray(parsed.semesterConfig.semesters)
+            ? {
+                mode: parsed.semesterConfig.mode || defaultSem.mode,
+                excludePublicHolidays:
+                  typeof parsed.semesterConfig.excludePublicHolidays === "boolean"
+                    ? parsed.semesterConfig.excludePublicHolidays
+                    : true,
+                semesters: parsed.semesterConfig.semesters
+              }
+            : defaultSem;
         return {
           note: parsed.note || "",
-          recurringSchedules: Array.isArray(parsed.recurringSchedules) ? parsed.recurringSchedules : []
+          hasRecurringSchedule: hasRecurring,
+          recurringSchedules: schedules,
+          semesterConfig: semCfg
         };
       }
     } catch {
       // Fallback to plain text note
     }
   }
-  return { note: trimmed, recurringSchedules: [] };
+  return { note: trimmed, hasRecurringSchedule: false, recurringSchedules: [], semesterConfig: defaultSem };
 }
 
 export function serializeVehicleConfig(cfg: Partial<VehicleConfigMetadata>): string {
+  const schedules = Array.isArray(cfg.recurringSchedules) ? cfg.recurringSchedules : [];
+  const hasRecurring =
+    typeof cfg.hasRecurringSchedule === "boolean" ? cfg.hasRecurringSchedule : schedules.length > 0;
   return JSON.stringify({
     note: cfg.note || "",
-    recurringSchedules: Array.isArray(cfg.recurringSchedules) ? cfg.recurringSchedules : []
+    hasRecurringSchedule: hasRecurring,
+    recurringSchedules: hasRecurring ? schedules : [],
+    semesterConfig: cfg.semesterConfig || getDefaultSemesterConfig()
   });
 }
 
@@ -355,16 +386,17 @@ export interface EvaluatedVehicleRecurringSlot {
 export function evaluateVehicleRecurringSlotsForDate(
   resource: any,
   date: Date,
-  semesterConfig?: FacilitySemesterConfig | null,
+  fallbackSemesterConfig?: FacilitySemesterConfig | null,
   holidays?: Array<{ date: string | Date; name: string; isWorkday?: boolean }>
 ): EvaluatedVehicleRecurringSlot[] {
   if (!resource || resource.type !== "VEHICLE") return [];
   const vCfg = parseVehicleConfig(resource.description);
-  if (!vCfg.recurringSchedules || vCfg.recurringSchedules.length === 0) return [];
+  if (!vCfg.hasRecurringSchedule || !vCfg.recurringSchedules || vCfg.recurringSchedules.length === 0) return [];
 
   const dow = date.getDay();
   const dateIso = formatISODateInput(date);
-  const semState = isDateInActiveSemester(date, semesterConfig, holidays);
+  const effectiveSemesterConfig = vCfg.semesterConfig || fallbackSemesterConfig || getDefaultSemesterConfig();
+  const semState = isDateInActiveSemester(date, effectiveSemesterConfig, holidays);
 
   const results: EvaluatedVehicleRecurringSlot[] = [];
 

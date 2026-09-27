@@ -23,7 +23,7 @@ export default function RoomBlueprintCards({ selected, onSelect }: RoomBlueprint
   const layouts: LayoutItem[] = [
     {
       id: "THEATER",
-      title: "เธียเตอร์ (Theater)",
+      title: "แบบเธียเตอร์",
       subtitle: "แถวเก้าอี้หันหน้าเวที",
       badge: "ความจุสูงสุด 100%",
       description: "เหมาะสำหรับการบรรยาย ปฐมนิเทศ หรือประชุมรวมขนาดใหญ่",
@@ -73,7 +73,7 @@ export default function RoomBlueprintCards({ selected, onSelect }: RoomBlueprint
     },
     {
       id: "CLASSROOM",
-      title: "ห้องเรียน (Classroom)",
+      title: "แบบห้องเรียน",
       subtitle: "โต๊ะแถวยาวพร้อมเก้าอี้",
       badge: "ความจุ ~70%",
       description: "เหมาะสำหรับการฝึกอบรม สัมมนาเชิงปฏิบัติการ ที่ต้องจดบันทึก",
@@ -109,8 +109,8 @@ export default function RoomBlueprintCards({ selected, onSelect }: RoomBlueprint
     },
     {
       id: "U_SHAPE",
-      title: "ตัวยู (U-Shape)",
-      subtitle: "โต๊ะล้อมรูปตัว U มีพื้นที่เปิด",
+      title: "แบบโต๊ะรูปตัวยู",
+      subtitle: "โต๊ะล้อมรูปตัวยู มีพื้นที่เปิด",
       badge: "เน้นการอภิปราย",
       description: "เหมาะสำหรับประชุมกลุ่ม ประชุมเชิงโต้ตอบที่ทุกคนมีส่วนร่วม",
       renderDiagram: () => (
@@ -145,10 +145,10 @@ export default function RoomBlueprintCards({ selected, onSelect }: RoomBlueprint
     },
     {
       id: "BANQUET",
-      title: "โต๊ะกลม (Banquet)",
+      title: "แบบโต๊ะกลม",
       subtitle: "โต๊ะกลมกระจายกลุ่ม",
       badge: "กิจกรรมกลุ่ม / สังสรรค์",
-      description: "เหมาะสำหรับงานเลี้ยง กิจกรรม Workshop รวมกลุ่ม หรือสัมมนากลุ่มย่อย",
+      description: "เหมาะสำหรับงานเลี้ยง กิจกรรมปฏิบัติการกลุ่มย่อย หรือสัมมนาระดมสมอง",
       renderDiagram: () => (
         <svg viewBox="0 0 160 100" className="w-full h-20 text-slate-400 dark:text-slate-500">
           {/* Table 1 */}
@@ -180,7 +180,7 @@ export default function RoomBlueprintCards({ selected, onSelect }: RoomBlueprint
     },
     {
       id: "BOARDROOM",
-      title: "บอร์ดรูม (Boardroom)",
+      title: "แบบโต๊ะประชุมยาว",
       subtitle: "โต๊ะประชุมกลางตัวเดียว",
       badge: "ประชุมกรรมการ",
       description: "เหมาะสำหรับประชุมคณะกรรมการบริหาร การหารือวาระลับ หรือประชุมทางการ",
@@ -211,7 +211,7 @@ export default function RoomBlueprintCards({ selected, onSelect }: RoomBlueprint
     },
     {
       id: "HOLLOW_SQUARE",
-      title: "สี่เหลี่ยมกลวง (Hollow Square)",
+      title: "แบบโต๊ะสี่เหลี่ยมเปิดกลาง",
       subtitle: "โต๊ะล้อม 4 ทิศเปิดกลาง",
       badge: "ทุกคนสบตากัน",
       description: "เหมาะสำหรับคณะทำงานที่ต้องการแลกเปลี่ยนความคิดเห็นอย่างเท่าเทียม",
