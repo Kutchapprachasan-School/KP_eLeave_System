@@ -185,10 +185,10 @@ export function ExamPapersManagementView({ showHeader = true }: ExamPapersManage
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
               <Sparkles className="w-6 h-6 text-purple-600 dark:text-purple-400" />
-              คลังข้อสอบ & จัดการการวัดผล (Exam Management Hub)
+              คลังข้อสอบและระบบตรวจกระดาษคำตอบ
             </h1>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-              จัดการชุดข้อสอบปรนัย (1–50 ข้อ) และอัตนัย พร้อมระบบตรวจจับกระดาษคำตอบ OMR และวิเคราะห์ KR-20
+              จัดการชุดข้อสอบปรนัย (1–100 ข้อ • รองรับ 4, 5 และ 6 ตัวเลือก) พร้อมสแกนกระดาษคำตอบและวิเคราะห์คุณภาพข้อสอบ (KR-20)
             </p>
           </div>
 
@@ -197,7 +197,7 @@ export function ExamPapersManagementView({ showHeader = true }: ExamPapersManage
               href="/academic/exam/scan"
               className="h-10 px-4 rounded-xl border border-purple-200 dark:border-purple-800/60 bg-purple-50 hover:bg-purple-100 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 font-semibold text-xs shadow-xs transition flex items-center gap-1.5"
             >
-              <Camera className="w-4 h-4" /> สแกนตรวจ OMR
+              <Camera className="w-4 h-4" /> สแกนตรวจกระดาษคำตอบ
             </Link>
 
             <Link
@@ -256,7 +256,7 @@ export function ExamPapersManagementView({ showHeader = true }: ExamPapersManage
               <Zap className="w-5 h-5" />
             </div>
             <div>
-              <div className="text-xs text-slate-500">ความเร็วเฉลี่ย OMR</div>
+              <div className="text-xs text-slate-500">ความเร็วเฉลี่ยการสแกน</div>
               <div className="text-xl font-bold text-amber-600 dark:text-amber-400">&lt; 50 ms/แผ่น</div>
             </div>
           </div>
@@ -425,18 +425,18 @@ export function ExamPapersManagementView({ showHeader = true }: ExamPapersManage
                     <th className="py-3.5 px-4">ปี / ภาค</th>
                     <th className="py-3.5 px-3">รหัสวิชา</th>
                     <th className="py-3.5 px-3">กลุ่มสาระ</th>
-                    <th className="py-3.5 px-4">ชื่อวิชา & ชื่อชุดข้อสอบ</th>
+                    <th className="py-3.5 px-4">ชื่อวิชาและชื่อชุดข้อสอบ</th>
                     <th className="py-3.5 px-3">ระดับชั้น</th>
                     <th className="py-3.5 px-4">โครงสร้างข้อสอบ</th>
                     <th className="py-3.5 px-3 text-center">ตรวจแล้ว</th>
                     <th className="py-3.5 px-3">ผู้สร้าง</th>
-                    <th className="py-3.5 px-4 text-right">ปุ่มจัดการ (CRUD)</th>
+                    <th className="py-3.5 px-4 text-right">การจัดการ</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 text-xs">
                   {filteredPapers.map((paper) => {
                     const submissionCount = paper._count?.submissions || 0;
-                    const hasSubjective = (paper.totalSubjectiveItems || 0) > 0;
+                    const paperChoiceCount = paper.choiceCount || 4;
                     const totalScore = Number(paper.maxScore) + Number(paper.subjectiveMaxScore || 0);
                     const group = resolveSubjectGroup(paper);
                     const groupColor = getSubjectGroupBadgeColor(group);
@@ -488,10 +488,10 @@ export function ExamPapersManagementView({ showHeader = true }: ExamPapersManage
                         {/* 6. Exam Structure */}
                         <td className="py-3.5 px-4 text-slate-600 dark:text-slate-400 whitespace-nowrap">
                           <div className="font-semibold text-slate-800 dark:text-slate-200">
-                            ปรนัย {paper.totalItems} ข้อ {hasSubjective ? `+ อัตนัย ${paper.totalSubjectiveItems} ข้อ` : ""}
+                            ปรนัย {paper.totalItems} ข้อ ({paperChoiceCount} ตัวเลือก)
                           </div>
                           <div className="text-[10px] text-slate-400">
-                            รวม {totalScore} คะแนน (ผ่าน {Number(paper.passScore)})
+                            เต็ม {totalScore} คะแนน (ผ่าน {Number(paper.passScore)})
                           </div>
                         </td>
 
@@ -511,13 +511,13 @@ export function ExamPapersManagementView({ showHeader = true }: ExamPapersManage
                           {paper.createdBy?.name || "-"}
                         </td>
 
-                        {/* 9. Action Buttons (CRUD Controls) */}
+                        {/* 9. Action Buttons */}
                         <td className="py-3.5 px-4 text-right" onClick={(e) => e.stopPropagation()}>
                           <div className="flex items-center justify-end gap-1.5">
                             {/* 1. Quick Scan */}
                             <Link
                               href={`/academic/exam/scan?paperId=${paper.id}`}
-                              title="สแกนตรวจข้อสอบ (OMR Camera)"
+                              title="สแกนตรวจกระดาษคำตอบ"
                               className="p-1.5 rounded-lg bg-purple-600 hover:bg-purple-700 text-white transition shadow-xs flex items-center gap-1 text-[11px] font-semibold px-2"
                             >
                               <Camera className="w-3.5 h-3.5" /> ตรวจ
@@ -535,22 +535,22 @@ export function ExamPapersManagementView({ showHeader = true }: ExamPapersManage
                             {/* 3. KR-20 Analysis */}
                             <Link
                               href={`/academic/exam/analysis/${paper.id}`}
-                              title="วิเคราะห์คุณภาพข้อสอบ (KR-20, p, r)"
+                              title="วิเคราะห์คุณภาพข้อสอบ (KR-20)"
                               className="p-1.5 rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 transition"
                             >
                               <BarChart3 className="w-3.5 h-3.5 text-emerald-600" />
                             </Link>
 
-                            {/* 4. Edit (CRUD Update) */}
+                            {/* 4. Edit */}
                             <Link
                               href={`/academic/exam/omr/create?edit=${paper.id}`}
-                              title="แก้ไขชุดข้อสอบ / ปรับปรุงเฉลย"
+                              title="แก้ไขชุดข้อสอบและเฉลย"
                               className="p-1.5 rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 transition"
                             >
                               <Edit className="w-3.5 h-3.5 text-amber-600" />
                             </Link>
 
-                            {/* 5. Soft Delete (CRUD Delete) */}
+                            {/* 5. Soft Delete */}
                             <button
                               onClick={() => setDeleteConfirmPaper(paper)}
                               title="ลบชุดข้อสอบลงถังขยะ"
@@ -572,7 +572,7 @@ export function ExamPapersManagementView({ showHeader = true }: ExamPapersManage
           <div className="grid grid-cols-1 gap-3 md:hidden">
             {filteredPapers.map((paper) => {
               const submissionCount = paper._count?.submissions || 0;
-              const hasSubjective = (paper.totalSubjectiveItems || 0) > 0;
+              const paperChoiceCount = paper.choiceCount || 4;
               const totalScore = Number(paper.maxScore) + Number(paper.subjectiveMaxScore || 0);
               const group = resolveSubjectGroup(paper);
               const groupColor = getSubjectGroupBadgeColor(group);
@@ -617,17 +617,17 @@ export function ExamPapersManagementView({ showHeader = true }: ExamPapersManage
                   </div>
 
                   <div className="text-[11px] text-slate-500 bg-slate-50 dark:bg-slate-800/50 p-2 rounded-xl flex items-center justify-between">
-                    <span>ปรนัย {paper.totalItems} ข้อ {hasSubjective ? `+ อัตนัย ${paper.totalSubjectiveItems} ข้อ` : ""}</span>
+                    <span>ปรนัย {paper.totalItems} ข้อ ({paperChoiceCount} ตัวเลือก)</span>
                     <span className="font-bold text-purple-700 dark:text-purple-400">เต็ม {totalScore} คะแนน</span>
                   </div>
 
-                  {/* Mobile Action Buttons (CRUD) */}
-                  <div className="grid grid-cols-5 gap-1 pt-1" onClick={(e) => e.stopPropagation()}>
+                  {/* Mobile Action Buttons (All 5 actions: Scan, Print, Analysis, Edit, Delete) */}
+                  <div className="grid grid-cols-6 gap-1.5 pt-1" onClick={(e) => e.stopPropagation()}>
                     <Link
                       href={`/academic/exam/scan?paperId=${paper.id}`}
                       className="h-8 rounded-lg bg-purple-600 text-white text-[11px] font-semibold flex items-center justify-center gap-1 col-span-2"
                     >
-                      <Camera className="w-3.5 h-3.5" /> ตรวจ OMR
+                      <Camera className="w-3.5 h-3.5" /> ตรวจข้อสอบ
                     </Link>
                     <Link
                       href={`/print/exam/sheet/${paper.id}`}
@@ -635,6 +635,13 @@ export function ExamPapersManagementView({ showHeader = true }: ExamPapersManage
                       title="พิมพ์กระดาษคำตอบ"
                     >
                       <Printer className="w-3.5 h-3.5 text-indigo-600" />
+                    </Link>
+                    <Link
+                      href={`/academic/exam/analysis/${paper.id}`}
+                      className="h-8 rounded-lg border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-[11px] font-semibold flex items-center justify-center"
+                      title="วิเคราะห์คุณภาพข้อสอบ (KR-20)"
+                    >
+                      <BarChart3 className="w-3.5 h-3.5 text-emerald-600" />
                     </Link>
                     <Link
                       href={`/academic/exam/omr/create?edit=${paper.id}`}
@@ -688,33 +695,13 @@ export function ExamPapersManagementView({ showHeader = true }: ExamPapersManage
               <div>ระดับชั้น: <strong className="text-slate-800 dark:text-white">{selectedPaper.gradeLevel}</strong></div>
               <div>กลุ่มสาระ: <strong className="text-slate-800 dark:text-white">{resolveSubjectGroup(selectedPaper)}</strong></div>
               <div>ครูผู้สร้าง: <strong className="text-slate-800 dark:text-white">{selectedPaper.createdBy?.name || "-"}</strong></div>
-              <div>ปรนัย: <strong className="text-slate-800 dark:text-white">{selectedPaper.totalItems} ข้อ ({Number(selectedPaper.maxScore)} คะแนน)</strong></div>
-              <div>อัตนัย: <strong className="text-slate-800 dark:text-white">{selectedPaper.totalSubjectiveItems || 0} ข้อ ({Number(selectedPaper.subjectiveMaxScore || 0)} คะแนน)</strong></div>
-              <div>คะแนนเต็มรวม: <strong className="text-purple-600 dark:text-purple-400 font-bold">{Number(selectedPaper.maxScore) + Number(selectedPaper.subjectiveMaxScore || 0)} คะแนน</strong></div>
+              <div>จำนวนข้อปรนัย: <strong className="text-slate-800 dark:text-white">{selectedPaper.totalItems} ข้อ ({selectedPaper.choiceCount || 4} ตัวเลือก)</strong></div>
+              <div>ตรวจแล้ว: <strong className="text-emerald-600 dark:text-emerald-400">{selectedPaper._count?.submissions || 0} แผ่น</strong></div>
+              <div>คะแนนเต็มรวม: <strong className="text-purple-600 dark:text-purple-400 font-bold">{Number(selectedPaper.maxScore)} คะแนน</strong></div>
               <div>เกณฑ์ผ่าน: <strong className="text-slate-800 dark:text-white">{Number(selectedPaper.passScore)} คะแนน</strong></div>
             </div>
 
-            {selectedPaper.subjectiveItems && selectedPaper.subjectiveItems.length > 0 && (
-              <div className="space-y-1.5">
-                <div className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                  <FileText className="w-3.5 h-3.5 text-indigo-500" />
-                  ข้อสอบอัตนัย (ส่วนที่ 2):
-                </div>
-                <div className="space-y-1 max-h-36 overflow-y-auto pr-1">
-                  {selectedPaper.subjectiveItems.map((s: any) => (
-                    <div key={s.id || s.itemNo} className="p-2 rounded-xl bg-slate-50 dark:bg-slate-800/40 text-xs flex items-center justify-between border border-slate-100 dark:border-slate-800">
-                      <div>
-                        <span className="font-bold text-slate-800 dark:text-slate-200">ข้อ {s.itemNo}:</span> {s.title}
-                        {s.rubricDetail && <div className="text-[10px] text-slate-400">เกณฑ์: {s.rubricDetail}</div>}
-                      </div>
-                      <span className="font-bold text-purple-600 text-xs shrink-0">{Number(s.maxScore)} คะแนน</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+            <div className="flex flex-wrap items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
               <Link
                 href={`/academic/exam/scan?paperId=${selectedPaper.id}`}
                 className="px-3.5 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold flex items-center gap-1.5 shadow-sm"
@@ -726,6 +713,12 @@ export function ExamPapersManagementView({ showHeader = true }: ExamPapersManage
                 className="px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold flex items-center gap-1.5"
               >
                 <Printer className="w-3.5 h-3.5 text-indigo-600" /> พิมพ์กระดาษคำตอบ
+              </Link>
+              <Link
+                href={`/academic/exam/analysis/${selectedPaper.id}`}
+                className="px-3.5 py-2 rounded-xl border border-emerald-300 dark:border-emerald-700/60 text-emerald-700 dark:text-emerald-300 text-xs font-semibold flex items-center gap-1.5"
+              >
+                <BarChart3 className="w-3.5 h-3.5" /> วิเคราะห์ข้อสอบ
               </Link>
               <Link
                 href={`/academic/exam/omr/create?edit=${selectedPaper.id}`}

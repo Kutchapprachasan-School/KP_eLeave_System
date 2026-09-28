@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { generatePrintedSheetsAction } from "@/app/actions/omr";
+import { resolvePaperChoiceCount } from "@/lib/services/omrTemplateService";
 
 export async function GET(
   request: NextRequest,
@@ -24,6 +25,7 @@ export async function GET(
           select: {
             id: true,
             versionCode: true,
+            items: { select: { correctChoices: true } },
             _count: { select: { items: true } }
           }
         },
@@ -51,7 +53,10 @@ export async function GET(
     });
 
     return NextResponse.json({
-      paper,
+      paper: {
+        ...paper,
+        choiceCount: resolvePaperChoiceCount(paper)
+      },
       sheets
     });
   } catch (err: any) {

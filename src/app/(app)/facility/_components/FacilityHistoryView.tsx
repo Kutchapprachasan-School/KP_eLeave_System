@@ -134,38 +134,33 @@ export default function FacilityHistoryView({
       </div>
 
       {/* Filter & Search Toolbar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        {/* Status Filter Tabs */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
-          {[
-            { key: "ALL", label: "ทั้งหมด" },
-            { key: "PENDING", label: "รอพิจารณา" },
-            { key: "APPROVED", label: "อนุมัติแล้ว" },
-            { key: "CANCELLED", label: "ยกเลิก / ปฏิเสธ" }
-          ].map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => setStatusFilter(tab.key)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
-                statusFilter === tab.key
-                  ? "bg-indigo-600 text-white shadow-2xs"
-                  : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900"
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:flex lg:items-center lg:justify-between gap-3 bg-slate-50/70 dark:bg-slate-800/40 p-3 rounded-2xl border border-slate-200/70 dark:border-slate-800">
+        {/* Status Filter Dropdown */}
+        <div className="flex items-center gap-2.5">
+          <label className="text-xs font-bold text-slate-600 dark:text-slate-400 whitespace-nowrap shrink-0">
+            สถานะคำขอ:
+          </label>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="w-full sm:w-auto min-w-[180px] px-3.5 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 cursor-pointer"
+          >
+            <option value="ALL">ทั้งหมด</option>
+            <option value="PENDING">รอพิจารณา</option>
+            <option value="APPROVED">อนุมัติแล้ว</option>
+            <option value="CANCELLED">ยกเลิก / ปฏิเสธ</option>
+          </select>
         </div>
 
         {/* Search */}
-        <div className="relative min-w-[220px]">
+        <div className="relative w-full lg:w-72">
           <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
           <input
             type="text"
             placeholder="ค้นหาชื่อภารกิจ, รหัสการจอง..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs"
+            className="w-full pl-9 pr-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
           />
         </div>
       </div>

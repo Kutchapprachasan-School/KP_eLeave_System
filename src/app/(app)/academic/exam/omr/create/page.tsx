@@ -11,27 +11,29 @@ import {
   Layers, 
   FileText,
   AlertCircle,
-  Plus,
-  Trash2,
   RefreshCw,
-  Info,
-  BookOpen
+  CheckCircle2
 } from "lucide-react";
 import { 
   createExamPaperAction, 
   updateExamPaperAction,
   updateAnswerKeyWithVersionAction,
   processRegradeJobChunkAction,
-  regradeSubmissionsChunkAction,
   getExamPaperDetailsAction 
 } from "@/app/actions/omr";
 import { useSession } from "@/lib/auth-client";
 
-interface SubjectiveRow {
-  itemNo: number;
-  title: string;
-  maxScore: number;
-  rubricDetail: string;
+const CHOICE_LABELS: Record<string, string> = {
+  A: "ก",
+  B: "ข",
+  C: "ค",
+  D: "ง",
+  E: "จ",
+  F: "ฉ"
+};
+
+function getAvailableChoices(choiceCount: 4 | 5 | 6): string[] {
+  return ["A", "B", "C", "D", "E", "F"].slice(0, choiceCount);
 }
 
 function CreateExamPaperForm() {
@@ -49,25 +51,34 @@ function CreateExamPaperForm() {
   const [error, setError] = useState<string | null>(null);
   const [existingSubmissionsCount, setExistingSubmissionsCount] = useState(0);
 
-  // Form State
-  const [subjectCode, setSubjectCode] = useState("ว23101");
-  const [subjectName, setSubjectName] = useState("วิทยาศาสตร์ 5");
-  const [academicYear, setAcademicYear] = useState(2569);
-  const [term, setTerm] = useState(1);
-  const [gradeLevel, setGradeLevel] = useState("ม.3");
-  const [title, setTitle] = useState("สอบกลางภาคเรียนที่ 1/2569");
-  const [totalItems, setTotalItems] = useState(50);
-  const [maxScore, setMaxScore] = useState(50);
-  const [passScore, setPassScore] = useState(25);
+  // Form State (Pre-fill from query params if launched from Exam Timetable)
+  const [subjectCode, setSubjectCode] = useState(() => searchParams?.get("subjectCode") || "ว23101");
+  const [subjectName, setSubjectName] = useState(() => searchParams?.get("subjectName") || "วิทยาศาสตร์ 5");
+  const [academicYear, setAcademicYear] = useState(() => Number(searchParams?.get("academicYear")) || 2569);
+  const [term, setTerm] = useState(() => Number(searchParams?.get("term")) || 1);
+  const [gradeLevel, setGradeLevel] = useState(() => {
+    const cls = searchParams?.get("classroom") || "";
+    if (cls.startsWith("ม.1")) return "ม.1";
+    if (cls.startsWith("ม.2")) return "ม.2";
+    if (cls.startsWith("ม.3")) return "ม.3";
+    if (cls.startsWith("ม.4")) return "ม.4";
+    if (cls.startsWith("ม.5")) return "ม.5";
+    if (cls.startsWith("ม.6")) return "ม.6";
+    return "ม.3";
+  });
+  const [title, setTitle] = useState(() => searchParams?.get("title") || "สอบกลางภาคเรียนที่ 1/2569");
+  const [totalItems, setTotalItems] = useState(40);
+  const [choiceCount, setChoiceCount] = useState<4 | 5 | 6>(4);
+  const [maxScore, setMaxScore] = useState(40);
+  const [passScore, setPassScore] = useState(20);
 
-  // Subjective Items (Section 2)
-  const [hasSubjective, setHasSubjective] = useState(false);
-  const [subjectiveItems, setSubjectiveItems] = useState<SubjectiveRow[]>([]);
+  // Touch-friendly Multi-Choice Mode (เลือกได้หลายคำตอบ / ฟรีเครดิต)
+  const [multiChoiceMode, setMultiChoiceMode] = useState(false);
 
   // Answer Key State (Version "01")
   const [answerKey, setAnswerKey] = useState<Record<number, string[]>>(() => {
     const initial: Record<number, string[]> = {};
-    for (let i = 1; i <= 50; i++) {
+    for (let i = 1; i <= 40; i++) {
       initial[i] = ["A"];
     }
     return initial;
@@ -80,7 +91,7 @@ function CreateExamPaperForm() {
     async function fetchPaper() {
       try {
         setLoadingInitial(true);
-        const paper = await getExamPaperDetailsAction(editPaperId, {
+        const paper = await getExamPaperDetailsAction(editPaperId!, {
           userId: session?.user?.id || "",
           userRole: "TEACHER"
         });
@@ -93,21 +104,13 @@ function CreateExamPaperForm() {
           setGradeLevel(paper.gradeLevel);
           setTitle(paper.title);
           setTotalItems(paper.totalItems);
+          if (paper.choiceCount === 5 || paper.choiceCount === 6) {
+            setChoiceCount(paper.choiceCount);
+          } else {
+            setChoiceCount(4);
+          }
           setMaxScore(Number(paper.maxScore));
           setPassScore(Number(paper.passScore));
-
-          // Populate subjective items
-          if (paper.subjectiveItems && paper.subjectiveItems.length > 0) {
-            setHasSubjective(true);
-            setSubjectiveItems(
-              paper.subjectiveItems.map((item: any) => ({
-                itemNo: item.itemNo,
-                title: item.title,
-                maxScore: Number(item.maxScore),
-                rubricDetail: item.rubricDetail || ""
-              }))
-            );
-          }
 
           // Populate answer key
           const keyVer = paper.answerKeys?.[0];
@@ -148,6 +151,19 @@ function CreateExamPaperForm() {
     setAnswerKey(updated);
   };
 
+  const handleChoiceCountChange = (newChoiceCount: 4 | 5 | 6) => {
+    setChoiceCount(newChoiceCount);
+    const allowed = new Set(getAvailableChoices(newChoiceCount));
+    setAnswerKey((prev) => {
+      const sanitized: Record<number, string[]> = {};
+      for (const [k, choices] of Object.entries(prev)) {
+        const filtered = (choices || []).filter((c) => allowed.has(c));
+        sanitized[Number(k)] = filtered.length > 0 ? filtered : ["A"];
+      }
+      return sanitized;
+    });
+  };
+
   const handleToggleChoice = (itemNo: number, choice: string) => {
     setAnswerKey((prev) => {
       const current = prev[itemNo] || [];
@@ -160,19 +176,23 @@ function CreateExamPaperForm() {
     });
   };
 
-  const handleSetSingleChoice = (itemNo: number, choice: string) => {
-    setAnswerKey((prev) => ({
-      ...prev,
-      [itemNo]: [choice]
-    }));
+  const handleChoiceClick = (itemNo: number, choice: string) => {
+    if (multiChoiceMode) {
+      handleToggleChoice(itemNo, choice);
+    } else {
+      setAnswerKey((prev) => ({
+        ...prev,
+        [itemNo]: [choice]
+      }));
+    }
   };
 
-  const handleQuickPattern = (pattern: "A" | "B" | "C" | "D" | "CYCLE") => {
-    const choices = ["A", "B", "C", "D"];
+  const handleQuickPattern = (pattern: string) => {
+    const activeChoices = getAvailableChoices(choiceCount);
     const updated: Record<number, string[]> = {};
     for (let i = 1; i <= totalItems; i++) {
       if (pattern === "CYCLE") {
-        updated[i] = [choices[(i - 1) % 4]];
+        updated[i] = [activeChoices[(i - 1) % activeChoices.length]];
       } else {
         updated[i] = [pattern];
       }
@@ -180,62 +200,21 @@ function CreateExamPaperForm() {
     setAnswerKey(updated);
   };
 
-  // Subjective Handlers
-  const handleAddSubjectiveItem = (score: number = 5, customTitle?: string) => {
-    setHasSubjective(true);
-    setSubjectiveItems((prev) => [
-      ...prev,
-      {
-        itemNo: prev.length + 1,
-        title: customTitle || `ข้อที่ ${prev.length + 1}`,
-        maxScore: score,
-        rubricDetail: ""
-      }
-    ]);
-  };
+  const activeChoices = getAvailableChoices(choiceCount);
 
-  const handleAddMultipleSubjective = (count: number, scorePerItem: number) => {
-    setHasSubjective(true);
-    setSubjectiveItems((prev) => {
-      const currentLength = prev.length;
-      const newItems: SubjectiveRow[] = [];
-      for (let i = 1; i <= count; i++) {
-        const itemNo = currentLength + i;
-        newItems.push({
-          itemNo,
-          title: `ข้อที่ ${itemNo}`,
-          maxScore: scorePerItem,
-          rubricDetail: ""
-        });
-      }
-      return [...prev, ...newItems];
-    });
-  };
-
-  const handleRemoveSubjectiveItem = (idx: number) => {
-    setSubjectiveItems((prev) => {
-      const filtered = prev.filter((_, i) => i !== idx);
-      const reindexed = filtered.map((item, i) => ({ ...item, itemNo: i + 1 }));
-      if (reindexed.length === 0) {
-        setHasSubjective(false);
-      }
-      return reindexed;
-    });
-  };
-
-  const handleUpdateSubjectiveItem = (idx: number, field: keyof SubjectiveRow, value: any) => {
-    setSubjectiveItems((prev) => {
-      const updated = [...prev];
-      updated[idx] = { ...updated[idx], [field]: value };
-      return updated;
-    });
-  };
-
-  const totalSubjectiveScore = hasSubjective
-    ? subjectiveItems.reduce((sum, item) => sum + Number(item.maxScore || 0), 0)
-    : 0;
-
-  const totalPaperScore = Number(maxScore) + totalSubjectiveScore;
+  const matchedTemplateCode = (() => {
+    const base =
+      totalItems <= 20
+        ? "KP-OMR-A4-20"
+        : totalItems <= 40
+        ? "KP-OMR-A4-40"
+        : totalItems <= 60
+        ? "KP-OMR-A4-60"
+        : totalItems <= 80
+        ? "KP-OMR-A4-80"
+        : "KP-OMR-A4-100";
+    return `${base}${choiceCount === 5 ? "-5C" : choiceCount === 6 ? "-6C" : ""}`;
+  })();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -248,20 +227,19 @@ function CreateExamPaperForm() {
       setSaving(true);
       setError(null);
 
-      const subjPayload = hasSubjective ? subjectiveItems : [];
-
       const keyItems = [];
       for (let i = 1; i <= totalItems; i++) {
+        const validChoices = (answerKey[i] || []).filter((c) => activeChoices.includes(c));
         keyItems.push({
           itemNo: i,
-          correctChoices: answerKey[i] && answerKey[i].length > 0 ? answerKey[i] : ["A"],
+          correctChoices: validChoices.length > 0 ? validChoices : ["A"],
           points: Number(maxScore) / totalItems,
           penaltyPoints: 0.0
         });
       }
 
       if (isEditMode && editPaperId) {
-        // 1. Update Paper Metadata
+        // 1. Update Paper Metadata (including totalItems & choiceCount)
         await updateExamPaperAction(
           editPaperId,
           {
@@ -271,9 +249,11 @@ function CreateExamPaperForm() {
             term: Number(term),
             gradeLevel,
             title,
+            totalItems,
+            choiceCount,
             maxScore: Number(maxScore),
             passScore: Number(passScore),
-            subjectiveItems: subjPayload
+            subjectiveItems: []
           },
           { userId: session.user.id }
         );
@@ -284,7 +264,7 @@ function CreateExamPaperForm() {
           versionCode: "01",
           items: keyItems,
           changedById: session.user.id,
-          reason: `ปรับปรุงข้อมูลและเฉลยคำตอบโดยผู้สร้าง`
+          reason: `ปรับปรุงข้อมูลและเฉลยคำตอบ (${choiceCount} ตัวเลือก)`
         });
 
         // 3. Trigger Chunked Re-grade if submissions exist
@@ -302,7 +282,7 @@ function CreateExamPaperForm() {
                 await new Promise((r) => setTimeout(r, 1000));
                 continue;
               }
-              throw new Error(chunkRes.reason || "การตรวจข้อสอบซ้ำเกิดข้อผิดพลาด");
+              throw new Error(chunkRes.reason || "การคำนวณคะแนนใหม่เกิดข้อผิดพลาด");
             }
 
             workerToken = chunkRes.workerToken;
@@ -329,13 +309,14 @@ function CreateExamPaperForm() {
           gradeLevel,
           title,
           totalItems,
+          choiceCount,
           maxScore: Number(maxScore),
           passScore: Number(passScore),
           createdById: session.user.id,
-          subjectiveItems: subjPayload
+          subjectiveItems: []
         });
 
-        // 2. Commit initial Answer Key Version Snapshot
+        // 2. Commit initial Answer Key Version
         await updateAnswerKeyWithVersionAction({
           examPaperId: paper.id,
           versionCode: "01",
@@ -376,12 +357,12 @@ function CreateExamPaperForm() {
             <ArrowLeft className="w-5 h-5" />
           </Link>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
-              <FileText className="w-6 h-6 text-purple-600 dark:text-purple-400" />
-              {isEditMode ? "แก้ไขชุดข้อสอบ & อัปเดตเฉลย" : "สร้างชุดข้อสอบ & กำหนดเฉลย (กำหนดข้อได้สูงสุด 100 ข้อ)"}
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
+              <FileText className="w-6 h-6 text-purple-600 dark:text-purple-400 shrink-0" />
+              {isEditMode ? "แก้ไขชุดข้อสอบและอัปเดตเฉลย" : "สร้างชุดข้อสอบและกำหนดเฉลยปรนัย"}
             </h1>
-            <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-              กำหนดข้อสอบปรนัย (1–100 ข้อ) และตอนที่ 2 ข้อสอบอัตนัยในหน้าเดียวกัน พร้อมระบบเฉลย Snapshot Versioning
+            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-0.5">
+              รองรับข้อสอบปรนัย 1–100 ข้อ • เลือกแบบ 4 ตัวเลือก (ก–ง), 5 ตัวเลือก (ก–จ) หรือ 6 ตัวเลือก (ก–ฉ)
             </p>
           </div>
         </div>
@@ -395,7 +376,7 @@ function CreateExamPaperForm() {
             <strong className="font-bold">แจ้งเตือนการแก้ไขเฉลย:</strong> ชุดข้อสอบนี้มีผลการตรวจแล้วจำนวน{" "}
             <span className="font-bold text-amber-700 underline">{existingSubmissionsCount} แผ่น</span>
             <div className="mt-1 text-amber-800/80 dark:text-amber-300/80">
-              เมื่อท่านบันทึก ระบบจะสร้าง <strong>Key Version Snapshot</strong> ใหม่ และรันกระบวนการ <strong>Chunked Re-grade</strong> เพื่อคำนวณคะแนนใหม่ทุกแผ่นอัตโนมัติอย่างปลอดภัย
+              เมื่อท่านบันทึก ระบบจะบันทึกประวัติเวอร์ชันเฉลยใหม่ และ<strong>คำนวณคะแนนใหม่ทุกแผ่นอัตโนมัติ</strong>อย่างปลอดภัย
             </div>
           </div>
         </div>
@@ -415,7 +396,7 @@ function CreateExamPaperForm() {
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 max-w-sm w-full shadow-2xl text-center space-y-4">
             <RefreshCw className="w-8 h-8 animate-spin text-purple-600 mx-auto" />
             <div>
-              <h3 className="text-sm font-bold text-slate-900 dark:text-white">กำลัง Re-grade คะแนนนักเรียน...</h3>
+              <h3 className="text-sm font-bold text-slate-900 dark:text-white">กำลังคำนวณคะแนนนักเรียนใหม่...</h3>
               <p className="text-xs text-slate-500 mt-1">
                 ประมวลผลแล้ว {regradeProgress.processed} จาก {regradeProgress.total} แผ่น
               </p>
@@ -430,299 +411,19 @@ function CreateExamPaperForm() {
         </div>
       )}
 
-      {/* Main 2-Column Layout */}
-      <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Left Column (2 Cols): Answer Key Editor & Subjective Section 2 */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* 1. Answer Key Grid (Section 1: ปรนัย) */}
-          <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white/60 dark:border-slate-800 rounded-3xl p-6 shadow-sm space-y-6">
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-800 pb-4">
-              <div>
-                <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                  <CheckSquare className="w-4 h-4 text-purple-600" /> ตอนที่ 1: เฉลยปรนัย ({totalItems} ข้อ)
-                </h2>
-                <div className="text-xs text-slate-400 mt-0.5">
-                  คลิกเลือกตัวเลือกที่ถูกต้อง (คลิกขวาเพื่อเลือกหลายตัวเลือก) • ปรับจำนวนข้อได้ที่แผงด้านขวา (1–100 ข้อ)
-                </div>
-              </div>
-
-              {/* Quick Pattern Buttons */}
-              <div className="flex flex-wrap items-center gap-1.5 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl text-xs font-semibold">
-                <span className="text-slate-400 px-1.5">ลัด:</span>
-                <button
-                  type="button"
-                  onClick={() => handleQuickPattern("A")}
-                  className="px-2 py-1 rounded-lg hover:bg-white dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition cursor-pointer"
-                >
-                  ทั้งหมด A
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleQuickPattern("B")}
-                  className="px-2 py-1 rounded-lg hover:bg-white dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition cursor-pointer"
-                >
-                  ทั้งหมด B
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleQuickPattern("C")}
-                  className="px-2 py-1 rounded-lg hover:bg-white dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition cursor-pointer"
-                >
-                  ทั้งหมด C
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleQuickPattern("D")}
-                  className="px-2 py-1 rounded-lg hover:bg-white dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition cursor-pointer"
-                >
-                  ทั้งหมด D
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleQuickPattern("CYCLE")}
-                  className="px-2 py-1 rounded-lg hover:bg-white dark:hover:bg-slate-700 text-purple-600 dark:text-purple-400 font-bold transition cursor-pointer"
-                >
-                  สลับ A-B-C-D
-                </button>
-              </div>
-            </div>
-
-            {/* Column-First Answer Key Grid: top-to-bottom per column (matches paper layout) */}
-            {(() => {
-              const numCols = totalItems <= 20 ? 2 : totalItems <= 40 ? 2 : totalItems <= 60 ? 3 : 4;
-              const itemsPerCol = Math.ceil(totalItems / numCols);
-              const columns = Array.from({ length: numCols }, (_, colIdx) => {
-                const start = colIdx * itemsPerCol + 1;
-                const end = Math.min((colIdx + 1) * itemsPerCol, totalItems);
-                return start <= totalItems ? { start, end } : null;
-              }).filter((c): c is { start: number; end: number } => c !== null);
-
-              return (
-                <div className={`grid grid-cols-1 ${numCols === 2 ? "sm:grid-cols-2" : numCols === 3 ? "sm:grid-cols-3" : "sm:grid-cols-2 lg:grid-cols-4"} gap-4 max-h-[640px] overflow-y-auto pr-1`}>
-                  {columns.map((col, colIdx) => (
-                    <div key={colIdx} className="space-y-2">
-                      <div className="text-[11px] font-bold text-slate-400 dark:text-slate-500 pb-1 border-b border-slate-200 dark:border-slate-800">
-                        ข้อ {col.start} - {col.end}
-                      </div>
-                      {Array.from({ length: col.end - col.start + 1 }, (_, idx) => {
-                        const itemNo = col.start + idx;
-                        const currentChoices = answerKey[itemNo] || [];
-
-                        return (
-                          <div
-                            key={itemNo}
-                            className="flex items-center justify-between p-2 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/60 dark:border-slate-700/60 text-xs hover:border-purple-300 transition"
-                          >
-                            <span className="font-bold text-slate-700 dark:text-slate-300 w-9 truncate">
-                              {itemNo}.
-                            </span>
-
-                            <div className="flex items-center gap-1">
-                              {["A", "B", "C", "D"].map((c) => {
-                                const isSelected = currentChoices.includes(c);
-                                return (
-                                  <button
-                                    type="button"
-                                    key={c}
-                                    onClick={() => handleSetSingleChoice(itemNo, c)}
-                                    onContextMenu={(e) => {
-                                      e.preventDefault();
-                                      handleToggleChoice(itemNo, c);
-                                    }}
-                                    title="คลิกซ้าย: เลือกเดี่ยว | คลิกขวา: เลือกหลายตัวเลือก"
-                                    className={`w-6.5 h-6.5 rounded-full font-bold transition-all flex items-center justify-center cursor-pointer text-xs ${
-                                      isSelected
-                                        ? "bg-purple-600 text-white shadow-xs scale-105"
-                                        : "bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-300 border border-slate-300 dark:border-slate-600 hover:border-purple-400"
-                                    }`}
-                                  >
-                                    {c}
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ))}
-                </div>
-              );
-            })()}
-          </div>
-
-          {/* 2. Subjective Section 2 (ตอนที่ 2 ข้อสอบอัตนัย บนหน้าเดียวกัน) */}
-          <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white/60 dark:border-slate-800 rounded-3xl p-6 shadow-sm space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-800 pb-3">
-              <div className="flex items-center gap-2">
-                <BookOpen className="w-5 h-5 text-indigo-600" />
-                <div>
-                  <h2 className="text-base font-bold text-slate-900 dark:text-white">
-                    ตอนที่ 2: ข้อสอบอัตนัย (เขียนตอบ)
-                  </h2>
-                  <p className="text-xs text-slate-400">
-                    ตั้งค่าคำถามอัตนัย คะแนนเต็ม และเกณฑ์การตรวจในหน้าเดียวกัน ({hasSubjective ? `${subjectiveItems.length} ข้อ รวม ${totalSubjectiveScore} คะแนน` : "ปิดใช้งานอยู่"})
-                  </p>
-                </div>
-              </div>
-
-              <label className="flex items-center gap-2 text-xs font-semibold cursor-pointer select-none bg-slate-100 dark:bg-slate-800/80 px-3 py-1.5 rounded-xl">
-                <input
-                  type="checkbox"
-                  checked={hasSubjective}
-                  onChange={(e) => {
-                    setHasSubjective(e.target.checked);
-                    if (e.target.checked && subjectiveItems.length === 0) {
-                      handleAddSubjectiveItem(5);
-                    }
-                  }}
-                  className="rounded border-slate-300 text-purple-600 focus:ring-purple-500 w-4 h-4 cursor-pointer"
-                />
-                <span className="text-slate-700 dark:text-slate-200 font-bold">เปิดใช้งานข้อสอบอัตนัย</span>
-              </label>
-            </div>
-
-            {hasSubjective && (
-              <div className="space-y-4 animate-in fade-in">
-                {/* Quick Add Presets */}
-                <div className="flex flex-wrap items-center gap-2 p-2.5 bg-indigo-50/50 dark:bg-indigo-950/30 rounded-2xl border border-indigo-100 dark:border-indigo-900/40 text-xs">
-                  <span className="text-indigo-900 dark:text-indigo-300 font-bold text-[11px]">เพิ่มด่วน:</span>
-                  <button
-                    type="button"
-                    onClick={() => handleAddSubjectiveItem(5)}
-                    className="px-2.5 py-1 rounded-xl bg-white dark:bg-slate-800 hover:bg-indigo-100 dark:hover:bg-slate-700 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 text-[11px] font-semibold transition cursor-pointer"
-                  >
-                    + 1 ข้อ (5 คะแนน)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleAddSubjectiveItem(10)}
-                    className="px-2.5 py-1 rounded-xl bg-white dark:bg-slate-800 hover:bg-indigo-100 dark:hover:bg-slate-700 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 text-[11px] font-semibold transition cursor-pointer"
-                  >
-                    + 1 ข้อ (10 คะแนน)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleAddSubjectiveItem(20)}
-                    className="px-2.5 py-1 rounded-xl bg-white dark:bg-slate-800 hover:bg-indigo-100 dark:hover:bg-slate-700 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 text-[11px] font-semibold transition cursor-pointer"
-                  >
-                    + 1 ข้อ (20 คะแนน)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleAddMultipleSubjective(2, 5)}
-                    className="px-2.5 py-1 rounded-xl bg-white dark:bg-slate-800 hover:bg-indigo-100 dark:hover:bg-slate-700 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 text-[11px] font-semibold transition cursor-pointer"
-                  >
-                    + 2 ข้อ (ข้อละ 5 คะแนน)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleAddMultipleSubjective(2, 10)}
-                    className="px-2.5 py-1 rounded-xl bg-white dark:bg-slate-800 hover:bg-indigo-100 dark:hover:bg-slate-700 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 text-[11px] font-semibold transition cursor-pointer"
-                  >
-                    + 2 ข้อ (ข้อละ 10 คะแนน)
-                  </button>
-                </div>
-
-                {subjectiveItems.map((sItem, sIdx) => (
-                  <div
-                    key={sIdx}
-                    className="p-4 rounded-2xl bg-indigo-50/40 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/60 space-y-3"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold px-2 py-0.5 rounded-lg bg-indigo-200/80 dark:bg-indigo-900 text-indigo-900 dark:text-indigo-200 font-mono">
-                          ข้อที่ {sItem.itemNo}
-                        </span>
-                        <span className="text-xs font-semibold text-slate-500">
-                          (ข้อสอบอัตนัย)
-                        </span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveSubjectiveItem(sIdx)}
-                        className="text-rose-500 hover:text-rose-700 p-1 rounded-lg transition cursor-pointer"
-                        title="ลบข้อนี้"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-                      <div className="sm:col-span-3">
-                        <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
-                          คำชี้แจง / คำถามข้อสอบอัตนัย <span className="text-rose-500">*</span>
-                        </label>
-                        <input
-                          type="text"
-                          required
-                          placeholder="เช่น ให้นักเรียนอธิบายขั้นตอนกระบวนการสังเคราะห์ด้วยแสง พร้อมยกตัวอย่าง..."
-                          value={sItem.title}
-                          onChange={(e) => handleUpdateSubjectiveItem(sIdx, "title", e.target.value)}
-                          className="w-full h-9 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20"
-                        />
-                      </div>
-
-                      <div className="sm:col-span-1">
-                        <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
-                          คะแนนเต็มข้อนี้ (0-30) <span className="text-rose-500">*</span>
-                        </label>
-                        <div className="relative">
-                          <input
-                            type="number"
-                            min="1"
-                            max="30"
-                            step="1"
-                            required
-                            value={sItem.maxScore}
-                            onChange={(e) => handleUpdateSubjectiveItem(sIdx, "maxScore", Math.min(30, Math.max(1, Number(e.target.value))))}
-                            className="w-full h-9 pl-3 pr-8 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-bold font-mono text-slate-900 dark:text-white"
-                          />
-                          <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 font-semibold pointer-events-none">
-                            คะแนน
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
-                        เกณฑ์การให้คะแนนแบบละเอียด (Rubric Detail)
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="เช่น อธิบายครบ 3 ประเด็นได้เต็ม, อธิบายได้ 2 ประเด็นได้ 3 คะแนน, ตอบไม่ตรงประเด็นได้ 0"
-                        value={sItem.rubricDetail}
-                        onChange={(e) => handleUpdateSubjectiveItem(sIdx, "rubricDetail", e.target.value)}
-                        className="w-full h-8 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-[11px] text-slate-600 dark:text-slate-300"
-                      />
-                    </div>
-                  </div>
-                ))}
-
-                <button
-                  type="button"
-                  onClick={() => handleAddSubjectiveItem(5)}
-                  className="w-full h-10 rounded-2xl border border-dashed border-indigo-300 dark:border-indigo-800 hover:bg-indigo-50/70 dark:hover:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer"
-                >
-                  <Plus className="w-4 h-4" /> เพิ่มข้อสอบอัตนัย
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Right Column (1 Col): Exam Paper Metadata Form */}
-        <div className="space-y-6">
-          <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white/60 dark:border-slate-800 rounded-3xl p-6 shadow-sm space-y-4">
-            <h2 className="text-sm font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2">
-              <Layers className="w-4 h-4 text-purple-600" /> ข้อมูลแบบทดสอบ
+      {/* Main 2-Column Layout (Mobile: Settings First -> Answer Key Second; Desktop: Answer Key Left -> Settings Right) */}
+      <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
+        {/* Right Column on Desktop / First on Mobile: Exam Paper Metadata & Structure Form */}
+        <div className="order-1 lg:order-2 space-y-6">
+          <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white/60 dark:border-slate-800 rounded-3xl p-5 sm:p-6 shadow-sm space-y-4">
+            <h2 className="text-sm font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
+              <Layers className="w-4 h-4 text-purple-600" /> ข้อมูลแบบทดสอบและโครงสร้างกระดาษคำตอบ
             </h2>
 
             {/* Subject Code & Name */}
             <div>
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                รหัสวิชา & ชื่อรายวิชา
+                รหัสวิชาและชื่อรายวิชา
               </label>
               <div className="grid grid-cols-3 gap-2">
                 <input
@@ -806,6 +507,34 @@ function CreateExamPaperForm() {
               />
             </div>
 
+            {/* Choice Count Selector (4 / 5 / 6 Choices) */}
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                จำนวนตัวเลือกต่อข้อ (รูปแบบกระดาษคำตอบ)
+              </label>
+              <div className="grid grid-cols-3 gap-1.5">
+                {[
+                  { count: 4 as const, label: "4 ตัวเลือก", sub: "ก–ง (มาตรฐาน)" },
+                  { count: 5 as const, label: "5 ตัวเลือก", sub: "ก–จ (พิเศษ)" },
+                  { count: 6 as const, label: "6 ตัวเลือก", sub: "ก–ฉ (พิเศษ)" }
+                ].map((opt) => (
+                  <button
+                    key={opt.count}
+                    type="button"
+                    onClick={() => handleChoiceCountChange(opt.count)}
+                    className={`p-2 rounded-xl border text-center transition cursor-pointer ${
+                      choiceCount === opt.count
+                        ? "border-purple-600 bg-purple-100 text-purple-900 dark:bg-purple-950/60 dark:text-purple-200 shadow-xs ring-2 ring-purple-500/20"
+                        : "border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300"
+                    }`}
+                  >
+                    <div className="text-xs font-bold">{opt.label}</div>
+                    <div className="text-[10px] text-slate-500 dark:text-slate-400">{opt.sub}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
             {/* Flexible Total Items Selector (1 - 100 items) */}
             <div>
               <div className="flex items-center justify-between mb-1.5">
@@ -825,17 +554,18 @@ function CreateExamPaperForm() {
                 </div>
               </div>
 
-              {/* 4 OMR Tiers Quick Selection */}
+              {/* 5 Standard OMR Tiers Quick Selection (20, 40, 60, 80, 100) */}
               <div className="mb-2">
                 <div className="text-[11px] font-bold text-slate-500 mb-1">
-                  รูปแบบแม่แบบมาตรฐาน 4 ระดับ (ZipGrade-Grade):
+                  แม่แบบกระดาษคำตอบมาตรฐาน 5 ระดับ:
                 </div>
-                <div className="grid grid-cols-4 gap-1.5 mb-2">
+                <div className="grid grid-cols-5 gap-1.5 mb-2">
                   {[
-                    { count: 20, label: "20 ข้อ", sub: "สแกนไวสุด" },
-                    { count: 50, label: "50 ข้อ", sub: "มาตรฐาน" },
-                    { count: 75, label: "75 ข้อ", sub: "วิชาหลัก" },
-                    { count: 100, label: "100 ข้อ", sub: "ข้อสอบใหญ่" }
+                    { count: 20, label: "20 ข้อ", sub: "วงใหญ่สุด" },
+                    { count: 40, label: "40 ข้อ", sub: "2 คอลัมน์" },
+                    { count: 60, label: "60 ข้อ", sub: "3 คอลัมน์" },
+                    { count: 80, label: "80 ข้อ", sub: "4 คอลัมน์" },
+                    { count: 100, label: "100 ข้อ", sub: "5 คอลัมน์" }
                   ].map((tier) => (
                     <button
                       key={tier.count}
@@ -847,7 +577,7 @@ function CreateExamPaperForm() {
                           : "border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300"
                       }`}
                     >
-                      <div className="text-[12px] font-bold">{tier.label}</div>
+                      <div className="text-[11px] font-bold">{tier.label}</div>
                       <div className="text-[9px] text-slate-500 truncate">{tier.sub}</div>
                     </button>
                   ))}
@@ -856,7 +586,7 @@ function CreateExamPaperForm() {
                 {/* Additional Quick Presets */}
                 <div className="flex items-center gap-1 overflow-x-auto pb-1">
                   <span className="text-[10px] text-slate-400 shrink-0">กำหนดเอง:</span>
-                  {[10, 15, 25, 30, 40, 60, 80].map((preset) => (
+                  {[10, 15, 25, 30, 50, 75].map((preset) => (
                     <button
                       key={preset}
                       type="button"
@@ -888,22 +618,24 @@ function CreateExamPaperForm() {
                   <Layers className="w-3.5 h-3.5" />
                 </div>
                 <div className="text-[11px] leading-relaxed">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center flex-wrap gap-1.5">
                     <span className="font-bold text-purple-950 dark:text-purple-200">
-                      แม่แบบที่จับคู่: {totalItems <= 20 ? "KP-OMR-A4-20" : totalItems <= 50 ? "KP-OMR-A4-50" : totalItems <= 75 ? "KP-OMR-A4-75" : "KP-OMR-A4-100"}
+                      แม่แบบกระดาษ: {matchedTemplateCode}
                     </span>
-                    <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-purple-200/80 dark:bg-purple-800/60 text-purple-800 dark:text-purple-200">
-                      {totalItems <= 20 ? "Tier 1: ≤ 20 ข้อ" : totalItems <= 50 ? "Tier 2: 21–50 ข้อ" : totalItems <= 75 ? "Tier 3: 51–75 ข้อ" : "Tier 4: 76–100 ข้อ"}
+                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-purple-200/80 dark:bg-purple-800/60 text-purple-800 dark:text-purple-200">
+                      {choiceCount} ตัวเลือก (ก–{CHOICE_LABELS[activeChoices[activeChoices.length - 1]]})
                     </span>
                   </div>
                   <div className="text-purple-700 dark:text-purple-300 mt-0.5">
                     {totalItems <= 20
-                      ? "ฟองคำตอบใหญ่พิเศษ สแกนติดเร็วสุดเสี้ยววินาที รองรับการพิมพ์ 2 ชุดในแผ่น A4 เดียว (Half-A4) หรือรวมอัตนัยในหน้าเดียว"
-                      : totalItems <= 50
-                      ? "มาตรฐาน 2 คอลัมน์ x 25 ข้อ สวยงาม สมดุลย์ เหมาะกับสอบเก็บคะแนนและสอบกลาง/ปลายภาค"
-                      : totalItems <= 75
-                      ? "3 คอลัมน์ x 25 ข้อ คมชัดสูง ช่องวงกลมโปร่งกว่าแบบ 100 ข้อ สแกนติดง่ายสำหรับวิชาหลัก 60–75 ข้อ"
-                      : "4 คอลัมน์ x 25 ข้อ ความหนาแน่นสูง สำหรับชุดข้อสอบขนาดใหญ่ O-NET และแบบทดสอบมาตรฐาน"}
+                      ? "แบบ 20 ข้อ (2 คอลัมน์ × 10 ข้อ) ช่องฝนขนาดใหญ่พิเศษ สแกนไวและแม่นยำสูงสุด"
+                      : totalItems <= 40
+                      ? "แบบ 40 ข้อ (2 คอลัมน์ × 20 ข้อ) มาตรฐานสำหรับสอบเก็บคะแนนและสอบกลางภาค"
+                      : totalItems <= 60
+                      ? "แบบ 60 ข้อ (3 คอลัมน์ × 20 ข้อ) เหมาะสำหรับวิชาหลักและสอบปลายภาคเรียน"
+                      : totalItems <= 80
+                      ? "แบบ 80 ข้อ (4 คอลัมน์ × 20 ข้อ) รองรับข้อสอบมาตรฐานจำนวนมากในหน้าเดียว"
+                      : "แบบ 100 ข้อ (5 คอลัมน์ × 20 ข้อ) ความจุสูงสุดสำหรับแบบทดสอบวัดผลระดับโรงเรียน"}
                   </div>
                 </div>
               </div>
@@ -926,7 +658,7 @@ function CreateExamPaperForm() {
 
               <div>
                 <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  เกณฑ์ผ่าน
+                  เกณฑ์คะแนนผ่าน
                 </label>
                 <input
                   type="number"
@@ -941,18 +673,16 @@ function CreateExamPaperForm() {
             {/* Live Summary Box */}
             <div className="p-3.5 rounded-2xl bg-purple-50/60 dark:bg-purple-950/30 border border-purple-100 dark:border-purple-900/40 text-xs space-y-1.5">
               <div className="flex justify-between text-slate-700 dark:text-slate-300 font-semibold">
-                <span>คะแนนปรนัย ({totalItems} ข้อ):</span>
-                <span className="font-mono">{Number(maxScore)} คะแนน</span>
+                <span>จำนวนข้อสอบปรนัย:</span>
+                <span className="font-mono font-bold">{totalItems} ข้อ ({choiceCount} ตัวเลือก)</span>
               </div>
-              {hasSubjective && (
-                <div className="flex justify-between text-indigo-700 dark:text-indigo-300 font-semibold">
-                  <span>คะแนนอัตนัย ({subjectiveItems.length} ข้อ):</span>
-                  <span className="font-mono">{totalSubjectiveScore} คะแนน</span>
-                </div>
-              )}
+              <div className="flex justify-between text-slate-700 dark:text-slate-300 font-semibold">
+                <span>คะแนนต่อข้อโดยเฉลี่ย:</span>
+                <span className="font-mono">{(Number(maxScore) / (totalItems || 1)).toFixed(2)} คะแนน/ข้อ</span>
+              </div>
               <div className="flex justify-between text-purple-900 dark:text-purple-200 font-bold border-t border-purple-200 dark:border-purple-800/60 pt-1.5 text-sm">
-                <span>คะแนนรวมทั้งสิ้น:</span>
-                <span className="font-mono">{totalPaperScore} คะแนน</span>
+                <span>คะแนนเต็มรวม:</span>
+                <span className="font-mono">{Number(maxScore)} คะแนน</span>
               </div>
               <div className="flex justify-between text-emerald-600 dark:text-emerald-400 font-semibold text-[11px]">
                 <span>เกณฑ์คะแนนผ่าน:</span>
@@ -964,7 +694,7 @@ function CreateExamPaperForm() {
             <button
               type="submit"
               disabled={saving || regrading}
-              className="w-full h-12 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold text-xs shadow-lg shadow-purple-500/25 active:scale-[0.98] transition-all flex items-center justify-center gap-2 mt-4 cursor-pointer disabled:opacity-50"
+              className="w-full h-12 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold text-xs shadow-lg shadow-purple-500/25 active:scale-[0.98] transition-all flex items-center justify-center gap-2 mt-2 cursor-pointer disabled:opacity-50"
             >
               {saving ? (
                 <>
@@ -972,10 +702,166 @@ function CreateExamPaperForm() {
                 </>
               ) : (
                 <>
-                  <Save className="w-4 h-4" /> {isEditMode ? "บันทึกการแก้ไข" : "บันทึกและสร้างชุดข้อสอบ"}
+                  <Save className="w-4 h-4" /> {isEditMode ? "บันทึกการแก้ไขชุดข้อสอบ" : "บันทึกและสร้างชุดข้อสอบ"}
                 </>
               )}
             </button>
+          </div>
+        </div>
+
+        {/* Left Column on Desktop / Second on Mobile: Answer Key Editor */}
+        <div className="order-2 lg:order-1 lg:col-span-2 space-y-6">
+          <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white/60 dark:border-slate-800 rounded-3xl p-5 sm:p-6 shadow-sm space-y-5">
+            <div className="flex flex-col gap-3 border-b border-slate-200 dark:border-slate-800 pb-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    <CheckSquare className="w-4 h-4 text-purple-600" /> ตารางกำหนดเฉลยปรนัย ({totalItems} ข้อ • {choiceCount} ตัวเลือก)
+                  </h2>
+                  <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    แตะตัวเลือกที่ถูกต้องในแต่ละข้อ • หากต้องการให้ข้อใดมีคำตอบที่ถูกมากกว่า 1 ตัวเลือก ให้เปิดปุ่ม <strong>&quot;โหมดเลือกหลายคำตอบ&quot;</strong>
+                  </div>
+                </div>
+
+                {/* Touch-Friendly Multi-Choice Toggle Button */}
+                <button
+                  type="button"
+                  onClick={() => setMultiChoiceMode(!multiChoiceMode)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition flex items-center gap-1.5 cursor-pointer ${
+                    multiChoiceMode
+                      ? "bg-purple-600 text-white border-purple-600 shadow-sm"
+                      : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-200"
+                  }`}
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  {multiChoiceMode ? "โหมดเลือกหลายคำตอบ: เปิดอยู่" : "โหมดเลือกหลายคำตอบ (ฟรีเครดิต)"}
+                </button>
+              </div>
+
+              {/* Quick Pattern Buttons */}
+              <div className="flex flex-wrap items-center gap-1.5 bg-slate-100 dark:bg-slate-800 p-1.5 rounded-xl text-xs font-semibold">
+                <span className="text-slate-500 dark:text-slate-400 px-1.5">ตั้งค่าด่วน:</span>
+                {activeChoices.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => handleQuickPattern(c)}
+                    className="px-2.5 py-1 rounded-lg hover:bg-white dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition cursor-pointer"
+                  >
+                    ทั้งหมด {CHOICE_LABELS[c]} ({c})
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => handleQuickPattern("CYCLE")}
+                  className="px-2.5 py-1 rounded-lg hover:bg-white dark:hover:bg-slate-700 text-purple-600 dark:text-purple-400 font-bold transition cursor-pointer"
+                >
+                  สลับ {activeChoices.map((c) => CHOICE_LABELS[c]).join("-")}
+                </button>
+              </div>
+            </div>
+
+            {/* Column-First Answer Key Grid: top-to-bottom per column (matches paper layout) */}
+            {(() => {
+              const numCols =
+                choiceCount >= 5
+                  ? totalItems <= 20
+                    ? 2
+                    : 2
+                  : totalItems <= 20
+                  ? 2
+                  : totalItems <= 40
+                  ? 2
+                  : totalItems <= 60
+                  ? 3
+                  : 4;
+              const itemsPerCol = Math.ceil(totalItems / numCols);
+              const columns = Array.from({ length: numCols }, (_, colIdx) => {
+                const start = colIdx * itemsPerCol + 1;
+                const end = Math.min((colIdx + 1) * itemsPerCol, totalItems);
+                return start <= totalItems ? { start, end } : null;
+              }).filter((c): c is { start: number; end: number } => c !== null);
+
+              return (
+                <div
+                  className={`grid grid-cols-1 ${
+                    numCols === 2
+                      ? "sm:grid-cols-2"
+                      : numCols === 3
+                      ? "sm:grid-cols-2 lg:grid-cols-3"
+                      : "sm:grid-cols-2 xl:grid-cols-4"
+                  } gap-4 max-h-[680px] overflow-y-auto pr-1`}
+                >
+                  {columns.map((col, colIdx) => (
+                    <div key={colIdx} className="space-y-2">
+                      <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400 pb-1 border-b border-slate-200 dark:border-slate-800">
+                        ข้อที่ {col.start} – {col.end}
+                      </div>
+                      {Array.from({ length: col.end - col.start + 1 }, (_, idx) => {
+                        const itemNo = col.start + idx;
+                        const currentChoices = answerKey[itemNo] || ["A"];
+
+                        return (
+                          <div
+                            key={itemNo}
+                            className="flex items-center justify-between p-2 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/60 dark:border-slate-700/60 text-xs hover:border-purple-300 transition"
+                          >
+                            <span className="font-bold text-slate-700 dark:text-slate-300 w-8 shrink-0">
+                              {itemNo}.
+                            </span>
+
+                            <div className="flex items-center gap-1 flex-wrap justify-end">
+                              {activeChoices.map((c) => {
+                                const isSelected = currentChoices.includes(c);
+                                return (
+                                  <button
+                                    type="button"
+                                    key={c}
+                                    onClick={() => handleChoiceClick(itemNo, c)}
+                                    onContextMenu={(e) => {
+                                      e.preventDefault();
+                                      handleToggleChoice(itemNo, c);
+                                    }}
+                                    title={`เลือกตัวเลือก ${CHOICE_LABELS[c]} (${c})`}
+                                    className={`w-7 h-7 rounded-full font-bold transition-all flex flex-col items-center justify-center cursor-pointer leading-none ${
+                                      isSelected
+                                        ? "bg-purple-600 text-white shadow-xs scale-105"
+                                        : "bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-600 hover:border-purple-400"
+                                    }`}
+                                  >
+                                    <span className="text-[11px]">{CHOICE_LABELS[c]}</span>
+                                    <span className="text-[7px] opacity-75">{c}</span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+
+            {/* Mobile Sticky/Bottom Submit Button so teachers don't have to scroll back up */}
+            <div className="pt-3 border-t border-slate-200 dark:border-slate-800 lg:hidden">
+              <button
+                type="submit"
+                disabled={saving || regrading}
+                className="w-full h-12 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold text-xs shadow-lg shadow-purple-500/25 active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+              >
+                {saving ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" /> กำลังบันทึกชุดข้อสอบและเฉลย...
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-4 h-4" /> {isEditMode ? "บันทึกการแก้ไขชุดข้อสอบ" : "บันทึกและสร้างชุดข้อสอบ"}
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       </form>
@@ -996,4 +882,3 @@ export default function CreateExamPaperPage() {
     </Suspense>
   );
 }
-

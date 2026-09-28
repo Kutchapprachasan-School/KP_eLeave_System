@@ -64,6 +64,10 @@ export function OmrCameraScanner({
     choiceCount === 5 ? 5 : choiceCount === 6 ? 6 : 4
   );
 
+  useEffect(() => {
+    setActiveChoiceCount(choiceCount === 5 ? 5 : choiceCount === 6 ? 6 : 4);
+  }, [choiceCount]);
+
   // Auto-Capture & Marker Lock States
   const [autoCaptureEnabled, setAutoCaptureEnabled] = useState(true);
   const [markerStatus, setMarkerStatus] = useState<"searching" | "partial" | "locked">("searching");
@@ -779,14 +783,14 @@ export function OmrCameraScanner({
       {/* Top HUD Controls */}
       <div className="absolute top-0 inset-x-0 z-20 flex items-center justify-between p-3 sm:p-4 bg-gradient-to-b from-black/85 via-black/50 to-transparent">
         <div className="flex items-center gap-2">
-          <span className={`w-2.5 h-2.5 rounded-full ${
+          <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${
             markerStatus === "locked" ? "bg-emerald-400 animate-ping" : markerStatus === "partial" ? "bg-amber-400" : "bg-red-400"
           }`} />
-          <span className="text-xs font-bold tracking-wider uppercase">
+          <span className="text-xs font-bold tracking-wide">
             {markerStatus === "locked" ? (
-              <span className="text-emerald-400 flex items-center gap-1">🎯 LOCKED {markersDetectedCount >= 6 ? "6/6" : "4/6"} มาร์กเกอร์</span>
+              <span className="text-emerald-400 flex items-center gap-1">🎯 ล็อกเป้า {markersDetectedCount >= 6 ? "6/6" : "4/6"} จุด</span>
             ) : markerStatus === "partial" ? (
-              <span className="text-amber-400">🔍 กำลังล็อค ({markersDetectedCount}/6)</span>
+              <span className="text-amber-400">🔍 กำลังล็อก ({markersDetectedCount}/6)</span>
             ) : (
               <span className="text-slate-300">เล็งมาร์กเกอร์ 6 จุด</span>
             )}
@@ -809,16 +813,6 @@ export function OmrCameraScanner({
             {activeChoiceCount} ตัวเลือก ({activeChoiceCount === 4 ? "ก-ง" : activeChoiceCount === 5 ? "ก-จ" : "ก-ฉ"})
           </button>
 
-          {/* Test / Simulate Scan & Visual Bubble Pointer */}
-          <button
-            type="button"
-            onClick={runSimulationDiagnosticScan}
-            className="px-2.5 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400/40 backdrop-blur-md transition text-emerald-300 text-[11px] font-bold flex items-center gap-1"
-            title="ทดสอบระบบสแกนและแสดงวงกลมชี้แต่ละข้อ (ZipGrade 6-Point Mode)"
-          >
-            🎯 ทดสอบชี้วงกลม
-          </button>
-
           {/* Settings Trigger */}
           <button
             type="button"
@@ -834,7 +828,7 @@ export function OmrCameraScanner({
             type="button"
             onClick={() => saveSoundEnabled(!soundEnabled)}
             className="p-2 rounded-xl bg-white/10 hover:bg-white/20 backdrop-blur-md transition text-white"
-            title={soundEnabled ? "ปิดเสียงบี๊บ" : "เปิดเสียงบี๊บ"}
+            title={soundEnabled ? "ปิดเสียงแจ้งเตือน" : "เปิดเสียงแจ้งเตือน"}
           >
             {soundEnabled ? <Volume2 className="w-4 h-4 text-emerald-400" /> : <VolumeX className="w-4 h-4 text-slate-400" />}
           </button>
@@ -911,8 +905,8 @@ export function OmrCameraScanner({
               </div>
 
               {/* Status Pill Badge inside Viewfinder */}
-              <div className="absolute top-4 inset-x-0 flex justify-center pointer-events-none">
-                <div className={`px-3 py-1 rounded-full text-[11px] font-bold backdrop-blur-md transition-all ${
+              <div className="absolute top-4 inset-x-0 flex justify-center pointer-events-none px-2">
+                <div className={`px-3 py-1 rounded-full text-[11px] font-bold backdrop-blur-md transition-all text-center ${
                   markerStatus === "locked"
                     ? "bg-emerald-500/80 text-white shadow-lg shadow-emerald-500/30 scale-105"
                     : markerStatus === "partial"
@@ -920,7 +914,7 @@ export function OmrCameraScanner({
                     : "bg-black/60 text-slate-300 border border-white/10"
                 }`}>
                   {markerStatus === "locked" 
-                    ? `🎯 ล็อคมาร์กเกอร์ ${markersDetectedCount}/6 จุดสำเร็จ - กำลังถ่ายภาพอัตโนมัติ` 
+                    ? `🎯 ล็อกมาร์กเกอร์ ${markersDetectedCount}/6 จุดสำเร็จ - กำลังถ่ายภาพอัตโนมัติ` 
                     : markerStatus === "partial"
                     ? `🔍 ตรวจพบ ${markersDetectedCount}/6 จุด (จัดกระดาษให้อยู่ในกรอบ)`
                     : "วางกระดาษคำตอบให้มาร์กเกอร์ 6 จุด (4 มุม + 2 ข้าง) อยู่ในกรอบ"}
@@ -941,10 +935,10 @@ export function OmrCameraScanner({
         <div className="text-xs text-slate-300 flex items-center gap-2">
           <ShieldCheck className="w-4 h-4 text-purple-400 shrink-0" />
           <span className="hidden sm:inline">
-            {autoCaptureEnabled ? "โหมดถ่ายอัตโนมัติ 6 จุด (ZipGrade)" : "โหมดกดถ่ายด้วยตัวเอง"}
+            {autoCaptureEnabled ? "โหมดถ่ายอัตโนมัติ 6 จุด" : "โหมดกดถ่ายด้วยตัวเอง"}
           </span>
           <span className="text-[11px] text-purple-300 font-mono">
-            {advanceMode === "auto" ? `• ถัดไปอัตโนมัติ ${advanceSeconds}s` : "• กดเปลี่ยนแผ่น"}
+            {advanceMode === "auto" ? `• ถัดไปอัตโนมัติ ${advanceSeconds} วินาที` : "• กดเปลี่ยนแผ่นเอง"}
           </span>
         </div>
 
@@ -1109,7 +1103,7 @@ export function OmrCameraScanner({
                   <div className="rounded-2xl border border-slate-700 bg-slate-950/90 p-2.5 space-y-2">
                     <div className="flex items-center justify-between text-[11px]">
                       <span className="font-bold text-emerald-300 flex items-center gap-1.5">
-                        🎯 ภาพชี้ตำแหน่งวงกลมแต่ละข้อ &amp; Timing Marks (ZipGrade Mode)
+                        🎯 ภาพชี้ตำแหน่งวงกลมแต่ละข้อและแถบกำกับแถว
                       </span>
                       <button
                         type="button"
@@ -1124,7 +1118,7 @@ export function OmrCameraScanner({
                         <div className="rounded-xl overflow-hidden border border-slate-800 max-h-56 overflow-y-auto bg-black">
                           <img
                             src={diagnosticImageUrl}
-                            alt="OMR Bubble Alignment Overlay"
+                            alt="ภาพชี้ตำแหน่งวงกลมกระดาษคำตอบ"
                             className="w-full h-auto object-contain"
                           />
                         </div>
@@ -1136,7 +1130,7 @@ export function OmrCameraScanner({
                             <span className="w-2.5 h-2.5 rounded-full border border-purple-400 inline-block" /> วงกลมตัวเลือกแต่ละข้อ
                           </span>
                           <span className="inline-flex items-center gap-1">
-                            <span className="w-2.5 h-2.5 bg-cyan-400 inline-block" /> 6 จุดมาร์กเกอร์ &amp; Timing Marks
+                            <span className="w-2.5 h-2.5 bg-cyan-400 inline-block" /> 6 จุดมาร์กเกอร์และแถบกำกับแถว
                           </span>
                         </div>
                       </>
@@ -1211,9 +1205,9 @@ export function OmrCameraScanner({
               </button>
             </div>
 
-            {/* Setting 1: Auto-Capture on 4 Markers Lock */}
+            {/* Setting 1: Auto-Capture on 6 Markers Lock */}
             <div className="space-y-2">
-              <div className="text-xs font-bold text-slate-300">การถ่ายภาพอัตโนมัติ (Auto-Capture)</div>
+              <div className="text-xs font-bold text-slate-300">การถ่ายภาพอัตโนมัติ</div>
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
