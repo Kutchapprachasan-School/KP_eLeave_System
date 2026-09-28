@@ -52,7 +52,7 @@ export default function PrintExamSheetsPage() {
       <div className="min-h-screen flex flex-col items-center justify-center p-8 bg-slate-100 text-slate-700">
         <Loader2 className="w-10 h-10 animate-spin text-purple-600 mb-4" />
         <div className="text-lg font-bold">กำลังจัดเตรียมกระดาษคำตอบความแม่นยำสูง...</div>
-        <div className="text-xs text-slate-500 mt-1">กำลังคำนวณพิกัดมาร์กเกอร์และสร้าง Zero-PII QR Tokens</div>
+        <div className="text-xs text-slate-500 mt-1">กำลังคำนวณพิกัดมาร์กเกอร์และรหัสอ้างอิงประจำกระดาษคำตอบ</div>
       </div>
     );
   }
@@ -101,7 +101,7 @@ export default function PrintExamSheetsPage() {
             <div>
               <h1 className="text-base font-bold text-slate-800 flex items-center gap-2">
                 <FileText className="w-5 h-5 text-purple-600" />
-                พิมพ์กระดาษคำตอบ OMR มาตรฐาน ({paper.totalItems} ข้อ • {selectedChoiceCount} ตัวเลือก)
+                พิมพ์กระดาษคำตอบมาตรฐาน ({paper.totalItems} ข้อ • {selectedChoiceCount} ตัวเลือก)
               </h1>
               <div className="text-xs text-slate-500">
                 {paper.subjectCode} {paper.subjectName} • {paper.title} ({allSheetsToPrint.length} ชุด)
@@ -155,7 +155,7 @@ export default function PrintExamSheetsPage() {
                 onChange={e => setIsPreSlugged(e.target.checked)}
                 className="w-4 h-4 rounded text-purple-600 focus:ring-purple-500"
               />
-              ฝนรหัสประจำตัว/เลขที่ล่วงหน้า (Pre-shaded)
+              ฝนรหัสประจำตัวและเลขที่ล่วงหน้า
             </label>
 
             {/* Extra Blank Counter */}

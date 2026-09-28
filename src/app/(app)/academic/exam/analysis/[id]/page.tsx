@@ -130,7 +130,7 @@ export default function ExamItemAnalysisPage({ params }: { params: Promise<{ id:
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
               <BarChart3 className="w-6 h-6 text-purple-600 dark:text-purple-400" />
-              รายงานวิเคราะห์คุณภาพข้อสอบ (Item Analysis & KR-20)
+              รายงานวิเคราะห์คุณภาพข้อสอบและความเชื่อมั่น (KR-20)
             </h1>
             <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
               {paper.subjectCode} {paper.subjectName} ({paper.gradeLevel}) • {paper.title}
@@ -143,7 +143,7 @@ export default function ExamItemAnalysisPage({ params }: { params: Promise<{ id:
             onClick={handleExportExcel}
             className="h-11 px-5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-semibold text-xs shadow-md shadow-emerald-500/25 active:scale-[0.98] transition-all flex items-center gap-2"
           >
-            <FileSpreadsheet className="w-4 h-4" /> ส่งออก Excel (ปพ.5)
+            <FileSpreadsheet className="w-4 h-4" /> ส่งออกรายงาน Excel (ปพ.5)
           </button>
         </div>
       </div>
@@ -165,21 +165,21 @@ export default function ExamItemAnalysisPage({ params }: { params: Promise<{ id:
         </div>
 
         <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white/60 dark:border-slate-800 rounded-2xl p-4 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
-          <div className="text-xs text-slate-500">คะแนนเฉลี่ย (Mean)</div>
+          <div className="text-xs text-slate-500">คะแนนเฉลี่ย</div>
           <div className="text-2xl font-extrabold text-purple-600 dark:text-purple-400 mt-1">
             {analysis.meanScore} <span className="text-xs font-semibold text-slate-400">/ {Number(paper.maxScore)}</span>
           </div>
         </div>
 
         <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white/60 dark:border-slate-800 rounded-2xl p-4 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
-          <div className="text-xs text-slate-500">ความแปรปรวน (Variance)</div>
+          <div className="text-xs text-slate-500">ความแปรปรวนของคะแนน</div>
           <div className="text-2xl font-extrabold text-indigo-600 dark:text-indigo-400 mt-1">
             {analysis.variance}
           </div>
         </div>
 
         <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white/60 dark:border-slate-800 rounded-2xl p-4 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
-          <div className="text-xs text-slate-500">ความเชื่อมั่นแบบ KR-20</div>
+          <div className="text-xs text-slate-500">ค่าความเชื่อมั่น (KR-20)</div>
           <div className="text-2xl font-extrabold text-emerald-600 dark:text-emerald-400 mt-1">
             {analysis.kr20}
           </div>
@@ -194,10 +194,10 @@ export default function ExamItemAnalysisPage({ params }: { params: Promise<{ id:
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 dark:border-slate-800 pb-4">
           <div>
             <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-              <Calculator className="w-4 h-4 text-purple-600" /> ตารางวิเคราะห์คุณภาพรายข้อ (Item-by-Item Statistics)
+              <Calculator className="w-4 h-4 text-purple-600" /> ตารางวิเคราะห์คุณภาพรายข้อ
             </h2>
             <p className="text-xs text-slate-400 mt-0.5">
-              คำนวณตามสูตรสถิติมาตรฐานการวัดและประเมินผลทางการศึกษา (กลุ่มสูง-กลุ่มต่ำ 27%)
+              คำนวณตามสูตรสถิติมาตรฐานการวัดและประเมินผลทางการศึกษา (แบ่งกลุ่มสูงและกลุ่มต่ำ 27%)
             </p>
           </div>
         </div>

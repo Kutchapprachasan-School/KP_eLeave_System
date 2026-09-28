@@ -101,7 +101,7 @@ export default function ExamScanPage() {
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
               <Camera className="w-6 h-6 text-purple-600 dark:text-purple-400" />
-              ห้องสแกนตรวจข้อสอบ (Camera HUD)
+              ห้องสแกนตรวจกระดาษคำตอบ
             </h1>
             <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
               ตรวจกระดาษคำตอบอัตโนมัติด้วยระบบประมวลผลภาพความเร็วสูง
@@ -148,7 +148,7 @@ export default function ExamScanPage() {
           <div className="lg:col-span-2 space-y-4">
             <OmrCameraScanner
               paperId={selectedPaperId}
-              totalItems={currentPaper?.totalItems || 50}
+              totalItems={currentPaper?.totalItems || 40}
               choiceCount={currentPaper?.choiceCount || 4}
               onScanComplete={handleScanComplete}
             />
@@ -172,8 +172,8 @@ export default function ExamScanPage() {
                 </div>
                 <div className="grid grid-cols-3 gap-2 py-2 px-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 text-center text-xs">
                   <div>
-                    <div className="text-slate-400 text-[10px]">จำนวนข้อ</div>
-                    <div className="font-bold text-slate-800 dark:text-slate-200">{currentPaper.totalItems} ข้อ</div>
+                    <div className="text-slate-400 text-[10px]">โครงสร้างข้อสอบ</div>
+                    <div className="font-bold text-slate-800 dark:text-slate-200">{currentPaper.totalItems} ข้อ ({currentPaper.choiceCount || 4} ตัวเลือก)</div>
                   </div>
                   <div>
                     <div className="text-slate-400 text-[10px]">คะแนนเต็ม</div>

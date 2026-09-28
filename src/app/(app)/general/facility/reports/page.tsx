@@ -138,71 +138,68 @@ export default function FacilityReportsPage() {
     <div className="min-h-screen bg-slate-50/60 dark:bg-slate-950 p-4 sm:p-6 lg:p-8 space-y-6 text-slate-900 dark:text-slate-100 max-w-6xl mx-auto font-sans print:p-0 print:bg-white print:text-black">
       {/* 1. Header & Dimension Controls (Hidden on Print) */}
       <div className="print:hidden space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 shadow-xs">
+          <div className="flex items-start sm:items-center gap-3">
             <Link
               href="/general/facility"
-              className="p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 hover:text-slate-900 dark:hover:text-white transition shadow-xs"
+              className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 hover:text-slate-900 dark:hover:text-white transition shadow-2xs shrink-0"
               title="กลับไประบบจอง"
             >
               <ArrowLeft className="w-5 h-5" />
             </Link>
-            <div>
-              <h1 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                <FileSpreadsheet className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
-                รายงานสถิติการใช้ทรัพยากรส่วนกลาง (4 มิติราชการ)
+            <div className="min-w-0">
+              <h1 className="text-base sm:text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2 leading-snug">
+                <FileSpreadsheet className="w-5 h-5 text-indigo-600 dark:text-indigo-400 shrink-0" />
+                <span>รายงานสถิติการใช้ทรัพยากรส่วนกลาง</span>
               </h1>
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                ประมวลผลข้อมูลสถิติห้องประชุมและยานพาหนะตามมาตรฐาน KPI ของสถานศึกษา
+                ประมวลผลข้อมูลสถิติห้องประชุมและยานพาหนะตามมาตรฐานตัวชี้วัดของสถานศึกษา
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center sm:shrink-0">
             <button
               onClick={handlePrint}
-              className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs flex items-center gap-2 shadow-sm transition cursor-pointer"
+              className="w-full sm:w-auto justify-center px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs flex items-center gap-2 shadow-sm transition cursor-pointer"
             >
-              <Printer className="w-4 h-4" />
-              <span>พิมพ์รายงานราชการ (Print)</span>
+              <Printer className="w-4 h-4 shrink-0" />
+              <span>พิมพ์รายงานราชการ</span>
             </button>
           </div>
         </div>
 
-        {/* Dimension Selector Tabs */}
-        <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white/60 dark:border-slate-800 rounded-2xl p-3 shadow-xs space-y-3">
-          <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
-            <span className="text-xs font-bold text-slate-600 dark:text-slate-400 mr-2">มิติเวลา:</span>
-            {[
-              { id: "MONTHLY", label: "รายเดือน" },
-              { id: "WEEKLY", label: "รายสัปดาห์ (7 วันล่าสุด)" },
-              { id: "FISCAL_YEAR", label: "ปีงบประมาณ (1 ต.ค. - 30 ก.ย.)" },
-              { id: "ACADEMIC_YEAR", label: "ปีการศึกษา (16 พ.ค. - 15 พ.ค.)" },
-              { id: "CALENDAR_YEAR", label: "ปีปฏิทิน (1 ม.ค. - 31 ธ.ค.)" }
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setDimension(tab.id as ReportDimension)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
-                  dimension === tab.id
-                    ? "bg-indigo-600 text-white shadow-xs"
-                    : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900"
-                }`}
+        {/* Unified Filter Bar: Time Dimension Dropdown + Sub-Filters */}
+        <div className="bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 shadow-xs">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+            {/* 1. มิติเวลา Dropdown */}
+            <div className="flex flex-col gap-1.5">
+              <label className="font-bold text-slate-600 dark:text-slate-400">
+                มิติเวลา:
+              </label>
+              <select
+                value={dimension}
+                onChange={(e) => setDimension(e.target.value as ReportDimension)}
+                className="w-full h-10 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800 font-bold text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 cursor-pointer"
               >
-                {tab.label}
-              </button>
-            ))}
-          </div>
+                <option value="MONTHLY">รายเดือน</option>
+                <option value="WEEKLY">รายสัปดาห์ (7 วันล่าสุด)</option>
+                <option value="FISCAL_YEAR">ปีงบประมาณ (1 ต.ค. - 30 ก.ย.)</option>
+                <option value="ACADEMIC_YEAR">ปีการศึกษา (16 พ.ค. - 15 พ.ค.)</option>
+                <option value="CALENDAR_YEAR">ปีปฏิทิน (1 ม.ค. - 31 ธ.ค.)</option>
+              </select>
+            </div>
 
-          {/* Sub-Filters: Month, Year, Resource Type */}
-          <div className="flex flex-wrap items-center gap-3 text-xs">
+            {/* 2. เดือน (เฉพาะรายเดือน) */}
             {dimension === "MONTHLY" && (
-              <div className="flex items-center gap-1.5">
-                <span className="font-semibold text-slate-500">เดือน:</span>
+              <div className="flex flex-col gap-1.5">
+                <label className="font-bold text-slate-600 dark:text-slate-400">
+                  เดือน:
+                </label>
                 <select
                   value={targetMonth}
                   onChange={(e) => setTargetMonth(Number(e.target.value))}
-                  className="h-8 px-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 font-medium"
+                  className="w-full h-10 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800 font-semibold text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 cursor-pointer"
                 >
                   {thaiMonths.map((m, idx) => (
                     <option key={idx} value={idx}>{m}</option>
@@ -211,13 +208,16 @@ export default function FacilityReportsPage() {
               </div>
             )}
 
+            {/* 3. พ.ศ. (ยกเว้นรายสัปดาห์) */}
             {dimension !== "WEEKLY" && (
-              <div className="flex items-center gap-1.5">
-                <span className="font-semibold text-slate-500">พ.ศ.:</span>
+              <div className="flex flex-col gap-1.5">
+                <label className="font-bold text-slate-600 dark:text-slate-400">
+                  พ.ศ.:
+                </label>
                 <select
                   value={targetYear}
                   onChange={(e) => setTargetYear(Number(e.target.value))}
-                  className="h-8 px-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 font-medium font-mono"
+                  className="w-full h-10 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800 font-semibold font-mono text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 cursor-pointer"
                 >
                   {[targetYear - 2, targetYear - 1, targetYear, targetYear + 1].map((y) => (
                     <option key={y} value={y}>{y}</option>
@@ -226,14 +226,17 @@ export default function FacilityReportsPage() {
               </div>
             )}
 
-            <div className="flex items-center gap-1.5 ml-auto">
-              <span className="font-semibold text-slate-500">ประเภททรัพยากร:</span>
+            {/* 4. ประเภททรัพยากร */}
+            <div className="flex flex-col gap-1.5">
+              <label className="font-bold text-slate-600 dark:text-slate-400">
+                ประเภททรัพยากร:
+              </label>
               <select
                 value={resourceFilter}
                 onChange={(e) => setResourceFilter(e.target.value as any)}
-                className="h-8 px-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 font-medium"
+                className="w-full h-10 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800 font-semibold text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 cursor-pointer"
               >
-                <option value="ALL">ทั้งหมด (ห้องประชุม & รถโรงเรียน)</option>
+                <option value="ALL">ทั้งหมด (ห้องประชุมและยานพาหนะ)</option>
                 <option value="MEETING_ROOM">เฉพาะห้องประชุม</option>
                 <option value="VEHICLE">เฉพาะยานพาหนะ</option>
               </select>
@@ -243,52 +246,52 @@ export default function FacilityReportsPage() {
       </div>
 
       {/* 2. Official Printable Document Sheet */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 sm:p-10 shadow-sm space-y-6 print:border-0 print:p-0 print:shadow-none print:text-black">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-4 sm:p-8 lg:p-10 shadow-sm space-y-6 print:border-0 print:p-0 print:shadow-none print:text-black">
         {/* Official Letterhead */}
         <div className="text-center space-y-1.5 border-b border-slate-200 dark:border-slate-800 pb-5">
-          <div className="text-base sm:text-lg font-bold tracking-tight text-slate-900 dark:text-white print:text-black">
+          <div className="text-sm sm:text-lg font-bold tracking-tight text-slate-900 dark:text-white print:text-black">
             โรงเรียนกุดจับประชาสรรค์ สำนักงานเขตพื้นที่การศึกษามัธยมศึกษาอุดรธานี
           </div>
-          <div className="text-sm font-semibold text-indigo-700 dark:text-indigo-400 print:text-black">
+          <div className="text-xs sm:text-sm font-semibold text-indigo-700 dark:text-indigo-400 print:text-black">
             รายงานสถิติการขอใช้บริการทรัพยากรส่วนกลาง (ห้องประชุมและยานพาหนะ)
           </div>
-          <div className="text-xs text-slate-500 dark:text-slate-400 font-mono print:text-black">
+          <div className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 font-mono print:text-black">
             ช่วงเวลา: {dateRange.label} • ข้อมูล ณ วันที่ {toThaiDateString(new Date())}
           </div>
         </div>
 
-        {/* KPI Contract Summary Cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+        {/* KPI Summary Cards */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
           <div className="p-3.5 rounded-2xl bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-900/60 print:bg-slate-50 print:border-slate-300">
-            <div className="text-[11px] font-semibold text-indigo-900 dark:text-indigo-200 print:text-black">อนุมัติแล้ว (Approved)</div>
+            <div className="text-xs font-bold text-indigo-900 dark:text-indigo-200 print:text-black">อนุมัติแล้ว</div>
             <div className="text-xl sm:text-2xl font-bold font-mono text-indigo-700 dark:text-indigo-300 print:text-black mt-1">
               {kpiApproved} <span className="text-xs font-normal">รายการ</span>
             </div>
           </div>
 
           <div className="p-3.5 rounded-2xl bg-emerald-50/70 dark:bg-emerald-950/40 border border-emerald-100 dark:border-emerald-900/60 print:bg-slate-50 print:border-slate-300">
-            <div className="text-[11px] font-semibold text-emerald-900 dark:text-emerald-200 print:text-black">ใช้งานจริง (In Use)</div>
+            <div className="text-xs font-bold text-emerald-900 dark:text-emerald-200 print:text-black">ใช้งานจริง</div>
             <div className="text-xl sm:text-2xl font-bold font-mono text-emerald-700 dark:text-emerald-300 print:text-black mt-1">
               {kpiActual} <span className="text-xs font-normal">รายการ</span>
             </div>
           </div>
 
           <div className="p-3.5 rounded-2xl bg-blue-50/70 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-900/60 print:bg-slate-50 print:border-slate-300">
-            <div className="text-[11px] font-semibold text-blue-900 dark:text-blue-200 print:text-black">เสร็จสมบูรณ์ (Done)</div>
+            <div className="text-xs font-bold text-blue-900 dark:text-blue-200 print:text-black">เสร็จสมบูรณ์</div>
             <div className="text-xl sm:text-2xl font-bold font-mono text-blue-700 dark:text-blue-300 print:text-black mt-1">
               {kpiCompleted} <span className="text-xs font-normal">ภารกิจ</span>
             </div>
           </div>
 
           <div className="p-3.5 rounded-2xl bg-purple-50/70 dark:bg-purple-950/40 border border-purple-100 dark:border-purple-900/60 print:bg-slate-50 print:border-slate-300">
-            <div className="text-[11px] font-semibold text-purple-900 dark:text-purple-200 print:text-black">ชั่วโมงรวม (Hours)</div>
+            <div className="text-xs font-bold text-purple-900 dark:text-purple-200 print:text-black">ชั่วโมงรวม</div>
             <div className="text-xl sm:text-2xl font-bold font-mono text-purple-700 dark:text-purple-300 print:text-black mt-1">
               {kpiHours} <span className="text-xs font-normal">ชม.</span>
             </div>
           </div>
 
           <div className="p-3.5 rounded-2xl bg-rose-50/70 dark:bg-rose-950/40 border border-rose-100 dark:border-rose-900/60 print:bg-slate-50 print:border-slate-300 col-span-2 sm:col-span-1">
-            <div className="text-[11px] font-semibold text-rose-900 dark:text-rose-200 print:text-black">ยกเลิกหลังอนุมัติ (No-Show)</div>
+            <div className="text-xs font-bold text-rose-900 dark:text-rose-200 print:text-black">ยกเลิกหลังอนุมัติ</div>
             <div className="text-xl sm:text-2xl font-bold font-mono text-rose-700 dark:text-rose-300 print:text-black mt-1">
               {kpiNoShow} <span className="text-xs font-normal">รายการ</span>
             </div>
@@ -296,24 +299,24 @@ export default function FacilityReportsPage() {
         </div>
 
         {/* Sub-Categorical Ratio */}
-        <div className="flex items-center gap-4 text-xs font-medium text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/40 p-3 rounded-xl border border-slate-100 dark:border-slate-800 print:bg-white print:border-slate-300 print:text-black">
+        <div className="flex flex-wrap items-center justify-between sm:justify-start gap-x-4 gap-y-2 text-xs font-medium text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/40 p-3.5 rounded-2xl border border-slate-100 dark:border-slate-800 print:bg-white print:border-slate-300 print:text-black">
           <div className="flex items-center gap-1.5">
-            <Building className="w-4 h-4 text-indigo-600" />
+            <Building className="w-4 h-4 text-indigo-600 shrink-0" />
             <span>การใช้ห้องประชุม: <b>{roomCount}</b> ครั้ง</span>
           </div>
-          <span>•</span>
+          <span className="hidden sm:inline text-slate-300">•</span>
           <div className="flex items-center gap-1.5">
-            <Bus className="w-4 h-4 text-emerald-600" />
+            <Bus className="w-4 h-4 text-emerald-600 shrink-0" />
             <span>การใช้ยานพาหนะ: <b>{vehicleCount}</b> ครั้ง</span>
           </div>
-          <span>•</span>
-          <div>
+          <span className="hidden sm:inline text-slate-300">•</span>
+          <div className="w-full sm:w-auto pt-1 sm:pt-0 border-t sm:border-t-0 border-slate-200/60 dark:border-slate-700/60">
             <span>จำนวนคำขอทั้งหมดในรอบรายงาน: <b>{filteredList.length}</b> รายการ</span>
           </div>
         </div>
 
         {/* Detailed Records Table */}
-        <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800 print:border-slate-400">
+        <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800 print:border-slate-400">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
               <tr className="bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 print:bg-slate-100 print:text-black">
@@ -334,44 +337,57 @@ export default function FacilityReportsPage() {
                   </td>
                 </tr>
               ) : (
-                filteredList.map((item, idx) => (
-                  <tr key={item.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30">
-                    <td className="p-2.5 text-center font-mono text-slate-400">{idx + 1}</td>
-                    <td className="p-2.5 font-mono whitespace-nowrap">{toThaiDateString(item.startAt)}</td>
-                    <td className="p-2.5 font-mono whitespace-nowrap">
-                      {toThaiTimeString(item.startAt)} - {toThaiTimeString(item.endAt)}
-                    </td>
-                    <td className="p-2.5 font-semibold text-slate-900 dark:text-white print:text-black">
-                      {item.resource?.name || "-"}
-                      <span className="text-[10px] text-slate-400 font-mono block">
-                        ({item.consumerModule === "MEETING_ROOM" ? "ห้องประชุม" : "ยานพาหนะ"})
-                      </span>
-                    </td>
-                    <td className="p-2.5">
-                      <div className="font-medium line-clamp-1">{item.title}</div>
-                      {item.purpose && (
-                        <div className="text-[10.5px] text-slate-500 line-clamp-1">{item.purpose}</div>
-                      )}
-                    </td>
-                    <td className="p-2.5">
-                      <div className="font-medium">{item.reservedByUser?.name || "-"}</div>
-                      <div className="text-[10px] text-slate-400">{item.department || "คณะครู"}</div>
-                    </td>
-                    <td className="p-2.5 text-center">
-                      <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold font-mono ${
-                        item.status === "COMPLETED"
-                          ? "bg-blue-100 text-blue-800 dark:bg-blue-900/60 dark:text-blue-200"
-                          : item.status === "APPROVED" || item.status === "IN_USE"
-                          ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-200"
-                          : item.status === "PENDING"
-                          ? "bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-200"
-                          : "bg-rose-100 text-rose-800 dark:bg-rose-900/60 dark:text-rose-200"
-                      }`}>
-                        {item.status}
-                      </span>
-                    </td>
-                  </tr>
-                ))
+                filteredList.map((item, idx) => {
+                  const statusLabel =
+                    item.status === "COMPLETED"
+                      ? "เสร็จสมบูรณ์"
+                      : item.status === "IN_USE"
+                      ? "กำลังใช้งาน"
+                      : item.status === "APPROVED"
+                      ? "อนุมัติแล้ว"
+                      : item.status === "PENDING"
+                      ? "รอพิจารณา"
+                      : "ยกเลิก/ปฏิเสธ";
+
+                  return (
+                    <tr key={item.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30">
+                      <td className="p-2.5 text-center font-mono text-slate-400">{idx + 1}</td>
+                      <td className="p-2.5 font-mono whitespace-nowrap">{toThaiDateString(item.startAt)}</td>
+                      <td className="p-2.5 font-mono whitespace-nowrap">
+                        {toThaiTimeString(item.startAt)} - {toThaiTimeString(item.endAt)}
+                      </td>
+                      <td className="p-2.5 font-semibold text-slate-900 dark:text-white print:text-black">
+                        {item.resource?.name || "-"}
+                        <span className="text-[10px] text-slate-400 font-mono block">
+                          ({item.consumerModule === "MEETING_ROOM" ? "ห้องประชุม" : "ยานพาหนะ"})
+                        </span>
+                      </td>
+                      <td className="p-2.5">
+                        <div className="font-medium line-clamp-1">{item.title}</div>
+                        {item.purpose && (
+                          <div className="text-[10.5px] text-slate-500 line-clamp-1">{item.purpose}</div>
+                        )}
+                      </td>
+                      <td className="p-2.5">
+                        <div className="font-medium">{item.reservedByUser?.name || "-"}</div>
+                        <div className="text-[10px] text-slate-400">{item.department || "คณะครู"}</div>
+                      </td>
+                      <td className="p-2.5 text-center">
+                        <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap ${
+                          item.status === "COMPLETED"
+                            ? "bg-blue-100 text-blue-800 dark:bg-blue-900/60 dark:text-blue-200"
+                            : item.status === "APPROVED" || item.status === "IN_USE"
+                            ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-200"
+                            : item.status === "PENDING"
+                            ? "bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-200"
+                            : "bg-rose-100 text-rose-800 dark:bg-rose-900/60 dark:text-rose-200"
+                        }`}>
+                          {statusLabel}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>

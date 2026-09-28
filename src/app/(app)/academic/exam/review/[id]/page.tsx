@@ -154,6 +154,9 @@ export default function TeacherReviewStudioPage({ params }: { params: Promise<{ 
   }
 
   const paper = submission.examPaper;
+  const paperChoiceCount: 4 | 5 | 6 = paper?.choiceCount === 6 ? 6 : paper?.choiceCount === 5 ? 5 : 4;
+  const availableChoices = ["A", "B", "C", "D", "E", "F"].slice(0, paperChoiceCount);
+  const choiceThaiMap: Record<string, string> = { A: "ก", B: "ข", C: "ค", D: "ง", E: "จ", F: "ฉ" };
   const subjectiveItems = paper?.subjectiveItems || [];
   const hasSubjective = subjectiveItems.length > 0;
   const answerKey = paper?.answerKeys?.find((k: any) => k.versionCode === submission.versionCode);
@@ -180,7 +183,7 @@ export default function TeacherReviewStudioPage({ params }: { params: Promise<{ 
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
               <Edit3 className="w-6 h-6 text-purple-600 dark:text-purple-400" />
-              ศูนย์ตรวจทานคำตอบ & ให้คะแนนอัตนัย (Review Studio)
+              ศูนย์ตรวจทานคำตอบรายบุคคล
             </h1>
             <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
               {paper?.subjectCode} {paper?.subjectName} • รหัสนักเรียน: {submission.studentId}
@@ -214,7 +217,7 @@ export default function TeacherReviewStudioPage({ params }: { params: Promise<{ 
               </div>
 
               <div className="text-right">
-                <div className="text-xs text-slate-500">คะแนนรวมสุทธิ (Net Score)</div>
+                <div className="text-xs text-slate-500">คะแนนรวมสุทธิ</div>
                 <div className="text-3xl font-extrabold text-emerald-600 dark:text-emerald-400">
                   {Number(submission.netScore)} <span className="text-sm font-semibold text-slate-400">/ {totalPossible}</span>
                 </div>
@@ -385,25 +388,26 @@ export default function TeacherReviewStudioPage({ params }: { params: Promise<{ 
                     {/* Teacher Manual Override Buttons */}
                     <div className="flex items-center gap-1 shrink-0 self-end sm:self-center">
                       <span className="text-[11px] text-slate-400 mr-1.5">เปลี่ยนเป็น:</span>
-                      {["A", "B", "C", "D"].map((c) => (
+                      {availableChoices.map((c) => (
                         <button
                           key={c}
                           disabled={isUpdating}
                           onClick={() => handleOverride(item.itemNo, c)}
-                          className={`w-7 h-7 rounded-lg text-xs font-bold transition flex items-center justify-center ${
+                          className={`w-8 h-8 rounded-lg text-xs font-bold transition flex flex-col items-center justify-center leading-none ${
                             effectiveChoice === c
                               ? "bg-purple-600 text-white shadow-xs"
                               : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700 hover:border-purple-400"
                           }`}
                         >
-                          {c}
+                          <span className="text-[11px]">{choiceThaiMap[c]}</span>
+                          <span className="text-[7px] opacity-75">{c}</span>
                         </button>
                       ))}
 
                       <button
                         disabled={isUpdating}
                         onClick={() => handleOverride(item.itemNo, null)}
-                        className="px-2 h-7 rounded-lg text-[10px] font-bold bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-300 transition ml-1"
+                        className="px-2 h-8 rounded-lg text-[10px] font-bold bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-300 transition ml-1"
                         title="ล้างคำตอบ (เป็นไม่ตอบ)"
                       >
                         ล้าง
@@ -422,15 +426,15 @@ export default function TeacherReviewStudioPage({ params }: { params: Promise<{ 
           <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white/60 dark:border-slate-800 rounded-3xl p-6 shadow-sm space-y-4">
             <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2">
               <History className="w-4 h-4 text-purple-600" />
-              ประวัติการแก้ไขและบันทึก (Audit Log)
+              ประวัติการตรวจและแก้ไขข้อมูล
             </h3>
             <p className="text-xs text-slate-500 leading-relaxed">
-              ทุกการแก้ไขตัวเลือกและคะแนนอัตนัยโดยครูผู้สอน จะถูกบันทึกลงฐานข้อมูลแบบไม่สามารถลบหรือดัดแปลงได้
+              ทุกการแก้ไขตัวเลือกโดยครูผู้สอน จะถูกบันทึกลงฐานข้อมูลพร้อมเวลาและชื่อผู้แก้ไขเพื่อความโปร่งใส
             </p>
             <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 text-xs space-y-2">
               <div className="flex justify-between text-slate-500">
-                <span>เวอร์ชันการตรวจ:</span>
-                <strong className="text-slate-800 dark:text-slate-200">v{submission.gradingVersion}</strong>
+                <span>ครั้งที่ประมวลผล:</span>
+                <strong className="text-slate-800 dark:text-slate-200">ครั้งที่ {submission.gradingVersion}</strong>
               </div>
               <div className="flex justify-between text-slate-500">
                 <span>ตรวจเมื่อ:</span>
@@ -453,10 +457,10 @@ export default function TeacherReviewStudioPage({ params }: { params: Promise<{ 
               <ShieldCheck className="w-4 h-4 text-purple-600" /> หลักเกณฑ์การพิจารณาคะแนน
             </h4>
             <p>
-              • หากนักเรียนลบคำตอบเดิมไม่สะอาด แต่ฝนคำตอบใหม่เข้มชัดเจน ครูสามารถคลิกแก้ไขเป็นตัวเลือกที่ถูกต้องได้
+              • หากนักเรียนลบคำตอบเดิมไม่สะอาด แต่ฝนคำตอบใหม่เข้มชัดเจน ครูสามารถคลิกแก้ไขเป็นตัวเลือกที่ถูกต้องได้ทันที
             </p>
             <p>
-              • คะแนนอัตนัยจะถูกตรวจสอบ Invariant ขอบเขตล่าง (≥ 0) และขอบเขตบน (≤ คะแนนเต็มแต่ละข้อ) ทั้งในฝั่ง Client และ Database
+              • ระบบจะคำนวณคะแนนสุทธิและอัปเดตสถิติรายข้อให้อัตโนมัติทันทีที่กดเลือกตัวเลือกใหม่
             </p>
           </div>
 

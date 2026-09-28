@@ -3,7 +3,7 @@
 import { prisma } from "../../lib/db.ts";
 import crypto from "crypto";
 import { ExamItemStatus, SubmissionSyncStatus, RegradeJobStatus } from "@prisma/client";
-import { ensureStandardTemplatesAction } from "../../lib/services/omrTemplateService.ts";
+import { ensureStandardTemplatesAction, resolvePaperChoiceCount } from "../../lib/services/omrTemplateService.ts";
 import { RecycleBinService } from "../../services/recycle-bin/recycle-bin.service.ts";
 
 function safeRevalidatePath(path: string) {
@@ -31,6 +31,7 @@ export type CreateExamPaperInput = {
   title: string;
   templateCode?: string;
   totalItems?: number;
+  choiceCount?: 4 | 5 | 6;
   maxScore: number;
   passScore: number;
   createdById: string;
@@ -44,6 +45,8 @@ export type UpdateExamPaperInput = {
   term?: number;
   gradeLevel?: string;
   title?: string;
+  totalItems?: number;
+  choiceCount?: 4 | 5 | 6;
   maxScore?: number;
   passScore?: number;
   subjectiveItems?: SubjectiveItemInput[];
@@ -89,8 +92,23 @@ export interface UserContext {
   userRole?: string;
 }
 
+function buildStandardTemplateCode(totalItems: number, choiceCount?: 4 | 5 | 6): string {
+  const baseCode =
+    totalItems <= 20
+      ? "KP-OMR-A4-20"
+      : totalItems <= 40
+      ? "KP-OMR-A4-40"
+      : totalItems <= 60
+      ? "KP-OMR-A4-60"
+      : totalItems <= 80
+      ? "KP-OMR-A4-80"
+      : "KP-OMR-A4-100";
+  const suffix = choiceCount === 5 ? "-5C" : choiceCount === 6 ? "-6C" : "";
+  return `${baseCode}${suffix}`;
+}
+
 /**
- * 1. Create ExamPaper with flexible item counts (1-50) and normalized Subjective items
+ * 1. Create ExamPaper with flexible item counts (1-100) and choice counts (4/5/6)
  */
 export async function createExamPaperAction(data: CreateExamPaperInput) {
   await ensureStandardTemplatesAction();
@@ -100,17 +118,7 @@ export async function createExamPaperAction(data: CreateExamPaperInput) {
     throw new Error("จำนวนข้อสอบปรนัยต้องอยู่ระหว่าง 1 ถึง 100 ข้อ");
   }
 
-  const templateCode = data.templateCode || (
-    totalItems <= 20 
-      ? "KP-OMR-A4-20" 
-      : totalItems <= 40 
-      ? "KP-OMR-A4-40" 
-      : totalItems <= 60
-      ? "KP-OMR-A4-60"
-      : totalItems <= 80
-      ? "KP-OMR-A4-80"
-      : "KP-OMR-A4-100"
-  );
+  const templateCode = data.templateCode || buildStandardTemplateCode(totalItems, data.choiceCount);
   const template = await prisma.examTemplate.findFirst({
     where: { code: templateCode, isDeprecated: false },
     orderBy: { version: "desc" }
@@ -200,6 +208,20 @@ export async function updateExamPaperAction(
     }
   }
 
+  let resolvedTemplateId: string | undefined = undefined;
+  if (data.totalItems !== undefined || data.choiceCount !== undefined) {
+    await ensureStandardTemplatesAction();
+    const targetItems = data.totalItems !== undefined ? data.totalItems : paper.totalItems;
+    const tplCode = buildStandardTemplateCode(targetItems, data.choiceCount);
+    const tpl = await prisma.examTemplate.findFirst({
+      where: { code: tplCode, isDeprecated: false },
+      orderBy: { version: "desc" }
+    });
+    if (tpl) {
+      resolvedTemplateId = tpl.id;
+    }
+  }
+
   const updated = await prisma.$transaction(async (tx) => {
     const paperUpdateData: any = {};
     if (data.subjectCode !== undefined) paperUpdateData.subjectCode = data.subjectCode;
@@ -208,6 +230,8 @@ export async function updateExamPaperAction(
     if (data.term !== undefined) paperUpdateData.term = data.term;
     if (data.gradeLevel !== undefined) paperUpdateData.gradeLevel = data.gradeLevel;
     if (data.title !== undefined) paperUpdateData.title = data.title;
+    if (data.totalItems !== undefined) paperUpdateData.totalItems = data.totalItems;
+    if (resolvedTemplateId !== undefined) paperUpdateData.templateId = resolvedTemplateId;
     if (data.maxScore !== undefined) paperUpdateData.maxScore = data.maxScore;
     if (data.passScore !== undefined) paperUpdateData.passScore = data.passScore;
 
@@ -870,7 +894,7 @@ export async function listExamPapersAction(userContext?: UserContext) {
 
   if (isAdmin) {
     // Admin query: Strictly OMIT answerKeys
-    return await prisma.examPaper.findMany({
+    const rows = await prisma.examPaper.findMany({
       where: { isDeleted: false },
       orderBy: { createdAt: "desc" },
       select: {
@@ -901,6 +925,10 @@ export async function listExamPapersAction(userContext?: UserContext) {
         }
       }
     });
+    return rows.map((p) => ({
+      ...p,
+      choiceCount: resolvePaperChoiceCount(p)
+    }));
   }
 
   // Teacher query: Scoped to self
@@ -909,7 +937,7 @@ export async function listExamPapersAction(userContext?: UserContext) {
     teacherWhere.createdById = userContext.userId;
   }
 
-  return await prisma.examPaper.findMany({
+  const rows = await prisma.examPaper.findMany({
     where: teacherWhere,
     orderBy: { createdAt: "desc" },
     include: {
@@ -921,6 +949,7 @@ export async function listExamPapersAction(userContext?: UserContext) {
         select: {
           id: true,
           versionCode: true,
+          items: { select: { correctChoices: true } },
           _count: { select: { items: true } }
         }
       },
@@ -935,6 +964,10 @@ export async function listExamPapersAction(userContext?: UserContext) {
       }
     }
   });
+  return rows.map((p) => ({
+    ...p,
+    choiceCount: resolvePaperChoiceCount(p)
+  }));
 }
 
 /**
@@ -986,6 +1019,7 @@ export async function getExamPaperDetailsAction(paperId: string, userContext?: U
 
   return {
     ...paper,
+    choiceCount: resolvePaperChoiceCount(paper),
     answerKeys: (paper as any).answerKeys || [],
     keyVersions: (paper as any).keyVersions || [],
     regradeJobs: (paper as any).regradeJobs || []
@@ -1019,15 +1053,26 @@ export async function getSubmissionDetailsAction(submissionId: string, userConte
 
   if (!submission) return null;
 
+  const resolvedChoiceCount = resolvePaperChoiceCount(submission.examPaper);
+
   if (userContext && userContext.userId !== submission.examPaper.createdById) {
     return {
       ...submission,
       examPaper: {
         ...submission.examPaper,
+        choiceCount: resolvedChoiceCount,
         answerKeys: []
       }
     };
   }
+
+  return {
+    ...submission,
+    examPaper: {
+      ...submission.examPaper,
+      choiceCount: resolvedChoiceCount
+    }
+  };
 
   return submission;
 }

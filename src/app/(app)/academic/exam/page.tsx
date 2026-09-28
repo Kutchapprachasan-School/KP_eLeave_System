@@ -60,10 +60,10 @@ export default function AcademicExamPage() {
         <div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
             <Sparkles className="w-6 h-6 text-purple-600 dark:text-purple-400" />
-            ระบบจัดการข้อสอบ & การวัดผล (Exam & Assessment System)
+            ระบบจัดการข้อสอบและการวัดผลประเมินผล
           </h1>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-            คลังข้อสอบ ปรนัย/อัตนัย, ตรวจกระดาษคำตอบ OMR, วิเคราะห์ KR-20, จัดตารางสอบ และผังที่นั่ง
+            คลังข้อสอบปรนัย (4, 5 และ 6 ตัวเลือก), สแกนกระดาษคำตอบอัตโนมัติ, วิเคราะห์คุณภาพข้อสอบ, จัดตารางสอบ และผังที่นั่งสอบ
           </p>
         </div>
 
@@ -73,7 +73,7 @@ export default function AcademicExamPage() {
             className="px-3.5 py-2 rounded-xl bg-purple-50 hover:bg-purple-100 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800/60 text-purple-700 dark:text-purple-300 font-bold text-xs shadow-xs transition flex items-center gap-1.5"
           >
             <Camera className="w-3.5 h-3.5" />
-            สแกนตรวจ OMR
+            สแกนตรวจกระดาษคำตอบ
           </Link>
 
           <Link
@@ -95,7 +95,7 @@ export default function AcademicExamPage() {
           }`}
         >
           <Layers className="w-3.5 h-3.5" />
-          คลังชุดข้อสอบ & OMR
+          คลังชุดข้อสอบและตรวจกระดาษคำตอบ
         </button>
 
         <button
@@ -150,7 +150,7 @@ export default function AcademicExamPage() {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <h2 className="text-base font-bold text-slate-900 dark:text-white">
-                📝 ตารางสอบ{examType === "MIDTERM" ? "กลางภาค" : "ปลายภาค"} (Exam Timetable Matrix)
+                📝 ตารางสอบ{examType === "MIDTERM" ? "กลางภาค" : "ปลายภาค"}เรียน
               </h2>
               <span className="text-xs text-slate-500 font-semibold">จำนวนวันสอบ: {examDaysCount} วัน</span>
             </div>
@@ -170,7 +170,7 @@ export default function AcademicExamPage() {
                 className="px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-xs transition flex items-center gap-1.5"
               >
                 <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-                สั่ง AI จัดตารางสอบ
+                จัดตารางสอบอัตโนมัติ
               </button>
             </div>
           </div>
@@ -181,11 +181,11 @@ export default function AcademicExamPage() {
                 <tr className="bg-slate-50 dark:bg-slate-800 text-slate-500 uppercase tracking-wider font-bold border-b border-slate-200 dark:border-slate-800">
                   <th className="p-3">วันสอบ</th>
                   <th className="p-3 text-center">เวลาสอบ</th>
-                  <th className="p-3">รหัสวิชา & วิชาสอบ</th>
+                  <th className="p-3">รหัสวิชาและวิชาสอบ</th>
                   <th className="p-3">ชั้นเรียนสอบ</th>
                   <th className="p-3">ห้องสอบ</th>
                   <th className="p-3">ครูผู้คุมสอบ</th>
-                  <th className="p-3 text-center">กระดาษคำตอบ OMR</th>
+                  <th className="p-3 text-center">กระดาษคำตอบ</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
@@ -205,7 +205,7 @@ export default function AcademicExamPage() {
                         className="px-2.5 py-1.5 rounded-xl bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/50 font-bold text-[11px] transition inline-flex items-center gap-1.5 border border-purple-200 dark:border-purple-800/40 shadow-xs"
                       >
                         <Sparkles className="w-3 h-3 text-purple-500" />
-                        สร้างกระดาษคำตอบ OMR
+                        สร้างกระดาษคำตอบ
                       </Link>
                     </td>
                   </tr>
@@ -222,9 +222,9 @@ export default function AcademicExamPage() {
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-base font-bold text-slate-900 dark:text-white">
-                🪑 ผังที่นั่งสอบออนไลน์สลับเลขที่ ({selectedRoom})
+                🪑 ผังที่นั่งสอบสลับเลขที่ ({selectedRoom})
               </h2>
-              <p className="text-xs text-slate-500 mt-1">จัดที่นั่งสลับชั้นเรียน/ห้องเรียน ป้องกันการลอกข้อสอบ</p>
+              <p className="text-xs text-slate-500 mt-1">จัดที่นั่งสลับชั้นเรียนและห้องเรียนเพื่อป้องกันการลอกข้อสอบ</p>
             </div>
 
             <select
@@ -242,7 +242,7 @@ export default function AcademicExamPage() {
               🚪 โต๊ะครูผู้คุมสอบ / หน้าห้องสอบ 🚪
             </div>
 
-            <div className="grid grid-cols-6 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
               {seatingMatrix.flatMap((row, rIdx) =>
                 row.map((seat, cIdx) => (
                   <div
@@ -270,7 +270,7 @@ export default function AcademicExamPage() {
       {activeTab === "SUPERVISORS" && (
         <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-200 dark:border-slate-800 shadow-xl space-y-4">
           <h2 className="text-base font-bold text-slate-900 dark:text-white">
-            👨‍🏫 จัดตารางครูผู้คุมสอบ (Exam Supervisor Roster)
+            👨‍🏫 ตารางจัดครูผู้คุมสอบ
           </h2>
 
           <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800 text-xs">
