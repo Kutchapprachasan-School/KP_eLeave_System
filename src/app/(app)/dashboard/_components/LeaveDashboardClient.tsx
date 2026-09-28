@@ -1496,6 +1496,9 @@ export default function LeaveDashboardClient() {
               })()}
             </div>
           )}
+        </motion.div>
+      )}
+
       {/* ── 4 Subsystem Overview Cards (Inspired by Smart School Reference) ── */}
       <motion.div variants={itemVariants} className="pt-2 space-y-3">
         <div className="flex items-center justify-between">
