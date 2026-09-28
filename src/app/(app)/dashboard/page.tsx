@@ -96,6 +96,21 @@ export default async function DashboardPage({
     <DashboardShell
       initialSystem={activeSystem}
       availableSystems={availableSystems}
+      schoolInfo={{
+        schoolName: systemSettings?.schoolName || "โรงเรียนกุดจับประชาสรรค์",
+        subheader: systemSettings?.subheader || "ระบบบริหารจัดการสถานศึกษา",
+        logoUrl: systemSettings?.logoUrl || null,
+      }}
+      user={{
+        name: currentUser?.name || "ผู้ใช้งาน",
+        role: userRole,
+        position: currentUser?.position || "ครู",
+        isApprover:
+          userRole === "ADMIN" ||
+          userRole === "DIRECTOR" ||
+          userRole === "HR" ||
+          userRole === "INSPECTOR",
+      }}
       leaveView={<LeaveDashboardClient />}
       documentView={<DocumentDashboardView />}
       facilityView={<FacilityDashboardView />}

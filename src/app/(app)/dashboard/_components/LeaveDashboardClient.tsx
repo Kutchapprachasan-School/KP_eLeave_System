@@ -14,7 +14,8 @@ import { getMyAttendanceToday, generateAttendanceNonce, clockIn, clockOut } from
 import { 
   CheckCircle2, AlertCircle, Briefcase, 
   Users, Activity, Clock, Calendar, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, X,
-  UserCheck, XCircle, MapPin, Fingerprint, CalendarDays, Loader2
+  UserCheck, XCircle, MapPin, Fingerprint, CalendarDays, Loader2,
+  Building2, Wrench, ArrowRight, FileText, Sparkles
 } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { getClientCache, setClientCache } from "@/lib/client-cache";
@@ -648,35 +649,77 @@ export default function LeaveDashboardClient() {
         )}
       </div>
 
-      {/* KPI Cards Layer */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      {/* KPI Cards Layer - Modern Smart School Style */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
         {[
           { 
-            title: isOverview ? t("allStaff") : (lang === "en" ? "Total Leave Days" : "จำนวนวันที่ลา"), 
-            value: isOverview ? `${totalStaff} ${t("persons")}` : `${totalUsed} ${t("days")}`, 
+            title: isOverview ? (lang === "en" ? "Total Staff" : "บุคลากรทั้งหมด") : (lang === "en" ? "Total Leave Days" : "จำนวนวันที่ลา"), 
+            value: isOverview ? `${totalStaff}` : `${totalUsed}`, 
+            unit: isOverview ? t("persons") : t("days"),
             icon: isOverview ? Users : Activity, 
-            color: "text-blue-500 dark:text-blue-400", 
-            bg: "bg-blue-50 dark:bg-blue-500/10" 
+            badge: isOverview ? "+ สมาชิกในระบบ" : "สถิติสะสม",
+            badgeStyle: "bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 border-blue-200 dark:border-blue-900/50",
+            iconBg: "bg-blue-500/10 text-blue-600 dark:text-blue-400 ring-1 ring-blue-500/20",
           },
           { 
-            title: isOverview ? t("usedQuota") : (lang === "en" ? "Quota Remaining" : "โควตาคงเหลือ"), 
-            value: isOverview ? `${totalUsed} ${t("days")}` : `${watchlistRemaining} ${t("days")}`, 
+            title: isOverview ? (lang === "en" ? "Used Quota" : "วันลาสะสมทั้งหมด") : (lang === "en" ? "Quota Remaining" : "โควตาคงเหลือ"), 
+            value: isOverview ? `${totalUsed}` : `${watchlistRemaining}`, 
+            unit: t("days"),
             icon: isOverview ? Activity : CheckCircle2, 
-            color: isOverview ? "text-orange-500 dark:text-orange-400" : "text-emerald-500 dark:text-emerald-400", 
-            bg: isOverview ? "bg-orange-50 dark:bg-orange-500/10" : "bg-emerald-50 dark:bg-emerald-500/10" 
+            badge: isOverview ? "รวมทุกประเภท" : (watchlistRemaining <= 3 ? "ใกล้หมด" : "พร้อมใช้งาน"),
+            badgeStyle: isOverview 
+              ? "bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300 border-purple-200 dark:border-purple-900/50" 
+              : "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border-emerald-200 dark:border-emerald-900/50",
+            iconBg: "bg-purple-500/10 text-purple-600 dark:text-purple-400 ring-1 ring-purple-500/20",
           },
-          { title: t("pendingItems"), value: `${pendingCount} ${t("requestsCount")}`, icon: AlertCircle, color: "text-purple-500 dark:text-purple-400", bg: "bg-purple-50 dark:bg-purple-500/10" },
-          { title: t("approvalRate"), value: `${approvalRate}%`, icon: Briefcase, color: "text-green-500 dark:text-green-400", bg: "bg-green-50 dark:bg-green-500/10" }
+          { 
+            title: lang === "en" ? "Approval Rate" : "อัตราการอนุมัติลา", 
+            value: `${approvalRate}`, 
+            unit: "%",
+            icon: Briefcase, 
+            badge: `${approvalRate >= 90 ? "สูงมาก" : "ปกติ"}`,
+            badgeStyle: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border-emerald-200 dark:border-emerald-900/50",
+            iconBg: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 ring-1 ring-emerald-500/20",
+          },
+          { 
+            title: t("pendingItems"), 
+            value: `${pendingCount}`, 
+            unit: t("requestsCount"),
+            icon: AlertCircle, 
+            badge: pendingCount > 0 ? "รอพิจารณา" : "เรียบร้อย",
+            badgeStyle: pendingCount > 0 
+              ? "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 border-amber-200 dark:border-amber-900/50 animate-pulse" 
+              : "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border-emerald-200 dark:border-emerald-900/50",
+            iconBg: pendingCount > 0 
+              ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 ring-1 ring-amber-500/20"
+              : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 ring-1 ring-emerald-500/20",
+          }
         ].map((kpi, i) => (
-          <motion.div key={i} variants={itemVariants} className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white/60 dark:border-slate-800 rounded-3xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_15px_40px_rgb(0,0,0,0.08)] dark:hover:shadow-none transition-all duration-300">
-            <div className="flex items-center gap-4">
-              <div className={`w-12 h-12 rounded-2xl ${kpi.bg} flex items-center justify-center shrink-0`}>
-                <kpi.icon className={`w-6 h-6 ${kpi.color}`} />
+          <motion.div 
+            key={i} 
+            variants={itemVariants} 
+            className="group relative bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 shadow-xs hover:shadow-lg hover:-translate-y-1 transition-all duration-200"
+          >
+            <div className="flex items-center justify-between mb-3">
+              <div className={`w-11 h-11 rounded-2xl ${kpi.iconBg} flex items-center justify-center shrink-0 shadow-xs transition-transform duration-200 group-hover:scale-105`}>
+                <kpi.icon className="w-5 h-5" />
               </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold text-slate-500 dark:text-slate-400 truncate">{kpi.title}</p>
-                <p className="text-2xl font-bold text-slate-900 dark:text-white mt-1 truncate">{kpi.value}</p>
+              <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${kpi.badgeStyle}`}>
+                {kpi.badge}
+              </span>
+            </div>
+            <div>
+              <div className="flex items-baseline gap-1.5">
+                <span className="text-2xl sm:text-3xl font-black text-slate-800 dark:text-white tracking-tight font-mono">
+                  {kpi.value}
+                </span>
+                <span className="text-xs font-semibold text-slate-400 dark:text-slate-500">
+                  {kpi.unit}
+                </span>
               </div>
+              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mt-1 truncate">
+                {kpi.title}
+              </p>
             </div>
           </motion.div>
         ))}
@@ -1453,8 +1496,142 @@ export default function LeaveDashboardClient() {
               })()}
             </div>
           )}
-        </motion.div>
-      )}
+      {/* ── 4 Subsystem Overview Cards (Inspired by Smart School Reference) ── */}
+      <motion.div variants={itemVariants} className="pt-2 space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+            <h3 className="text-sm font-bold text-slate-800 dark:text-white">
+              โมดูลบริการส่วนกลางของโรงเรียน
+            </h3>
+          </div>
+          <span className="text-[11px] text-slate-400 font-medium">
+            ภาพรวมการเชื่อมต่อระบบ
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* Card 1: ระบบการลา & บัญชีเวลา */}
+          <Link
+            href="/history"
+            prefetch={false}
+            className="group p-5 rounded-2xl bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border border-slate-200/80 dark:border-slate-800 hover:border-indigo-300 dark:hover:border-indigo-700/60 shadow-xs hover:shadow-md transition-all duration-200 flex flex-col justify-between"
+          >
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <div className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 flex items-center justify-center ring-1 ring-indigo-500/20 group-hover:scale-105 transition-transform">
+                  <CalendarDays className="w-5 h-5" />
+                </div>
+                <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
+                  ดูข้อมูล <ArrowRight className="w-3 h-3" />
+                </span>
+              </div>
+              <h4 className="text-xs font-bold text-slate-800 dark:text-white">
+                ระบบการลา & บัญชีเวลา
+              </h4>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                Leave & Attendance
+              </p>
+            </div>
+            <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-[11px]">
+              <span className="text-slate-500">อัตราการอนุมัติ</span>
+              <span className="font-bold text-emerald-600 dark:text-emerald-400 font-mono">
+                {approvalRate}%
+              </span>
+            </div>
+          </Link>
+
+          {/* Card 2: งานสารบรรณ & ธุรการ */}
+          <Link
+            href="/document"
+            prefetch={false}
+            className="group p-5 rounded-2xl bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border border-slate-200/80 dark:border-slate-800 hover:border-sky-300 dark:hover:border-sky-700/60 shadow-xs hover:shadow-md transition-all duration-200 flex flex-col justify-between"
+          >
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <div className="w-10 h-10 rounded-xl bg-sky-50 dark:bg-sky-950/40 text-sky-600 dark:text-sky-400 flex items-center justify-center ring-1 ring-sky-500/20 group-hover:scale-105 transition-transform">
+                  <FileText className="w-5 h-5" />
+                </div>
+                <span className="text-[10px] font-bold text-sky-600 dark:text-sky-400 flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
+                  ดูข้อมูล <ArrowRight className="w-3 h-3" />
+                </span>
+              </div>
+              <h4 className="text-xs font-bold text-slate-800 dark:text-white">
+                งานสารบรรณ & ธุรการ
+              </h4>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                Document Management
+              </p>
+            </div>
+            <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-[11px]">
+              <span className="text-slate-500">หนังสือรับ-ส่ง & คำสั่ง</span>
+              <span className="font-bold text-sky-600 dark:text-sky-400">
+                ระบบพร้อมใช้
+              </span>
+            </div>
+          </Link>
+
+          {/* Card 3: ทรัพยากรส่วนกลาง */}
+          <Link
+            href="/facility"
+            prefetch={false}
+            className="group p-5 rounded-2xl bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border border-slate-200/80 dark:border-slate-800 hover:border-emerald-300 dark:hover:border-emerald-700/60 shadow-xs hover:shadow-md transition-all duration-200 flex flex-col justify-between"
+          >
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <div className="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center ring-1 ring-emerald-500/20 group-hover:scale-105 transition-transform">
+                  <Building2 className="w-5 h-5" />
+                </div>
+                <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
+                  ดูข้อมูล <ArrowRight className="w-3 h-3" />
+                </span>
+              </div>
+              <h4 className="text-xs font-bold text-slate-800 dark:text-white">
+                ทรัพยากรส่วนกลาง
+              </h4>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                Facility & Vehicle Reservation
+              </p>
+            </div>
+            <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-[11px]">
+              <span className="text-slate-500">ห้องประชุม & ยานพาหนะ</span>
+              <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                จองออนไลน์
+              </span>
+            </div>
+          </Link>
+
+          {/* Card 4: ระบบแจ้งซ่อม */}
+          <Link
+            href="/repair"
+            prefetch={false}
+            className="group p-5 rounded-2xl bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border border-slate-200/80 dark:border-slate-800 hover:border-amber-300 dark:hover:border-amber-700/60 shadow-xs hover:shadow-md transition-all duration-200 flex flex-col justify-between"
+          >
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 flex items-center justify-center ring-1 ring-amber-500/20 group-hover:scale-105 transition-transform">
+                  <Wrench className="w-5 h-5" />
+                </div>
+                <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
+                  ดูข้อมูล <ArrowRight className="w-3 h-3" />
+                </span>
+              </div>
+              <h4 className="text-xs font-bold text-slate-800 dark:text-white">
+                ระบบแจ้งซ่อมบำรุง
+              </h4>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                Maintenance & Repair
+              </p>
+            </div>
+            <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-[11px]">
+              <span className="text-slate-500">อาคาร & ครุภัณฑ์</span>
+              <span className="font-bold text-amber-600 dark:text-amber-400">
+                แจ้งซ่อมเร็ว
+              </span>
+            </div>
+          </Link>
+        </div>
+      </motion.div>
         </>
       )}
 
