@@ -81,4 +81,17 @@ export const auth = betterAuth({
       },
     },
   },
+  // Allow requests from production URL, localhost dev, and any Vercel preview deployment
+  trustedOrigins: [
+    // Production URL (always trusted)
+    ...(process.env.BETTER_AUTH_URL ? [process.env.BETTER_AUTH_URL] : []),
+    ...(process.env.NEXT_PUBLIC_APP_URL ? [process.env.NEXT_PUBLIC_APP_URL] : []),
+    // Vercel Preview URL — automatically injected by Vercel as VERCEL_URL (no protocol)
+    ...(process.env.VERCEL_URL ? [`https://${process.env.VERCEL_URL}`] : []),
+    // Local development
+    "http://localhost:3001",
+    "http://localhost:3000",
+    // Production domain (covers all branch previews)
+    "https://e-leave-system-kappa.vercel.app",
+  ].filter(Boolean) as string[],
 });
