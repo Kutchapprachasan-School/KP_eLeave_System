@@ -83,15 +83,22 @@ export const auth = betterAuth({
   },
   // Allow requests from production URL, localhost dev, and any Vercel preview deployment
   trustedOrigins: [
-    // Production URL (always trusted)
+    // Production URL (from env vars — always trusted)
     ...(process.env.BETTER_AUTH_URL ? [process.env.BETTER_AUTH_URL] : []),
     ...(process.env.NEXT_PUBLIC_APP_URL ? [process.env.NEXT_PUBLIC_APP_URL] : []),
-    // Vercel Preview URL — automatically injected by Vercel as VERCEL_URL (no protocol)
+    // Vercel Deployment URL — injected automatically per deploy (no https:// prefix)
     ...(process.env.VERCEL_URL ? [`https://${process.env.VERCEL_URL}`] : []),
+    // Vercel Branch Alias URL — injected automatically per branch (no https:// prefix)
+    ...(process.env.VERCEL_BRANCH_URL ? [`https://${process.env.VERCEL_BRANCH_URL}`] : []),
+    // Extra trusted origins — set as comma-separated list in Vercel env vars if needed
+    ...(process.env.TRUSTED_ORIGINS
+      ? process.env.TRUSTED_ORIGINS.split(",").map((o) => o.trim()).filter(Boolean)
+      : []),
     // Local development
     "http://localhost:3001",
     "http://localhost:3000",
-    // Production domain (covers all branch previews)
+    // Production & known preview domains (hardcoded fallback)
     "https://e-leave-system-kappa.vercel.app",
+    "https://e-leave-system-git-dev-kutchapprachasan-school.vercel.app",
   ].filter(Boolean) as string[],
 });
