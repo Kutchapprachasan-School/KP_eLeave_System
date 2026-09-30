@@ -1497,6 +1497,8 @@ export default function LeaveDashboardClient() {
           )}
         </motion.div>
       )}
+        </>
+      )}
 
       {/* Time Attendance Tab Content */}
       {activeSystemTab === "attendance" && (
