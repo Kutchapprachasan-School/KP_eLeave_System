@@ -315,6 +315,8 @@ function CollapsibleGroup({
   pathname,
   searchParams,
   renderNavItem,
+  collapsed = false,
+  onExpand,
 }: {
   title: string;
   icon: any;
@@ -324,6 +326,8 @@ function CollapsibleGroup({
   pathname: string;
   searchParams: any;
   renderNavItem: (item: any, isSubItem?: boolean) => React.ReactNode;
+  collapsed?: boolean;
+  onExpand?: () => void;
 }) {
   const isAnyChildActive = items.some((item) => {
     if (item.href.includes("?")) {
@@ -352,6 +356,34 @@ function CollapsibleGroup({
   }, [isAnyChildActive]);
 
   if (items.length === 0) return null;
+
+  // When sidebar is collapsed: show just the group icon with tooltip; clicking expands sidebar and opens group
+  if (collapsed) {
+    return (
+      <div className="space-y-0.5">
+        <button
+          type="button"
+          title={title}
+          onClick={() => {
+            setIsOpen(true);
+            if (onExpand) onExpand();
+          }}
+          className={`relative flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-200 mx-auto cursor-pointer ${
+            isAnyChildActive
+              ? "text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-500/10"
+              : "text-slate-500 dark:text-slate-400 hover:bg-slate-100/80 dark:hover:bg-slate-800/50"
+          }`}
+        >
+          <GroupIcon className="w-4.5 h-4.5" />
+          {badge !== undefined && badge > 0 && (
+            <span className="absolute top-1 right-1 flex items-center justify-center min-w-[14px] h-[14px] px-0.5 rounded-full bg-red-500 text-white text-[9px] font-bold">
+              {badge > 9 ? "9+" : badge}
+            </span>
+          )}
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-0.5">
@@ -407,6 +439,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
   const { data: session, isPending } = useSession();
   const { t, lang } = useI18n();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   const [brandName, setBrandName] = useState("ระบบการลา");
   const [brandLogo, setBrandLogo] = useState<string | null>(null);
   const [isFinalApprover, setIsFinalApprover] = useState(false);
@@ -504,6 +537,12 @@ function AppContent({ children }: { children: React.ReactNode }) {
       // If we loaded cached data, we can mark settings loading as finished to bypass default splash page
       if (storedSchoolName || storedLogoUrl) {
         setIsLoadingSettings(false);
+      }
+
+      // Load sidebar collapsed state
+      const storedCollapsed = localStorage.getItem("kp_sidebar_collapsed");
+      if (storedCollapsed !== null) {
+        setSidebarCollapsed(storedCollapsed === "true");
       }
     }
 
@@ -914,7 +953,23 @@ function AppContent({ children }: { children: React.ReactNode }) {
     settingsNavItems.push({ href: "/admin/recycle-bin", label: "ถังขยะระบบกลาง (Recycle Bin)", icon: Trash2 });
   }
 
-  const renderNavItem = (item: any, isSubItem: boolean = false) => {
+  const isCollapsed = sidebarCollapsed && !sidebarOpen;
+
+  const toggleSidebar = () => {
+    if (typeof window !== "undefined" && window.innerWidth < 1024) {
+      setSidebarOpen((prev) => !prev);
+    } else {
+      setSidebarCollapsed((prev) => {
+        const next = !prev;
+        try {
+          localStorage.setItem("kp_sidebar_collapsed", String(next));
+        } catch {}
+        return next;
+      });
+    }
+  };
+
+  const renderNavItem = (item: any, isSubItem: boolean = false, forceCollapsed?: boolean) => {
     const isExactMatch = item.href.includes("?")
       ? (pathname === item.href.split("?")[0] ||
          (item.href.startsWith("/general/facility") && (pathname === "/facility" || pathname === "/academic/facility"))) &&
@@ -933,6 +988,33 @@ function AppContent({ children }: { children: React.ReactNode }) {
 
     const isActive = isExactMatch || (item.href.startsWith("/settings") && !item.href.includes("?") && pathname.startsWith("/settings") && !searchParams?.get("section"));
     const Icon = item.icon;
+    const itemCollapsed = forceCollapsed ?? isCollapsed;
+
+    // Icon-only mode when sidebar collapsed
+    if (itemCollapsed) {
+      return (
+        <Link key={item.href} href={item.href} prefetch={false} title={item.label}>
+          <div className={`relative flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-200 mx-auto ${
+            isActive
+              ? "text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-500/10"
+              : "text-slate-500 dark:text-slate-400 hover:bg-slate-100/80 dark:hover:bg-slate-800/50"
+          }`}>
+            {isActive && (
+              <motion.div
+                layoutId="activeNav"
+                className="absolute left-0 top-1/4 bottom-1/4 w-1 bg-purple-500 rounded-r-full"
+              />
+            )}
+            <Icon className="w-4 h-4" />
+            {item.badge !== undefined && item.badge > 0 && (
+              <span className="absolute top-1 right-1 flex items-center justify-center min-w-[14px] h-[14px] px-0.5 rounded-full bg-red-500 text-white text-[9px] font-bold">
+                {item.badge > 9 ? "9+" : item.badge}
+              </span>
+            )}
+          </div>
+        </Link>
+      );
+    }
 
     return (
       <Link key={item.href} href={item.href} prefetch={false}>
@@ -1052,11 +1134,13 @@ function AppContent({ children }: { children: React.ReactNode }) {
       </AnimatePresence>
 
       {/* Sidebar Navigation */}
-      <aside className={`fixed top-0 bottom-0 left-0 z-50 w-[220px] bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-r border-slate-200/50 dark:border-slate-800/50 flex flex-col transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] shadow-[4px_0_24px_rgba(0,0,0,0.02)] print:hidden ${sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`}>
+      <aside className={`fixed top-0 bottom-0 left-0 z-50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-r border-slate-200/50 dark:border-slate-800/50 flex flex-col shadow-[4px_0_24px_rgba(0,0,0,0.02)] print:hidden transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${
+        sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+      } ${isCollapsed ? "lg:w-[64px]" : "lg:w-[220px]"} w-[220px]`}>
         
         {/* Brand */}
-        <div className="h-16 px-4 flex items-center border-b border-slate-100 dark:border-slate-800/60 shrink-0">
-          <div className="flex items-center gap-2.5 min-w-0">
+        <div className="h-16 px-3 flex items-center justify-between border-b border-slate-100 dark:border-slate-800/60 shrink-0 overflow-hidden">
+          <div className={`flex items-center gap-2.5 min-w-0 ${isCollapsed ? "lg:justify-center lg:w-full" : ""}`}>
             {brandLogo ? (
               <img src={brandLogo} alt="Logo" className="w-8 h-8 rounded-xl object-cover shadow-xs shrink-0" />
             ) : (
@@ -1064,17 +1148,19 @@ function AppContent({ children }: { children: React.ReactNode }) {
                 <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
               </div>
             )}
-            <div className="flex-1 min-w-0">
-              <h1 className="text-[13.5px] font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-slate-900 to-slate-600 dark:from-white dark:to-slate-300 leading-tight truncate">{brandName}</h1>
-            </div>
+            {!isCollapsed && (
+              <div className="flex-1 min-w-0">
+                <h1 className="text-[13.5px] font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-slate-900 to-slate-600 dark:from-white dark:to-slate-300 leading-tight truncate">{brandName}</h1>
+              </div>
+            )}
           </div>
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 px-3 py-4 space-y-4 overflow-y-auto custom-scrollbar">
+        <nav className={`flex-1 py-4 space-y-3 overflow-y-auto custom-scrollbar ${isCollapsed ? "px-1.5" : "px-3"}`}>
           {/* Top Dashboard Link */}
-          <Link href="/dashboard" prefetch={false}>
-            <div className={`relative flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-[13px] font-medium transition-all duration-200 group overflow-hidden ${
+          <Link href="/dashboard" prefetch={false} title={isCollapsed ? t("dashboard") : undefined}>
+            <div className={`relative flex items-center rounded-xl text-[13px] font-medium transition-all duration-200 group overflow-hidden ${isCollapsed ? "justify-center w-10 h-10 mx-auto" : "gap-2.5 px-3 py-2.5"} ${
               pathname === "/dashboard" 
                 ? "text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-500/10 font-bold" 
                 : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-800/50"
@@ -1083,39 +1169,45 @@ function AppContent({ children }: { children: React.ReactNode }) {
                 <motion.div layoutId="activeNav" className="absolute left-0 top-1/4 bottom-1/4 w-1 bg-purple-500 rounded-r-full" />
               )}
               <LayoutDashboard className={`w-4 h-4 transition-transform duration-200 ${pathname === "/dashboard" ? "scale-110" : "group-hover:scale-110"}`} />
-              <span className="flex-1 truncate">{t("dashboard")}</span>
+              {!isCollapsed && <span className="flex-1 truncate">{t("dashboard")}</span>}
             </div>
           </Link>
 
-          {/* Classroom Portal Shortcut Link (รองจาก Dashboard) */}
+          {/* Classroom Portal Shortcut Link */}
           <a
             href={classroomPortalUrl}
             target="_blank"
             rel="noopener noreferrer"
-            title={lang === "en" ? "Open Classroom Portal (ระบบจัดการชั้นเรียน)" : "เข้าสู่ระบบจัดการชั้นเรียน (Classroom Portal)"}
-            className="group relative flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-[13px] font-medium transition-all duration-200 overflow-hidden bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-transparent hover:from-emerald-500/20 hover:via-teal-500/20 border border-emerald-500/20 dark:border-emerald-500/30 text-emerald-800 dark:text-emerald-300 hover:text-emerald-900 dark:hover:text-emerald-200 hover:shadow-xs"
+            title={lang === "en" ? "Classroom Portal" : "ระบบจัดการชั้นเรียน"}
+            className={`group relative flex items-center rounded-xl text-[13px] font-medium transition-all duration-200 overflow-hidden bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-transparent hover:from-emerald-500/20 hover:via-teal-500/20 border border-emerald-500/20 dark:border-emerald-500/30 text-emerald-800 dark:text-emerald-300 hover:text-emerald-900 dark:hover:text-emerald-200 hover:shadow-xs ${isCollapsed ? "justify-center w-10 h-10 mx-auto" : "gap-2.5 px-3 py-2.5"}`}
           >
-            <div className="p-1 rounded-lg bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 group-hover:scale-110 transition-transform shrink-0">
+            <div className={`${isCollapsed ? "" : "p-1 rounded-lg bg-emerald-500/15"} text-emerald-600 dark:text-emerald-400 group-hover:scale-110 transition-transform shrink-0`}>
               <GraduationCap className="w-4 h-4" />
             </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center justify-between gap-1">
-                <span className="font-semibold truncate">
-                  {lang === "en" ? "Classroom Portal" : "ระบบจัดการชั้นเรียน"}
-                </span>
-                <ExternalLink className="w-3.5 h-3.5 opacity-60 group-hover:opacity-100 group-hover:translate-x-0.5 -translate-y-0.5 transition-all shrink-0 text-emerald-600 dark:text-emerald-400" />
+            {!isCollapsed && (
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between gap-1">
+                  <span className="font-semibold truncate">
+                    {lang === "en" ? "Classroom Portal" : "ระบบจัดการชั้นเรียน"}
+                  </span>
+                  <ExternalLink className="w-3.5 h-3.5 opacity-60 group-hover:opacity-100 group-hover:translate-x-0.5 -translate-y-0.5 transition-all shrink-0 text-emerald-600 dark:text-emerald-400" />
+                </div>
+                <div className="text-[10.5px] text-emerald-600/80 dark:text-emerald-400/80 truncate font-normal">
+                  {lang === "en" ? "Classroom & Student Affairs" : "ชั้นเรียน • กิจการนักเรียน • สภานักเรียน"}
+                </div>
               </div>
-              <div className="text-[10.5px] text-emerald-600/80 dark:text-emerald-400/80 truncate font-normal">
-                {lang === "en" ? "Classroom & Student Affairs" : "ชั้นเรียน • กิจการนักเรียน • สภานักเรียน"}
-              </div>
-            </div>
+            )}
           </a>
 
           {/* Section 1: บุคคล */}
-          <div className="space-y-1.5">
-            <div className="px-3 pb-0.5 text-[11.5px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-              บุคคล
-            </div>
+          <div className="space-y-1">
+            {isCollapsed ? (
+              <div className="h-px bg-slate-100 dark:bg-slate-800/80 mx-2 my-1" />
+            ) : (
+              <div className="px-3 pb-0.5 text-[11.5px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                บุคคล
+              </div>
+            )}
 
             {/* ลงเวลาปฏิบัติราชการ */}
             {showAttendance && renderNavItem({ href: "/hr/attendance", label: "ลงเวลาปฏิบัติราชการ", icon: Clock })}
@@ -1131,14 +1223,23 @@ function AppContent({ children }: { children: React.ReactNode }) {
               pathname={pathname}
               searchParams={searchParams}
               renderNavItem={renderNavItem}
+              collapsed={isCollapsed}
+              onExpand={() => {
+                setSidebarCollapsed(false);
+                try { localStorage.setItem("kp_sidebar_collapsed", "false"); } catch {}
+              }}
             />
           </div>
 
           {/* Section 2: ทั่วไป */}
-          <div className="space-y-1.5">
-            <div className="px-3 pb-0.5 text-[11.5px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-              ทั่วไป
-            </div>
+          <div className="space-y-1">
+            {isCollapsed ? (
+              <div className="h-px bg-slate-100 dark:bg-slate-800/80 mx-2 my-1" />
+            ) : (
+              <div className="px-3 pb-0.5 text-[11.5px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                ทั่วไป
+              </div>
+            )}
 
             {/* ระบบจองทรัพยากรกลาง (Collapsible Group) */}
             {facilitySubItems.length > 0 && (
@@ -1149,6 +1250,11 @@ function AppContent({ children }: { children: React.ReactNode }) {
                 pathname={pathname}
                 searchParams={searchParams}
                 renderNavItem={renderNavItem}
+                collapsed={isCollapsed}
+                onExpand={() => {
+                  setSidebarCollapsed(false);
+                  try { localStorage.setItem("kp_sidebar_collapsed", "false"); } catch {}
+                }}
               />
             )}
 
@@ -1162,6 +1268,11 @@ function AppContent({ children }: { children: React.ReactNode }) {
                 pathname={pathname}
                 searchParams={searchParams}
                 renderNavItem={renderNavItem}
+                collapsed={isCollapsed}
+                onExpand={() => {
+                  setSidebarCollapsed(false);
+                  try { localStorage.setItem("kp_sidebar_collapsed", "false"); } catch {}
+                }}
               />
             )}
 
@@ -1174,16 +1285,25 @@ function AppContent({ children }: { children: React.ReactNode }) {
                 pathname={pathname}
                 searchParams={searchParams}
                 renderNavItem={renderNavItem}
+                collapsed={isCollapsed}
+                onExpand={() => {
+                  setSidebarCollapsed(false);
+                  try { localStorage.setItem("kp_sidebar_collapsed", "false"); } catch {}
+                }}
               />
             )}
           </div>
 
           {/* Section 3: วิชาการ */}
           {(academicPlanningSubItems.length > 0 || timetableSubItems.length > 0 || substituteSubItems.length > 0 || supervisionSubItems.length > 0 || examSubItems.length > 0 || omrSubItems.length > 0 || showExam || showTimetable || showSubstitute || showSupervision || isAdmin) && (
-            <div className="space-y-1.5">
-              <div className="px-3 pb-0.5 text-[11.5px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-                วิชาการ
-              </div>
+            <div className="space-y-1">
+              {isCollapsed ? (
+                <div className="h-px bg-slate-100 dark:bg-slate-800/80 mx-2 my-1" />
+              ) : (
+                <div className="px-3 pb-0.5 text-[11.5px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                  วิชาการ
+                </div>
+              )}
 
               {/* ศูนย์งานวิชาการ */}
               {renderNavItem({ href: "/academic", label: "ศูนย์งานวิชาการ", icon: GraduationCap })}
@@ -1197,6 +1317,11 @@ function AppContent({ children }: { children: React.ReactNode }) {
                   pathname={pathname}
                   searchParams={searchParams}
                   renderNavItem={renderNavItem}
+                  collapsed={isCollapsed}
+                  onExpand={() => {
+                    setSidebarCollapsed(false);
+                    try { localStorage.setItem("kp_sidebar_collapsed", "false"); } catch {}
+                  }}
                 />
               )}
 
@@ -1209,6 +1334,11 @@ function AppContent({ children }: { children: React.ReactNode }) {
                   pathname={pathname}
                   searchParams={searchParams}
                   renderNavItem={renderNavItem}
+                  collapsed={isCollapsed}
+                  onExpand={() => {
+                    setSidebarCollapsed(false);
+                    try { localStorage.setItem("kp_sidebar_collapsed", "false"); } catch {}
+                  }}
                 />
               )}
 
@@ -1221,6 +1351,11 @@ function AppContent({ children }: { children: React.ReactNode }) {
                   pathname={pathname}
                   searchParams={searchParams}
                   renderNavItem={renderNavItem}
+                  collapsed={isCollapsed}
+                  onExpand={() => {
+                    setSidebarCollapsed(false);
+                    try { localStorage.setItem("kp_sidebar_collapsed", "false"); } catch {}
+                  }}
                 />
               )}
 
@@ -1233,6 +1368,11 @@ function AppContent({ children }: { children: React.ReactNode }) {
                   pathname={pathname}
                   searchParams={searchParams}
                   renderNavItem={renderNavItem}
+                  collapsed={isCollapsed}
+                  onExpand={() => {
+                    setSidebarCollapsed(false);
+                    try { localStorage.setItem("kp_sidebar_collapsed", "false"); } catch {}
+                  }}
                 />
               )}
 
@@ -1245,6 +1385,11 @@ function AppContent({ children }: { children: React.ReactNode }) {
                   pathname={pathname}
                   searchParams={searchParams}
                   renderNavItem={renderNavItem}
+                  collapsed={isCollapsed}
+                  onExpand={() => {
+                    setSidebarCollapsed(false);
+                    try { localStorage.setItem("kp_sidebar_collapsed", "false"); } catch {}
+                  }}
                 />
               )}
 
@@ -1257,6 +1402,11 @@ function AppContent({ children }: { children: React.ReactNode }) {
                   pathname={pathname}
                   searchParams={searchParams}
                   renderNavItem={renderNavItem}
+                  collapsed={isCollapsed}
+                  onExpand={() => {
+                    setSidebarCollapsed(false);
+                    try { localStorage.setItem("kp_sidebar_collapsed", "false"); } catch {}
+                  }}
                 />
               )}
 
@@ -1267,10 +1417,14 @@ function AppContent({ children }: { children: React.ReactNode }) {
 
           {/* Section 4: งบประมาณ */}
           {budgetSubItems.length > 0 && (
-            <div className="space-y-1.5">
-              <div className="px-3 pb-0.5 text-[11.5px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-                งบประมาณ
-              </div>
+            <div className="space-y-1">
+              {isCollapsed ? (
+                <div className="h-px bg-slate-100 dark:bg-slate-800/80 mx-2 my-1" />
+              ) : (
+                <div className="px-3 pb-0.5 text-[11.5px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                  งบประมาณ
+                </div>
+              )}
               <CollapsibleGroup
                 title="ระบบบริหารงานงบประมาณ"
                 icon={Wallet}
@@ -1278,91 +1432,103 @@ function AppContent({ children }: { children: React.ReactNode }) {
                 pathname={pathname}
                 searchParams={searchParams}
                 renderNavItem={renderNavItem}
+                collapsed={isCollapsed}
+                onExpand={() => {
+                  setSidebarCollapsed(false);
+                  try { localStorage.setItem("kp_sidebar_collapsed", "false"); } catch {}
+                }}
               />
             </div>
           )}
 
           {/* Section 5: ตั้งค่าระบบ */}
           {settingsNavItems.length > 0 && (
-            <div className="space-y-1.5">
-              <div className="px-3 pb-0.5 text-[11.5px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-                ตั้งค่าระบบ
-              </div>
+            <div className="space-y-1">
+              {isCollapsed ? (
+                <div className="h-px bg-slate-100 dark:bg-slate-800/80 mx-2 my-1" />
+              ) : (
+                <div className="px-3 pb-0.5 text-[11.5px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                  ตั้งค่าระบบ
+                </div>
+              )}
 
               {settingsNavItems.map(item => renderNavItem(item))}
             </div>
           )}
 
           <div className="pt-2 space-y-1">
-            <Link href="/profile">
-              <div className={`relative flex items-center gap-2.5 px-3 py-2 rounded-xl text-[13px] font-medium transition-all duration-200 group overflow-hidden ${
-                pathname === "/profile" 
-                  ? "text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-500/10 font-bold" 
-                  : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-800/50"
-              }`}>
-                {pathname === "/profile" && (
-                  <motion.div layoutId="activeNav" className="absolute left-0 top-1/4 bottom-1/4 w-1 bg-purple-500 rounded-r-full" />
-                )}
-                <UserCircle className={`w-4 h-4 transition-transform duration-200 ${pathname === "/profile" ? "scale-110" : "group-hover:scale-110"}`} />
-                <span className="flex-1 truncate">{t("profile")}</span>
-              </div>
-            </Link>
-            <Link href="/settings/privacy">
-              <div className={`relative flex items-center gap-2.5 px-3 py-2 rounded-xl text-[13px] font-medium transition-all duration-200 group overflow-hidden ${
-                pathname === "/settings/privacy" 
-                  ? "text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/10 font-bold" 
-                  : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-800/50"
-              }`}>
-                {pathname === "/settings/privacy" && (
-                  <motion.div layoutId="activeNav" className="absolute left-0 top-1/4 bottom-1/4 w-1 bg-indigo-500 rounded-r-full" />
-                )}
-                <ShieldCheck className={`w-4 h-4 transition-transform duration-200 ${pathname === "/settings/privacy" ? "scale-110" : "group-hover:scale-110"}`} />
-                <span className="flex-1 truncate">{lang === "en" ? "Privacy & PDPA" : "ความเป็นส่วนตัว & PDPA"}</span>
-              </div>
-            </Link>
+            {renderNavItem({ href: "/profile", label: t("profile"), icon: UserCircle })}
+            {renderNavItem({ href: "/settings/privacy", label: lang === "en" ? "Privacy & PDPA" : "ความเป็นส่วนตัว & PDPA", icon: ShieldCheck })}
           </div>
         </nav>
 
         {/* User Footer Component */}
-        <div className="p-3 mx-2.5 mb-3 mt-auto shrink-0">
-          <div className="relative overflow-hidden rounded-xl bg-white dark:bg-slate-800 border border-slate-200/50 dark:border-slate-700/50 p-2.5 shadow-2xs">
-            <div className="flex items-center gap-2.5 mb-2.5">
-              {user.image ? (
-                <img src={user.image} alt={user.name} className="w-8 h-8 rounded-full object-cover shadow-2xs border border-slate-200 dark:border-slate-700 shrink-0" />
-              ) : (
-                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center text-white text-xs font-bold shadow-2xs shrink-0">
-                  {user.name?.charAt(0)?.toUpperCase()}
-                </div>
-              )}
-              <div className="flex-1 min-w-0">
-                <p className="text-[13.5px] font-bold text-slate-900 dark:text-white truncate leading-snug">{user.name}</p>
-                <p className="text-[11.5px] text-slate-500 dark:text-slate-400 truncate">{user.position || t("staff")}</p>
+        <div className={`mb-3 mt-auto shrink-0 ${isCollapsed ? "px-1.5 py-2" : "p-3 mx-2.5"}`}>
+          {isCollapsed ? (
+            <div className="flex flex-col items-center gap-2">
+              <div title={`${user.name} (${user.position || t("staff")})`}>
+                {user.image ? (
+                  <img src={user.image} alt={user.name} className="w-8 h-8 rounded-full object-cover shadow-2xs border border-slate-200 dark:border-slate-700 shrink-0" />
+                ) : (
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center text-white text-xs font-bold shadow-2xs shrink-0">
+                    {user.name?.charAt(0)?.toUpperCase()}
+                  </div>
+                )}
               </div>
+              <button
+                onClick={async () => {
+                  clearAllClientCaches();
+                  await signOut();
+                  router.push("/login");
+                }}
+                title={t("logout")}
+                className="w-9 h-9 flex items-center justify-center rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-500/10 dark:hover:text-red-400 text-slate-500 dark:text-slate-400 transition-colors cursor-pointer"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
             </div>
-            <button
-              onClick={async () => {
-                clearAllClientCaches();
-                await signOut();
-                router.push("/login");
-              }}
-              className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-900/50 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-500/10 dark:hover:text-red-400 text-[12.5px] font-medium text-slate-600 dark:text-slate-300 transition-colors"
-            >
-              <LogOut className="w-3.5 h-3.5" />
-              {t("logout")}
-            </button>
-          </div>
+          ) : (
+            <div className="relative overflow-hidden rounded-xl bg-white dark:bg-slate-800 border border-slate-200/50 dark:border-slate-700/50 p-2.5 shadow-2xs">
+              <div className="flex items-center gap-2.5 mb-2.5">
+                {user.image ? (
+                  <img src={user.image} alt={user.name} className="w-8 h-8 rounded-full object-cover shadow-2xs border border-slate-200 dark:border-slate-700 shrink-0" />
+                ) : (
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center text-white text-xs font-bold shadow-2xs shrink-0">
+                    {user.name?.charAt(0)?.toUpperCase()}
+                  </div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <p className="text-[13.5px] font-bold text-slate-900 dark:text-white truncate leading-snug">{user.name}</p>
+                  <p className="text-[11.5px] text-slate-500 dark:text-slate-400 truncate">{user.position || t("staff")}</p>
+                </div>
+              </div>
+              <button
+                onClick={async () => {
+                  clearAllClientCaches();
+                  await signOut();
+                  router.push("/login");
+                }}
+                className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-900/50 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-500/10 dark:hover:text-red-400 text-[12.5px] font-medium text-slate-600 dark:text-slate-300 transition-colors cursor-pointer"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                {t("logout")}
+              </button>
+            </div>
+          )}
         </div>
       </aside>
 
       {/* Main Container */}
-      <main className="flex-1 flex flex-col min-w-0 min-h-screen lg:pl-[220px]">
+      <main className={`flex-1 flex flex-col min-w-0 min-h-screen transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${isCollapsed ? "lg:pl-[64px]" : "lg:pl-[220px]"}`}>
         
         {/* Top Header */}
         <header className="h-24 px-6 lg:px-10 flex items-center justify-between z-30 print:hidden">
           <div className="flex items-center gap-4">
             <button
-              onClick={() => setSidebarOpen(true)}
-              className="lg:hidden p-2 rounded-xl bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 shadow-sm"
+              type="button"
+              onClick={toggleSidebar}
+              title={isCollapsed ? "ขยายแถบเมนูด้านข้าง" : "พับเก็บแถบเมนูด้านข้าง"}
+              className="p-2.5 rounded-xl bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-purple-50 hover:text-purple-600 dark:hover:bg-slate-700 shadow-xs border border-slate-200/60 dark:border-slate-700/60 transition-all cursor-pointer"
             >
               <Menu className="w-5 h-5" />
             </button>

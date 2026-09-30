@@ -4,11 +4,11 @@ import React, { useState, useEffect, useRef } from "react";
 import { ChevronDown, Check, Minus, Plus, SlidersHorizontal, RotateCcw } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 
-const STORAGE_KEY_SIZE = "kp_eleave_font_size";
-const STORAGE_KEY_MODE = "kp_eleave_font_mode";
-const DEFAULT_FONT_SIZE = 18; // ก+ ใหญ่ (สบายตา) — 18px (ค่าเริ่มต้นสำหรับครู)
-const MIN_FONT_SIZE = 13;
-const MAX_FONT_SIZE = 22;
+const STORAGE_KEY_SIZE = "kp_eleave_font_size_v2";
+const STORAGE_KEY_MODE = "kp_eleave_font_mode_v2";
+const DEFAULT_FONT_SIZE = 14.5; // ค่ามาตรฐาน — 14.5px (ค่าเริ่มต้นสำหรับผู้ใช้ใหม่)
+const MIN_FONT_SIZE = 11;
+const MAX_FONT_SIZE = 20;
 const STEP_FONT_SIZE = 0.5;
 
 interface FontPreset {
@@ -24,24 +24,24 @@ const FONT_PRESETS: FontPreset[] = [
   {
     id: "small",
     shortBadge: "ก-",
-    buttonLabel: "ก- เล็ก",
-    menuTitle: "ก- เล็ก (กระชับ) — 14.5px",
-    sizePx: 14.5
+    buttonLabel: "ก- เล็กสุด",
+    menuTitle: "ก- เล็กสุด — 11px",
+    sizePx: 11
   },
   {
-    id: "normal",
+    id: "compact",
     shortBadge: "ก",
     buttonLabel: "ก ปกติ",
-    menuTitle: "ก ปกติ (มาตรฐาน) — 16px",
-    sizePx: 16
+    menuTitle: "ก ปกติ (มาตรฐาน) — 14.5px",
+    sizePx: 14.5,
+    isDefaultForTeacher: true
   },
   {
     id: "large",
     shortBadge: "ก+",
     buttonLabel: "ก+ ใหญ่",
-    menuTitle: "ก+ ใหญ่ (สบายตา) — 18px (ค่าเริ่มต้นสำหรับครู)",
-    sizePx: 18,
-    isDefaultForTeacher: true
+    menuTitle: "ก+ ใหญ่ (สบายตา) — 16px",
+    sizePx: 16
   },
   {
     id: "xlarge",
@@ -228,7 +228,7 @@ export function FontSizeSwitcher() {
                         ตั้งค่าขนาดเอง...
                       </div>
                       <div className="text-[10px] text-slate-500 dark:text-slate-400">
-                        ปรับละเอียด 13px – 22px (ทีละ 0.5px)
+                        ปรับละเอียด 11px – 20px (ทีละ 0.5px)
                       </div>
                     </div>
                   </div>
@@ -262,10 +262,10 @@ export function FontSizeSwitcher() {
                       className="w-full accent-purple-600 cursor-pointer h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg"
                     />
                     <div className="flex justify-between text-[9px] font-mono text-slate-400 px-0.5">
-                      <span>13px</span>
+                      <span>11px</span>
+                      <span>14.5px</span>
                       <span>16px</span>
-                      <span>18px</span>
-                      <span>22px</span>
+                      <span>20px</span>
                     </div>
                   </div>
 
@@ -288,7 +288,7 @@ export function FontSizeSwitcher() {
                     className="mt-2 w-full py-1.5 rounded-lg text-[11px] font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-200/70 dark:hover:bg-slate-700/60 flex items-center justify-center gap-1.5 transition"
                   >
                     <RotateCcw className="w-3 h-3" />
-                    คืนค่าเริ่มต้นสำหรับครู (ก+ ใหญ่ 18px)
+                    คืนค่ามาตรฐาน (ก ปกติ 14.5px)
                   </button>
                 )}
               </div>

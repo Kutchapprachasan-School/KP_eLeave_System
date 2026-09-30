@@ -25,7 +25,7 @@
 @custom-variant dark (&:is(.dark *));
 
 html {
-  font-size: var(--app-font-size, 18px);
+  font-size: var(--app-font-size, 14.5px);
 }
 
 body {
