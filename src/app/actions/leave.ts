@@ -604,7 +604,23 @@ export async function getDashboardStats(
     const { getLeaveConfigs } = await import("./settings");
     const leaveConfigs = await getLeaveConfigs();
 
-    const refDate = targetYear ? new Date(targetYear - 543, 5, 1) : new Date();
+    const now = new Date();
+    const currentFY = (now.getMonth() >= 9 ? now.getFullYear() + 1 : now.getFullYear()) + 543;
+
+    let refDate: Date;
+    if (!targetYear || targetYear === currentFY) {
+      // Current fiscal year uses today's actual date so cycle 1/2 evaluates accurately
+      refDate = now;
+    } else {
+      // Past or specified fiscal year: targetYear ends on Sep 30 of (targetYear - 543)
+      const endWesternYear = targetYear - 543;
+      if (cycleFilter === "cycle1") {
+        refDate = new Date(endWesternYear - 1, 11, 15); // Dec of cycle 1
+      } else {
+        refDate = new Date(endWesternYear, 5, 15); // June of cycle 2
+      }
+    }
+
     const filter = getLeaveCycleFilter(refDate, cycleFilter, lang);
     const cycle = filter || getCurrentLeaveCycle(refDate, lang); // fallback if all
 

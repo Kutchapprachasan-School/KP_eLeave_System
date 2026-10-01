@@ -80,7 +80,14 @@ export default function LeaveDashboardClient() {
 
   const currentFY = getCurrentFiscalYear();
   const availableYears = Array.from({ length: 5 }, (_, i) => currentFY - i);
-  const [dashboardYear, setDashboardYear] = useState<number>(currentFY);
+  // Default to 2569 where existing school leave records reside, with localStorage memory
+  const [dashboardYear, setDashboardYear] = useState<number>(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("kp_dashboard_year");
+      if (saved && availableYears.includes(Number(saved))) return Number(saved);
+    }
+    return 2569;
+  });
 
   const [cycleFilter, setCycleFilter] = useState<"current" | "cycle1" | "cycle2" | "year">("current");
   const [leaderboardFilter, setLeaderboardFilter] = useState<"times" | "days">("times");
@@ -549,7 +556,11 @@ export default function LeaveDashboardClient() {
           {/* Year Filter */}
           <select
             value={dashboardYear}
-            onChange={(e: any) => setDashboardYear(Number(e.target.value))}
+            onChange={(e: any) => {
+              const val = Number(e.target.value);
+              setDashboardYear(val);
+              try { localStorage.setItem("kp_dashboard_year", String(val)); } catch {}
+            }}
             className="h-10 px-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-medium focus:ring-2 focus:ring-purple-500/20 cursor-pointer w-full md:w-auto"
           >
             {availableYears.map(yr => (
