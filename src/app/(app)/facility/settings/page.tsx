@@ -68,7 +68,7 @@ export default function FacilitySettingsPage() {
     try {
       setSubmitting(true);
       const isVehicle = newType === "VEHICLE";
-      await createFacilityResourceAction({
+      const result = await createFacilityResourceAction({
         code: newCode.trim(),
         name: newName.trim(),
         type: newType,
@@ -88,6 +88,11 @@ export default function FacilitySettingsPage() {
         })
       });
 
+      if (!result.success) {
+        showToast("error", result.error || "เกิดข้อผิดพลาดในการเพิ่มทรัพยากร");
+        return;
+      }
+
       showToast("success", `เพิ่ม "${newName}" สำเร็จเรียบร้อยแล้ว`);
       setNewCode("");
       setNewName("");
@@ -105,7 +110,11 @@ export default function FacilitySettingsPage() {
     const nextStatus = res.status === "AVAILABLE" ? "UNDER_MAINTENANCE" : "AVAILABLE";
     const label = nextStatus === "AVAILABLE" ? "พร้อมให้บริการ" : "แจ้งปิดซ่อมบำรุง";
     try {
-      await toggleFacilityResourceStatusAction(res.id, nextStatus as any);
+      const result = await toggleFacilityResourceStatusAction(res.id, nextStatus as any);
+      if (!result.success) {
+        showToast("error", result.error || "เกิดข้อผิดพลาด");
+        return;
+      }
       showToast("success", `เปลี่ยนสถานะ "${res.name}" เป็น "${label}" แล้ว`);
       loadData();
     } catch (err: any) {
@@ -116,7 +125,11 @@ export default function FacilitySettingsPage() {
   const handleDelete = async (res: any) => {
     try {
       const result = await deleteFacilityResourceAction(res.id);
-      if (result.action === "RETIRED") {
+      if (!result.success) {
+        showToast("error", result.error || "เกิดข้อผิดพลาด");
+        return;
+      }
+      if (result.data?.action === "RETIRED") {
         showToast("info", `ทรัพยากรนี้มีประวัติการจอง จึงถูกเปลี่ยนสถานะเป็น "ปลดระวาง (RETIRED)"`);
       } else {
         showToast("success", `ลบรายการ "${res.name}" สำเร็จ`);

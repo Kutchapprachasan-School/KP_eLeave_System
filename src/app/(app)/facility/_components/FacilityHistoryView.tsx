@@ -16,7 +16,9 @@ import {
   Calendar,
   Clock,
   MapPin,
-  CheckCircle2
+  CheckCircle2,
+  Users,
+  User
 } from "lucide-react";
 import { useToast } from "@/components/toast-provider";
 import { cancelFacilityReservationAction } from "@/app/actions/facility";
@@ -33,26 +35,46 @@ import {
 } from "@/components/shared-ui/school-ops";
 
 interface FacilityHistoryViewProps {
+  reservations?: any[];
   myReservations: any[];
+  userRoleInfo?: any;
   onRefresh: () => void;
   onNavigateToRequest?: () => void;
 }
 
 export default function FacilityHistoryView({
-  myReservations,
+  reservations = [],
+  myReservations = [],
+  userRoleInfo,
   onRefresh,
   onNavigateToRequest
 }: FacilityHistoryViewProps) {
   const { showToast } = useToast();
 
+  const canViewAll = Boolean(
+    userRoleInfo?.canViewAllHistory ||
+    userRoleInfo?.isAdmin ||
+    userRoleInfo?.isDirector ||
+    userRoleInfo?.isHeadFacility ||
+    userRoleInfo?.isHeadVehicle
+  );
+  const isAdmin = Boolean(userRoleInfo?.isAdmin);
+  const currentUserId = userRoleInfo?.userId;
+
+  const [scope, setScope] = useState<"ALL" | "MINE">(() => (canViewAll ? "ALL" : "MINE"));
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [cancelTarget, setCancelTarget] = useState<any>(null);
   const [cancelling, setCancelling] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
+  const baseReservations = useMemo(() => {
+    if (!canViewAll) return myReservations;
+    return scope === "ALL" ? reservations : myReservations;
+  }, [canViewAll, scope, reservations, myReservations]);
+
   const filteredItems = useMemo(() => {
-    return myReservations.filter((res) => {
+    return baseReservations.filter((res) => {
       if (statusFilter !== "ALL") {
         if (statusFilter === "PENDING" && res.status !== "PENDING") return false;
         if (statusFilter === "APPROVED" && res.status !== "APPROVED" && res.status !== "IN_USE") return false;
@@ -64,12 +86,13 @@ export default function FacilityHistoryView({
           res.title?.toLowerCase().includes(q) ||
           res.bookingNumber?.toLowerCase().includes(q) ||
           res.resource?.name?.toLowerCase().includes(q) ||
+          res.reservedByUser?.name?.toLowerCase().includes(q) ||
           res.vehicleDetails?.destination?.toLowerCase().includes(q)
         );
       }
       return true;
     });
-  }, [myReservations, statusFilter, searchQuery]);
+  }, [baseReservations, statusFilter, searchQuery]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -104,12 +127,47 @@ export default function FacilityHistoryView({
       {/* Header & Actions */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 dark:border-slate-800 pb-4">
         <div>
-          <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
-            <FileText className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
-            ประวัติและสถานะคำขอจองของฉัน ({myReservations.length} รายการ)
-          </h2>
+          <div className="flex items-center gap-3 flex-wrap">
+            <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              <FileText className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+              {canViewAll && scope === "ALL"
+                ? `ประวัติและสถานะคำขอทั้งหมด (${baseReservations.length} รายการ)`
+                : `ประวัติและสถานะคำขอของฉัน (${baseReservations.length} รายการ)`}
+            </h2>
+
+            {canViewAll && (
+              <div className="flex items-center p-1 bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200/80 dark:border-slate-700/80 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setScope("ALL")}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                    scope === "ALL"
+                      ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-2xs"
+                      : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                  }`}
+                >
+                  <Users className="w-3.5 h-3.5" />
+                  คำขอทั้งหมด ({reservations.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setScope("MINE")}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                    scope === "MINE"
+                      ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-2xs"
+                      : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                  }`}
+                >
+                  <User className="w-3.5 h-3.5" />
+                  คำขอของฉัน ({myReservations.length})
+                </button>
+              </div>
+            )}
+          </div>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-            ติดตามสถานะการพิจารณา พิมพ์ใบขอใช้ทรัพยากรขนาด A4 หรือยกเลิกคำขอที่ยังอยู่ระหว่างรออนุมัติ
+            {canViewAll
+              ? "ติดตามสถานะคำขอของทุกคนในระบบ (สิทธิ์การยกเลิกคำขอของผู้อื่นสงวนไว้สำหรับ Admin เท่านั้น)"
+              : "ติดตามสถานะการพิจารณา พิมพ์ใบขอใช้ทรัพยากรขนาด A4 หรือยกเลิกคำขอที่ยังอยู่ระหว่างรออนุมัติ"}
           </p>
         </div>
 
@@ -233,6 +291,24 @@ export default function FacilityHistoryView({
                     </div>
                   </div>
 
+                  {/* Requester Info */}
+                  <div className="flex items-center justify-between text-[11px] text-slate-600 dark:text-slate-300 bg-white/60 dark:bg-slate-800/60 p-2 rounded-lg border border-slate-200/50 dark:border-slate-700/50">
+                    <div className="flex items-center gap-1.5 font-medium">
+                      <User className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                      <span>ผู้ขอ: <strong>{res.reservedByUser?.name || "ผู้ใช้งาน"}</strong></span>
+                      {res.reservedByUserId === currentUserId && (
+                        <span className="text-[10px] px-1.5 py-0.2 rounded bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 font-bold border border-indigo-200 dark:border-indigo-800">
+                          ฉัน
+                        </span>
+                      )}
+                    </div>
+                    {(res.department || res.reservedByUser?.position) && (
+                      <span className="text-[10px] text-slate-400 truncate max-w-[120px]">
+                        {res.department || res.reservedByUser?.position}
+                      </span>
+                    )}
+                  </div>
+
                   <div className="flex items-center gap-2 text-[11px] text-slate-500 dark:text-slate-400">
                     <Calendar className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
                     <span>
@@ -257,10 +333,11 @@ export default function FacilityHistoryView({
                         <Printer className="w-3.5 h-3.5" />
                         <span>พิมพ์ใบขอใช้</span>
                       </Link>
-                      {res.status === "PENDING" && (
+                      {res.status === "PENDING" && (isAdmin || res.reservedByUserId === currentUserId) && (
                         <button
                           onClick={() => setCancelTarget(res)}
                           className="px-3 py-1.5 rounded-lg border border-rose-200 dark:border-rose-900/50 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-xs font-bold inline-flex items-center gap-1 transition cursor-pointer"
+                          title={isAdmin && res.reservedByUserId !== currentUserId ? "ยกเลิกคำขอ (ในฐานะแอดมิน)" : "ยกเลิกคำขอ"}
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                           <span>ยกเลิก</span>
@@ -281,6 +358,7 @@ export default function FacilityHistoryView({
                   <tr className="bg-slate-50/80 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-bold">
                     <th className="p-3.5 font-mono">รหัสคำขอ</th>
                     <th className="p-3.5">ประเภท</th>
+                    <th className="p-3.5">ผู้ขอใช้</th>
                     <th className="p-3.5">ภารกิจ / ชื่องาน</th>
                     <th className="p-3.5">ทรัพยากร</th>
                     <th className="p-3.5">วันเวลาใช้งาน</th>
@@ -312,6 +390,21 @@ export default function FacilityHistoryView({
                             {isRoom ? <Building className="w-3 h-3" /> : <Bus className="w-3 h-3" />}
                             {isRoom ? "ห้องประชุม" : "รถโรงเรียน"}
                           </span>
+                        </td>
+
+                        {/* Requester */}
+                        <td className="p-3.5 whitespace-nowrap">
+                          <div className="font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                            <span>{res.reservedByUser?.name || "ผู้ใช้งาน"}</span>
+                            {res.reservedByUserId === currentUserId && (
+                              <span className="text-[10px] px-1.5 py-0.2 rounded bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 font-bold border border-indigo-200 dark:border-indigo-800">
+                                ฉัน
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-[10px] text-slate-400">
+                            {res.department || res.reservedByUser?.position || "-"}
+                          </div>
                         </td>
 
                         {/* Title & Details */}
@@ -371,11 +464,11 @@ export default function FacilityHistoryView({
                               <span className="hidden sm:inline">พิมพ์ A4</span>
                             </Link>
 
-                            {res.status === "PENDING" && (
+                            {res.status === "PENDING" && (isAdmin || res.reservedByUserId === currentUserId) && (
                               <button
                                 onClick={() => setCancelTarget(res)}
                                 className="p-1.5 sm:px-2.5 sm:py-1 rounded-lg border border-rose-200 dark:border-rose-900/50 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-xs font-semibold inline-flex items-center gap-1 transition cursor-pointer"
-                                title="ยกเลิกคำขอ"
+                                title={isAdmin && res.reservedByUserId !== currentUserId ? "ยกเลิกคำขอ (ในฐานะแอดมิน)" : "ยกเลิกคำขอ"}
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
                                 <span className="hidden sm:inline">ยกเลิก</span>
@@ -408,9 +501,19 @@ export default function FacilityHistoryView({
         />
         <UnifiedModalBody>
           {cancelTarget && (
-            <p className="text-slate-600 dark:text-slate-300 text-xs text-center py-2 leading-relaxed">
-              ท่านต้องการยกเลิกคำขอจอง &ldquo;<strong>{cancelTarget.title}</strong>&rdquo; ({cancelTarget.bookingNumber}) ใช่หรือไม่?
-            </p>
+            <div className="space-y-2 py-2 text-xs">
+              {isAdmin && cancelTarget.reservedByUserId !== currentUserId && (
+                <div className="p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-amber-600" />
+                  <span>
+                    ดำเนินการในฐานะ <strong>แอดมิน (Admin)</strong>: คุณกำลังจะยกเลิกคำขอของ &ldquo;<strong>{cancelTarget.reservedByUser?.name || 'บุคลากร'}</strong>&rdquo;
+                  </span>
+                </div>
+              )}
+              <p className="text-slate-600 dark:text-slate-300 text-center leading-relaxed">
+                ท่านต้องการยกเลิกคำขอจอง &ldquo;<strong>{cancelTarget.title}</strong>&rdquo; ({cancelTarget.bookingNumber}) ใช่หรือไม่?
+              </p>
+            </div>
           )}
         </UnifiedModalBody>
         <UnifiedModalFooter>

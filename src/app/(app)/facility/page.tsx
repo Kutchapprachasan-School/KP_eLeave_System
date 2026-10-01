@@ -221,7 +221,9 @@ function FacilityPortalContent() {
           {/* VIEW 3: MY BOOKINGS HISTORY */}
           {currentView === "history" && (
             <FacilityHistoryView
+              reservations={reservations}
               myReservations={myReservations}
+              userRoleInfo={userRoleInfo}
               onRefresh={loadData}
               onNavigateToRequest={() => navigateToView("request")}
             />
