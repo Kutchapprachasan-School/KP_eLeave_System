@@ -804,8 +804,12 @@ export default function HistoryPage() {
         const config = leaveConfigs.find((c) => c.type === item.type);
         const leaveTypeName = getLeaveTypeName(item.type);
         const leaveDays = item.leaveDays !== undefined ? item.leaveDays : calculateDays(item.startDate, item.endDate, item.type);
-        const applicantName = item.userName || staffList.find(s => s.id === item.userId)?.name || "-";
-        const applicantPosition = staffList.find(s => s.id === item.userId)?.position || "-";
+        const applicantName = (item.userName && item.userName !== "-") 
+          ? item.userName 
+          : (item.user?.name || staffList.find(s => s.id === item.userId)?.name || "-");
+        const applicantPosition = (item.userPosition && item.userPosition !== "-")
+          ? item.userPosition
+          : (item.user?.position || staffList.find(s => s.id === item.userId)?.position || "-");
         const headApprover = staffList.find(s => s.id === item.headApproverId);
         const execApprover = staffList.find(s => s.id === item.execApproverId);
         

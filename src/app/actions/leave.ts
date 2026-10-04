@@ -456,6 +456,15 @@ export async function getPaginatedLeaveHistory(rawParams: any) {
         { createdAt: "desc" },
         { id: "desc" }
       ],
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            position: true,
+          }
+        }
+      },
     }),
     prisma.leaveRequest.groupBy({
       by: ['status'],
@@ -471,6 +480,7 @@ export async function getPaginatedLeaveHistory(rawParams: any) {
       return {
         ...r,
         userName: r.user?.name || "-",
+        userPosition: (r.user as any)?.position || "-",
         startDate: r.startDate.toISOString(),
         endDate: r.endDate.toISOString(),
         createdAt: r.createdAt.toISOString(),
