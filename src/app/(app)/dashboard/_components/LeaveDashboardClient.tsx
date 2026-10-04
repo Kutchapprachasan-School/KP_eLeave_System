@@ -80,13 +80,15 @@ export default function LeaveDashboardClient() {
 
   const currentFY = getCurrentFiscalYear();
   const availableYears = Array.from({ length: 5 }, (_, i) => currentFY - i);
-  // Default to 2569 where existing school leave records reside, with localStorage memory
+  // Default to current active fiscal year (e.g. 2570), with sessionStorage memory per session
   const [dashboardYear, setDashboardYear] = useState<number>(() => {
     if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("kp_dashboard_year");
+      const saved = sessionStorage.getItem("kp_dashboard_year");
       if (saved && availableYears.includes(Number(saved))) return Number(saved);
+      // Clear legacy localStorage if it was stuck on past year
+      try { localStorage.removeItem("kp_dashboard_year"); } catch {}
     }
-    return 2569;
+    return currentFY;
   });
 
   const [cycleFilter, setCycleFilter] = useState<"current" | "cycle1" | "cycle2" | "year">("current");
@@ -559,7 +561,10 @@ export default function LeaveDashboardClient() {
             onChange={(e: any) => {
               const val = Number(e.target.value);
               setDashboardYear(val);
-              try { localStorage.setItem("kp_dashboard_year", String(val)); } catch {}
+              try {
+                sessionStorage.setItem("kp_dashboard_year", String(val));
+                localStorage.removeItem("kp_dashboard_year");
+              } catch {}
             }}
             className="h-10 px-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-medium focus:ring-2 focus:ring-purple-500/20 cursor-pointer w-full md:w-auto"
           >

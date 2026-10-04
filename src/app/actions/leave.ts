@@ -449,9 +449,13 @@ export async function getPaginatedLeaveHistory(rawParams: any) {
     prisma.leaveRequest.findMany({
       where: dataWhere,
       skip,
-      take: limit,
-      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-      include: { user: { select: { name: true } } },
+      orderBy: [
+        { fiscalYear: "desc" },
+        { approvedSeq: { sort: "desc", nulls: "first" } },
+        { pendingSeq: "desc" },
+        { createdAt: "desc" },
+        { id: "desc" }
+      ],
     }),
     prisma.leaveRequest.groupBy({
       by: ['status'],
@@ -751,16 +755,44 @@ export async function getDashboardStats(
       { name: "Arts", value: 10, fill: "#FB7185" },
     ];
 
-    // Get recent requests (all statuses, last 5)
-    const recentWhere = showSchoolOverview
-      ? {}
-      : { userId: session.user.id };
-    const recentRequests = await prisma.leaveRequest.findMany({
-      where: recentWhere,
-      orderBy: { createdAt: "desc" },
+    // Get recent requests (all active statuses, prioritizing selected cycle/year, then fallback)
+    const baseRecentWhere: any = {
+      status: { not: "CANCELLED" },
+      ...(showSchoolOverview ? {} : { userId: session.user.id })
+    };
+    const scopedRecentWhere: any = {
+      ...baseRecentWhere,
+      ...(filter ? { startDate: { gte: filter.start, lte: filter.end } } : { fiscalYear: targetYear || currentFY })
+    };
+
+    const recentOrder: any[] = [
+      { fiscalYear: "desc" },
+      { approvedSeq: { sort: "desc", nulls: "first" } },
+      { pendingSeq: "desc" },
+      { createdAt: "desc" },
+      { id: "desc" }
+    ];
+
+    let recentRequests = await prisma.leaveRequest.findMany({
+      where: scopedRecentWhere,
+      orderBy: recentOrder,
       take: 5,
       include: { user: { select: { name: true } } }
     });
+
+    if (recentRequests.length < 5) {
+      const existingIds = recentRequests.map(r => r.id);
+      const moreRequests = await prisma.leaveRequest.findMany({
+        where: {
+          ...baseRecentWhere,
+          id: { notIn: existingIds }
+        },
+        orderBy: recentOrder,
+        take: 5 - recentRequests.length,
+        include: { user: { select: { name: true } } }
+      });
+      recentRequests = [...recentRequests, ...moreRequests];
+    }
 
     // Generate Leave Leaderboard & Watchlist
     let leaveLeaderboard: any[] = [];
@@ -2452,16 +2484,18 @@ export async function getCalendarLeaves(year: number) {
   const session = await getSession();
   if (!session?.user) throw new Error("Unauthorized");
 
-  const startOfYear = new Date(year - 543, 0, 1);
-  const endOfYear = new Date(year - 543, 11, 31, 23, 59, 59);
+  // year is BE Fiscal Year (e.g. 2570 spans 1 Oct 2026 to 30 Sep 2027)
+  const ceYear = year - 543;
+  const startRange = new Date(ceYear - 1, 9, 1);
+  const endRange = new Date(ceYear, 11, 31, 23, 59, 59);
 
   const requests = await prisma.leaveRequest.findMany({
     where: {
       status: "APPROVED",
       OR: [
-        { startDate: { gte: startOfYear, lte: endOfYear } },
-        { endDate: { gte: startOfYear, lte: endOfYear } },
-        { AND: [ { startDate: { lte: startOfYear } }, { endDate: { gte: endOfYear } } ] }
+        { startDate: { gte: startRange, lte: endRange } },
+        { endDate: { gte: startRange, lte: endRange } },
+        { AND: [ { startDate: { lte: startRange } }, { endDate: { gte: endRange } } ] }
       ]
     },
     include: {

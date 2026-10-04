@@ -455,11 +455,18 @@ export async function getCycleReport(cycleFilter: "current" | "cycle1" | "cycle2
   await requireHROrAdmin();
   await ensureSequencesPopulated();
 
-  let targetDate = new Date();
-  if (targetYear) {
+  const now = new Date();
+  const currentMonth = now.getMonth();
+  const currentFY = (currentMonth >= 9 ? now.getFullYear() + 1 : now.getFullYear()) + 543;
+
+  let targetDate = now;
+  if (targetYear && targetYear !== currentFY) {
     const westernYear = targetYear - 543;
-    // Set targetDate to June 15th of the western year (which falls in cycle 2 of that fiscal year)
-    targetDate = new Date(westernYear, 5, 15);
+    if (cycleFilter === "cycle1") {
+      targetDate = new Date(westernYear - 1, 11, 15);
+    } else {
+      targetDate = new Date(westernYear, 5, 15);
+    }
   }
 
   const filter = getLeaveCycleFilter(targetDate, cycleFilter);
@@ -537,10 +544,14 @@ export async function getCanonicalLeaveReportDTO(
   }
 
   const selectedFY = targetYear || currentFY;
-  let targetDate = new Date();
-  if (targetYear) {
+  let targetDate = now;
+  if (targetYear && targetYear !== currentFY) {
     const westernYear = targetYear - 543;
-    targetDate = new Date(westernYear, 5, 15);
+    if (cycleFilter === "cycle1") {
+      targetDate = new Date(westernYear - 1, 11, 15);
+    } else {
+      targetDate = new Date(westernYear, 5, 15);
+    }
   }
 
   const filter = getLeaveCycleFilter(targetDate, cycleFilter);
