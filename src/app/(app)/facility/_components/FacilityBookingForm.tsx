@@ -18,7 +18,11 @@ import {
   ShieldCheck,
   ChevronDown,
   ChevronUp,
-  Lock
+  Lock,
+  Sun,
+  Sunset,
+  CalendarDays,
+  Sparkles
 } from "lucide-react";
 import { useSession } from "@/lib/auth-client";
 import { useToast } from "@/components/toast-provider";
@@ -241,6 +245,36 @@ export default function FacilityBookingForm({
   const hasApprovedConflict = useMemo(() => {
     return conflictingReservations.some((r) => r.status === "APPROVED" || r.status === "IN_USE");
   }, [conflictingReservations]);
+
+  // Calculate real-time duration string
+  const durationSummary = useMemo(() => {
+    if (!startDate || !startTime || !endDate || !endTime) return null;
+    const start = new Date(`${startDate}T${startTime}:00`);
+    const end = new Date(`${endDate}T${endTime}:00`);
+    if (isNaN(start.getTime()) || isNaN(end.getTime()) || end <= start) return null;
+    
+    const diffMs = end.getTime() - start.getTime();
+    const totalMinutes = Math.floor(diffMs / (1000 * 60));
+    const days = Math.floor(totalMinutes / (60 * 24));
+    const hours = Math.floor((totalMinutes % (60 * 24)) / 60);
+    const minutes = totalMinutes % 60;
+
+    const parts = [];
+    if (days > 0) parts.push(`${days} วัน`);
+    if (hours > 0) parts.push(`${hours} ชม.`);
+    if (minutes > 0) parts.push(`${minutes} นาที`);
+    return parts.join(" ") || "0 นาที";
+  }, [startDate, startTime, endDate, endTime]);
+
+  // Check if current selection matches a quick time preset
+  const activePreset = useMemo(() => {
+    if (startDate === endDate) {
+      if (startTime === "08:30" && endTime === "12:00") return "morning";
+      if (startTime === "13:00" && endTime === "16:30") return "afternoon";
+      if (startTime === "08:30" && endTime === "16:30") return "full";
+    }
+    return null;
+  }, [startDate, endDate, startTime, endTime]);
 
   // Room Specific Fields
   const [layoutType, setLayoutType] = useState("THEATER");
@@ -526,96 +560,176 @@ export default function FacilityBookingForm({
               </div>
 
               {/* Date & Time Range */}
-              <div className="p-4 sm:p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 space-y-4">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                  <div className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                    <Calendar className="w-4 h-4 text-indigo-500" />
-                    วันและเวลาที่ต้องการใช้งาน
+              <div className="rounded-2xl border border-slate-200/90 dark:border-slate-800 bg-white/90 dark:bg-slate-800/40 p-5 sm:p-6 space-y-5 shadow-xs">
+                {/* Header: Title + Live Duration Badge */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-slate-800/80">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0 border border-indigo-100 dark:border-indigo-900/50">
+                      <Calendar className="w-4.5 h-4.5" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-slate-800 dark:text-white flex items-center gap-1.5">
+                        วันและเวลาที่ต้องการใช้งาน <span className="text-rose-500">*</span>
+                      </h3>
+                      <p className="text-[11.5px] text-slate-400 dark:text-slate-500">
+                        กำหนดช่วงวันและเวลาสำหรับใช้งาน หรือเลือกช่วงเวลายอดนิยมด้านล่าง
+                      </p>
+                    </div>
                   </div>
 
-                  {/* Quick Time Slot Presets */}
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <span className="text-[11px] text-slate-400 mr-0.5">เลือกช่วงเวลาด่วน:</span>
+                  {durationSummary && (
+                    <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-indigo-50/80 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200/60 dark:border-indigo-800/60 text-xs font-bold shrink-0 self-start sm:self-auto">
+                      <Clock className="w-3.5 h-3.5 text-indigo-500" />
+                      <span>ระยะเวลา: {durationSummary}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Quick Time Slot Presets: 3 Balanced Cards */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                      เลือกช่วงเวลาด่วน (คลิกเพื่อตั้งเวลาทันที)
+                    </label>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                     {[
-                      { label: "ครึ่งเช้า (08:30–12:00)", start: "08:30", end: "12:00" },
-                      { label: "ครึ่งบ่าย (13:00–16:30)", start: "13:00", end: "16:30" },
-                      { label: "เต็มวัน (08:30–16:30)", start: "08:30", end: "16:30" }
+                      { 
+                        id: "morning", 
+                        label: "ครึ่งวันเช้า", 
+                        time: "08:30 – 12:00 น.", 
+                        start: "08:30", 
+                        end: "12:00",
+                        icon: Sun
+                      },
+                      { 
+                        id: "afternoon", 
+                        label: "ครึ่งวันบ่าย", 
+                        time: "13:00 – 16:30 น.", 
+                        start: "13:00", 
+                        end: "16:30",
+                        icon: Sunset
+                      },
+                      { 
+                        id: "full", 
+                        label: "เต็มวันราชการ", 
+                        time: "08:30 – 16:30 น.", 
+                        start: "08:30", 
+                        end: "16:30",
+                        icon: CalendarDays
+                      }
                     ].map((preset) => {
-                      const isActive = startTime === preset.start && endTime === preset.end;
+                      const isActive = activePreset === preset.id;
+                      const Icon = preset.icon;
                       return (
                         <button
-                          key={preset.label}
+                          key={preset.id}
                           type="button"
                           onClick={() => {
                             setStartTime(preset.start);
                             setEndTime(preset.end);
                           }}
-                          className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition cursor-pointer border ${
+                          className={`relative p-3 rounded-xl border text-left transition-all duration-200 cursor-pointer flex items-center gap-3 ${
                             isActive
-                              ? "bg-indigo-600 text-white border-indigo-600 shadow-2xs"
-                              : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-indigo-300"
+                              ? "bg-indigo-600 text-white border-indigo-600 shadow-sm ring-2 ring-indigo-500/20"
+                              : "bg-slate-50/70 hover:bg-white dark:bg-slate-800/40 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200/80 dark:border-slate-700 hover:border-indigo-300 dark:hover:border-indigo-700"
                           }`}
                         >
-                          {preset.label}
+                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
+                            isActive
+                              ? "bg-white/20 text-white"
+                              : "bg-white dark:bg-slate-700 text-slate-500 dark:text-slate-300 shadow-2xs border border-slate-200/60 dark:border-slate-600"
+                          }`}>
+                            <Icon className="w-4 h-4" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center justify-between">
+                              <p className={`text-xs font-bold truncate ${isActive ? "text-white" : "text-slate-800 dark:text-white"}`}>
+                                {preset.label}
+                              </p>
+                              {isActive && (
+                                <CheckCircle2 className="w-3.5 h-3.5 text-white/90 shrink-0" />
+                              )}
+                            </div>
+                            <p className={`text-[11px] truncate mt-0.5 ${isActive ? "text-indigo-100" : "text-slate-400 dark:text-slate-400 font-mono"}`}>
+                              {preset.time}
+                            </p>
+                          </div>
                         </button>
                       );
                     })}
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
                   {/* Start Date & Time */}
-                  <div className="space-y-2">
-                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400">
-                      วันและเวลาเริ่มต้น <span className="text-rose-500">*</span>
-                    </label>
-                    <div className="grid grid-cols-3 gap-2">
-                      <input
-                        type="date"
-                        required
-                        value={startDate}
-                        onChange={(e) => {
-                          const nextStart = e.target.value;
-                          if (endDate <= startDate || endDate < nextStart) {
-                            setEndDate(nextStart);
-                          }
-                          setStartDate(nextStart);
-                        }}
-                        className="col-span-2 h-10 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-900 dark:text-white"
-                      />
-                      <input
-                        type="time"
-                        required
-                        value={startTime}
-                        onChange={(e) => setStartTime(e.target.value)}
-                        className="h-10 px-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-900 dark:text-white"
-                      />
+                  <div className="p-3.5 rounded-xl border border-slate-200/80 dark:border-slate-700/80 bg-slate-50/40 dark:bg-slate-800/20 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
+                        วันและเวลาเริ่มต้น <span className="text-rose-500">*</span>
+                      </label>
+                    </div>
+                    <div className="grid grid-cols-5 gap-2">
+                      <div className="col-span-3">
+                        <input
+                          type="date"
+                          required
+                          value={startDate}
+                          onChange={(e) => {
+                            const nextStart = e.target.value;
+                            if (endDate <= startDate || endDate < nextStart) {
+                              setEndDate(nextStart);
+                            }
+                            setStartDate(nextStart);
+                          }}
+                          className="w-full h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-medium text-slate-800 dark:text-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 shadow-2xs transition-all"
+                        />
+                      </div>
+                      <div className="col-span-2">
+                        <input
+                          type="time"
+                          required
+                          value={startTime}
+                          onChange={(e) => setStartTime(e.target.value)}
+                          className="w-full h-10 px-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-semibold text-slate-800 dark:text-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 shadow-2xs font-mono transition-all text-center"
+                        />
+                      </div>
                     </div>
                   </div>
 
                   {/* End Date & Time */}
-                  <div className="space-y-2">
-                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400">
-                      วันและเวลาสิ้นสุด <span className="text-rose-500">*</span>
-                    </label>
-                    <div className="grid grid-cols-3 gap-2">
-                      <input
-                        type="date"
-                        required
-                        value={endDate}
-                        min={startDate}
-                        onChange={(e) => setEndDate(e.target.value)}
-                        className="col-span-2 h-10 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-900 dark:text-white"
-                      />
-                      <input
-                        type="time"
-                        required
-                        value={endTime}
-                        onChange={(e) => setEndTime(e.target.value)}
-                        className="h-10 px-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-900 dark:text-white"
-                      />
+                  <div className="p-3.5 rounded-xl border border-slate-200/80 dark:border-slate-700/80 bg-slate-50/40 dark:bg-slate-800/20 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-rose-500 inline-block" />
+                        วันและเวลาสิ้นสุด <span className="text-rose-500">*</span>
+                      </label>
+                    </div>
+                    <div className="grid grid-cols-5 gap-2">
+                      <div className="col-span-3">
+                        <input
+                          type="date"
+                          required
+                          value={endDate}
+                          min={startDate}
+                          onChange={(e) => setEndDate(e.target.value)}
+                          className="w-full h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-medium text-slate-800 dark:text-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 shadow-2xs transition-all"
+                        />
+                      </div>
+                      <div className="col-span-2">
+                        <input
+                          type="time"
+                          required
+                          value={endTime}
+                          onChange={(e) => setEndTime(e.target.value)}
+                          className="w-full h-10 px-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-semibold text-slate-800 dark:text-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 shadow-2xs font-mono transition-all text-center"
+                        />
+                      </div>
                     </div>
                   </div>
+                </div>
 
                   {/* Real-Time Conflict Warning against Other Reservations */}
                   {conflictingReservations.length > 0 && (
@@ -677,7 +791,6 @@ export default function FacilityBookingForm({
                     </div>
                   )}
                 </div>
-              </div>
 
               {/* Department, Attendees & Contact */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">

@@ -871,7 +871,11 @@ export async function cancelFacilityReservationAction(
       }
 
       const isOwner = reservation.reservedByUserId === user.id;
-      const isAdmin = user.role === "ADMIN";
+      const isAdmin = user.role === "ADMIN" || (user as any).position === "แอดมิน";
+
+      if (!isOwner && !isAdmin) {
+        throw new Error("ท่านไม่สามารถยกเลิกคำขอของผู้อื่นได้ (สิทธิ์การยกเลิกคำขอของผู้อื่นสงวนไว้สำหรับผู้ดูแลระบบ Admin เท่านั้น)");
+      }
 
       if (reservation.status === "IN_USE" && !isAdmin) {
         throw new Error("ภารกิจกำลังดำเนินการอยู่ เฉพาะผู้ดูแลระบบเท่านั้นที่สามารถยกเลิกฉุกเฉินได้");
@@ -885,7 +889,7 @@ export async function cancelFacilityReservationAction(
       }
 
       const updated = await transitionReservationStatus(tx, reservationId, "CANCELLED", {
-        rejectionReason: `ยกเลิกโดย ${user.name || user.email}`
+        rejectionReason: `ยกเลิกโดย ${user.name || user.email}${isAdmin && !isOwner ? " (ผู้ดูแลระบบ)" : ""}`
       });
 
       return mapReservationToDTO(updated);
@@ -1218,60 +1222,139 @@ export async function updateDriverProfileAction(
 
 /**
  * 1. Create Facility Resource Action (with Domain-scoped RBAC and Profile Invariant)
+ * Hardened with executeFacilityAction and idempotent resurrection of RETIRED resources
  */
-export async function createFacilityResourceAction(data: CreateFacilityResourceInput) {
-  const user = await getSessionUser();
-  if (!user) throw new Error("กรุณาเข้าสู่ระบบ");
-  assertFacilityPermission(user, "facility:resource.create");
-  assertResourceDomainPermission(user, data.type);
+export async function createFacilityResourceAction(
+  data: CreateFacilityResourceInput
+): Promise<FacilityActionResult<FacilityResourceDTO>> {
+  return await executeFacilityAction("createFacilityResourceAction", async () => {
+    const user = await getSessionUser();
+    if (!user) throw new Error("กรุณาเข้าสู่ระบบ");
+    assertFacilityPermission(user, "facility:resource.create");
+    assertResourceDomainPermission(user, data.type);
 
-  const isVehicle = data.type === "VEHICLE";
-  const isRoomLike = ["MEETING_ROOM", "CLASSROOM", "LABORATORY", "EQUIPMENT", "OTHER"].includes(data.type);
+    const isVehicle = data.type === "VEHICLE";
+    const isRoomLike = ["MEETING_ROOM", "CLASSROOM", "LABORATORY", "EQUIPMENT", "OTHER"].includes(data.type);
+    const trimmedCode = data.code.trim().toUpperCase();
 
-  const created = await prisma.facilityResource.create({
-    data: {
-      code: data.code.trim().toUpperCase(),
-      name: data.name.trim(),
-      type: data.type,
-      capacity: data.capacity ? Number(data.capacity) : null,
-      location: data.location?.trim() || null,
-      description: data.description?.trim() || null,
-      status: data.status || "AVAILABLE",
-      ...(isRoomLike ? {
-        roomProfile: {
-          create: {
-            floor: data.roomProfile?.floor || "ชั้น 1",
-            hasProjector: data.roomProfile?.hasProjector ?? true,
-            hasSoundSystem: data.roomProfile?.hasSoundSystem ?? true,
-            hasVideoConference: data.roomProfile?.hasVideoConference ?? false,
-            airConditionerCount: data.roomProfile?.airConditionerCount ?? 2
+    // Check if resource with this code already exists
+    const existing = await prisma.facilityResource.findUnique({
+      where: { code: trimmedCode },
+      include: { roomProfile: true, vehicleProfile: true }
+    });
+
+    if (existing) {
+      if (existing.status === "RETIRED") {
+        // Resurrect / update existing retired resource
+        const updated = await prisma.facilityResource.update({
+          where: { id: existing.id },
+          data: {
+            name: data.name.trim(),
+            type: data.type,
+            capacity: data.capacity ? Number(data.capacity) : null,
+            location: data.location?.trim() || null,
+            description: data.description?.trim() || null,
+            status: data.status || "AVAILABLE",
+            ...(isRoomLike ? {
+              roomProfile: {
+                upsert: {
+                  create: {
+                    floor: data.roomProfile?.floor || "ชั้น 1",
+                    hasProjector: data.roomProfile?.hasProjector ?? true,
+                    hasSoundSystem: data.roomProfile?.hasSoundSystem ?? true,
+                    hasVideoConference: data.roomProfile?.hasVideoConference ?? false,
+                    airConditionerCount: data.roomProfile?.airConditionerCount ?? 2
+                  },
+                  update: {
+                    floor: data.roomProfile?.floor || "ชั้น 1",
+                    hasProjector: data.roomProfile?.hasProjector ?? true,
+                    hasSoundSystem: data.roomProfile?.hasSoundSystem ?? true,
+                    hasVideoConference: data.roomProfile?.hasVideoConference ?? false,
+                    airConditionerCount: data.roomProfile?.airConditionerCount ?? 2
+                  }
+                }
+              }
+            } : {}),
+            ...(isVehicle ? {
+              vehicleProfile: {
+                upsert: {
+                  create: {
+                    licensePlate: data.vehicleProfile?.licensePlate?.trim() || trimmedCode,
+                    brand: data.vehicleProfile?.brand?.trim() || "ยานพาหนะโรงเรียน",
+                    model: data.vehicleProfile?.model?.trim() || "",
+                    fuelType: data.vehicleProfile?.fuelType || "DIESEL",
+                    seatCapacity: data.vehicleProfile?.seatCapacity ?? (data.capacity ? Number(data.capacity) : 12),
+                    currentOdometer: data.vehicleProfile?.currentOdometer ?? 0
+                  },
+                  update: {
+                    licensePlate: data.vehicleProfile?.licensePlate?.trim() || trimmedCode,
+                    brand: data.vehicleProfile?.brand?.trim() || "ยานพาหนะโรงเรียน",
+                    model: data.vehicleProfile?.model?.trim() || "",
+                    fuelType: data.vehicleProfile?.fuelType || "DIESEL",
+                    seatCapacity: data.vehicleProfile?.seatCapacity ?? (data.capacity ? Number(data.capacity) : 12),
+                    currentOdometer: data.vehicleProfile?.currentOdometer ?? 0
+                  }
+                }
+              }
+            } : {})
+          },
+          include: {
+            roomProfile: true,
+            vehicleProfile: true
           }
-        }
-      } : {}),
-      ...(isVehicle ? {
-        vehicleProfile: {
-          create: {
-            licensePlate: data.vehicleProfile?.licensePlate?.trim() || data.code.trim().toUpperCase(),
-            brand: data.vehicleProfile?.brand?.trim() || "ยานพาหนะโรงเรียน",
-            model: data.vehicleProfile?.model?.trim() || "",
-            fuelType: data.vehicleProfile?.fuelType || "DIESEL",
-            seatCapacity: data.vehicleProfile?.seatCapacity ?? (data.capacity ? Number(data.capacity) : 12),
-            currentOdometer: data.vehicleProfile?.currentOdometer ?? 0
-          }
-        }
-      } : {})
-    },
-    include: {
-      roomProfile: true,
-      vehicleProfile: true
+        });
+        return mapResourceToDTO(updated);
+      } else {
+        throw new Error(`รหัสกำกับ '${trimmedCode}' มีอยู่ในระบบแล้ว กรุณาใช้รหัสอื่นหรือแก้ไขรายการเดิม`);
+      }
     }
-  });
 
-  revalidatePath("/facility");
-  revalidatePath("/general/facility");
-  revalidatePath("/academic/facility");
-  revalidatePath("/facility/settings");
-  return created;
+    const created = await prisma.facilityResource.create({
+      data: {
+        code: trimmedCode,
+        name: data.name.trim(),
+        type: data.type,
+        capacity: data.capacity ? Number(data.capacity) : null,
+        location: data.location?.trim() || null,
+        description: data.description?.trim() || null,
+        status: data.status || "AVAILABLE",
+        ...(isRoomLike ? {
+          roomProfile: {
+            create: {
+              floor: data.roomProfile?.floor || "ชั้น 1",
+              hasProjector: data.roomProfile?.hasProjector ?? true,
+              hasSoundSystem: data.roomProfile?.hasSoundSystem ?? true,
+              hasVideoConference: data.roomProfile?.hasVideoConference ?? false,
+              airConditionerCount: data.roomProfile?.airConditionerCount ?? 2
+            }
+          }
+        } : {}),
+        ...(isVehicle ? {
+          vehicleProfile: {
+            create: {
+              licensePlate: data.vehicleProfile?.licensePlate?.trim() || trimmedCode,
+              brand: data.vehicleProfile?.brand?.trim() || "ยานพาหนะโรงเรียน",
+              model: data.vehicleProfile?.model?.trim() || "",
+              fuelType: data.vehicleProfile?.fuelType || "DIESEL",
+              seatCapacity: data.vehicleProfile?.seatCapacity ?? (data.capacity ? Number(data.capacity) : 12),
+              currentOdometer: data.vehicleProfile?.currentOdometer ?? 0
+            }
+          }
+        } : {})
+      },
+      include: {
+        roomProfile: true,
+        vehicleProfile: true
+      }
+    });
+
+    return mapResourceToDTO(created);
+  }, () => {
+    revalidatePath("/facility");
+    revalidatePath("/general/facility");
+    revalidatePath("/academic/facility");
+    revalidatePath("/facility/settings");
+  });
 }
 
 /**
@@ -1289,207 +1372,217 @@ export async function updateFacilityResourceAction(
     roomProfile?: any;
     vehicleProfile?: any;
   }
-) {
-  const user = await getSessionUser();
-  if (!user) throw new Error("กรุณาเข้าสู่ระบบ");
-  assertFacilityPermission(user, "facility:resource.manage");
+): Promise<FacilityActionResult<FacilityResourceDTO>> {
+  return await executeFacilityAction("updateFacilityResourceAction", async () => {
+    const user = await getSessionUser();
+    if (!user) throw new Error("กรุณาเข้าสู่ระบบ");
+    assertFacilityPermission(user, "facility:resource.manage");
 
-  return await prisma.$transaction(async (tx) => {
-    // 1. Pessimistic Row Lock on FacilityResource
-    const [locked] = await tx.$queryRaw<Array<{ id: string; type: ResourceType; status: ResourceStatus }>>`
-      SELECT id, type, status FROM "FacilityResource" WHERE id = ${id} FOR UPDATE;
-    `;
-    if (!locked) throw new Error("ไม่พบข้อมูลทรัพยากร");
-    assertResourceDomainPermission(user, locked.type);
+    const updated = await prisma.$transaction(async (tx) => {
+      // 1. Pessimistic Row Lock on FacilityResource
+      const [locked] = await tx.$queryRaw<Array<{ id: string; type: ResourceType; status: ResourceStatus }>>`
+        SELECT id, type, status FROM "FacilityResource" WHERE id = ${id} FOR UPDATE;
+      `;
+      if (!locked) throw new Error("ไม่พบข้อมูลทรัพยากร");
+      assertResourceDomainPermission(user, locked.type);
 
-    const updateData: any = {
-      ...(data.code ? { code: data.code.trim().toUpperCase() } : {}),
-      ...(data.name ? { name: data.name.trim() } : {}),
-      ...(data.capacity !== undefined ? { capacity: Number(data.capacity) } : {}),
-      ...(data.location !== undefined ? { location: data.location?.trim() || null } : {}),
-      ...(data.description !== undefined ? { description: data.description?.trim() || null } : {}),
-    };
+      const updateData: any = {
+        ...(data.code ? { code: data.code.trim().toUpperCase() } : {}),
+        ...(data.name ? { name: data.name.trim() } : {}),
+        ...(data.capacity !== undefined ? { capacity: Number(data.capacity) } : {}),
+        ...(data.location !== undefined ? { location: data.location?.trim() || null } : {}),
+        ...(data.description !== undefined ? { description: data.description?.trim() || null } : {}),
+      };
 
-    // If changing status, check IN_USE invariant
-    if (data.status && data.status !== locked.status) {
-      if (data.status === "OUT_OF_SERVICE" || data.status === "UNDER_MAINTENANCE" || data.status === "RETIRED") {
-        const activeInUse = await tx.reservationResourceAssignment.findFirst({
-          where: { resourceId: id, status: "IN_USE" }
-        });
-        if (activeInUse) {
-          throw new Error(`ไม่สามารถเปลี่ยนสถานะเป็น "${data.status}" ได้ เนื่องจากทรัพยากรนี้กำลังถูกใช้งานจริงในขณะนี้ (IN_USE)`);
-        }
-      }
-      updateData.status = data.status;
-    }
-
-    // Upsert profiles appropriately
-    if (locked.type === "VEHICLE" && data.vehicleProfile) {
-      updateData.vehicleProfile = {
-        upsert: {
-          create: {
-            licensePlate: data.vehicleProfile.licensePlate || data.code || id,
-            brand: data.vehicleProfile.brand || "",
-            model: data.vehicleProfile.model || "",
-            fuelType: data.vehicleProfile.fuelType || "DIESEL",
-            seatCapacity: data.vehicleProfile.seatCapacity ?? 12,
-            currentOdometer: data.vehicleProfile.currentOdometer ?? 0
-          },
-          update: {
-            ...(data.vehicleProfile.licensePlate ? { licensePlate: data.vehicleProfile.licensePlate } : {}),
-            ...(data.vehicleProfile.brand !== undefined ? { brand: data.vehicleProfile.brand } : {}),
-            ...(data.vehicleProfile.model !== undefined ? { model: data.vehicleProfile.model } : {}),
-            ...(data.vehicleProfile.fuelType !== undefined ? { fuelType: data.vehicleProfile.fuelType } : {}),
-            ...(data.vehicleProfile.seatCapacity !== undefined ? { seatCapacity: Number(data.vehicleProfile.seatCapacity) } : {}),
-            ...(data.vehicleProfile.currentOdometer !== undefined ? { currentOdometer: Number(data.vehicleProfile.currentOdometer) } : {})
+      // If changing status, check IN_USE invariant
+      if (data.status && data.status !== locked.status) {
+        if (data.status === "OUT_OF_SERVICE" || data.status === "UNDER_MAINTENANCE" || data.status === "RETIRED") {
+          const activeInUse = await tx.reservationResourceAssignment.findFirst({
+            where: { resourceId: id, status: "IN_USE" }
+          });
+          if (activeInUse) {
+            throw new Error(`ไม่สามารถเปลี่ยนสถานะเป็น "${data.status}" ได้ เนื่องจากทรัพยากรนี้กำลังถูกใช้งานจริงในขณะนี้ (IN_USE)`);
           }
         }
-      };
-    } else if (locked.type === "MEETING_ROOM" && data.roomProfile) {
-      updateData.roomProfile = {
-        upsert: {
-          create: {
-            floor: data.roomProfile.floor || "ชั้น 1",
-            hasProjector: data.roomProfile.hasProjector ?? true,
-            hasSoundSystem: data.roomProfile.hasSoundSystem ?? true,
-            hasVideoConference: data.roomProfile.hasVideoConference ?? false,
-            airConditionerCount: data.roomProfile.airConditionerCount ?? 2
-          },
-          update: {
-            ...(data.roomProfile.floor !== undefined ? { floor: data.roomProfile.floor } : {}),
-            ...(data.roomProfile.hasProjector !== undefined ? { hasProjector: data.roomProfile.hasProjector } : {}),
-            ...(data.roomProfile.hasSoundSystem !== undefined ? { hasSoundSystem: data.roomProfile.hasSoundSystem } : {}),
-            ...(data.roomProfile.hasVideoConference !== undefined ? { hasVideoConference: data.roomProfile.hasVideoConference } : {}),
-            ...(data.roomProfile.airConditionerCount !== undefined ? { airConditionerCount: Number(data.roomProfile.airConditionerCount) } : {})
-          }
-        }
-      };
-    }
-
-    const updated = await tx.facilityResource.update({
-      where: { id },
-      data: updateData,
-      include: {
-        roomProfile: true,
-        vehicleProfile: true
+        updateData.status = data.status;
       }
+
+      // Upsert profiles appropriately
+      if (locked.type === "VEHICLE" && data.vehicleProfile) {
+        updateData.vehicleProfile = {
+          upsert: {
+            create: {
+              licensePlate: data.vehicleProfile.licensePlate || data.code || id,
+              brand: data.vehicleProfile.brand || "",
+              model: data.vehicleProfile.model || "",
+              fuelType: data.vehicleProfile.fuelType || "DIESEL",
+              seatCapacity: data.vehicleProfile.seatCapacity ?? 12,
+              currentOdometer: data.vehicleProfile.currentOdometer ?? 0
+            },
+            update: {
+              ...(data.vehicleProfile.licensePlate ? { licensePlate: data.vehicleProfile.licensePlate } : {}),
+              ...(data.vehicleProfile.brand !== undefined ? { brand: data.vehicleProfile.brand } : {}),
+              ...(data.vehicleProfile.model !== undefined ? { model: data.vehicleProfile.model } : {}),
+              ...(data.vehicleProfile.fuelType !== undefined ? { fuelType: data.vehicleProfile.fuelType } : {}),
+              ...(data.vehicleProfile.seatCapacity !== undefined ? { seatCapacity: Number(data.vehicleProfile.seatCapacity) } : {}),
+              ...(data.vehicleProfile.currentOdometer !== undefined ? { currentOdometer: Number(data.vehicleProfile.currentOdometer) } : {})
+            }
+          }
+        };
+      } else if (locked.type === "MEETING_ROOM" && data.roomProfile) {
+        updateData.roomProfile = {
+          upsert: {
+            create: {
+              floor: data.roomProfile.floor || "ชั้น 1",
+              hasProjector: data.roomProfile.hasProjector ?? true,
+              hasSoundSystem: data.roomProfile.hasSoundSystem ?? true,
+              hasVideoConference: data.roomProfile.hasVideoConference ?? false,
+              airConditionerCount: data.roomProfile.airConditionerCount ?? 2
+            },
+            update: {
+              ...(data.roomProfile.floor !== undefined ? { floor: data.roomProfile.floor } : {}),
+              ...(data.roomProfile.hasProjector !== undefined ? { hasProjector: data.roomProfile.hasProjector } : {}),
+              ...(data.roomProfile.hasSoundSystem !== undefined ? { hasSoundSystem: data.roomProfile.hasSoundSystem } : {}),
+              ...(data.roomProfile.hasVideoConference !== undefined ? { hasVideoConference: data.roomProfile.hasVideoConference } : {}),
+              ...(data.roomProfile.airConditionerCount !== undefined ? { airConditionerCount: Number(data.roomProfile.airConditionerCount) } : {})
+            }
+          }
+        };
+      }
+
+      return await tx.facilityResource.update({
+        where: { id },
+        data: updateData,
+        include: {
+          roomProfile: true,
+          vehicleProfile: true
+        }
+      });
     });
 
+    return mapResourceToDTO(updated);
+  }, () => {
     revalidatePath("/facility");
     revalidatePath("/general/facility");
     revalidatePath("/academic/facility");
     revalidatePath("/facility/settings");
-    return updated;
   });
 }
 
 /**
  * 3. Toggle Facility Resource Status Action (Row-locked with IN_USE Guard)
  */
-export async function toggleFacilityResourceStatusAction(id: string, newStatus: ResourceStatus) {
-  const user = await getSessionUser();
-  if (!user) throw new Error("กรุณาเข้าสู่ระบบ");
-  assertFacilityPermission(user, "facility:resource.manage");
+export async function toggleFacilityResourceStatusAction(
+  id: string,
+  newStatus: ResourceStatus
+): Promise<FacilityActionResult<FacilityResourceDTO>> {
+  return await executeFacilityAction("toggleFacilityResourceStatusAction", async () => {
+    const user = await getSessionUser();
+    if (!user) throw new Error("กรุณาเข้าสู่ระบบ");
+    assertFacilityPermission(user, "facility:resource.manage");
 
-  return await prisma.$transaction(async (tx) => {
-    // 1. Pessimistic Row Lock
-    const [locked] = await tx.$queryRaw<Array<{ id: string; type: ResourceType; status: ResourceStatus }>>`
-      SELECT id, type, status FROM "FacilityResource" WHERE id = ${id} FOR UPDATE;
-    `;
-    if (!locked) throw new Error("ไม่พบข้อมูลทรัพยากร");
-    assertResourceDomainPermission(user, locked.type);
+    const updated = await prisma.$transaction(async (tx) => {
+      // 1. Pessimistic Row Lock
+      const [locked] = await tx.$queryRaw<Array<{ id: string; type: ResourceType; status: ResourceStatus }>>`
+        SELECT id, type, status FROM "FacilityResource" WHERE id = ${id} FOR UPDATE;
+      `;
+      if (!locked) throw new Error("ไม่พบข้อมูลทรัพยากร");
+      assertResourceDomainPermission(user, locked.type);
 
-    // 2. Active IN_USE check
-    if (newStatus === "OUT_OF_SERVICE" || newStatus === "UNDER_MAINTENANCE" || newStatus === "RETIRED") {
-      const activeInUse = await tx.reservationResourceAssignment.findFirst({
-        where: { resourceId: id, status: "IN_USE" }
-      });
-      if (activeInUse) {
-        throw new Error(`ไม่สามารถเปลี่ยนสถานะเป็น "${newStatus}" ได้ เนื่องจากทรัพยากรนี้กำลังถูกใช้งานจริงในขณะนี้ (IN_USE)`);
+      // 2. Active IN_USE check
+      if (newStatus === "OUT_OF_SERVICE" || newStatus === "UNDER_MAINTENANCE" || newStatus === "RETIRED") {
+        const activeInUse = await tx.reservationResourceAssignment.findFirst({
+          where: { resourceId: id, status: "IN_USE" }
+        });
+        if (activeInUse) {
+          throw new Error(`ไม่สามารถเปลี่ยนสถานะเป็น "${newStatus}" ได้ เนื่องจากทรัพยากรนี้กำลังถูกใช้งานจริงในขณะนี้ (IN_USE)`);
+        }
       }
-    }
 
-    const updated = await tx.facilityResource.update({
-      where: { id },
-      data: { status: newStatus }
+      return await tx.facilityResource.update({
+        where: { id },
+        data: { status: newStatus },
+        include: {
+          roomProfile: true,
+          vehicleProfile: true
+        }
+      });
     });
 
+    return mapResourceToDTO(updated);
+  }, () => {
     revalidatePath("/facility");
     revalidatePath("/general/facility");
     revalidatePath("/academic/facility");
     revalidatePath("/facility/settings");
-    return updated;
   });
 }
 
 /**
  * 4. Delete Facility Resource Action (Authoritative Assignment Check with Specific P2003/23503 Fallback)
  */
-export async function deleteFacilityResourceAction(id: string) {
-  const user = await getSessionUser();
-  if (!user) throw new Error("กรุณาเข้าสู่ระบบ");
-  assertFacilityPermission(user, "facility:resource.manage");
+export async function deleteFacilityResourceAction(
+  id: string
+): Promise<FacilityActionResult<{ action: "RETIRED" | "DELETED"; resource: FacilityResourceDTO }>> {
+  return await executeFacilityAction("deleteFacilityResourceAction", async () => {
+    const user = await getSessionUser();
+    if (!user) throw new Error("กรุณาเข้าสู่ระบบ");
+    assertFacilityPermission(user, "facility:resource.manage");
 
-  return await prisma.$transaction(async (tx) => {
-    // 1. Pessimistic Row Lock
-    const [locked] = await tx.$queryRaw<Array<{ id: string; type: ResourceType; status: ResourceStatus }>>`
-      SELECT id, type, status FROM "FacilityResource" WHERE id = ${id} FOR UPDATE;
-    `;
-    if (!locked) throw new Error("ไม่พบข้อมูลทรัพยากร");
-    assertResourceDomainPermission(user, locked.type);
+    return await prisma.$transaction(async (tx) => {
+      // 1. Pessimistic Row Lock
+      const [locked] = await tx.$queryRaw<Array<{ id: string; type: ResourceType; status: ResourceStatus }>>`
+        SELECT id, type, status FROM "FacilityResource" WHERE id = ${id} FOR UPDATE;
+      `;
+      if (!locked) throw new Error("ไม่พบข้อมูลทรัพยากร");
+      assertResourceDomainPermission(user, locked.type);
 
-    // 2. Authoritative check on ReservationResourceAssignment
-    const assignmentCount = await tx.reservationResourceAssignment.count({
-      where: { resourceId: id }
-    });
-
-    if (assignmentCount > 0) {
-      // Historical reservations exist -> MUST RETIRE, NEVER HARD DELETE!
-      const retired = await tx.facilityResource.update({
-        where: { id },
-        data: { status: "RETIRED" }
+      // 2. Authoritative check on ReservationResourceAssignment
+      const assignmentCount = await tx.reservationResourceAssignment.count({
+        where: { resourceId: id }
       });
-      revalidatePath("/facility");
-      revalidatePath("/general/facility");
-      revalidatePath("/academic/facility");
-      revalidatePath("/facility/settings");
-      return { action: "RETIRED" as const, resource: retired };
-    }
 
-    // 3. No reservation assignments exist -> Attempt hard delete
-    try {
-      const deleted = await tx.facilityResource.delete({
-        where: { id }
-      });
-      revalidatePath("/facility");
-      revalidatePath("/general/facility");
-      revalidatePath("/academic/facility");
-      revalidatePath("/facility/settings");
-      return { action: "DELETED" as const, resource: deleted };
-    } catch (err: any) {
-      // Catch ONLY specific foreign key violation errors (P2003 / PostgreSQL 23503)
-      const isFkViolation =
-        err?.code === "P2003" ||
-        err?.code === "23503" ||
-        err?.message?.includes("foreign key constraint") ||
-        err?.message?.includes("Foreign key constraint failed");
-
-      if (isFkViolation) {
-        // Fallback safely to RETIRED to preserve external reference
+      if (assignmentCount > 0) {
+        // Historical reservations exist -> MUST RETIRE, NEVER HARD DELETE!
         const retired = await tx.facilityResource.update({
           where: { id },
-          data: { status: "RETIRED" }
+          data: { status: "RETIRED" },
+          include: { roomProfile: true, vehicleProfile: true }
         });
-        revalidatePath("/facility");
-        revalidatePath("/general/facility");
-        revalidatePath("/academic/facility");
-        revalidatePath("/facility/settings");
-        return { action: "RETIRED" as const, resource: retired };
+        return { action: "RETIRED" as const, resource: mapResourceToDTO(retired) };
       }
 
-      // Any other unexpected error (network, pool timeout, syntax) MUST be rethrown
-      throw err;
-    }
+      // 3. No reservation assignments exist -> Attempt hard delete
+      try {
+        const deleted = await tx.facilityResource.delete({
+          where: { id },
+          include: { roomProfile: true, vehicleProfile: true }
+        });
+        return { action: "DELETED" as const, resource: mapResourceToDTO(deleted) };
+      } catch (err: any) {
+        const isFkViolation =
+          err?.code === "P2003" ||
+          err?.code === "23503" ||
+          err?.message?.includes("foreign key constraint") ||
+          err?.message?.includes("Foreign key constraint failed");
+
+        if (isFkViolation) {
+          const retired = await tx.facilityResource.update({
+            where: { id },
+            data: { status: "RETIRED" },
+            include: { roomProfile: true, vehicleProfile: true }
+          });
+          return { action: "RETIRED" as const, resource: mapResourceToDTO(retired) };
+        }
+
+        throw err;
+      }
+    });
+  }, () => {
+    revalidatePath("/facility");
+    revalidatePath("/general/facility");
+    revalidatePath("/academic/facility");
+    revalidatePath("/facility/settings");
   });
 }
 
@@ -1606,29 +1699,79 @@ export async function getCurrentFacilityUserRoleAction() {
   const user = await getSessionUser();
   if (!user) {
     return {
+      userId: null,
       user: null,
       role: "TEACHER" as const,
       canManage: false,
       isAdmin: false,
+      isDirector: false,
+      isHeadFacility: false,
+      isHeadVehicle: false,
+      canViewAllHistory: false,
+      canCancelOthers: false,
       canManageRooms: false,
       canManageVehicles: false
     };
   }
-  const dbUser = await prisma.user.findUnique({
-    where: { id: user.id },
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      role: true,
-      position: true,
-      subjectGroup: true,
-      phoneNumber: true
-    }
-  }).catch(() => null);
 
-  const role = getFacilityRole(user);
-  const canManage = hasFacilityPermission(user, "facility:resource.manage");
+  const [dbUser, facilitySettings, sysSettings] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: user.id },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        position: true,
+        department: true,
+        subjectGroup: true,
+        phoneNumber: true
+      }
+    }).catch(() => null),
+    prisma.facilitySettings.findUnique({ where: { id: "default" } }).catch(() => null),
+    prisma.systemSettings.findFirst().catch(() => null)
+  ]);
+
+  const baseRole = getFacilityRole(user);
+
+  const isAdmin =
+    baseRole === "ADMIN" ||
+    user.role === "ADMIN" ||
+    dbUser?.role === "ADMIN" ||
+    dbUser?.position === "แอดมิน";
+
+  const isDirector =
+    baseRole === "DIRECTOR" ||
+    user.role === "DIRECTOR" ||
+    dbUser?.role === "DIRECTOR" ||
+    Boolean(dbUser?.position?.includes("ผู้อำนวยการ") || dbUser?.position?.includes("รองผู้อำนวยการ")) ||
+    Boolean(sysSettings?.finalApproverUserIds?.split(",").map((s: string) => s.trim()).includes(user.id)) ||
+    Boolean(facilitySettings?.approverStep2UserIds?.split(",").map((s: string) => s.trim()).includes(user.id));
+
+  const isHeadFacility =
+    baseRole === "HEAD_FACILITY" ||
+    user.role === "HEAD_FACILITY" ||
+    dbUser?.role === "HEAD_FACILITY" ||
+    Boolean(dbUser?.position?.includes("อาคารสถานที่") || dbUser?.department?.includes("บริหารทั่วไป")) ||
+    Boolean(facilitySettings?.approverStep1UserIds?.split(",").map((s: string) => s.trim()).includes(user.id));
+
+  const isHeadVehicle =
+    baseRole === "HEAD_VEHICLE" ||
+    user.role === "HEAD_VEHICLE" ||
+    dbUser?.role === "HEAD_VEHICLE" ||
+    Boolean(dbUser?.position?.includes("ยานพาหนะ") || dbUser?.department?.includes("ยานพาหนะ")) ||
+    Boolean(facilitySettings?.driverAssignerUserIds?.split(",").map((s: string) => s.trim()).includes(user.id)) ||
+    Boolean(facilitySettings?.approverStep1UserIds?.split(",").map((s: string) => s.trim()).includes(user.id));
+
+  const canViewAllHistory = isAdmin || isDirector || isHeadFacility || isHeadVehicle;
+  const canManage = isAdmin || isHeadFacility || isHeadVehicle || hasFacilityPermission(user, "facility:resource.manage");
+
+  let effectiveRole = baseRole;
+  if (isAdmin) effectiveRole = "ADMIN";
+  else if (isDirector) effectiveRole = "DIRECTOR";
+  else if (isHeadVehicle) effectiveRole = "HEAD_VEHICLE";
+  else if (isHeadFacility) effectiveRole = "HEAD_FACILITY";
+
   return {
     userId: user.id,
     user: {
@@ -1640,11 +1783,16 @@ export async function getCurrentFacilityUserRoleAction() {
       subjectGroup: dbUser?.subjectGroup ?? (user as any).subjectGroup ?? "",
       phoneNumber: dbUser?.phoneNumber ?? (user as any).phoneNumber ?? ""
     },
-    role,
+    role: effectiveRole,
     canManage,
-    isAdmin: role === "ADMIN",
-    canManageRooms: role === "ADMIN" || role === "HEAD_FACILITY",
-    canManageVehicles: role === "ADMIN" || role === "HEAD_VEHICLE"
+    isAdmin,
+    isDirector,
+    isHeadFacility,
+    isHeadVehicle,
+    canViewAllHistory,
+    canCancelOthers: isAdmin,
+    canManageRooms: isAdmin || isHeadFacility,
+    canManageVehicles: isAdmin || isHeadVehicle
   };
 }
 

@@ -373,12 +373,12 @@ export default function HistoryPage() {
     );
   };
 
-  // Stats calculation
-  const stats = {
+  // Stats calculation (use authoritative server-calculated aggregate stats)
+  const stats = historyResponse.stats || {
     total: historyResponse.data.length,
-    approved: historyResponse.data.filter(h => h.status === "APPROVED").length,
-    pending: historyResponse.data.filter(h => h.status === "PENDING_HEAD" || h.status === "PENDING_EXEC").length,
-    rejected: historyResponse.data.filter(h => h.status === "REJECTED").length
+    approved: historyResponse.data.filter((h: any) => h.status === "APPROVED").length,
+    pending: historyResponse.data.filter((h: any) => h.status === "PENDING_HEAD" || h.status === "PENDING_EXEC").length,
+    rejected: historyResponse.data.filter((h: any) => h.status === "REJECTED").length
   };
 
   return (

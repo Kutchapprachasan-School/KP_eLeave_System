@@ -163,7 +163,7 @@ export default function FacilityManagementView({
             note: quickAddForm.description.trim()
           });
 
-      await createFacilityResourceAction({
+      const result = await createFacilityResourceAction({
         code: quickAddForm.code.trim(),
         name: quickAddForm.name.trim(),
         type: resourceType,
@@ -185,6 +185,11 @@ export default function FacilityManagementView({
               }
             })
       });
+
+      if (!result.success) {
+        showToast("error", result.error || "เกิดข้อผิดพลาดในการเพิ่มทรัพยากร");
+        return;
+      }
 
       showToast("success", `เพิ่มทรัพยากร "${quickAddForm.name}" เรียบร้อยแล้ว!`);
       setQuickAddForm({
@@ -313,7 +318,7 @@ export default function FacilityManagementView({
             note: editForm.roomNote.trim()
           });
 
-      await updateFacilityResourceAction(editingResource.id, {
+      const result = await updateFacilityResourceAction(editingResource.id, {
         code: editForm.code,
         name: editForm.name,
         capacity: Number(editForm.capacity),
@@ -336,6 +341,11 @@ export default function FacilityManagementView({
             })
       });
 
+      if (!result.success) {
+        showToast("error", result.error || "เกิดข้อผิดพลาดในการแก้ไข");
+        return;
+      }
+
       showToast("success", "บันทึกการแก้ไขข้อมูลเรียบร้อยแล้ว");
       setEditingResource(null);
       await onRefresh();
@@ -351,7 +361,11 @@ export default function FacilityManagementView({
     const nextStatus = resource.status === "AVAILABLE" ? "UNDER_MAINTENANCE" : "AVAILABLE";
     const label = nextStatus === "AVAILABLE" ? "พร้อมให้บริการ" : "แจ้งซ่อมบำรุง";
     try {
-      await toggleFacilityResourceStatusAction(resource.id, nextStatus as any);
+      const result = await toggleFacilityResourceStatusAction(resource.id, nextStatus as any);
+      if (!result.success) {
+        showToast("error", result.error || "เกิดข้อผิดพลาด");
+        return;
+      }
       showToast("success", `เปลี่ยนสถานะ "${resource.name}" เป็น "${label}" แล้ว`);
       await onRefresh();
     } catch (err: any) {
@@ -364,7 +378,11 @@ export default function FacilityManagementView({
     if (!confirm(`ต้องการลบหรือปลดระวางทรัพยากร "${resource.name}" ใช่หรือไม่?`)) return;
     try {
       const res = await deleteFacilityResourceAction(resource.id);
-      if (res.action === "RETIRED") {
+      if (!res.success) {
+        showToast("error", res.error || "เกิดข้อผิดพลาดในการลบ");
+        return;
+      }
+      if (res.data?.action === "RETIRED") {
         showToast("info", `มีประวัติการจองเดิมในระบบ จึงเปลี่ยนสถานะเป็น "ปลดระวาง (RETIRED)" เพื่อรักษาประวัติ`);
       } else {
         showToast("success", `ลบข้อมูล "${resource.name}" สำเร็จ`);
