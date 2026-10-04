@@ -398,20 +398,78 @@ export async function suspendUser(userId: string) {
 
 // ========= Delete User =========
 export async function deleteUser(userId: string) {
-  const session = await requireSuperAdmin();
+  try {
+    const session = await requireSuperAdmin();
 
-  if (userId === session.user.id) {
-    throw new Error("ไม่สามารถลบบัญชีของตัวเองได้");
+    if (userId === session.user.id) {
+      return { success: false, error: "ไม่สามารถลบบัญชีของตัวเองได้" };
+    }
+
+    const targetUser = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, name: true, email: true, role: true }
+    });
+
+    if (!targetUser) {
+      return { success: false, error: "ไม่พบข้อมูลผู้ใช้งานที่ต้องการลบ" };
+    }
+
+    // Atomic transaction for clean cascade deletion
+    await prisma.$transaction(async (tx) => {
+      // 1. If user has APPROVED leaves, update them to CANCELLED first to satisfy the audit trigger
+      await tx.leaveRequest.updateMany({
+        where: { userId, status: "APPROVED" },
+        data: { status: "CANCELLED" }
+      });
+
+      // 2. Delete file attachments associated with this user's leave requests
+      await tx.fileAttachment.deleteMany({
+        where: { leaveRequest: { userId } }
+      });
+
+      // 3. Delete leave requests
+      await tx.leaveRequest.deleteMany({ where: { userId } });
+
+      // 4. Delete user-owned child records across subsystems
+      await tx.session.deleteMany({ where: { userId } });
+      await tx.account.deleteMany({ where: { userId } });
+      await tx.policyAcknowledgment.deleteMany({ where: { userId } });
+      await tx.consentRecord.deleteMany({ where: { userId } });
+      await tx.attendanceNonce.deleteMany({ where: { userId } });
+      await tx.attendance.deleteMany({ where: { userId } });
+      await tx.userDutyAssignment.deleteMany({ where: { userId } });
+      await tx.driverProfile.deleteMany({ where: { userId } });
+      await tx.aMSSCredentials.deleteMany({ where: { userId } });
+      await tx.repairPhoto.deleteMany({ where: { uploadedById: userId } });
+
+      // 5. Delete the user
+      await tx.user.delete({ where: { id: userId } });
+    });
+
+    revalidatePath("/users");
+    return { success: true };
+  } catch (err: any) {
+    console.error("Failed to delete user:", err);
+
+    // Check for foreign key constraint violation (P2003 / PostgreSQL 23503)
+    const isFkViolation =
+      err?.code === "P2003" ||
+      err?.code === "23503" ||
+      err?.message?.includes("foreign key constraint") ||
+      err?.message?.includes("Foreign key constraint failed");
+
+    if (isFkViolation) {
+      return {
+        success: false,
+        error: "ไม่สามารถลบผู้ใช้งานนี้ได้ เนื่องจากมีข้อมูลประวัติสำคัญในระบบ (เช่น การจองทรัพยากร, งานการเงิน, ตารางสอน หรือข้อมูลนักเรียน) กรุณาใช้การ \"ระงับการใช้งาน (Suspend)\" แทนเพื่อรักษาความสมบูรณ์ของข้อมูล"
+      };
+    }
+
+    return {
+      success: false,
+      error: err?.message || "เกิดข้อผิดพลาดในการลบผู้ใช้งาน"
+    };
   }
-
-  // Delete related data first
-  await prisma.leaveRequest.deleteMany({ where: { userId } });
-  await prisma.session.deleteMany({ where: { userId } });
-  await prisma.account.deleteMany({ where: { userId } });
-  await prisma.user.delete({ where: { id: userId } });
-
-  revalidatePath("/users");
-  return { success: true };
 }
 
 // ========= Get Monthly Report Data =========

@@ -248,7 +248,11 @@ export default function UsersPage() {
       return;
     }
     try {
-      await deleteUser(userId);
+      const res = await deleteUser(userId);
+      if (res && !res.success && res.error) {
+        alert(res.error);
+        return;
+      }
       loadUsers();
       window.dispatchEvent(new Event("noti-refresh"));
       alert(t("deleteUserSuccess"));
@@ -260,7 +264,11 @@ export default function UsersPage() {
   const handleReject = async (userId: string, name: string) => {
     if (!confirm(t("confirmRejectUser").replace("{name}", name))) return;
     try {
-      await deleteUser(userId);
+      const res = await deleteUser(userId);
+      if (res && !res.success && res.error) {
+        alert(res.error);
+        return;
+      }
       loadUsers();
       window.dispatchEvent(new Event("noti-refresh"));
     } catch (err: any) {
