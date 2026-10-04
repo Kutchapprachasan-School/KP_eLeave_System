@@ -57,7 +57,7 @@ export default function LeaveDashboardClient() {
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
   const [stats, setStats] = useState<any>(null);
-  const [isLeaveCalendarOpen, setIsLeaveCalendarOpen] = useState(false);
+  const [isLeaveCalendarOpen, setIsLeaveCalendarOpen] = useState(true);
   const { t, lang, tPosition, tLeaveType } = useI18n();
 
   const monthNamesTh = [
@@ -157,10 +157,21 @@ export default function LeaveDashboardClient() {
     }).catch(console.error);
   }, [session]);
 
+  // Helper to determine Gregorian calendar year for a given Thai Fiscal Year and month index (0-11)
+  const getFiscalMonthCeYear = (fy: number, monthIdx: number) => {
+    // In Thailand, Fiscal Year FY runs from Oct (month 9) of (FY - 544) to Sep (month 8) of (FY - 543)
+    const baseCeYear = fy - 543;
+    return monthIdx >= 9 ? baseCeYear - 1 : baseCeYear;
+  };
+
   useEffect(() => {
     if (mounted && hasCalendarPermission) {
       getCalendarLeaves(dashboardYear)
-        .then(setCalendarLeaves)
+        .then((leaves) => {
+          if (Array.isArray(leaves)) {
+            setCalendarLeaves(leaves);
+          }
+        })
         .catch(console.error);
     }
     if (mounted) {
@@ -179,16 +190,20 @@ export default function LeaveDashboardClient() {
         })
         .catch(console.error);
     }
-  }, [dashboardYear, mounted]);
+  }, [dashboardYear, mounted, hasCalendarPermission]);
 
   useEffect(() => {
-    const ceYear = dashboardYear - 543;
     setCalendarDate(prev => {
+      // If active current fiscal year is selected, default to today's date
+      if (dashboardYear === currentFY) {
+        return new Date();
+      }
       const d = new Date(prev);
-      d.setFullYear(ceYear);
+      const targetCeYear = getFiscalMonthCeYear(dashboardYear, d.getMonth());
+      d.setFullYear(targetCeYear);
       return d;
     });
-  }, [dashboardYear]);
+  }, [dashboardYear, currentFY]);
 
   useEffect(() => { 
     setMounted(true); 
@@ -372,13 +387,14 @@ export default function LeaveDashboardClient() {
   const getLeavesForDay = (day: Date) => {
     const target = new Date(day);
     target.setHours(0, 0, 0, 0);
+    const targetTime = target.getTime();
 
     return calendarLeaves.filter(r => {
       const start = new Date(r.startDate);
       start.setHours(0, 0, 0, 0);
       const end = new Date(r.endDate);
-      end.setHours(0, 0, 0, 0);
-      return target >= start && target <= end;
+      end.setHours(23, 59, 59, 999);
+      return targetTime >= start.getTime() && targetTime <= end.getTime();
     });
   };
 
@@ -435,28 +451,40 @@ export default function LeaveDashboardClient() {
   };
 
   const handlePrev = () => {
+    if (calendarView === "year") {
+      setDashboardYear(prev => {
+        const nextYear = prev - 1;
+        try { sessionStorage.setItem("kp_dashboard_year", String(nextYear)); } catch {}
+        return nextYear;
+      });
+      return;
+    }
     setCalendarDate(prev => {
       const d = new Date(prev);
       if (calendarView === "month") {
         d.setMonth(prev.getMonth() - 1);
       } else if (calendarView === "week") {
         d.setDate(prev.getDate() - 7);
-      } else if (calendarView === "year") {
-        d.setFullYear(prev.getFullYear() - 1);
       }
       return d;
     });
   };
 
   const handleNext = () => {
+    if (calendarView === "year") {
+      setDashboardYear(prev => {
+        const nextYear = prev + 1;
+        try { sessionStorage.setItem("kp_dashboard_year", String(nextYear)); } catch {}
+        return nextYear;
+      });
+      return;
+    }
     setCalendarDate(prev => {
       const d = new Date(prev);
       if (calendarView === "month") {
         d.setMonth(prev.getMonth() + 1);
       } else if (calendarView === "week") {
         d.setDate(prev.getDate() + 7);
-      } else if (calendarView === "year") {
-        d.setFullYear(prev.getFullYear() + 1);
       }
       return d;
     });
@@ -1146,9 +1174,9 @@ export default function LeaveDashboardClient() {
                   </h3>
                   {isLeaveCalendarOpen && (
                     <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                      {calendarView === "month" ? (lang === "en" ? `${monthNamesEn[calendarDate.getMonth()]} ${calendarDate.getFullYear()}` : `${monthNamesTh[calendarDate.getMonth()]} ${calendarDate.getFullYear() + 543}`) : 
+                      {calendarView === "month" ? (lang === "en" ? `${monthNamesEn[calendarDate.getMonth()]} ${calendarDate.getFullYear()} (FY ${calendarDate.getMonth() >= 9 ? calendarDate.getFullYear() + 544 : calendarDate.getFullYear() + 543})` : `${monthNamesTh[calendarDate.getMonth()]} ${calendarDate.getFullYear() + 543} (ปีงบประมาณ ${calendarDate.getMonth() >= 9 ? calendarDate.getFullYear() + 544 : calendarDate.getFullYear() + 543})`) : 
                        calendarView === "week" ? (lang === "en" ? `Week of ${calendarDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : `สัปดาห์วันที่ ${calendarDate.toLocaleDateString('th-TH', { month: 'short', day: 'numeric' })}`) :
-                       (lang === "en" ? `Year ${calendarDate.getFullYear()}` : `ปี พ.ศ. ${calendarDate.getFullYear() + 543}`)}
+                       (lang === "en" ? `Fiscal Year ${dashboardYear}` : `ปีงบประมาณ ${dashboardYear}`)}
                     </p>
                   )}
                 </div>
@@ -1170,7 +1198,15 @@ export default function LeaveDashboardClient() {
                       <ChevronLeft className="w-4 h-4" />
                     </button>
                     <button 
-                      onClick={() => setCalendarDate(new Date())}
+                      onClick={() => {
+                        setCalendarDate(new Date());
+                        if (dashboardYear !== currentFY) {
+                          setDashboardYear(currentFY);
+                          try {
+                            sessionStorage.setItem("kp_dashboard_year", String(currentFY));
+                          } catch {}
+                        }
+                      }}
                       className="px-2.5 py-1 hover:bg-white dark:hover:bg-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 rounded-lg transition-all"
                     >
                       {lang === "en" ? "Today" : "วันนี้"}
@@ -1376,7 +1412,6 @@ export default function LeaveDashboardClient() {
           {isLeaveCalendarOpen && calendarView === "year" && (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 font-sans">
               {(() => {
-                const year = calendarDate.getFullYear();
                 const monthsTh = [
                   "มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน",
                   "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"
@@ -1385,14 +1420,26 @@ export default function LeaveDashboardClient() {
                   "January", "February", "March", "April", "May", "June",
                   "July", "August", "September", "October", "November", "December"
                 ];
+
+                // Fiscal Year in Thailand starts in October (month 9) of (dashboardYear - 544) 
+                // and ends in September (month 8) of (dashboardYear - 543)
+                const fiscalYearMonths = [9, 10, 11, 0, 1, 2, 3, 4, 5, 6, 7, 8].map(mIdx => {
+                  const mYear = getFiscalMonthCeYear(dashboardYear, mIdx);
+                  return {
+                    mIdx,
+                    mDate: new Date(mYear, mIdx, 1),
+                    title: lang === "en" 
+                      ? `${monthsEn[mIdx]} ${mYear}` 
+                      : `${monthsTh[mIdx]} ${mYear + 543}`
+                  };
+                });
                 
-                return Array.from({ length: 12 }).map((_, mIdx) => {
-                  const mDate = new Date(year, mIdx, 1);
+                return fiscalYearMonths.map(({ mIdx, mDate, title }, idx) => {
                   const days = getDaysInMonth(mDate);
                   
                   return (
                     <div 
-                      key={mIdx} 
+                      key={idx} 
                       className="p-4 rounded-2xl bg-slate-50/50 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800/80 shadow-sm flex flex-col gap-2 transition-all hover:shadow-md"
                     >
                       {/* Month Header - Clickable to switch to that month view */}
@@ -1404,7 +1451,7 @@ export default function LeaveDashboardClient() {
                         }}
                         className="text-left font-bold text-sm text-slate-800 dark:text-slate-200 hover:text-purple-600 dark:hover:text-purple-400 transition-colors w-full flex justify-between items-center"
                       >
-                        <span>{lang === "en" ? monthsEn[mIdx] : monthsTh[mIdx]}</span>
+                        <span>{title}</span>
                         <span className="text-[10px] text-slate-400 font-semibold px-2 py-0.5 bg-slate-100 dark:bg-slate-800 rounded-lg">
                           {lang === "en" ? "View" : "ดูรายเดือน"}
                         </span>

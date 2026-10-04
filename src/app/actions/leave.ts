@@ -2480,14 +2480,21 @@ export async function testGoogleDriveConnectionAction(params?: {
   }
 }
 
-export async function getCalendarLeaves(year: number) {
+export async function getCalendarLeaves(year?: number) {
   const session = await getSession();
   if (!session?.user) throw new Error("Unauthorized");
 
-  // year is BE Fiscal Year (e.g. 2570 spans 1 Oct 2026 to 30 Sep 2027)
-  const ceYear = year - 543;
-  const startRange = new Date(ceYear - 1, 9, 1);
-  const endRange = new Date(ceYear, 11, 31, 23, 59, 59);
+  // Determine current fiscal year if not provided or invalid
+  const now = new Date();
+  const currentFiscalYear = (now.getMonth() >= 9 ? now.getFullYear() + 1 : now.getFullYear()) + 543;
+  const fy = (year && !isNaN(year)) ? year : currentFiscalYear;
+
+  // fy is BE Fiscal Year (e.g. 2570 spans 1 Oct 2026 to 30 Sep 2027)
+  const ceYear = fy - 543;
+  // Start from Sept 1 of (ceYear - 1) to provide ample buffer for timezone offsets (Thai UTC+7 is -7h in UTC)
+  const startRange = new Date(Date.UTC(ceYear - 1, 8, 1, 0, 0, 0));
+  // End on Dec 31 of ceYear with buffer
+  const endRange = new Date(Date.UTC(ceYear, 11, 31, 23, 59, 59));
 
   const requests = await prisma.leaveRequest.findMany({
     where: {
