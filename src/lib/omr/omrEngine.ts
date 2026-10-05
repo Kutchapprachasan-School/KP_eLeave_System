@@ -508,12 +508,14 @@ export function evaluateImageQuality(
 
     const avgW = (topW + bottomW) / 2;
     const avgH = (leftH + rightH) / 2;
+    // Orientation-invariant comparison (larger side / smaller side) to guarantee robustness against W/H vs H/W definitions
+    const observedRatio = Math.max(avgW, avgH) / Math.max(1, Math.min(avgW, avgH));
+    const targetRatio = Math.max(expectedAspectRatio, 1 / Math.max(0.001, expectedAspectRatio));
     aspectRatio = avgW > 0 ? avgH / avgW : expectedAspectRatio;
 
-    // Expected aspect ratio: dynamic based on template (compact zone ≈ 1.0, A4 ≈ 1.414)
-    const aspectDiff = Math.abs(aspectRatio - expectedAspectRatio) / expectedAspectRatio;
-    if (aspectDiff > 0.20) {
-      issues.push(`สัดส่วนกระดาษบิดเบี้ยวเกินเกณฑ์ (Aspect Ratio: ${aspectRatio.toFixed(2)} ผิดพลาด ${(aspectDiff * 100).toFixed(1)}%)`);
+    const aspectDiff = Math.abs(observedRatio - targetRatio) / targetRatio;
+    if (aspectDiff > 0.22) {
+      issues.push(`สัดส่วนกระดาษบิดเบี้ยวเกินเกณฑ์ (Aspect Ratio: ${observedRatio.toFixed(2)} vs ${targetRatio.toFixed(2)} ผิดพลาด ${(aspectDiff * 100).toFixed(1)}%)`);
     }
 
     // Curvature / Trapezoid check
@@ -521,8 +523,8 @@ export function evaluateImageQuality(
     const heightSkew = Math.abs(leftH - rightH) / Math.max(leftH, rightH, 1);
     curvatureError = Math.max(widthSkew, heightSkew) * 100;
 
-    if (curvatureError > 20.0) {
-      issues.push(`กระดาษเอียงหรือโค้งงอมากเกินไป (Skew Error: ${curvatureError.toFixed(1)}% > 20%)`);
+    if (curvatureError > 25.0) {
+      issues.push(`กระดาษเอียงหรือโค้งงอมากเกินไป (Skew Error: ${curvatureError.toFixed(1)}% > 25%)`);
     }
   }
 
@@ -550,8 +552,8 @@ export function evaluateImageQuality(
   const minCorner = Math.min(lTL, lTR, lBL, lBR);
   const illuminationUniformity = maxCorner - minCorner;
 
-  if (illuminationUniformity > 85.0) {
-    issues.push(`แสงสว่างไม่สม่ำเสมอ มีเงามืดพาดผ่าน (Delta: ${illuminationUniformity.toFixed(1)} > 85)`);
+  if (illuminationUniformity > 120.0) {
+    issues.push(`แสงสว่างไม่สม่ำเสมอ มีเงามืดพาดผ่าน (Delta: ${illuminationUniformity.toFixed(1)} > 120)`);
   }
 
   return {

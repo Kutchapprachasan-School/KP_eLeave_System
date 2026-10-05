@@ -87,6 +87,30 @@ describe('OMR Computer Vision Engine - Mathematical Core & Pipeline', () => {
     assert.ok(iqg.issues.some(msg => msg.includes('แสงสะท้อนจ้า')));
   });
 
+  it('evaluateImageQuality should accept full-page A4 quad with scanZoneAspectRatio', () => {
+    const width = 1000;
+    const height = 1414;
+    const data = new Uint8ClampedArray(width * height * 4);
+    for (let i = 0; i < data.length; i += 4) {
+      const noise = (i % 7 === 0) ? 50 : 200;
+      data[i] = noise;
+      data[i + 1] = noise;
+      data[i + 2] = noise;
+      data[i + 3] = 255;
+    }
+
+    const fullPageCorners = {
+      topLeft: { x: 65, y: 64 },
+      topRight: { x: 935, y: 64 },
+      bottomLeft: { x: 65, y: 1350 },
+      bottomRight: { x: 935, y: 1350 }
+    };
+
+    // Expected aspect ratio from template is width / height = 0.6761
+    const iqg = evaluateImageQuality({ width, height, data }, fullPageCorners, 0.6761);
+    assert.ok(!iqg.issues.some(msg => msg.includes('สัดส่วนกระดาษบิดเบี้ยว')), `Should not report aspect ratio error: ${iqg.issues.join('; ')}`);
+  });
+
   it('calibrateContrast & readBubbleFill correctly distinguishes filled vs empty bubble', () => {
     const width = 200;
     const height = 280;
