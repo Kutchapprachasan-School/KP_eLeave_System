@@ -24,19 +24,19 @@
 - Modify: `src/lib/omr/omrEngine.ts`
 - Modify: `eLeave/tests/unit/omrEngine.test.js`
 
-- [ ] **Step 1: Write failing test in `eLeave/tests/unit/omrEngine.test.js`**
+- [x] **Step 1: Write failing test in `eLeave/tests/unit/omrEngine.test.js`**
   Add a test verifying that `evaluateImageQuality` passes when given realistic full-page A4 corners (height: 1287px, width: 870px, aspect: ~1.48) with `expectedAspectRatio = 0.6761` (Width/Height) or `1.479` (Height/Width).
-- [ ] **Step 2: Run test to confirm it fails**
+- [x] **Step 2: Run test to confirm it fails**
   Run `node --test eLeave/tests/unit/omrEngine.test.js` and verify it fails with `"สัดส่วนกระดาษบิดเบี้ยวเกินเกณฑ์"`.
-- [ ] **Step 3: Fix aspect ratio math and lighting tolerances in `src/lib/omr/omrEngine.ts`**
+- [x] **Step 3: Fix aspect ratio math and lighting tolerances in `src/lib/omr/omrEngine.ts`**
   - Compute `observedRatio = Math.max(avgW, avgH) / Math.max(1, Math.min(avgW, avgH))`
   - Compute `expectedRatio = Math.max(expectedAspect, 1 / expectedAspect)`
   - Compare `aspectDiff = Math.abs(observedRatio - expectedRatio) / expectedRatio` (limit 0.22)
   - Raise specular glare threshold from 4.0% to 15.0%
   - Raise illumination delta threshold from 85.0 to 120.0
-- [ ] **Step 4: Run test to confirm it passes**
+- [x] **Step 4: Run test to confirm it passes**
   Run `node --test eLeave/tests/unit/omrEngine.test.js` and confirm all tests pass.
-- [ ] **Step 5: Commit changes**
+- [x] **Step 5: Commit changes**
   `git add src/lib/omr/omrEngine.ts eLeave/tests/unit/omrEngine.test.js && git commit -m "fix(omr): resolve IQG aspect ratio calculation bug and relax glare threshold"`
 
 ---
@@ -47,11 +47,11 @@
 - Modify: `src/lib/omr/omrMarkerDetector.ts`
 - Modify: `eLeave/tests/unit/omrMarkerDetector.test.js`
 
-- [ ] **Step 1: Write failing test in `eLeave/tests/unit/omrMarkerDetector.test.js`**
+- [x] **Step 1: Write failing test in `eLeave/tests/unit/omrMarkerDetector.test.js`**
   Add a test simulating a camera frame with a dark desk background (`intensity = 65`) and an A4 white sheet with 6 fiducial markers (width: 7px, area: 49px). Verify that the test currently fails with `markersDetected = 0`.
-- [ ] **Step 2: Run test to confirm failure**
+- [x] **Step 2: Run test to confirm failure**
   Run `node --test eLeave/tests/unit/omrMarkerDetector.test.js` and verify failure.
-- [ ] **Step 3: Implement Bradley-Roth adaptive thresholding and calibrated marker bounds in `src/lib/omr/omrMarkerDetector.ts`**
+- [x] **Step 3: Implement Bradley-Roth adaptive thresholding and calibrated marker bounds in `src/lib/omr/omrMarkerDetector.ts`**
   - Compute 2D integral image of the downsampled grayscale frame in $O(N)$
   - Apply local adaptive thresholding: $T = 0.82 \times \text{mean}_{\text{local}}$ with window $S = \text{round}(\text{width} / 16)$
   - Calibrate `filterSquareMarkers`: `minArea = Math.max(12, Math.round(totalArea * 0.00008))`, `maxArea = Math.round(totalArea * 0.05)`, aspect ratio `0.55 .. 1.85`, solidity $\ge 0.68$
@@ -59,9 +59,9 @@
     - First locate the 4 extreme convex corners (Top-Left, Top-Right, Bottom-Left, Bottom-Right)
     - If 6 markers exist, locate `midLeft` along the left segment and `midRight` along the right segment
     - Fall back to clean 4-corner homography if 1 or 2 midpoints are occluded, without rejecting the scan!
-- [ ] **Step 4: Run test to confirm it passes**
+- [x] **Step 4: Run test to confirm it passes**
   Run `node --test eLeave/tests/unit/omrMarkerDetector.test.js` and confirm all tests pass.
-- [ ] **Step 5: Commit changes**
+- [x] **Step 5: Commit changes**
   `git add src/lib/omr/omrMarkerDetector.ts eLeave/tests/unit/omrMarkerDetector.test.js && git commit -m "feat(omr): replace Otsu with Bradley-Roth adaptive threshold and robust 4/6-point marker detection"`
 
 ---
@@ -71,19 +71,19 @@
 **Files:**
 - Modify: `src/components/omr/OmrCameraScanner.tsx`
 
-- [ ] **Step 1: Update camera viewport and styling in `src/components/omr/OmrCameraScanner.tsx`**
+- [x] **Step 1: Update camera viewport and styling in `src/components/omr/OmrCameraScanner.tsx`**
   - Replace `object-cover` with `object-contain` on `<video>` so that the camera stream is never cropped.
   - Set container background to black with letterboxing.
-- [ ] **Step 2: Add Real-Time AR Reticle Overlay `<canvas>`**
+- [x] **Step 2: Add Real-Time AR Reticle Overlay `<canvas>`**
   - Overlay an absolute `<canvas>` matching video dimensions.
   - When `detectFiducialMarkers` finds candidate points, draw live glowing green/cyan rings over detected marker coordinates.
   - Draw a polygon connecting the 4 corners so teachers see exactly what the computer vision engine sees.
-- [ ] **Step 3: Add Torch / Flashlight Toggle & Manual Capture Enhancements**
+- [x] **Step 3: Add Torch / Flashlight Toggle & Manual Capture Enhancements**
   - Support torch toggle for mobile back cameras via `track.applyConstraints({ advanced: [{ torch: isTorchOn }] })`.
   - When manual capture button is clicked, immediately run high-res adaptive detection on the full frame even if auto-lock was pending.
-- [ ] **Step 4: Verify syntax & component compilation**
+- [x] **Step 4: Verify syntax & component compilation**
   Run `npx next lint` or test page compilation.
-- [ ] **Step 5: Commit changes**
+- [x] **Step 5: Commit changes**
   `git add src/components/omr/OmrCameraScanner.tsx && git commit -m "feat(omr): add live AR marker reticles, torch toggle, and object-contain camera viewfinder"`
 
 ---
@@ -94,9 +94,9 @@
 - Test suite: `npm test`
 - Verification script: check zero test accounts
 
-- [ ] **Step 1: Run full test suite**
+- [x] **Step 1: Run full test suite**
   Run `npm test` and verify that all 382+ unit tests pass.
-- [ ] **Step 2: Check database cleanliness**
+- [x] **Step 2: Check database cleanliness**
   Verify `WHERE email LIKE '%test%' OR name LIKE '%ทดสอบ%' = 0`.
-- [ ] **Step 3: Final commit and push to dev**
+- [x] **Step 3: Final commit and push to dev**
   Push `dev` to `origin` and `school` remotes.
