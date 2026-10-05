@@ -177,4 +177,56 @@ describe('OMR Marker Detector & Compact Geometry Unit Tests', () => {
       assert.equal(grid.subjectiveScores.length, 0, `Tier ${count} should have 0 subjective blocks in Rev 11.0 pure multiple-choice mode`);
     }
   });
+
+  it('detectFiducialMarkers should detect markers on real-world dark desk background with mobile camera', () => {
+    const W = 640;
+    const H = 480;
+    const data = new Uint8ClampedArray(W * H * 4);
+
+    // 1. Dark desk background (gray ~65)
+    for (let i = 0; i < W * H; i++) {
+      data[i * 4] = 68;     // R
+      data[i * 4 + 1] = 64; // G
+      data[i * 4 + 2] = 60; // B
+      data[i * 4 + 3] = 255;
+    }
+
+    // 2. White A4 paper in center
+    const paperX = 180, paperY = 40, paperW = 280, paperH = 400;
+    for (let y = paperY; y < paperY + paperH; y++) {
+      for (let x = paperX; x < paperX + paperW; x++) {
+        const idx = (y * W + x) * 4;
+        data[idx] = 225;
+        data[idx + 1] = 225;
+        data[idx + 2] = 225;
+      }
+    }
+
+    // 3. Draw 6 markers on paper (8x8 px)
+    const mw = 8, mh = 8;
+    const markers = [
+      { x: paperX + Math.round(paperW * 0.065), y: paperY + Math.round(paperH * 0.045) },  // TL
+      { x: paperX + Math.round(paperW * 0.935), y: paperY + Math.round(paperH * 0.045) },  // TR
+      { x: paperX + Math.round(paperW * 0.045), y: paperY + Math.round(paperH * 0.500) },  // ML
+      { x: paperX + Math.round(paperW * 0.955), y: paperY + Math.round(paperH * 0.500) },  // MR
+      { x: paperX + Math.round(paperW * 0.065), y: paperY + Math.round(paperH * 0.955) },  // BL
+      { x: paperX + Math.round(paperW * 0.935), y: paperY + Math.round(paperH * 0.955) },  // BR
+    ];
+
+    for (const m of markers) {
+      for (let my = m.y - Math.floor(mh / 2); my <= m.y + Math.floor(mh / 2); my++) {
+        for (let mx = m.x - Math.floor(mw / 2); mx <= m.x + Math.floor(mw / 2); mx++) {
+          if (mx >= 0 && mx < W && my >= 0 && my < H) {
+            const idx = (my * W + mx) * 4;
+            data[idx] = 12; data[idx + 1] = 12; data[idx + 2] = 12;
+          }
+        }
+      }
+    }
+
+    const result = detectFiducialMarkers(data, W, H, 0.6761);
+    assert.equal(result.found, true, `Markers should be detected on dark desk, got ${result.markersDetected}`);
+    assert.ok(result.markersDetected >= 4, `At least 4 markers detected: ${result.markersDetected}`);
+    assert.ok(result.corners !== null);
+  });
 });

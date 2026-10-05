@@ -41,45 +41,60 @@ interface BlobInfo {
 }
 
 /**
- * Otsu's Method: คำนวณ threshold อัตโนมัติจาก histogram
+ * Bradley-Roth Adaptive Thresholding using Integral Image
+ * Fast O(N) local adaptive thresholding that adapts to local illumination gradients,
+ * hand shadows, and darker desk backgrounds.
  */
-function otsuThreshold(grayData: Uint8Array, length: number): number {
-  // สร้าง histogram
-  const histogram = new Uint32Array(256);
-  for (let i = 0; i < length; i++) {
-    histogram[grayData[i]]++;
-  }
+function adaptiveThresholdBradley(
+  gray: Uint8Array,
+  width: number,
+  height: number,
+  windowSizeFraction: number = 16,
+  thresholdMultiplier: number = 0.82
+): Uint8Array {
+  const binary = new Uint8Array(width * height);
+  const intImg = new Float64Array(width * height);
 
-  let totalPixels = length;
-  let sumAll = 0;
-  for (let i = 0; i < 256; i++) {
-    sumAll += i * histogram[i];
-  }
-
-  let sumB = 0;
-  let wB = 0;
-  let maxVariance = 0;
-  let bestThreshold = 128;
-
-  for (let t = 0; t < 256; t++) {
-    wB += histogram[t];
-    if (wB === 0) continue;
-    const wF = totalPixels - wB;
-    if (wF === 0) break;
-
-    sumB += t * histogram[t];
-    const meanB = sumB / wB;
-    const meanF = (sumAll - sumB) / wF;
-    const diff = meanB - meanF;
-    const variance = wB * wF * diff * diff;
-
-    if (variance > maxVariance) {
-      maxVariance = variance;
-      bestThreshold = t;
+  // 1. Build integral image
+  for (let y = 0; y < height; y++) {
+    let rowSum = 0;
+    const rowOffset = y * width;
+    const prevRowOffset = (y - 1) * width;
+    for (let x = 0; x < width; x++) {
+      rowSum += gray[rowOffset + x];
+      intImg[rowOffset + x] = (y > 0 ? intImg[prevRowOffset + x] : 0) + rowSum;
     }
   }
 
-  return bestThreshold;
+  // 2. Perform local threshold comparison
+  const s = Math.max(8, Math.round(width / windowSizeFraction));
+  const s2 = Math.floor(s / 2);
+
+  for (let y = 0; y < height; y++) {
+    const y1 = Math.max(0, y - s2);
+    const y2 = Math.min(height - 1, y + s2);
+    const rowOffset = y * width;
+
+    for (let x = 0; x < width; x++) {
+      const x1 = Math.max(0, x - s2);
+      const x2 = Math.min(width - 1, x + s2);
+      const count = (x2 - x1 + 1) * (y2 - y1 + 1);
+
+      const sum =
+        intImg[y2 * width + x2] -
+        (x1 > 0 ? intImg[y2 * width + (x1 - 1)] : 0) -
+        (y1 > 0 ? intImg[(y1 - 1) * width + x2] : 0) +
+        (x1 > 0 && y1 > 0 ? intImg[(y1 - 1) * width + (x1 - 1)] : 0);
+
+      // Inverted: dark marker = 1, bright background = 0
+      // If pixel is at least 18% darker than local mean:
+      if (gray[rowOffset + x] * count <= sum * thresholdMultiplier) {
+        binary[rowOffset + x] = 1;
+      }
+    }
+  }
+
+  return binary;
 }
 
 /**
@@ -203,23 +218,23 @@ function filterSquareMarkers(
   imageHeight: number
 ): BlobInfo[] {
   const totalArea = imageWidth * imageHeight;
-  const minArea = totalArea * 0.0008; // 0.08% ของภาพ
-  const maxArea = totalArea * 0.06;   // 6% ของภาพ
+  const minArea = Math.max(10, Math.round(totalArea * 0.00008)); // ~10 - 25 px on 480p
+  const maxArea = Math.round(totalArea * 0.05);                  // 5% ของภาพ
 
   return blobs.filter(blob => {
     // ขนาดต้องอยู่ในช่วง
     if (blob.area < minArea || blob.area > maxArea) return false;
 
-    // สัดส่วน bounding box ต้องใกล้สี่เหลี่ยมจัตุรัส
+    // สัดส่วน bounding box ต้องใกล้สี่เหลี่ยมจัตุรัส (อนุโลมมุมเอียงกล้อง)
     const bboxW = blob.maxX - blob.minX + 1;
     const bboxH = blob.maxY - blob.minY + 1;
     const aspectRatio = bboxW / bboxH;
-    if (aspectRatio < 0.6 || aspectRatio > 1.67) return false;
+    if (aspectRatio < 0.52 || aspectRatio > 1.92) return false;
 
-    // Solidity: area / bounding box area ต้อง > 0.75
+    // Solidity: area / bounding box area ต้อง > 0.65
     const bboxArea = bboxW * bboxH;
     const solidity = blob.area / bboxArea;
-    if (solidity < 0.75) return false;
+    if (solidity < 0.65) return false;
 
     return true;
   });
@@ -233,87 +248,94 @@ function assignMarkers(
   scaleX: number,
   scaleY: number
 ): { corners: SixPointMarkers; midPoints: { midLeft: Point2D; midRight: Point2D } | null; matchedCount: number } {
+  if (markers.length < 4) {
+    throw new Error("At least 4 markers required to assign corners");
+  }
+
+  // 1. Identify 4 extreme corners using projection extrema:
+  // TL: minimizes (x + y)
+  // TR: maximizes (x - y)
+  // BL: minimizes (x - y)
+  // BR: maximizes (x + y)
+  let tl = markers[0], tr = markers[0], bl = markers[0], br = markers[0];
+  let minSum = Infinity, maxSum = -Infinity;
+  let minDiff = Infinity, maxDiff = -Infinity;
+
+  for (const m of markers) {
+    const sum = m.cx + m.cy;
+    const diff = m.cx - m.cy;
+
+    if (sum < minSum) { minSum = sum; tl = m; }
+    if (sum > maxSum) { maxSum = sum; br = m; }
+    if (diff > maxDiff) { maxDiff = diff; tr = m; }
+    if (diff < minDiff) { minDiff = diff; bl = m; }
+  }
+
+  // Ensure 4 distinct corners
+  const cornerIds = new Set([tl.id, tr.id, bl.id, br.id]);
+  if (cornerIds.size < 4) {
+    const sortedY = [...markers].sort((a, b) => a.cy - b.cy);
+    const top = [sortedY[0], sortedY[1]].sort((a, b) => a.cx - b.cx);
+    const bot = [sortedY[sortedY.length - 2], sortedY[sortedY.length - 1]].sort((a, b) => a.cx - b.cx);
+    tl = top[0];
+    tr = top[1];
+    bl = bot[0];
+    br = bot[1];
+  }
+
+  const corners: SixPointMarkers = {
+    topLeft: { x: tl.cx * scaleX, y: tl.cy * scaleY },
+    topRight: { x: tr.cx * scaleX, y: tr.cy * scaleY },
+    bottomLeft: { x: bl.cx * scaleX, y: bl.cy * scaleY },
+    bottomRight: { x: br.cx * scaleX, y: br.cy * scaleY }
+  };
+
+  // 2. If at least 6 markers, search for midLeft & midRight among the non-corner markers
   if (markers.length >= 6) {
-    const top6 = markers.slice(0, 6);
-    const sortedByY = [...top6].sort((a, b) => a.cy - b.cy);
-    const topPair = [sortedByY[0], sortedByY[1]].sort((a, b) => a.cx - b.cx);
-    const midPair = [sortedByY[2], sortedByY[3]].sort((a, b) => a.cx - b.cx);
-    const botPair = [sortedByY[4], sortedByY[5]].sort((a, b) => a.cx - b.cx);
+    const remaining = markers.filter(m => m.id !== tl.id && m.id !== tr.id && m.id !== bl.id && m.id !== br.id);
 
-    const tl: Point2D = { x: topPair[0].cx * scaleX, y: topPair[0].cy * scaleY };
-    const tr: Point2D = { x: topPair[1].cx * scaleX, y: topPair[1].cy * scaleY };
-    const ml: Point2D = { x: midPair[0].cx * scaleX, y: midPair[0].cy * scaleY };
-    const mr: Point2D = { x: midPair[1].cx * scaleX, y: midPair[1].cy * scaleY };
-    const bl: Point2D = { x: botPair[0].cx * scaleX, y: botPair[0].cy * scaleY };
-    const br: Point2D = { x: botPair[1].cx * scaleX, y: botPair[1].cy * scaleY };
+    const expectedMlX = (tl.cx + bl.cx) / 2;
+    const expectedMlY = (tl.cy + bl.cy) / 2;
+    const expectedMrX = (tr.cx + br.cx) / 2;
+    const expectedMrY = (tr.cy + br.cy) / 2;
 
-    const expectedMlX = (tl.x + bl.x) / 2;
-    const expectedMlY = (tl.y + bl.y) / 2;
-    const expectedMrX = (tr.x + br.x) / 2;
-    const expectedMrY = (tr.y + br.y) / 2;
-    const widthSpan = Math.max(1, Math.hypot(tr.x - tl.x, tr.y - tl.y));
-    const heightSpan = Math.max(1, Math.hypot(bl.x - tl.x, bl.y - tl.y));
+    const leftH = Math.hypot(bl.cx - tl.cx, bl.cy - tl.cy);
+    const rightH = Math.hypot(br.cx - tr.cx, br.cy - tr.cy);
+    const maxH = Math.max(leftH, rightH, 1);
 
-    const mlErr = Math.hypot(ml.x - expectedMlX, ml.y - expectedMlY) / Math.max(widthSpan, heightSpan);
-    const mrErr = Math.hypot(mr.x - expectedMrX, mr.y - expectedMrY) / Math.max(widthSpan, heightSpan);
+    let mlCandidate: BlobInfo | null = null;
+    let mlMinDist = Infinity;
+    let mrCandidate: BlobInfo | null = null;
+    let mrMinDist = Infinity;
 
-    if (mlErr < 0.22 && mrErr < 0.22) {
+    for (const rem of remaining) {
+      const dL = Math.hypot(rem.cx - expectedMlX, rem.cy - expectedMlY);
+      const dR = Math.hypot(rem.cx - expectedMrX, rem.cy - expectedMrY);
+
+      if (dL < mlMinDist) { mlMinDist = dL; mlCandidate = rem; }
+      if (dR < mrMinDist) { mrMinDist = dR; mrCandidate = rem; }
+    }
+
+    if (
+      mlCandidate && mrCandidate &&
+      mlCandidate.id !== mrCandidate.id &&
+      (mlMinDist / maxH) < 0.22 &&
+      (mrMinDist / maxH) < 0.22
+    ) {
+      const ml: Point2D = { x: mlCandidate.cx * scaleX, y: mlCandidate.cy * scaleY };
+      const mr: Point2D = { x: mrCandidate.cx * scaleX, y: mrCandidate.cy * scaleY };
+      corners.midLeft = ml;
+      corners.midRight = mr;
       return {
-        corners: {
-          topLeft: tl,
-          topRight: tr,
-          bottomLeft: bl,
-          bottomRight: br,
-          midLeft: ml,
-          midRight: mr
-        },
+        corners,
         midPoints: { midLeft: ml, midRight: mr },
         matchedCount: 6
       };
     }
   }
 
-  const avgX = markers.reduce((s, m) => s + m.cx, 0) / markers.length;
-  const avgY = markers.reduce((s, m) => s + m.cy, 0) / markers.length;
-
-  let tl: BlobInfo | null = null;
-  let tr: BlobInfo | null = null;
-  let bl: BlobInfo | null = null;
-  let br: BlobInfo | null = null;
-
-  for (const m of markers) {
-    const isLeft = m.cx < avgX;
-    const isTop = m.cy < avgY;
-    const dist = Math.hypot(m.cx - avgX, m.cy - avgY);
-
-    if (isLeft && isTop) {
-      if (!tl || dist > Math.hypot(tl.cx - avgX, tl.cy - avgY)) tl = m;
-    } else if (!isLeft && isTop) {
-      if (!tr || dist > Math.hypot(tr.cx - avgX, tr.cy - avgY)) tr = m;
-    } else if (isLeft && !isTop) {
-      if (!bl || dist > Math.hypot(bl.cx - avgX, bl.cy - avgY)) bl = m;
-    } else {
-      if (!br || dist > Math.hypot(br.cx - avgX, br.cy - avgY)) br = m;
-    }
-  }
-
-  if (!tl || !tr || !bl || !br) {
-    const top4 = markers.slice(0, 4);
-    const sorted = [...top4].sort((a, b) => (a.cx + a.cy) - (b.cx + b.cy));
-    tl = sorted[0];
-    br = sorted[3];
-    const mid = [sorted[1], sorted[2]].sort((a, b) => a.cx - b.cx);
-    bl = mid[0].cy > mid[1].cy ? mid[0] : mid[1];
-    tr = mid[0].cy > mid[1].cy ? mid[1] : mid[0];
-  }
-
   return {
-    corners: {
-      topLeft: { x: tl.cx * scaleX, y: tl.cy * scaleY },
-      topRight: { x: tr.cx * scaleX, y: tr.cy * scaleY },
-      bottomLeft: { x: bl.cx * scaleX, y: bl.cy * scaleY },
-      bottomRight: { x: br.cx * scaleX, y: br.cy * scaleY }
-    },
+    corners,
     midPoints: null,
     matchedCount: 4
   };
@@ -330,16 +352,12 @@ function validateQuad(quad: QuadPoints): boolean {
   const leftH = dist(quad.topLeft, quad.bottomLeft);
   const rightH = dist(quad.topRight, quad.bottomRight);
 
-  const sides = [topW, bottomW, leftH, rightH];
-  const avgSide = sides.reduce((s, v) => s + v, 0) / 4;
-
-  // ทุกด้านต้องไม่ห่างจากค่าเฉลี่ยเกิน 60%
-  for (const s of sides) {
-    if (Math.abs(s - avgSide) / avgSide > 0.60) return false;
-  }
+  // ด้านตรงข้ามต้องไม่ต่างกันเกิน 50%
+  if (Math.abs(topW - bottomW) / Math.max(topW, bottomW, 1) > 0.50) return false;
+  if (Math.abs(leftH - rightH) / Math.max(leftH, rightH, 1) > 0.50) return false;
 
   // ขนาดขั้นต่ำ
-  if (avgSide < 20) return false;
+  if (Math.min(topW, bottomW) < 30 || Math.min(leftH, rightH) < 30) return false;
 
   return true;
 }
@@ -386,25 +404,19 @@ export function detectFiducialMarkers(
     }
   }
 
-  // 3. Otsu threshold
-  const threshold = otsuThreshold(gray, dw * dh);
+  // 3. Bradley-Roth local adaptive thresholding (O(N) with integral image)
+  const binary = adaptiveThresholdBradley(gray, dw, dh, 16, 0.82);
 
-  // 4. Binary image (inverted: dark markers = 1, white paper = 0)
-  const binary = new Uint8Array(dw * dh);
-  for (let i = 0; i < gray.length; i++) {
-    binary[i] = gray[i] <= threshold ? 1 : 0;
-  }
-
-  // 5. Connected component labeling
+  // 4. Connected component labeling
   const { labels } = connectedComponents(binary, dw, dh);
 
-  // 6. Extract and filter blobs
+  // 5. Extract and filter blobs
   const allBlobs = extractBlobs(labels, dw, dh);
   const squareMarkers = filterSquareMarkers(allBlobs, dw, dh);
 
-  // 7. เลือกสูงสุด 6 ตัวที่ใหญ่ที่สุด (4 มุม + 2 กึ่งกลาง)
+  // 6. เลือกผู้สมัครสูงสุด 12 ตัวเพื่อหา 4 มุมและ 2 จุดกึ่งกลาง
   squareMarkers.sort((a, b) => b.area - a.area);
-  const topCandidates = squareMarkers.slice(0, 6);
+  const topCandidates = squareMarkers.slice(0, 12);
 
   const processingTimeMs = Math.round(performance.now() - startTime);
 
@@ -419,12 +431,12 @@ export function detectFiducialMarkers(
     };
   }
 
-  // 8. Assign corners & midPoints (scale back to original coordinates)
+  // 7. Assign corners & midPoints (scale back to original coordinates)
   const scaleX = 1 / scale;
   const scaleY = 1 / scale;
   const assigned = assignMarkers(topCandidates, scaleX, scaleY);
 
-  // 9. Validate quad shape
+  // 8. Validate quad shape
   if (!validateQuad(assigned.corners)) {
     return {
       found: false,
@@ -436,7 +448,7 @@ export function detectFiducialMarkers(
     };
   }
 
-  // 10. คำนวณ confidence จากความสม่ำเสมอของขนาดมาร์กเกอร์ + โบนัส 6 จุด
+  // 9. คำนวณ confidence จากความสม่ำเสมอของขนาดมาร์กเกอร์ + โบนัส 6 จุด
   const areas = topCandidates.slice(0, 4).map(m => m.area);
   const avgArea = areas.reduce((s, a) => s + a, 0) / 4;
   const areaVariance = areas.reduce((s, a) => s + Math.abs(a - avgArea) / avgArea, 0) / 4;
