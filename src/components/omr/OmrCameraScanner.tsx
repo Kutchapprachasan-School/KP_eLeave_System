@@ -53,9 +53,12 @@ export function OmrCameraScanner({
   const { data: session } = useSession();
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const arCanvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const [streamActive, setStreamActive] = useState(false);
+  const [hasTorch, setHasTorch] = useState(false);
+  const [torchOn, setTorchOn] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(true);
@@ -196,6 +199,15 @@ export function OmrCameraScanner({
           videoRef.current.setAttribute("playsinline", "true");
           await videoRef.current.play();
           setStreamActive(true);
+
+          // Check flashlight / torch capability on mobile back camera
+          const track = stream.getVideoTracks()[0];
+          if (track) {
+            const capabilities = (typeof track.getCapabilities === "function" ? track.getCapabilities() : {}) as any;
+            if (capabilities?.torch) {
+              setHasTorch(true);
+            }
+          }
         }
       } else {
         setCameraError("เบราว์เซอร์นี้ไม่รองรับการเข้าถึงกล้อง กรุณาอัปโหลดรูปภาพแทน");
@@ -210,11 +222,38 @@ export function OmrCameraScanner({
   const stopCamera = useCallback(() => {
     if (videoRef.current && videoRef.current.srcObject) {
       const stream = videoRef.current.srcObject as MediaStream;
-      stream.getTracks().forEach(track => track.stop());
+      stream.getTracks().forEach(track => {
+        try {
+          if (torchOn) {
+            (track as any).applyConstraints({ advanced: [{ torch: false }] });
+          }
+        } catch {}
+        track.stop();
+      });
       videoRef.current.srcObject = null;
       setStreamActive(false);
+      setTorchOn(false);
+      setHasTorch(false);
     }
-  }, []);
+  }, [torchOn]);
+
+  // Flashlight / Torch Toggle for mobile camera
+  const toggleTorch = useCallback(async () => {
+    if (!videoRef.current || !videoRef.current.srcObject) return;
+    const stream = videoRef.current.srcObject as MediaStream;
+    const track = stream.getVideoTracks()[0];
+    if (track) {
+      try {
+        const nextTorch = !torchOn;
+        await (track as any).applyConstraints({
+          advanced: [{ torch: nextTorch }]
+        });
+        setTorchOn(nextTorch);
+      } catch (err) {
+        console.warn("Torch toggle failed:", err);
+      }
+    }
+  }, [torchOn]);
 
   useEffect(() => {
     startCamera();
@@ -322,6 +361,119 @@ export function OmrCameraScanner({
     }
   }, [templateGrid, totalItems]);
 
+  // Real-Time AR Marker Visualizer Overlay Renderer (Sub-pixel mapping from video to screen coordinates)
+  const drawArOverlay = useCallback((corners: QuadPoints | null, isLocked: boolean) => {
+    const canvas = arCanvasRef.current;
+    const video = videoRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const cw = Math.round(rect.width);
+    const ch = Math.round(rect.height);
+
+    if (canvas.width !== cw || canvas.height !== ch) {
+      canvas.width = cw;
+      canvas.height = ch;
+    }
+
+    ctx.clearRect(0, 0, cw, ch);
+
+    if (!corners || !video || video.videoWidth === 0 || video.videoHeight === 0) {
+      return;
+    }
+
+    const vw = video.videoWidth;
+    const vh = video.videoHeight;
+    const videoAspect = vw / vh;
+    const boxAspect = cw / ch;
+
+    let renderW = cw;
+    let renderH = ch;
+    let offsetX = 0;
+    let offsetY = 0;
+    let renderScale = 1;
+
+    if (boxAspect > videoAspect) {
+      // Container is wider than video (letterbox on left/right)
+      renderH = ch;
+      renderW = ch * videoAspect;
+      offsetX = (cw - renderW) / 2;
+      offsetY = 0;
+      renderScale = ch / vh;
+    } else {
+      // Container is taller than video (letterbox on top/bottom)
+      renderW = cw;
+      renderH = cw / videoAspect;
+      offsetX = 0;
+      offsetY = (ch - renderH) / 2;
+      renderScale = cw / vw;
+    }
+
+    const mapPt = (p: { x: number; y: number }) => ({
+      x: offsetX + p.x * renderScale,
+      y: offsetY + p.y * renderScale
+    });
+
+    const tl = mapPt(corners.topLeft);
+    const tr = mapPt(corners.topRight);
+    const br = mapPt(corners.bottomRight);
+    const bl = mapPt(corners.bottomLeft);
+    const ml = corners.midLeft ? mapPt(corners.midLeft) : null;
+    const mr = corners.midRight ? mapPt(corners.midRight) : null;
+
+    const strokeColor = isLocked ? "#10b981" : "#f59e0b";
+    const fillColor = isLocked ? "rgba(16, 185, 129, 0.12)" : "rgba(245, 158, 11, 0.08)";
+    const dotColor = isLocked ? "#34d399" : "#fbbf24";
+
+    // 1. Draw connecting quadrilateral polygon
+    ctx.beginPath();
+    ctx.moveTo(tl.x, tl.y);
+    ctx.lineTo(tr.x, tr.y);
+    if (mr) ctx.lineTo(mr.x, mr.y);
+    ctx.lineTo(br.x, br.y);
+    ctx.lineTo(bl.x, bl.y);
+    if (ml) ctx.lineTo(ml.x, ml.y);
+    ctx.closePath();
+
+    ctx.lineWidth = isLocked ? 3 : 2;
+    ctx.strokeStyle = strokeColor;
+    ctx.fillStyle = fillColor;
+    ctx.shadowColor = strokeColor;
+    ctx.shadowBlur = 10;
+    ctx.stroke();
+    ctx.fill();
+
+    // 2. Draw glowing reticles at each detected marker
+    const markersToDraw = [
+      { pt: tl, label: "M1" },
+      { pt: tr, label: "M2" },
+      { pt: br, label: "M6" },
+      { pt: bl, label: "M5" }
+    ];
+    if (ml) markersToDraw.push({ pt: ml, label: "M3" });
+    if (mr) markersToDraw.push({ pt: mr, label: "M4" });
+
+    ctx.shadowBlur = 6;
+    for (const m of markersToDraw) {
+      // Outer ring
+      ctx.beginPath();
+      ctx.arc(m.pt.x, m.pt.y, 14, 0, Math.PI * 2);
+      ctx.strokeStyle = strokeColor;
+      ctx.lineWidth = 2.5;
+      ctx.stroke();
+
+      // Inner center dot
+      ctx.beginPath();
+      ctx.arc(m.pt.x, m.pt.y, 4, 0, Math.PI * 2);
+      ctx.fillStyle = dotColor;
+      ctx.fill();
+    }
+    ctx.shadowBlur = 0;
+  }, []);
+
   // Reset / Next Scan Action
   const resetForNextScan = useCallback(() => {
     setScanResult(null);
@@ -333,7 +485,8 @@ export function OmrCameraScanner({
     isCapturingRef.current = false;
     detectedCornersRef.current = null;
     setMarkerStatus("searching");
-  }, []);
+    drawArOverlay(null, false);
+  }, [drawArOverlay]);
 
   // Built-in Scan Calibration & Visual Bubble Pointer Simulator
   const runSimulationDiagnosticScan = useCallback(() => {
@@ -461,6 +614,7 @@ export function OmrCameraScanner({
 
     isCapturingRef.current = true;
     setIsProcessing(true);
+    drawArOverlay(null, false);
 
     try {
       const canvas = canvasRef.current || document.createElement("canvas");
@@ -478,7 +632,20 @@ export function OmrCameraScanner({
         data: imgData.data
       };
 
-      const cornersToUse = explicitCorners || detectedCornersRef.current || undefined;
+      let cornersToUse = explicitCorners || detectedCornersRef.current || undefined;
+
+      // High-Res Fallback: If markers were not pre-locked in 480p preview, run adaptive detection on full capture
+      if (!cornersToUse) {
+        const fullDetection = detectFiducialMarkers(
+          rawImage.data,
+          rawImage.width,
+          rawImage.height,
+          templateGrid.scanZoneAspectRatio
+        );
+        if (fullDetection.found && fullDetection.corners) {
+          cornersToUse = fullDetection.corners;
+        }
+      }
 
       // Execute OMR processing with 6-point perspective warp + timing marks
       const result = processOmrSheet(rawImage, templateGrid, cornersToUse, {
@@ -538,7 +705,7 @@ export function OmrCameraScanner({
     } finally {
       setIsProcessing(false);
     }
-  }, [isProcessing, paperId, session, templateGrid, playChime, onScanComplete, buildDiagnosticOverlayUrl]);
+  }, [isProcessing, paperId, session, templateGrid, playChime, onScanComplete, buildDiagnosticOverlayUrl, drawArOverlay]);
 
   // Quick-Edit Student ID / Seat No Handler inside Camera Modal (Q2 - Option C)
   const handleSaveStudentIdentity = useCallback(async () => {
@@ -625,15 +792,18 @@ export function OmrCameraScanner({
 
           detectedCornersRef.current = fullCorners;
           lockStreakRef.current += 1;
-          setMarkerStatus("locked");
+          const isLocked = lockStreakRef.current >= 2;
+          setMarkerStatus(isLocked ? "locked" : "partial");
+          drawArOverlay(fullCorners, isLocked);
 
-          if (autoCaptureEnabled && lockStreakRef.current >= 2 && !isCapturingRef.current) {
+          if (autoCaptureEnabled && isLocked && !isCapturingRef.current) {
             captureAndProcess(fullCorners);
           }
         } else {
           detectedCornersRef.current = null;
           lockStreakRef.current = 0;
           setMarkerStatus(detection.markersDetected > 0 ? "partial" : "searching");
+          drawArOverlay(null, false);
         }
       } catch (err) {
         // Marker detection frame error ignored to keep video smooth
@@ -641,7 +811,7 @@ export function OmrCameraScanner({
     }, 250);
 
     return () => clearInterval(intervalId);
-  }, [streamActive, isProcessing, scanResult, autoCaptureEnabled, templateGrid, captureAndProcess]);
+  }, [streamActive, isProcessing, scanResult, autoCaptureEnabled, templateGrid, captureAndProcess, drawArOverlay]);
 
   // Countdown timer for Auto-Advance
   useEffect(() => {
@@ -833,6 +1003,22 @@ export function OmrCameraScanner({
             {soundEnabled ? <Volume2 className="w-4 h-4 text-emerald-400" /> : <VolumeX className="w-4 h-4 text-slate-400" />}
           </button>
 
+          {/* Flashlight / Torch Toggle (Mobile back camera) */}
+          {hasTorch && (
+            <button
+              type="button"
+              onClick={toggleTorch}
+              className={`p-2 rounded-xl backdrop-blur-md transition ${
+                torchOn
+                  ? "bg-amber-400 text-slate-950 font-bold shadow-[0_0_14px_rgba(251,191,36,0.9)]"
+                  : "bg-white/10 hover:bg-white/20 text-white"
+              }`}
+              title={torchOn ? "ปิดไฟแฟลช / ไฟฉาย" : "เปิดไฟแฟลช / ไฟฉาย"}
+            >
+              <Zap className={`w-4 h-4 ${torchOn ? "fill-current text-slate-950" : "text-amber-300"}`} />
+            </button>
+          )}
+
           {/* Upload Fallback */}
           <label className="p-2 rounded-xl bg-white/10 hover:bg-white/20 backdrop-blur-md transition text-white cursor-pointer" title="อัปโหลดรูปกระดาษคำตอบ">
             <Upload className="w-4 h-4" />
@@ -877,10 +1063,16 @@ export function OmrCameraScanner({
           <>
             <video
               ref={videoRef}
-              className="w-full h-full object-cover"
+              className="w-full h-full object-contain bg-black"
               autoPlay
               playsInline
               muted
+            />
+
+            {/* Real-Time AR Marker Visualizer Overlay Canvas */}
+            <canvas
+              ref={arCanvasRef}
+              className="absolute inset-0 w-full h-full pointer-events-none z-10"
             />
 
             {/* 6-Point Guide Reticles (4 Corners + 2 Mid-Side Markers) - Dynamic Color by Lock Status */}

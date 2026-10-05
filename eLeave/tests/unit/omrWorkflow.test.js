@@ -16,17 +16,15 @@ describe('Academic OMR End-to-End Workflow & Integrity Pipeline', () => {
   let testUserId;
   let testPaperId;
 
-  it('should seed or find a test teacher user', async () => {
-    const user = await prisma.user.upsert({
-      where: { email: 'omr_teacher_test@kpschool.ac.th' },
-      update: {},
-      create: {
-        email: 'omr_teacher_test@kpschool.ac.th',
-        name: 'ครูผู้สอน ทดสอบ OMR',
-        role: 'TEACHER',
-      },
+  it('should find an active user for test context without modifying User table', async () => {
+    let user = await prisma.user.findFirst({
+      where: { role: 'TEACHER' },
+      select: { id: true },
     });
-    assert.ok(user.id);
+    if (!user) {
+      user = await prisma.user.findFirst({ select: { id: true } });
+    }
+    assert.ok(user?.id, 'A user must exist in database for test context');
     testUserId = user.id;
   });
 
@@ -240,10 +238,6 @@ describe('Academic OMR End-to-End Workflow & Integrity Pipeline', () => {
 
         await pool.query('ALTER TABLE "ExamItemOverride" ENABLE TRIGGER USER;').catch(() => {});
         await pool.query('ALTER TABLE "ExamItemSubmission" ENABLE TRIGGER USER;').catch(() => {});
-
-        if (testUserId) {
-          await pool.query('DELETE FROM "User" WHERE "id" = $1', [testUserId]).catch(() => {});
-        }
       }
     } catch (err) {
       console.error('Error cleaning up omrWorkflow test data:', err);
