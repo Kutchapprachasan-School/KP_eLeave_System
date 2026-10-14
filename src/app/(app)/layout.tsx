@@ -1302,22 +1302,25 @@ function AppContent({ children }: { children: React.ReactNode }) {
             target="_blank"
             rel="noopener noreferrer"
             title={lang === "en" ? "Classroom Portal" : "ระบบจัดการชั้นเรียน"}
-            className={`group relative flex items-center justify-between rounded-xl text-xs font-medium transition-all duration-200 overflow-hidden bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-transparent hover:from-emerald-500/20 hover:via-teal-500/20 border border-emerald-500/20 dark:border-emerald-500/30 text-emerald-800 dark:text-emerald-300 hover:text-emerald-900 dark:hover:text-emerald-200 hover:shadow-xs ${isCollapsed ? "justify-center w-10 h-10 mx-auto" : "px-3 py-2.5"}`}
+            className={`w-full flex items-center rounded-xl text-xs sm:text-[13px] transition-all duration-200 group cursor-pointer ${
+              isCollapsed ? "justify-center w-10 h-10 mx-auto" : "justify-between px-3.5 py-2.5"
+            } text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white font-medium`}
           >
-            <div className={`${isCollapsed ? "" : "p-1 rounded-lg bg-emerald-500/15"} text-emerald-600 dark:text-emerald-400 group-hover:scale-110 transition-transform shrink-0`}>
-              <GraduationCap className="w-4 h-4" />
+            <div className="flex items-center gap-3 min-w-0">
+              <GraduationCap className="w-4 h-4 shrink-0 transition-transform text-slate-500 dark:text-slate-400 group-hover:text-blue-600 dark:group-hover:text-blue-400" />
+              {!isCollapsed && (
+                <span className="truncate">
+                  {lang === "en" ? "Classroom Portal" : "ระบบจัดการชั้นเรียน"}
+                </span>
+              )}
             </div>
+
             {!isCollapsed && (
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between gap-1">
-                  <span className="font-semibold truncate">
-                    {lang === "en" ? "Classroom Portal" : "ระบบจัดการชั้นเรียน"}
-                  </span>
-                  <ExternalLink className="w-3.5 h-3.5 opacity-60 group-hover:opacity-100 group-hover:translate-x-0.5 -translate-y-0.5 transition-all shrink-0 text-emerald-600 dark:text-emerald-400" />
-                </div>
-                <div className="text-[10.5px] text-emerald-600/80 dark:text-emerald-400/80 truncate font-normal">
-                  {lang === "en" ? "Classroom & Student Affairs" : "ชั้นเรียน • กิจการนักเรียน • สภานักเรียน"}
-                </div>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-600 text-white">
+                  TEACH
+                </span>
+                <ExternalLink className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300 transition-colors" />
               </div>
             )}
           </a>
