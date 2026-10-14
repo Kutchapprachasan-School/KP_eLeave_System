@@ -1,97 +1,109 @@
-# กฎประหยัด Token & ป้องกัน Quadratic Context Explosion (v1.0)
+---
+trigger: always_on
+description: "Risk-adjusted context orchestration, search-first reading, trigger-based handoff, subagent cost control, and empirical verification."
+---
 
-**บังคับใช้กับ:** ทุก Session การพัฒนาในโปรเจกต์นี้  
-**สาเหตุ:** ~90% ของ Token ถูกใช้ไปกับการอ่าน Context ซ้ำ ยิ่งแชทยาว ยิ่งเปลือง Token แบบ O(n²)
+# นโยบายจัดการบริบทและต้นทุนตามความเสี่ยง (Token & Context Policy v3.0)
+
+**บังคับใช้กับ:** ทุก Session การพัฒนาในโปรเจกต์ KP e-Leave  
+**หลักการสำคัญ:** ไม่มุ่งลด Token ในทุก Tool Call จนเสียงาน แต่จงทำให้ Agent ใช้ Token น้อยที่สุดเท่าที่จำเป็นเพื่อส่งมอบงานที่ **ถูกต้อง ปลอดภัย และมีหลักฐานตรวจสอบได้จริง**
 
 ---
 
-## ✂️ 1. Targeted View — ห้ามเปิดดูทั้งไฟล์ (Surgical File Reading)
+## 🎯 1. Search-First, Read-Minimum, Expand-by-Dependency (การอ่านโค้ดตามความสัมพันธ์)
 
-- **บังคับ:** ใช้ `StartLine` + `EndLine` ทุกครั้งที่อ่านไฟล์ที่รู้ตำแหน่งแล้ว
-- **ห้าม:** เปิดไฟล์ทั้งหมดเมื่อต้องการแก้ไขแค่บางส่วน
-- **ก่อนเปิดไฟล์:** ค้นหาเลขบรรทัดด้วย `Select-String`, `grep`, หรือดูจาก [CODEBASE_INDEX.md](file:///g:/My%20Drive/01%20Web%20app/01%20ระบบการลา/CODEBASE_INDEX.md) ก่อนเสมอ
-- **ไฟล์ใหม่ที่ไม่เคยเปิด:** ครั้งแรกเปิดทั้งไฟล์ได้ แต่ถ้าเปิดซ้ำต้อง Targeted View เท่านั้น
-- **เกณฑ์:** ไฟล์ > 100 บรรทัด ห้ามเปิดทั้งไฟล์ซ้ำโดยไม่จำเป็น
-
-## 🔄 2. Milestone Handoff / Compact Cadence (ตัดตอนก่อน Context บวม)
-
-- **ทุก 3-5 task** หรือเมื่อรู้สึกว่า Context เริ่มหนัก ให้:
-  1. สรุปงานที่ทำไปแล้วเป็น Handoff Note สั้นๆ
-  2. แนะนำผู้ใช้เริ่ม Session ใหม่พร้อม Handoff Note
-- **เมื่อ Session ดำเนินไป > 15 tool calls** ให้เตือนผู้ใช้ว่าถึงจุดที่ควร Handoff
-- **อย่ารอจน Context ล้น:** ป้องกัน ดีกว่า แก้
-
-## 🧠 3. Smart Model Routing (ใช้สมองให้ถูกเบอร์)
-
-- **งานง่าย (research, อ่านไฟล์, ค้นหา, สรุป):** ส่ง subagent ด้วย `model: "flash"` หรือ `model: "flash_lite"`
-- **งานซับซ้อน (refactor, debug, architecture):** ใช้ `model: "pro"` หรือ `model: "inherit"`
-- **หลักการ:** ไม่ใช้ปืนใหญ่ยิงนก — ประหยัด Token ด้วยการเลือก Model ที่เหมาะกับงาน
-
-## 🗄️ 4. Scratchpad Output Redirect (ซ่อน Log ยาวไว้ในไฟล์)
-
-- **Output ยาว > 50 บรรทัด:** Redirect ลงไฟล์ใน `scratch/` แทนการพ่นลงแชท
-  ```powershell
-  some-command | Out-File scratch/result.txt
-  ```
-- **หลังจาก Redirect:** ใช้ `view_file` ดูเฉพาะส่วนที่ต้องการ (Targeted View)
-- **ห้าม:** ปล่อยให้ command output ยาวๆ ไหลเข้า Context โดยไม่จำเป็น
-- **ใช้ `| Select-Object -First N` หรือ `| head -n N`:** เมื่อต้องการแค่ผลลัพธ์บางส่วน
-
-## 🐝 5. Ephemeral Subagent Swarm (ฝูงบินสลายตัว)
-
-- **งานที่เป็นอิสระจากกัน:** ส่ง Subagent ทำแยก ไม่สะสม Context ในแชทหลัก
-- **Subagent ควรจบตัวเองแล้วรายงานกลับสั้นๆ** ไม่ dump ข้อมูลดิบกลับมา
-- **ใช้ `model: "flash"` สำหรับ Subagent งาน research** เพื่อประหยัด Token
-- **Kill subagent ทันทีเมื่อได้คำตอบ:** ไม่ปล่อยค้าง
-
-## 📑 6. Codebase Navigation Index (สารบัญโค้ด — ต้องอัปเดตทุกครั้ง)
-
-- **ไฟล์ [`CODEBASE_INDEX.md`](file:///g:/My%20Drive/01%20Web%20app/01%20ระบบการลา/CODEBASE_INDEX.md)** คือแผนที่หลักของโปรเจกต์
-- **ก่อนเปิดไฟล์ใดๆ:** ดู Index ก่อนว่าไฟล์เป้าหมายอยู่ตรงไหน มีฟังก์ชันอะไรบ้าง บรรทัดไหน
-- **ทุกครั้งที่มีการ:**
-  - ✅ สร้างไฟล์ใหม่
-  - ✅ ลบไฟล์
-  - ✅ ย้ายไฟล์
-  - ✅ เพิ่ม/ลบ/เปลี่ยนชื่อ function สำคัญ
-  - ✅ เปลี่ยนโครงสร้าง directory
-  
-  **→ ต้องอัปเดต `CODEBASE_INDEX.md` ให้ตรงกับสถานะปัจจุบันทันที**
-- **ห้าม:** ปล่อยให้ Index ล้าสมัย — ถ้า Index ผิด = Agent ต้องไล่อ่านไฟล์ใหม่ = เสีย Token ซ้ำ
-- **โครงสร้าง Index:** แบ่งตาม module/feature พร้อมระบุ path, Line Anchor Registry สำหรับไฟล์แกนหลัก (>300 บรรทัด), และหน้าที่หลัก
-
-## 🔍 7. Single-Line Pre-filter Search (ห้ามสุ่มเดาช่วงบรรทัด)
-
-- **ห้าม:** สุ่มเปิด `view_file` ทีละ 200 บรรทัดเพื่อคลำหาฟังก์ชัน เพราะเสีย Token ไปเปล่าประโยชน์
-- **ถ้าไม่รู้เลขบรรทัด:** ให้ใช้ PowerShell 1 บรรทัดยิงหา LineNumber ทันทีก่อนอ่าน:
-  ```powershell
-  Select-String -Path "path/to/file.tsx" -Pattern "TargetFunction|TargetSymbol" | Select-Object -First 3 LineNumber, Line
-  ```
-- **กิน Token เพียง ~30-50 tokens** แล้วสามารถใช้ `view_file` ไปยัง `StartLine/EndLine` ได้ตรงเป้าในครั้งเดียว 100%
-
-## 🧪 8. Scoped Test Filter (ห้าม Dump Full Test Suite พร่ำเพรื่อ)
-
-- **เมื่อแก้โค้ดเฉพาะจุด:** ให้รันเฉพาะไฟล์ทดสอบที่เกี่ยวข้อง เช่น:
-  ```powershell
-  node --test eLeave/tests/unit/specificModule.test.js
-  ```
-- **รัน Full Suite (`npm test`):** เฉพาะก่อน Commit สุดท้ายเพื่อยืนยัน Zero Regression เท่านั้น
-- **ลด Log สะสมใน Context:** ได้นับหมื่น Tokens ต่อรอบ
-
-## 🏆 9. Zero-Compromise Quality Invariant (ประหยัดแต่คุณภาพต้องเทียบเท่าหรือดีกว่ามาตรฐาน)
-
-- **ไม่ตัดทอน Architecture:** การประหยัด Token ต้องไม่ตัด Type safety, Error handling, PDPA Security หรือสถาปัตยกรรม Clean Architecture
-- **Response ที่กระชับและอุดมข้อมูล:** สรุปตรงประเด็น เน้นผลลัพธ์ที่เป็นรูปธรรมและ GitHub links ชี้ตรงบรรทัด (`file:///...#L123`) ไม่ Dump โค้ดยาวซ้ำในคำตอบโดยไม่จำเป็น
+- **ค้นหาก่อนอ่าน (Search-First):**
+  - ใช้ Single-line search (เช่น `Select-String`, `grep`) เพื่อหาจุดนิยาม (Definition) และจุดเรียกใช้ (Caller) ก่อนเปิดอ่านไฟล์
+  - ปฏิบัติต่อเลขบรรทัดใน `CODEBASE_INDEX.md` เป็น **"พิกัดคร่าวๆ (Hints)"** ไม่ใช่ความจริงสัมบูรณ์ เพราะเลขบรรทัดอาจขยับได้หลังการแก้ไข
+- **อ่านขั้นต่ำแต่ครบ Dependency (Read-Minimum with Context):**
+  - เมื่อพบเป้าหมาย ให้อ่านตัวฟังก์ชันพร้อม Imports, Type Interfaces, และ Parameters ที่เกี่ยวข้อง
+  - **ห้าม:** ตัดอ่านเฉพาะบอดี้ฟังก์ชันโดยไม่อ่าน Type หรือ Context รอบข้าง เพราะจะนำไปสู่การแก้ผิดและต้องเสีย Token แก้ซ้ำหลายรอบ (Cost per completed task สูงขึ้น)
+- **ข้อยกเว้นการเปิดทั้งไฟล์:**
+  - ไฟล์ขนาดสั้น (< 100-150 บรรทัด)
+  - ไฟล์ที่สร้างขึ้นใหม่ หรือไฟล์ที่มี Coupling สูงระหว่างฟังก์ชันภายใน สามารถเปิดทั้งไฟล์ได้เพื่อความเข้าใจที่ถูกต้องครบถ้วน
 
 ---
 
-## 📊 สรุปเป้าหมาย Token Efficiency v2.0
+## 🔄 2. Trigger-Based Handoff (การส่งต่องานตามเงื่อนไขจริง)
 
-| ปัญหา | วิธีแก้ | เป้าหมาย |
+ยกเลิกการนับจำนวน Task หรือ Tool Calls แบบตายตัว (เช่น ทุก 15 ครั้ง) เพราะงานแต่ละประเภทมีปริมาณผลลัพธ์ไม่เท่ากัน ให้พิจารณา Handoff เมื่อเกิด **Trigger** ข้อใดข้อหนึ่ง:
+1. **Context Saturation Risk:** ปริมาณข้อความใน Session เริ่มยาวจนเสี่ยงต่อการถูกตัดทอน (Truncation)
+2. **Behavioral Degradation:** Agent เริ่มอ่านข้อมูลเดิมซ้ำ หรือเริ่มลืมกฎ/คำสั่งก่อนหน้า
+3. **Phase Transition:** เมื่อเปลี่ยนจาก "Phase สำรวจ/ออกแบบ" เข้าสู่ "Phase ลงมือแก้โค้ดจริง (Implementation)"
+4. **Milestone Boundary:** เมื่อจบงานชิ้นใหญ่ที่ผ่านการทดสอบแล้ว และสามารถสรุปสถานะสั้นๆ เพื่อส่งต่อ Session ใหม่ได้อย่างหมดจด
+5. **Context Pollution:** มี Error Logs เก่า หรือข้อมูลจากการทดลองที่ไม่เกี่ยวข้องกับงานถัดไปสะสมมากเกินไป
+
+---
+
+## 🧠 3. Task-to-Tool Efficiency Matrix (เลือกเครื่องมือให้ตรงจุด)
+
+วัดความคุ้มค่าที่ **"ต้นทุนรวมต่อหนึ่งงานที่สำเร็จ (Cost per Successful Task)"** ไม่ใช่ราคา Token ต่อครั้ง:
+
+| ประเภทงาน | เครื่องมือที่เหมาะสม | เหตุผลด้านต้นทุน |
 |---|---|---|
-| อ่านไฟล์ซ้ำทั้งไฟล์ | Targeted View + Line Anchors | ลด Token อ่านไฟล์ 85%+ |
-| คลำหาฟังก์ชันในไฟล์ใหญ่ | Single-Line Pre-filter Search | ตรงจุดใน 1 ครั้ง ไม่เสีย Token เดา |
-| Context บวมจนล้น | Milestone Handoff (ทุก 3-5 tasks) | Context สะอาด ไม่เกิด Truncation |
-| รันเทสต์พ่น Log บวม | Scoped Test Filter | รันเฉพาะจุดที่แตะ |
-| ใช้ Model ใหญ่ทุกงาน | Smart Model Routing (Flash/Pro) | Flash สำหรับงานสแกน |
-| ไม่รู้ว่าอะไรอยู่ไหน | CODEBASE_INDEX.md + Line Anchor Registry | อัปเดตผังบรรทัดทุกครั้ง |
-| ลด Token จนงานหยาบ | Zero-Compromise Quality Invariant | คุณภาพมาตรฐาน Enterprise 100% |
+| ค้นหาชื่อฟังก์ชัน / สัญลักษณ์ | PowerShell / `Select-String` | กิน 0 Model Tokens, รวดเร็ว แม่นยำ |
+| นับไฟล์ / ตรวจโครงสร้าง Directory | Shell Commands | กิน 0 Model Tokens |
+| กรอง Error จาก Build / Test | Regex / Shell Pipelines | ลด Log ที่จะไหลเข้า Context ได้ 80%+ |
+| แก้ไข UI / Logic เฉพาะจุด | Targeted Model Edit | แก้ตรงจุด ไม่ต้องพึ่ง Reasoning ซับซ้อน |
+| แก้ไข Transaction, RBAC, Data Migration | High-Reasoning Execution | ป้องกันบั๊กราคาแพง การทำรอบเดียวผ่านคุ้มค่ากว่าโมเดลเล็กที่แก้ซ้ำ 4 รอบ |
+
+---
+
+## 🗄️ 4. Output Filtering & Scratch Hygiene (การคัดกรอง Log)
+
+- เมื่อรันคำสั่งที่เสี่ยงต่อ Log ยาว (Build, Typecheck, Full Test) ให้ Redirect ลงไฟล์ชั่วคราวใน `scratch/` และคัดกรองเฉพาะข้อมูลสำคัญก่อนส่งกลับเข้า Context:
+  ```powershell
+  npm run typecheck *> scratch/typecheck.log; $ec = $LASTEXITCODE
+  "ExitCode=$ec"
+  Select-String -Path scratch/typecheck.log -Pattern "error TS\d+|Error:|FAILED|Exception" | Select-Object -First 20
+  ```
+- **Scratch Hygiene:** ลบไฟล์ Log เก่าที่ไม่ได้ใช้งานหลังจบภารกิจ เพื่อไม่ให้สะสมมลพิษใน Workspace
+
+---
+
+## 🐝 5. Subagent Prudence Policy (ใช้อย่างระมัดระวัง ไม่เปิดพร่ำเพรื่อ)
+
+ต้นทุนรวมของการเปิด Subagent คือ:
+$$C_{\text{total}} = C_{\text{main}} + \sum_{i=1}^{k} C_{\text{subagent},i} + C_{\text{coordination}}$$
+
+- Subagent แต่ละตัวต้องโหลดกฎและ Context พื้นฐานใหม่เสมอ หากเปิดซ้ำซ้อนจะกลายเป็นการเพิ่ม Token สะสม
+- **เกณฑ์การใช้ Subagent:** ใช้เมื่อครบ 3 เงื่อนไขเท่านั้น:
+  1. งานย่อยเป็นอิสระต่อกันจริง (Decoupled & Parallelizable)
+  2. มีขอบเขตไฟล์ คำถาม และ Output ที่ชัดเจน
+  3. คาดว่าผลลัพธ์จะประหยัดเวลา/Token มากกว่า Overhead ในการเรียก
+- **Default:** เริ่มต้นด้วย Agent เดียวก่อนเสมอ
+- **ห้าม:** Kill Subagent ทันทีโดยไม่ตรวจดูว่ามีงานหรือผลลัพธ์สำคัญค้างอยู่หรือไม่
+
+---
+
+## 📑 6. Stable Architecture Index vs Dynamic Discovery
+
+แบ่งแยกระหว่าง "แผนที่ระบบ" กับ "พิกัดโค้ด":
+1. **Stable Architecture Index ([`CODEBASE_INDEX.md`](file:///g:/My%20Drive/01%20Web%20app/01%20ระบบการลา/CODEBASE_INDEX.md)):**
+   - เก็บผังโมดูล, หน้าที่หลัก, สถาปัตยกรรม 3 ชั้น, และกฎเกณฑ์คงทน (Invariants)
+   - อัปเดตเฉพาะเมื่อมีการเปลี่ยนแปลงโครงสร้างระดับสถาปัตยกรรม หรือเพิ่มโมดูลใหม่ ไม่ต้องอัปเดตทุกครั้งที่แก้ฟังก์ชันเล็กน้อย
+2. **Dynamic Discovery:**
+   - ใช้ Search Tool ค้นหาเลขบรรทัดและ Symbol แบบ On-Demand ขณะทำงานจริง เพื่อหลีกเลี่ยงภาระดูแล Line Anchor ที่ล้าสมัยได้ง่าย
+
+---
+
+## 🧪 7. Risk-Adjusted Test Pyramid (การทดสอบตามระดับความเสี่ยง)
+
+| ระดับ | ขอบเขตการรัน | จังหวะเวลาที่เหมาะสม |
+|---|---|---|
+| **Level 1: Scoped Unit Test** | เฉพาะไฟล์ทดสอบของโมดูลที่แก้ | ทุกรอบที่มีการแก้ Logic |
+| **Level 2: Typecheck & Lint** | Scoped หรือโปรเจกต์ย่อย | เมื่อเปลี่ยน Interface / Types |
+| **Level 3: Integration Test** | ฟังก์ชันที่ต่อ DB หรือหลาย Service | เมื่อแตะ Transaction / Repository |
+| **Level 4: Security / Forensic** | RBAC, Audit, Zero Orphaned Check | เมื่อแตะสิทธิ์, ข้อมูลส่วนบุคคล, DB |
+| **Level 5: Full Test Suite** | ทุกเทสต์ทั้งระบบ (`npm test`) | ก่อนส่งมอบ Milestone หรือ Merge เข้ากิ่งหลัก |
+
+> **หมายเหตุ:** การที่ชุดทดสอบผ่านหมด (Pass) ไม่ได้แปลว่า "Zero Regression" เสมอไป หาก Test ไม่ครอบคลุม Behavior ที่เปลี่ยน จึงต้องตรวจ Diff ควบคู่เสมอ
+
+---
+
+## 🏆 8. Zero-Compromise Quality Invariants (กฎคุณภาพสัมบูรณ์)
+
+1. **ห้ามตัดทอนความปลอดภัย:** ห้ามตัด Security Checks, Zod Validation, หรือ Error Handling ออกเพื่อประหยัดโค้ดหรือ Token
+2. **ห้ามอ้างผลลอยๆ:** ห้ามกล่าวอ้างว่า "เทสต์ผ่านแล้ว" โดยไม่ได้รันคำสั่งทดสอบจริง และห้ามใช้ข้อสรุปจินตนาการแทนหลักฐาน Output
+3. **Loop-Break Rule:** หากแก้โค้ดแล้วพบ Error ซ้ำเดิมเกิน **2 ครั้ง** ให้หยุดทันที วิเคราะห์ Root Cause ใหม่ หรือปรึกษาผู้ใช้
+4. **ความโปร่งใสด้านขีดจำกัด:** หากไม่สามารถตรวจสอบโค้ดได้อย่างมั่นใจภายในขอบเขต ให้รายงานข้อจำกัดอย่างตรงไปตรงมา

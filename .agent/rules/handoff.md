@@ -1,3 +1,8 @@
+---
+trigger: model_decision
+description: "Architecture baseline, session handoff context, completed milestones, and pending enterprise tasks."
+---
+
 # Session Handoff & System Architectural Rulebook (v3.0)
 
 **Project:** KP e-Leave & School Enterprise System (โรงเรียนกุดจับประชาสรรค์)  

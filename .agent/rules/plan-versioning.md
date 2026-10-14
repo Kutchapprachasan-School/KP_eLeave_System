@@ -1,3 +1,9 @@
+---
+trigger: glob
+globs: "docs/**, **/*plan*.md, **/*spec*.md"
+description: "Plan versioning, explicit revision tracking, changelog diff clarity, and supersede protocol."
+---
+
 # กฎการจัดทำและแก้ไขแผนงาน (Plan Versioning & Revision Protocol)
 
 **บังคับใช้กับ:** ทุกแผนงานการพัฒนา (Implementation Plans) และเอกสารสถาปัตยกรรม (ADRs/Specs) ในโปรเจกต์นี้

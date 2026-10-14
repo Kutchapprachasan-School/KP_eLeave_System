@@ -1,3 +1,9 @@
+---
+trigger: glob
+globs: "tests/**, scripts/**, prisma/**"
+description: "Zero orphaned test accounts, teardown with trigger suppression, and forensic testing safety."
+---
+
 # กฎความปลอดภัยด้านบัญชีผู้ใช้และข้อมูลทดสอบในฐานข้อมูล (Test Data & Account Safety Protocol)
 
 **บังคับใช้กับ:** AI Agents ทุกตัว, Developers, และทุกสคริปต์ทดสอบ (Tests/Scripts) ในโปรเจกต์นี้  

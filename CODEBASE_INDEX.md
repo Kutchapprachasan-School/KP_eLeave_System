@@ -503,8 +503,8 @@
 
 ---
 
-## 🎯 Line Anchor Registry (ผังเลขบรรทัดไฟล์แกนหลัก > 300 บรรทัด)
-> **กฎการอ่านไฟล์:** ห้ามเปิดสุ่ม ให้ดูเลขบรรทัดจากตารางนี้แล้วใช้ `view_file` กำหนด `StartLine` / `EndLine` ทันที
+## 🎯 Structural Line Anchor Hints (พิกัดโครงสร้างคร่าวๆ สำหรับไฟล์แกนหลัก)
+> **แนวทางปฏิบัติ:** เลขบรรทัดในตารางนี้คือ **"พิกัดคร่าวๆ (Structural Hints)"** สำหรับช่วยจัดวางขอบเขต ไม่ใช่ความจริงสัมบูรณ์ (เพราะอาจเลื่อนได้หลังการแก้ไข) หากต้องการหาจุดนิยามหรือ Caller ที่แน่นอน ให้ใช้ Single-line search (`Select-String`) เสมอ ก่อนเปิดอ่านแบบ Read-Minimum with Dependencies
 
 ### 1. `src/app/(app)/layout.tsx` (1,783 บรรทัด)
 | ส่วนประกอบ / ฟังก์ชัน | บรรทัด | หน้าที่ |
@@ -585,3 +585,37 @@
 | Search & Filter Pills | L476–L520 | ค้นหาวิดเจ็ต & แท็บตัวกรอง |
 | Widget Items List | L521–L630 | รายการการ์ดวิดเจ็ต ปุ่มสลับเปิด-ปิด |
 | Modal Footer Action Buttons | L631–L682 | ปุ่ม `[ใช้ค่ามาตรฐานตามที่แอดมินกำหนด]`, `[รีเซ็ตทั้งหมด]`, `[บันทึก]` |
+
+---
+
+## 🤖 Antigravity Agent Orchestration & Progressive Disclosure System
+
+### 1. Scoped Rules (`.agent/rules/`)
+| ไฟล์กฎ | Trigger | หน้าที่ & ขอบเขต |
+|---|---|---|
+| `.agent/rules/token-efficiency.md` | `always_on` | กฎประหยัด Token v2.0, Targeted View, Single-line pre-filter search |
+| `.agent/rules/database.md` | `glob` (`prisma/**`, `src/repositories/**`) | Zero Orphaned Accounts, Transaction Integrity, Safe Migration |
+| `.agent/rules/architecture.md` | `glob` (`src/**`, `lib/**`) | Clean Architecture 3 ชั้น, Lean Server Actions, Strict Typing |
+| `.agent/rules/security.md` | `glob` (`src/app/actions/**`, `src/app/api/**`) | Session Validation, RBAC Authorization, Zod Validation, PDPA |
+| `.agent/rules/frontend.md` | `glob` (`src/app/**`, `src/components/**`) | Server vs Client Components, Hydration Safety, KP Design System |
+| `.agent/rules/test-data-and-account-safety.md` | `glob` (`tests/**`, `scripts/**`) | Forensic Teardown Protocol with Trigger Suppression |
+| `.agent/rules/plan-versioning.md` | `glob` (`docs/**`, `*plan*.md`) | แผนงานเวอร์ชันนิ่ง, Revision Changelog, Supersede Rule |
+| `.agent/rules/handoff.md` | `model_decision` | บันทึกสถาปัตยกรรมระดับองค์กร และสรุป Milestone ข้าม Session |
+
+### 2. Progressive Disclosure Skills (`.agent/skills/`)
+| Skill Name | โฟลเดอร์ | หน้าที่ |
+|---|---|---|
+| `inspect-task` | `.agent/skills/inspect-task/SKILL.md` | สำรวจพิกัดบรรทัดและตั้งงบประมาณ Token ก่อนแตะโค้ด |
+| `implement-feature` | `.agent/skills/implement-feature/SKILL.md` | แก้ไขโค้ดแบบ Surgical Diff ด้วย `replace_file_content` |
+| `verify-change` | `.agent/skills/verify-change/SKILL.md` | รัน Scoped Vitest, คุม Loop-Break และตรวจความสะอาด DB |
+| `html-planner` | `.agent/skills/html-planner/SKILL.md` | สร้างแผนงานแบบ Interactive HTML Plan |
+| `grill-doc` | `.agent/skills/grill-doc/SKILL.md` | สัมภาษณ์และเจาะลึกสถาปัตยกรรมก่อนลงมือทำ (ADRs) |
+| `ui-ux-pro-max` | `.agent/skills/ui-ux-pro-max/SKILL.md` | แนวทางออกแบบ UI/UX สวยงาม ทันสมัยตามมาตรฐานสากล |
+| `handoff` | `.agent/skills/handoff/SKILL.md` | ส่งต่องานข้าม Session ก่อนบริบทบวม |
+
+### 3. Usage & Token Ledger (`.agent/ledger/`)
+| ไฟล์ | หน้าที่ |
+|---|---|
+| `.agent/ledger/token-ledger.json` | ฐานข้อมูลสถิติ JSON ติดตาม Token Saved, Tool Calls, ผลลัพธ์ Test |
+| `.agent/ledger/token-ledger.md` | เอกสารรายงานสรุปผลลัพธ์ประสิทธิภาพและวิธีคำนวณ Token แบบโปร่งใส |
+
