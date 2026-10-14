@@ -25,6 +25,8 @@ export default function SMSAnnouncementsCard({ onViewAll }: SMSAnnouncementsCard
   const [selectedItem, setSelectedItem] = useState<SchoolAnnouncement | null>(null);
 
   useEffect(() => {
+    // ล้างข้อมูลจำลองเก่าที่อาจตกค้างในเบราว์เซอร์อัตโนมัติ
+    schoolCalendarSyncService.purgeAllMockData();
     // โหลดข้อมูลประกาศจริงจาก Single Source of Truth
     setAnnouncements(schoolCalendarSyncService.getAnnouncements());
 

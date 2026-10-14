@@ -41,8 +41,12 @@ const WEEKDAYS = ["อาทิตย์", "จันทร์", "อังค�
 const SHORT_WEEKDAYS = ["อา.", "จ.", "อ.", "พ.", "พฤ.", "ศ.", "ส."];
 
 export default function SchoolCalendarView() {
-  const [currentMonth, setCurrentMonth] = useState<number>(10); // 1-12 (ตุลาคม)
-  const [currentYear, setCurrentYear] = useState<number>(2569); // พ.ศ.
+  const [currentMonth, setCurrentMonth] = useState<number>(() => {
+    return new Date().getMonth() + 1;
+  });
+  const [currentYear, setCurrentYear] = useState<number>(() => {
+    return new Date().getFullYear() + 543;
+  });
   const [viewMode, setViewMode] = useState<"MONTH" | "LIST">("MONTH");
   const [categoryFilter, setCategoryFilter] = useState<string>("ALL");
   const [roleFilter, setRoleFilter] = useState<TargetRole | "ALL">("ALL");
@@ -55,9 +59,9 @@ export default function SchoolCalendarView() {
   // Form State
   const [formId, setFormId] = useState("");
   const [formTitle, setFormTitle] = useState("");
-  const [formDay, setFormDay] = useState<number>(1);
-  const [formMonth, setFormMonth] = useState<number>(10);
-  const [formYear, setFormYear] = useState<number>(2569);
+  const [formDay, setFormDay] = useState<number>(() => new Date().getDate());
+  const [formMonth, setFormMonth] = useState<number>(() => new Date().getMonth() + 1);
+  const [formYear, setFormYear] = useState<number>(() => new Date().getFullYear() + 543);
   const [formTime, setFormTime] = useState("08:30");
   const [formIsAllDay, setFormIsAllDay] = useState(false);
   const [formCategory, setFormCategory] = useState<CalendarCategory>("ACADEMIC");
@@ -68,6 +72,8 @@ export default function SchoolCalendarView() {
 
   // โหลดกิจกรรมจาก Single Source of Truth
   useEffect(() => {
+    // ล้างข้อมูลจำลองเก่าที่อาจตกค้างในเบราว์เซอร์อัตโนมัติ
+    schoolCalendarSyncService.purgeAllMockData();
     setEvents(schoolCalendarSyncService.getEvents());
 
     const handleUpdate = () => {

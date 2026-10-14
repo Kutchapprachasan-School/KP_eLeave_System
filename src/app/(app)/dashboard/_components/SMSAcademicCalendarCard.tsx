@@ -23,13 +23,21 @@ const WEEKDAYS = ["อา", "จ", "อ", "พ", "พฤ", "ศ", "ส"];
 export default function SMSAcademicCalendarCard({
   onViewAll,
 }: SMSAcademicCalendarCardProps) {
-  // เริ่มต้นที่เดือนตุลาคม 2569 ตามปีการศึกษา
-  const [currentMonth, setCurrentMonth] = useState<number>(10); // 1-12
-  const [currentYear, setCurrentYear] = useState<number>(2569); // พ.ศ.
+  // เริ่มต้นที่วัน เดือน และปีปัจจุบันจริง
+  const [currentMonth, setCurrentMonth] = useState<number>(() => {
+    return new Date().getMonth() + 1;
+  });
+  const [currentYear, setCurrentYear] = useState<number>(() => {
+    return new Date().getFullYear() + 543;
+  });
   const [events, setEvents] = useState<SchoolCalendarEvent[]>([]);
-  const [selectedDay, setSelectedDay] = useState<number>(2);
+  const [selectedDay, setSelectedDay] = useState<number>(() => {
+    return new Date().getDate();
+  });
 
   useEffect(() => {
+    // ล้างข้อมูลจำลองเก่าที่อาจตกค้างในเบราว์เซอร์อัตโนมัติ
+    schoolCalendarSyncService.purgeAllMockData();
     setEvents(schoolCalendarSyncService.getEvents());
 
     const handleUpdate = () => {

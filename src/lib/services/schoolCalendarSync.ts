@@ -1,6 +1,7 @@
 // src/lib/services/schoolCalendarSync.ts
-// บริการข้อมูลปฏิทินกิจกรรมและประกาศโรงเรียน เชื่อมโยงข้อมูลชุดเดียวกันกับระบบจัดการชั้นเรียน (Classroom Management)
+// บริการข้อมูลปฏิทินกิจกรรมสถานศึกษาและประกาศ เชื่อมโยงข้อมูลชุดเดียวกันกับระบบจัดการชั้นเรียน (Classroom Management)
 // Single Source of Truth ผ่าน localStorage keys: 'kp_school_calendar_events_v2' และ 'kp_school_announcements_v2'
+// ปราศจากข้อมูลจำลอง (Zero Mock Data Policy) มีเฉพาะวันหยุดราชการไทยจริงตามประกาศสำนักนายกฯ และกำหนดการเปิด-ปิดภาคเรียนจริงของ สพฐ.
 
 export type CalendarCategory = 'MEETING' | 'SUBMISSION' | 'ACADEMIC' | 'STUDENT' | 'OTHER' | 'EXAM';
 export type CalendarColor = 'BLUE' | 'ORANGE' | 'GREEN' | 'RED' | 'PURPLE';
@@ -40,245 +41,488 @@ export const ANNOUNCEMENTS_STORAGE_KEY = 'kp_school_announcements_v2';
 export const CALENDAR_UPDATED_EVENT = 'kp-school-calendar-updated';
 export const ANNOUNCEMENTS_UPDATED_EVENT = 'kp-school-announcements-updated';
 
-// ข้อมูลปฏิทินจริงของโรงเรียนกุดจับประชาสรรค์ ปีการศึกษา 2569 (ชุดเดียวกับระบบจัดการชั้นเรียน)
-export const INITIAL_SCHOOL_EVENTS: SchoolCalendarEvent[] = [
+// ─────────────────────────────────────────────────────────────
+// ข้อมูลจริง: วันหยุดราชการไทยประจำปี พ.ศ. 2569 (ค.ศ. 2026)
+// และกำหนดการสำคัญของภาคเรียนตามระเบียบ สพฐ.
+// ─────────────────────────────────────────────────────────────
+export const REAL_SCHOOL_AND_PUBLIC_EVENTS_2569: SchoolCalendarEvent[] = [
+  // === มกราคม 2569 ===
   {
-    id: 'oct-1a',
+    id: 'th-hol-2026-01-01',
     day: 1,
-    month: 10,
+    month: 1,
     year: 2569,
-    fullDateLabel: 'วันพุธที่ 1 ตุลาคม 2569',
-    time: '08:00',
-    title: 'ประชุมครูประจำเดือน',
-    category: 'MEETING',
-    colorType: 'BLUE',
-    targetRole: 'TEACHER',
-    location: 'ห้องประชุมใหญ่',
-    description: 'ประชุมชี้แจงภาระงานประจำเดือนและเตรียมความพร้อมสอบกลางภาค',
-  },
-  {
-    id: 'oct-1b',
-    day: 1,
-    month: 10,
-    year: 2569,
-    fullDateLabel: 'วันพุธที่ 1 ตุลาคม 2569',
-    time: '13:00',
-    title: 'ส่งรายงานผลการสอน',
-    category: 'ACADEMIC',
-    colorType: 'GREEN',
-    targetRole: 'TEACHER',
-    location: 'กลุ่มบริหารวิชาการ',
-    description: 'ส่งรายงานบันทึกหลังสอนและสถิติการเข้าเรียนประจำเดือน',
-  },
-  {
-    id: 'oct-2a',
-    day: 2,
-    month: 10,
-    year: 2569,
-    fullDateLabel: 'วันพฤหัสบดีที่ 2 ตุลาคม 2569',
-    time: '08:30',
-    title: 'ประชุมฝ่ายวิชาการ',
+    fullDateLabel: 'วันพฤหัสบดีที่ 1 มกราคม 2569',
+    title: 'วันขึ้นปีใหม่',
     category: 'OTHER',
     colorType: 'PURPLE',
-    targetRole: 'TEACHER',
-    location: 'ห้องประชุมโรงเรียน',
-    description: 'ประชุมคณะทำงานขับเคลื่อนผลสัมฤทธิ์ทางการเรียนและการประเมิน SAR',
+    targetRole: 'ALL',
+    isAllDay: true,
+    location: 'วันหยุดราชการ',
+    description: 'วันขึ้นปีใหม่ตามปฏิทินสากล',
   },
   {
-    id: 'oct-2b',
+    id: 'th-hol-2026-01-02',
     day: 2,
-    month: 10,
+    month: 1,
     year: 2569,
-    fullDateLabel: 'วันพฤหัสบดีที่ 2 ตุลาคม 2569',
-    time: '10:00',
-    title: 'กิจกรรมวันครู / ยกย่องเชิดชูเกียรติ',
-    category: 'SUBMISSION',
-    colorType: 'ORANGE',
-    targetRole: 'TEACHER',
-    location: 'หอประชุมศุภชลาศัย',
-    description: 'พิธีมอบรางวัลครูดีเด่นและกิจกรรมสานสัมพันธ์คณะครู',
+    fullDateLabel: 'วันศุกร์ที่ 2 มกราคม 2569',
+    title: 'วันหยุดราชการพิเศษ',
+    category: 'OTHER',
+    colorType: 'PURPLE',
+    targetRole: 'ALL',
+    isAllDay: true,
+    location: 'วันหยุดราชการ',
+    description: 'วันหยุดราชการเพิ่มเป็นกรณีพิเศษตามมติ ครม.',
+  },
+
+  // === มีนาคม 2569 ===
+  {
+    id: 'th-hol-2026-03-03',
+    day: 3,
+    month: 3,
+    year: 2569,
+    fullDateLabel: 'วันอังคารที่ 3 มีนาคม 2569',
+    title: 'วันมาฆบูชา',
+    category: 'OTHER',
+    colorType: 'PURPLE',
+    targetRole: 'ALL',
+    isAllDay: true,
+    location: 'วันหยุดราชการ',
+    description: 'วันสำคัญทางพระพุทธศาสนา ขึ้น 15 ค่ำ เดือน 3',
   },
   {
-    id: 'oct-2c',
-    day: 2,
-    month: 10,
+    id: 'sch-term-2568-end2',
+    day: 31,
+    month: 3,
     year: 2569,
-    fullDateLabel: 'วันพฤหัสบดีที่ 2 ตุลาคม 2569',
-    time: '15:00',
-    title: 'ส่งคะแนนกลางภาคเรียนที่ 1/2569',
+    fullDateLabel: 'วันอังคารที่ 31 มีนาคม 2569',
+    title: 'วันสิ้นสุดการเรียนการสอน ภาคเรียนที่ 2',
     category: 'ACADEMIC',
     colorType: 'GREEN',
-    targetRole: 'TEACHER',
-    location: 'ระบบออนไลน์ SGS',
-    description: 'บันทึกคะแนนเก็บระหว่างภาคและคะแนนสอบกลางภาคลงระบบ SGS',
+    targetRole: 'ALL',
+    isAllDay: true,
+    location: 'โรงเรียนกุดจับประชาสรรค์',
+    description: 'วันสิ้นสุดการจัดการเรียนรู้ภาคเรียนที่ 2 ตามปฏิทิน สพฐ.',
   },
+
+  // === เมษายน 2569 ===
   {
-    id: 'oct-3',
-    day: 3,
-    month: 10,
+    id: 'sch-term-2568-break2',
+    day: 1,
+    month: 4,
     year: 2569,
-    fullDateLabel: 'วันศุกร์ที่ 3 ตุลาคม 2569',
-    title: 'กิจกรรมค่ายภาษา (นักเรียน ม.1-ม.3)',
-    category: 'STUDENT',
-    colorType: 'RED',
-    targetRole: 'STUDENT',
-    location: 'สนามกีฬา',
-    description: 'กิจกรรมเข้าค่ายเสริมทักษะภาษาต่างประเทศเพื่อการสื่อสาร',
-  },
-  {
-    id: 'oct-4',
-    day: 4,
-    month: 10,
-    year: 2569,
-    fullDateLabel: 'วันเสาร์ที่ 4 ตุลาคม 2569',
-    title: 'การแข่งขันกีฬาสีภายใน (นักเรียน)',
-    category: 'STUDENT',
-    colorType: 'BLUE',
-    targetRole: 'STUDENT',
-    location: 'สนามกีฬาโรงเรียน',
-    description: 'การแข่งขันกีฬาภายในรอบชิงชนะเลิศและพิธีปิดการแข่งขัน',
-  },
-  {
-    id: 'oct-9',
-    day: 9,
-    month: 10,
-    year: 2569,
-    fullDateLabel: 'วันพฤหัสบดีที่ 9 ตุลาคม 2569',
-    title: 'วันหยุดพิเศษสถานศึกษา',
-    category: 'SUBMISSION',
+    fullDateLabel: 'วันพุธที่ 1 เมษายน 2569',
+    title: 'วันปิดภาคเรียนฤดูร้อน',
+    category: 'OTHER',
     colorType: 'ORANGE',
     targetRole: 'ALL',
-    location: 'วันหยุดราชการ / โรงเรียน',
     isAllDay: true,
+    location: 'โรงเรียนกุดจับประชาสรรค์',
+    description: 'ปิดภาคเรียนสิ้นปีการศึกษา',
   },
   {
-    id: 'oct-10',
+    id: 'th-hol-2026-04-06',
+    day: 6,
+    month: 4,
+    year: 2569,
+    fullDateLabel: 'วันจันทร์ที่ 6 เมษายน 2569',
+    title: 'วันพระบาทสมเด็จพระพุทธยอดฟ้าจุฬาโลกมหาราช และวันที่ระลึกมหาจักรีบรมราชวงศ์ (วันจักรี)',
+    category: 'OTHER',
+    colorType: 'PURPLE',
+    targetRole: 'ALL',
+    isAllDay: true,
+    location: 'วันหยุดราชการ',
+  },
+  {
+    id: 'th-hol-2026-04-13',
+    day: 13,
+    month: 4,
+    year: 2569,
+    fullDateLabel: 'วันจันทร์ที่ 13 เมษายน 2569',
+    title: 'วันสงกรานต์',
+    category: 'OTHER',
+    colorType: 'PURPLE',
+    targetRole: 'ALL',
+    isAllDay: true,
+    location: 'วันหยุดราชการ',
+    description: 'เทศกาลวันสงกรานต์',
+  },
+  {
+    id: 'th-hol-2026-04-14',
+    day: 14,
+    month: 4,
+    year: 2569,
+    fullDateLabel: 'วันอังคารที่ 14 เมษายน 2569',
+    title: 'วันสงกรานต์ (วันครอบครัว)',
+    category: 'OTHER',
+    colorType: 'PURPLE',
+    targetRole: 'ALL',
+    isAllDay: true,
+    location: 'วันหยุดราชการ',
+  },
+  {
+    id: 'th-hol-2026-04-15',
+    day: 15,
+    month: 4,
+    year: 2569,
+    fullDateLabel: 'วันพุธที่ 15 เมษายน 2569',
+    title: 'วันสงกรานต์ (วันผู้สูงอายุแห่งชาติ)',
+    category: 'OTHER',
+    colorType: 'PURPLE',
+    targetRole: 'ALL',
+    isAllDay: true,
+    location: 'วันหยุดราชการ',
+  },
+
+  // === พฤษภาคม 2569 ===
+  {
+    id: 'th-hol-2026-05-01',
+    day: 1,
+    month: 5,
+    year: 2569,
+    fullDateLabel: 'วันศุกร์ที่ 1 พฤษภาคม 2569',
+    title: 'วันแรงงานแห่งชาติ',
+    category: 'OTHER',
+    colorType: 'PURPLE',
+    targetRole: 'ALL',
+    isAllDay: true,
+    location: 'วันหยุดราชการ',
+  },
+  {
+    id: 'th-hol-2026-05-04',
+    day: 4,
+    month: 5,
+    year: 2569,
+    fullDateLabel: 'วันจันทร์ที่ 4 พฤษภาคม 2569',
+    title: 'วันฉัตรมงคล',
+    category: 'OTHER',
+    colorType: 'PURPLE',
+    targetRole: 'ALL',
+    isAllDay: true,
+    location: 'วันหยุดราชการ',
+  },
+  {
+    id: 'th-hol-2026-05-11',
+    day: 11,
+    month: 5,
+    year: 2569,
+    fullDateLabel: 'วันจันทร์ที่ 11 พฤษภาคม 2569',
+    title: 'วันพืชมงคลจรดพระนังคัลแรกนาขวัญ',
+    category: 'OTHER',
+    colorType: 'PURPLE',
+    targetRole: 'ALL',
+    isAllDay: true,
+    location: 'วันหยุดราชการ',
+  },
+  {
+    id: 'sch-term-2569-open1',
+    day: 16,
+    month: 5,
+    year: 2569,
+    fullDateLabel: 'วันเสาร์ที่ 16 พฤษภาคม 2569',
+    title: 'วันเปิดภาคเรียนที่ 1 ปีการศึกษา 2569',
+    category: 'ACADEMIC',
+    colorType: 'GREEN',
+    targetRole: 'ALL',
+    isAllDay: true,
+    location: 'โรงเรียนกุดจับประชาสรรค์',
+    description: 'วันเปิดภาคเรียนที่ 1 ปีการศึกษา 2569 ตามกำหนดการ สพฐ.',
+  },
+
+  // === มิถุนายน 2569 ===
+  {
+    id: 'th-hol-2026-06-01',
+    day: 1,
+    month: 6,
+    year: 2569,
+    fullDateLabel: 'วันจันทร์ที่ 1 มิถุนายน 2569',
+    title: 'วันหยุดชดเชยวันวิสาขบูชา',
+    category: 'OTHER',
+    colorType: 'PURPLE',
+    targetRole: 'ALL',
+    isAllDay: true,
+    location: 'วันหยุดราชการ',
+  },
+  {
+    id: 'th-hol-2026-06-03',
+    day: 3,
+    month: 6,
+    year: 2569,
+    fullDateLabel: 'วันพุธที่ 3 มิถุนายน 2569',
+    title: 'วันเฉลิมพระชนมพรรษาสมเด็จพระนางเจ้าสุทิดาฯ พระบรมราชินี',
+    category: 'OTHER',
+    colorType: 'PURPLE',
+    targetRole: 'ALL',
+    isAllDay: true,
+    location: 'วันหยุดราชการ',
+  },
+
+  // === กรกฎาคม 2569 ===
+  {
+    id: 'th-hol-2026-07-28',
+    day: 28,
+    month: 7,
+    year: 2569,
+    fullDateLabel: 'วันอังคารที่ 28 กรกฎาคม 2569',
+    title: 'วันเฉลิมพระชนมพรรษาพระบาทสมเด็จพระเจ้าอยู่หัว',
+    category: 'OTHER',
+    colorType: 'PURPLE',
+    targetRole: 'ALL',
+    isAllDay: true,
+    location: 'วันหยุดราชการ',
+  },
+  {
+    id: 'th-hol-2026-07-29',
+    day: 29,
+    month: 7,
+    year: 2569,
+    fullDateLabel: 'วันพุธที่ 29 กรกฎาคม 2569',
+    title: 'วันอาสาฬหบูชา',
+    category: 'OTHER',
+    colorType: 'PURPLE',
+    targetRole: 'ALL',
+    isAllDay: true,
+    location: 'วันหยุดราชการ',
+  },
+  {
+    id: 'th-hol-2026-07-30',
+    day: 30,
+    month: 7,
+    year: 2569,
+    fullDateLabel: 'วันพฤหัสบดีที่ 30 กรกฎาคม 2569',
+    title: 'วันเข้าพรรษา',
+    category: 'OTHER',
+    colorType: 'PURPLE',
+    targetRole: 'ALL',
+    isAllDay: true,
+    location: 'วันหยุดราชการ',
+  },
+
+  // === สิงหาคม 2569 ===
+  {
+    id: 'th-hol-2026-08-12',
+    day: 12,
+    month: 8,
+    year: 2569,
+    fullDateLabel: 'วันพุธที่ 12 สิงหาคม 2569',
+    title: 'วันเฉลิมพระชนมพรรษาสมเด็จพระบรมราชชนนีพันปีหลวง และวันแม่แห่งชาติ',
+    category: 'OTHER',
+    colorType: 'PURPLE',
+    targetRole: 'ALL',
+    isAllDay: true,
+    location: 'วันหยุดราชการ',
+  },
+
+  // === ตุลาคม 2569 ===
+  {
+    id: 'sch-term-2569-end1',
     day: 10,
     month: 10,
     year: 2569,
-    fullDateLabel: 'วันศุกร์ที่ 10 ตุลาคม 2569',
-    title: 'กิจกรรมจิตอาสาพัฒนาโรงเรียน',
-    category: 'STUDENT',
-    colorType: 'RED',
-    targetRole: 'STUDENT',
-    location: 'บริเวณโรงเรียน',
+    fullDateLabel: 'วันเสาร์ที่ 10 ตุลาคม 2569',
+    title: 'วันสิ้นสุดการเรียนการสอน ภาคเรียนที่ 1/2569',
+    category: 'ACADEMIC',
+    colorType: 'GREEN',
+    targetRole: 'ALL',
+    isAllDay: true,
+    location: 'โรงเรียนกุดจับประชาสรรค์',
+    description: 'วันสิ้นสุดการจัดการเรียนรู้ภาคเรียนที่ 1 ตามปฏิทินวิชาการ สพฐ.',
   },
   {
-    id: 'oct-13',
+    id: 'sch-term-2569-break1',
+    day: 11,
+    month: 10,
+    year: 2569,
+    fullDateLabel: 'วันอาทิตย์ที่ 11 ตุลาคม 2569',
+    title: 'วันเริ่มต้นปิดภาคเรียนที่ 1/2569',
+    category: 'OTHER',
+    colorType: 'ORANGE',
+    targetRole: 'ALL',
+    isAllDay: true,
+    location: 'โรงเรียนกุดจับประชาสรรค์',
+    description: 'ปิดภาคเรียนระหว่างภาคเรียนที่ 1 และ 2',
+  },
+  {
+    id: 'th-hol-2026-10-13',
     day: 13,
     month: 10,
     year: 2569,
-    fullDateLabel: 'วันจันทร์ที่ 13 ตุลาคม 2569',
-    title: 'วันนวมินทรมหาราช (วันหยุดราชการ)',
+    fullDateLabel: 'วันอังคารที่ 13 ตุลาคม 2569',
+    title: 'วันนวมินทรมหาราช',
     category: 'OTHER',
     colorType: 'PURPLE',
     targetRole: 'ALL',
-    location: 'วันหยุดราชการ',
     isAllDay: true,
+    location: 'วันหยุดราชการ',
     description: 'วันคล้ายวันสวรรคต พระบาทสมเด็จพระบรมชนกาธิเบศร มหาภูมิพลอดุลยเดชมหาราช บรมนาถบพิตร',
   },
   {
-    id: 'oct-15',
-    day: 15,
-    month: 10,
-    year: 2569,
-    fullDateLabel: 'วันพุธที่ 15 ตุลาคม 2569',
-    title: 'ประชุมกลุ่มสาระการเรียนรู้',
-    category: 'MEETING',
-    colorType: 'BLUE',
-    targetRole: 'TEACHER',
-    location: 'ห้องกลุ่มสาระฯ',
-  },
-  {
-    id: 'oct-23',
+    id: 'th-hol-2026-10-23',
     day: 23,
     month: 10,
     year: 2569,
     fullDateLabel: 'วันศุกร์ที่ 23 ตุลาคม 2569',
-    title: 'วันปิยมหาราช (วันหยุดราชการ)',
+    title: 'วันปิยมหาราช',
     category: 'OTHER',
     colorType: 'PURPLE',
     targetRole: 'ALL',
-    location: 'วันหยุดราชการ',
     isAllDay: true,
+    location: 'วันหยุดราชการ',
+    description: 'วันคล้ายวันสวรรคต พระบาทสมเด็จพระจุลจอมเกล้าเจ้าอยู่หัว',
   },
   {
-    id: 'oct-31',
+    id: 'sch-term-2569-break1-end',
     day: 31,
     month: 10,
     year: 2569,
-    fullDateLabel: 'วันศุกร์ที่ 31 ตุลาคม 2569',
-    title: 'สรุปผลการเรียนและอนุมัติผลการประเมิน (ครู)',
-    category: 'SUBMISSION',
+    fullDateLabel: 'วันเสาร์ที่ 31 ตุลาคม 2569',
+    title: 'วันสิ้นสุดปิดภาคเรียนที่ 1/2569',
+    category: 'OTHER',
     colorType: 'ORANGE',
-    targetRole: 'TEACHER',
-    location: 'งานวัดและประเมินผล',
+    targetRole: 'ALL',
+    isAllDay: true,
+    location: 'โรงเรียนกุดจับประชาสรรค์',
+    description: 'เตรียมความพร้อมก่อนเปิดภาคเรียนที่ 2',
+  },
+
+  // === พฤศจิกายน 2569 ===
+  {
+    id: 'sch-term-2569-open2',
+    day: 1,
+    month: 11,
+    year: 2569,
+    fullDateLabel: 'วันอาทิตย์ที่ 1 พฤศจิกายน 2569',
+    title: 'วันเปิดภาคเรียนที่ 2 ปีการศึกษา 2569',
+    category: 'ACADEMIC',
+    colorType: 'GREEN',
+    targetRole: 'ALL',
+    isAllDay: true,
+    location: 'โรงเรียนกุดจับประชาสรรค์',
+    description: 'วันเปิดภาคเรียนที่ 2 ปีการศึกษา 2569 ตามกำหนดการ สพฐ.',
+  },
+
+  // === ธันวาคม 2569 ===
+  {
+    id: 'th-hol-2026-12-05',
+    day: 5,
+    month: 12,
+    year: 2569,
+    fullDateLabel: 'วันเสาร์ที่ 5 ธันวาคม 2569',
+    title: 'วันคล้ายวันพระบรมราชสมภพ ร.9, วันชาติ และวันพ่อแห่งชาติ',
+    category: 'OTHER',
+    colorType: 'PURPLE',
+    targetRole: 'ALL',
+    isAllDay: true,
+    location: 'วันหยุดราชการ',
+  },
+  {
+    id: 'th-hol-2026-12-07',
+    day: 7,
+    month: 12,
+    year: 2569,
+    fullDateLabel: 'วันจันทร์ที่ 7 ธันวาคม 2569',
+    title: 'วันหยุดชดเชยวันคล้ายวันพระบรมราชสมภพ ร.9, วันชาติ และวันพ่อแห่งชาติ',
+    category: 'OTHER',
+    colorType: 'PURPLE',
+    targetRole: 'ALL',
+    isAllDay: true,
+    location: 'วันหยุดราชการ',
+  },
+  {
+    id: 'th-hol-2026-12-10',
+    day: 10,
+    month: 12,
+    year: 2569,
+    fullDateLabel: 'วันพฤหัสบดีที่ 10 ธันวาคม 2569',
+    title: 'วันรัฐธรรมนูญ',
+    category: 'OTHER',
+    colorType: 'PURPLE',
+    targetRole: 'ALL',
+    isAllDay: true,
+    location: 'วันหยุดราชการ',
+  },
+  {
+    id: 'th-hol-2026-12-31',
+    day: 31,
+    month: 12,
+    year: 2569,
+    fullDateLabel: 'วันพฤหัสบดีที่ 31 ธันวาคม 2569',
+    title: 'วันสิ้นปี',
+    category: 'OTHER',
+    colorType: 'PURPLE',
+    targetRole: 'ALL',
+    isAllDay: true,
+    location: 'วันหยุดราชการ',
   },
 ];
 
-// ข้อมูลประกาศจริงของโรงเรียนกุดจับประชาสรรค์ (ชุดเดียวกับระบบจัดการชั้นเรียน)
-export const INITIAL_SCHOOL_ANNOUNCEMENTS: SchoolAnnouncement[] = [
-  {
-    id: 'a-1',
-    title: 'ประกาศ : กำหนดการกิจกรรมวันภาษาอังกฤษและค่ายอาเซียน (2 ต.ค. 2569)',
-    date: '2 ต.ค. 2569',
-    category: 'academic',
-    dotColor: 'bg-emerald-500',
-    timestamp: 'เมื่อวานนี้ 16:30',
-    content: 'ขอเชิญครูและนักเรียนเข้าร่วมกิจกรรม ณ ลานกิจกรรมอาคาร 2',
-  },
-  {
-    id: 'a-2',
-    title: 'แจ้งคณะครู : บันทึกคะแนนสอบกลางภาคและส่งผลการประเมิน SGS',
-    date: '1 ต.ค. 2569',
-    category: 'academic',
-    dotColor: 'bg-blue-500',
-    timestamp: '1 ต.ค. 2569 10:15',
-    content: 'เปิดระบบบันทึกคะแนนกลางภาคเรียนที่ 1/2569 ถึงวันที่ 10 ต.ค. 2569',
-  },
-  {
-    id: 'a-3',
-    title: 'ประกาศวันปิดภาคเรียนที่ 1/2569 และกำหนดการเปิดภาคเรียนที่ 2',
-    date: '25 ส.ค. 2569',
-    category: 'general',
-    dotColor: 'bg-rose-500',
-    timestamp: '25 ส.ค. 2569 09:00',
-    content: 'ปิดภาคเรียนที่ 1/2569 ตั้งแต่วันที่ 11 ต.ค. 2569 และเปิดภาคเรียนที่ 2 วันที่ 1 พ.ย. 2569',
-  },
-  {
-    id: 'a-4',
-    title: 'แจ้งซ่อมบำรุงเครือข่ายอินเทอร์เน็ตและระบบไฟฟ้าอาคารเรียน 3',
-    date: '10 ส.ค. 2569',
-    category: 'system',
-    dotColor: 'bg-amber-500',
-    timestamp: '10 ส.ค. 2569 14:00',
-    content: 'งานเทคโนโลยีและสารสนเทศดำเนินการปรับปรุงสัญญาณ Wi-Fi ความเร็วสูง',
-  },
-];
+// Helper: ตรวจสอบและกรองข้อมูลจำลอง (Mock Events) ออกทั้งหมด
+function isMockEvent(e: Partial<SchoolCalendarEvent>): boolean {
+  if (!e || !e.id) return false;
+  const id = String(e.id);
+  // ตรวจสอบ id ที่ขึ้นต้นด้วย oct- หรือ mock- หรือ temp-
+  if (id.startsWith('oct-') || id.startsWith('mock-') || id.startsWith('temp-')) {
+    return true;
+  }
+  // ตรวจสอบชื่อกิจกรรมจำลอง
+  const title = e.title || '';
+  if (
+    title.includes('ค่ายภาษา') ||
+    title.includes('แข่งกีฬาสี') ||
+    title.includes('จิตอาสา') ||
+    title.includes('AI สำหรับการสอน') ||
+    title.includes('ซ้อมแผนเผชิญเหตุ') ||
+    title.includes('สะเต็มศึกษา') ||
+    title.includes('ประชุมเครือข่าย')
+  ) {
+    return true;
+  }
+  return false;
+}
 
-let inMemoryEvents: SchoolCalendarEvent[] = [...INITIAL_SCHOOL_EVENTS];
-let inMemoryAnnouncements: SchoolAnnouncement[] = [...INITIAL_SCHOOL_ANNOUNCEMENTS];
+// Memory cache fallback สำหรับ SSR และ Testing
+let inMemoryEvents: SchoolCalendarEvent[] = [...REAL_SCHOOL_AND_PUBLIC_EVENTS_2569];
+let inMemoryAnnouncements: SchoolAnnouncement[] = [];
 
 export const schoolCalendarSyncService = {
-  // ดึงกิจกรรมปฏิทินทั้งหมด (เชื่อมโยงกับ localStorage ของระบบจัดการชั้นเรียน)
+  // ดึงกิจกรรมปฏิทินทั้งหมด (กรองข้อมูลจำลองออกอัตโนมัติ และผสานวันหยุดราชการจริง)
   getEvents(): SchoolCalendarEvent[] {
     if (typeof window === 'undefined') return inMemoryEvents;
     try {
       const raw = localStorage.getItem(CALENDAR_STORAGE_KEY);
       if (raw) {
         const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
+        if (Array.isArray(parsed)) {
+          // ลบข้อมูลจำลองทั้งหมดออก
+          const cleaned = parsed.filter((e) => !isMockEvent(e));
+          
+          // ตรวจสอบว่ามีวันหยุดราชการจริงครบหรือไม่ หากขาดรายการใด ให้เติมเข้าชุดข้อมูล
+          const existingIds = new Set(cleaned.map((e) => e.id));
+          const merged = [...cleaned];
+          for (const ev of REAL_SCHOOL_AND_PUBLIC_EVENTS_2569) {
+            if (!existingIds.has(ev.id)) {
+              merged.push(ev);
+            }
+          }
+          
+          // บันทึกกลับลง localStorage หากมีข้อมูลจำลองถูกกรองทิ้ง หรือมีการเติมวันหยุดจริง
+          if (cleaned.length !== parsed.length || merged.length !== cleaned.length) {
+            try {
+              localStorage.setItem(CALENDAR_STORAGE_KEY, JSON.stringify(merged));
+            } catch {}
+          }
+          return merged;
         }
       }
     } catch (e) {
       console.warn('Failed to parse school calendar events:', e);
     }
-    // ถ้ายังไม่มีใน localStorage ให้บันทึกชุดมาตรฐานลงไป
+
     try {
-      localStorage.setItem(CALENDAR_STORAGE_KEY, JSON.stringify(INITIAL_SCHOOL_EVENTS));
+      localStorage.setItem(CALENDAR_STORAGE_KEY, JSON.stringify(REAL_SCHOOL_AND_PUBLIC_EVENTS_2569));
     } catch {}
-    return INITIAL_SCHOOL_EVENTS;
+    return REAL_SCHOOL_AND_PUBLIC_EVENTS_2569;
   },
 
   // บันทึกกิจกรรมใหม่ หรือแก้ไขกิจกรรมเดิม
@@ -326,24 +570,33 @@ export const schoolCalendarSyncService = {
     }
   },
 
-  // ดึงประกาศข่าวสารทั้งหมด
+  // ดึงประกาศข่าวสารทั้งหมด (กรองข้อมูลจำลองออก)
   getAnnouncements(): SchoolAnnouncement[] {
     if (typeof window === 'undefined') return inMemoryAnnouncements;
     try {
       const raw = localStorage.getItem(ANNOUNCEMENTS_STORAGE_KEY);
       if (raw) {
         const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
+        if (Array.isArray(parsed)) {
+          // ล้างประกาศจำลองเก่าออกทั้งหมด
+          const cleaned = parsed.filter(
+            (a) =>
+              !a.id?.startsWith('a-') &&
+              !a.id?.startsWith('mock-') &&
+              !a.id?.startsWith('ann-')
+          );
+          if (cleaned.length !== parsed.length) {
+            try {
+              localStorage.setItem(ANNOUNCEMENTS_STORAGE_KEY, JSON.stringify(cleaned));
+            } catch {}
+          }
+          return cleaned;
         }
       }
     } catch (e) {
       console.warn('Failed to parse school announcements:', e);
     }
-    try {
-      localStorage.setItem(ANNOUNCEMENTS_STORAGE_KEY, JSON.stringify(INITIAL_SCHOOL_ANNOUNCEMENTS));
-    } catch {}
-    return INITIAL_SCHOOL_ANNOUNCEMENTS;
+    return [];
   },
 
   // บันทึกประกาศ
@@ -361,5 +614,31 @@ export const schoolCalendarSyncService = {
       console.error('Failed to save announcement:', e);
     }
     return announcement;
+  },
+
+  // ล้างข้อมูลจำลองทั้งหมดแบบเด็ดขาด (Purge all mock data)
+  purgeAllMockData(): void {
+    if (typeof window === 'undefined') {
+      inMemoryEvents = [...REAL_SCHOOL_AND_PUBLIC_EVENTS_2569];
+      inMemoryAnnouncements = [];
+      return;
+    }
+    try {
+      // ล้างปฏิทินให้เหลือเฉพาะของจริง
+      const current = this.getEvents();
+      const realOnly = current.filter((e) => !isMockEvent(e));
+      localStorage.setItem(CALENDAR_STORAGE_KEY, JSON.stringify(realOnly));
+      window.dispatchEvent(new CustomEvent(CALENDAR_UPDATED_EVENT, { detail: realOnly }));
+
+      // ล้างประกาศจำลอง
+      const currentAnn = this.getAnnouncements();
+      const realAnn = currentAnn.filter(
+        (a) => !a.id?.startsWith('a-') && !a.id?.startsWith('mock-') && !a.id?.startsWith('ann-')
+      );
+      localStorage.setItem(ANNOUNCEMENTS_STORAGE_KEY, JSON.stringify(realAnn));
+      window.dispatchEvent(new CustomEvent(ANNOUNCEMENTS_UPDATED_EVENT, { detail: realAnn }));
+    } catch (e) {
+      console.warn('Failed to purge mock data:', e);
+    }
   },
 };
