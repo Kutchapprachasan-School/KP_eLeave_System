@@ -1,57 +1,50 @@
 "use client";
 
 import React from "react";
-import { Sparkles, Quote } from "lucide-react";
+import { BookOpen } from "lucide-react";
 
 interface SMSHeroBannerProps {
-  schoolName?: string;
-  quote?: string;
+  title?: string;
+  subtitle?: string;
 }
 
 export default function SMSHeroBanner({
-  schoolName = "โรงเรียนศึกษาวิทยา",
-  quote = "การศึกษา คือ รากฐานของอนาคตที่มั่นคง",
+  title = "แดชบอร์ดภาพรวม",
+  subtitle = "ภาพรวมข้อมูลสำคัญของห้องเรียนและการจัดการในระบบ",
 }: SMSHeroBannerProps) {
   return (
-    <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-[0_4px_20px_rgba(0,0,0,0.04)] bg-slate-900 min-h-[170px] sm:min-h-[190px] flex items-center">
-      {/* Background School Panorama Image */}
-      <div
-        className="absolute inset-0 bg-cover bg-center transition-transform duration-700 hover:scale-105"
-        style={{
-          backgroundImage: "url('/images/school_building_panorama.jpg')",
-          backgroundPosition: "center 45%",
-        }}
-      />
+    <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-sky-100/90 via-blue-50/70 to-white dark:from-slate-800 dark:via-slate-800/80 dark:to-slate-900 border border-blue-100 dark:border-slate-800 p-5 sm:p-6 shadow-[0_2px_12px_rgba(0,0,0,0.02)] min-h-[110px] flex items-center justify-between">
+      {/* Background illustration on right side matching media_1791947729556_c79c257e.jpg */}
+      <div className="absolute right-0 top-0 bottom-0 w-1/2 sm:w-2/5 pointer-events-none overflow-hidden select-none">
+        <img
+          src="/images/teacher/hero_banner_anime.png"
+          alt="School Campus"
+          className="w-full h-full object-cover object-left mask-radial opacity-90 dark:opacity-40"
+          style={{
+            maskImage: "linear-gradient(to right, transparent, black 35%)",
+            WebkitMaskImage: "linear-gradient(to right, transparent, black 35%)",
+          }}
+          onError={(e) => {
+            (e.currentTarget as HTMLImageElement).style.display = "none";
+          }}
+        />
+      </div>
 
-      {/* Layered Gradient Overlays for High Legibility & Vibrant Aesthetic */}
-      <div className="absolute inset-0 bg-gradient-to-r from-blue-900/90 via-blue-900/60 to-transparent" />
-      <div className="absolute inset-0 bg-gradient-to-t from-slate-950/40 via-transparent to-transparent" />
-
-      {/* Content Container */}
-      <div className="relative z-10 w-full p-5 sm:p-7 flex flex-col md:flex-row md:items-center justify-between gap-4 text-white">
-        {/* Left Information */}
-        <div className="space-y-1.5 max-w-xl">
-          <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-blue-500/80 backdrop-blur-md text-[11px] font-bold text-white shadow-xs">
-            <Sparkles className="w-3 h-3 text-amber-300" />
-            <span>เริ่มต้น</span>
-          </div>
-
-          <h1 className="text-xl sm:text-2xl lg:text-3xl font-extrabold tracking-tight text-white drop-shadow-sm">
-            ยินดีต้อนรับสู่ระบบบริหารจัดการโรงเรียน
-          </h1>
-
-          <p className="text-xs sm:text-sm text-blue-100 font-medium leading-relaxed drop-shadow-xs">
-            {schoolName} ระบบครบวงจร เพื่อการบริหารที่ดีกว่า
-          </p>
+      {/* Left content matching screenshot */}
+      <div className="relative z-10 flex items-center gap-4 sm:gap-5">
+        {/* Blue Rounded-2xl Icon Box */}
+        <div className="w-13 h-13 sm:w-14 sm:h-14 rounded-2xl bg-blue-600 text-white flex items-center justify-center shadow-md shadow-blue-500/25 shrink-0">
+          <BookOpen className="w-6 h-6 sm:w-7 sm:h-7 stroke-[2.2]" />
         </div>
 
-        {/* Right Quote Box (Glassmorphism Pill as in mockup) */}
-        <div className="self-start md:self-center shrink-0">
-          <div className="bg-white/20 dark:bg-slate-900/40 backdrop-blur-md border border-white/30 dark:border-white/10 rounded-2xl px-5 py-3.5 shadow-lg max-w-xs text-right">
-            <p className="text-xs sm:text-sm font-semibold italic text-white leading-relaxed">
-              &ldquo;{quote}&rdquo;
-            </p>
-          </div>
+        {/* Text information */}
+        <div className="space-y-0.5">
+          <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 dark:text-white tracking-tight">
+            {title}
+          </h1>
+          <p className="text-xs sm:text-[13px] text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
+            {subtitle}
+          </p>
         </div>
       </div>
     </div>

@@ -1,7 +1,14 @@
 "use client";
 
 import React from "react";
-import { Users, UserCheck, CalendarCheck, FileClock, ArrowUpRight, ArrowDownRight } from "lucide-react";
+import {
+  Users,
+  Briefcase,
+  Calendar,
+  ClipboardList,
+  ChevronRight,
+  ArrowUp,
+} from "lucide-react";
 
 interface SMSStatCardsProps {
   totalStudents?: number;
@@ -12,60 +19,52 @@ interface SMSStatCardsProps {
 }
 
 export default function SMSStatCards({
-  totalStudents = 1248,
-  totalStaff = 124,
+  totalStudents = 32,
+  totalStaff = 28,
   attendanceRate = 95.6,
-  pendingTasks = 28,
+  pendingTasks = 8,
   onClickCard,
 }: SMSStatCardsProps) {
   const cards = [
     {
       type: "students",
       title: "นักเรียนทั้งหมด",
-      value: totalStudents.toLocaleString("th-TH"),
+      value: `${totalStudents.toLocaleString("th-TH")}`,
       unit: "คน",
-      trendText: "+12 จากเดือนที่แล้ว",
-      isPositive: true,
-      color: "blue",
-      icon: <Users className="w-6 h-6 text-white" />,
-      iconBg: "bg-blue-600",
-      watermarkIcon: <Users className="w-16 h-16 text-blue-500/10 absolute -right-2 -bottom-2" />,
+      trendText: "+2 จากเทอมที่แล้ว",
+      trendColor: "text-emerald-600 dark:text-emerald-400",
+      icon: <Users className="w-6 h-6 text-blue-600" />,
+      iconBg: "bg-blue-100/80 dark:bg-blue-950/50",
     },
     {
       type: "staff",
       title: "บุคลากรทั้งหมด",
-      value: totalStaff.toLocaleString("th-TH"),
+      value: `${totalStaff.toLocaleString("th-TH")}`,
       unit: "คน",
-      trendText: "+2 จากเดือนที่แล้ว",
-      isPositive: true,
-      color: "purple",
-      icon: <UserCheck className="w-6 h-6 text-white" />,
-      iconBg: "bg-purple-600",
-      watermarkIcon: <UserCheck className="w-16 h-16 text-purple-500/10 absolute -right-2 -bottom-2" />,
+      trendText: "+1 จากเทอมที่แล้ว",
+      trendColor: "text-emerald-600 dark:text-emerald-400",
+      icon: <Briefcase className="w-6 h-6 text-emerald-600" />,
+      iconBg: "bg-emerald-100/80 dark:bg-emerald-950/50",
     },
     {
       type: "attendance",
       title: "การเข้าเรียนวันนี้",
       value: `${attendanceRate}%`,
       unit: "",
-      trendText: "+2.3% จากเมื่อวาน",
-      isPositive: true,
-      color: "emerald",
-      icon: <CalendarCheck className="w-6 h-6 text-white" />,
-      iconBg: "bg-emerald-500",
-      watermarkIcon: <CalendarCheck className="w-16 h-16 text-emerald-500/10 absolute -right-2 -bottom-2" />,
+      trendText: "+1.2% จากเมื่อวาน",
+      trendColor: "text-emerald-600 dark:text-emerald-400",
+      icon: <Calendar className="w-6 h-6 text-amber-600" />,
+      iconBg: "bg-amber-100/80 dark:bg-amber-950/50",
     },
     {
       type: "pending",
-      title: "งานรอดำเนินการ",
-      value: pendingTasks.toLocaleString("th-TH"),
-      unit: "รายการ",
-      trendText: "-15% จากสัปดาห์ที่แล้ว",
-      isPositive: false,
-      color: "amber",
-      icon: <FileClock className="w-6 h-6 text-white" />,
-      iconBg: "bg-amber-500",
-      watermarkIcon: <FileClock className="w-16 h-16 text-amber-500/10 absolute -right-2 -bottom-2" />,
+      title: "งานที่ต้องตรวจ",
+      value: `${pendingTasks.toLocaleString("th-TH")}`,
+      unit: "งาน",
+      trendText: "+2 จากเมื่อวาน",
+      trendColor: "text-rose-500 dark:text-rose-400",
+      icon: <ClipboardList className="w-6 h-6 text-purple-600" />,
+      iconBg: "bg-purple-100/80 dark:bg-purple-950/50",
     },
   ];
 
@@ -75,49 +74,44 @@ export default function SMSStatCards({
         <div
           key={c.type}
           onClick={() => onClickCard?.(c.type)}
-          className="stat-card relative overflow-hidden bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 sm:p-5 shadow-[0_2px_12px_rgba(0,0,0,0.03)] hover:shadow-md transition-all duration-200 cursor-pointer flex items-center justify-between"
+          className="stat-card group relative bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl p-4 sm:p-5 shadow-[0_2px_12px_rgba(0,0,0,0.03)] hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-pointer flex items-center justify-between"
         >
-          {/* Main Info */}
-          <div className="space-y-1 relative z-10">
-            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 block">
+          {/* Left Icon Container */}
+          <div
+            className={`w-13 h-13 rounded-2xl ${c.iconBg} flex items-center justify-center shrink-0 shadow-2xs group-hover:scale-105 transition-transform`}
+          >
+            {c.icon}
+          </div>
+
+          {/* Center Info */}
+          <div className="flex-1 px-3.5 min-w-0">
+            <span className="text-[12px] font-medium text-slate-500 dark:text-slate-400 block truncate">
               {c.title}
             </span>
 
-            <div className="flex items-baseline gap-1.5">
-              <span className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
+            <div className="flex items-baseline gap-1 mt-0.5">
+              <span className="text-2xl font-extrabold text-slate-800 dark:text-white tracking-tight">
                 {c.value}
               </span>
               {c.unit && (
-                <span className="text-xs font-medium text-slate-400 dark:text-slate-500">
+                <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">
                   {c.unit}
                 </span>
               )}
             </div>
 
-            <div className="flex items-center gap-1 text-[11px] font-semibold pt-1">
-              {c.isPositive ? (
-                <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-0.5">
-                  <ArrowUpRight className="w-3.5 h-3.5" />
-                  <span>▲ {c.trendText}</span>
-                </span>
-              ) : (
-                <span className="text-amber-600 dark:text-amber-400 flex items-center gap-0.5">
-                  <ArrowDownRight className="w-3.5 h-3.5" />
-                  <span>▼ {c.trendText}</span>
-                </span>
-              )}
+            <div
+              className={`flex items-center gap-0.5 text-[10.5px] font-semibold mt-1 ${c.trendColor}`}
+            >
+              <ArrowUp className="w-3 h-3 stroke-[2.5]" />
+              <span>{c.trendText}</span>
             </div>
           </div>
 
-          {/* Icon Badge */}
-          <div
-            className={`w-12 h-12 rounded-2xl ${c.iconBg} flex items-center justify-center shadow-sm shrink-0 relative z-10`}
-          >
-            {c.icon}
+          {/* Right Chevron */}
+          <div className="text-slate-300 dark:text-slate-600 group-hover:text-blue-500 transition-colors">
+            <ChevronRight className="w-4 h-4" />
           </div>
-
-          {/* Watermark in background */}
-          {c.watermarkIcon}
         </div>
       ))}
     </div>

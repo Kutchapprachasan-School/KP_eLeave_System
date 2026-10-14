@@ -47,7 +47,9 @@ import {
   GraduationCap,
   Sparkles,
   Trash2,
-  ExternalLink
+  ExternalLink,
+  Home,
+  Search
 } from "lucide-react";
 import { hasRepairPermission, hasFacilityPermission, getUserRoleKey, getUserRoleKeys } from "@/lib/permissions";
 import { getNotifications } from "@/app/actions/admin";
@@ -1147,23 +1149,23 @@ function AppContent({ children }: { children: React.ReactNode }) {
         {/* Brand Header */}
         <div className="p-3.5 border-b border-slate-100 dark:border-slate-800/80 flex items-center justify-between gap-3 shrink-0">
           <div className={`flex items-center gap-3 min-w-0 ${isCollapsed ? "justify-center w-full" : ""}`}>
-            {brandLogo ? (
-              <img src={brandLogo} alt="Logo" className="w-9 h-9 rounded-xl object-cover shadow-xs shrink-0" />
-            ) : (
-              <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-xs shrink-0 font-bold">
-                <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
-              </div>
-            )}
+            <div className="w-10 h-10 rounded-xl overflow-hidden shrink-0 flex items-center justify-center shadow-2xs bg-white border border-slate-100 p-0.5">
+              <img
+                src="/images/teacher/school_logo.png"
+                alt="Logo"
+                className="w-full h-full object-contain"
+                onError={(e) => {
+                  if (brandLogo) (e.currentTarget as HTMLImageElement).src = brandLogo;
+                }}
+              />
+            </div>
             {!isCollapsed && (
               <div className="min-w-0">
                 <div className="font-extrabold text-slate-900 dark:text-white text-[13px] leading-tight truncate">
-                  {brandName}
+                  {brandName || "โรงเรียนคำยางพิทยา"}
                 </div>
-                <div className="text-[10.5px] text-slate-400 dark:text-slate-500 font-medium truncate mt-0.5">
-                  {brandSubheader || "KP School Management System"}
-                </div>
-                <div className="text-[9.5px] text-amber-600 dark:text-amber-400 font-semibold truncate mt-0.5">
-                  "โรงเรียนคุณภาพ สพฐ."
+                <div className="text-[10px] text-slate-400 dark:text-slate-500 font-medium truncate mt-0.5">
+                  ต.นาสูง อ.วังสามหมอ จ.อุดรธานี
                 </div>
               </div>
             )}
@@ -1172,20 +1174,20 @@ function AppContent({ children }: { children: React.ReactNode }) {
 
         {/* Navigation */}
         <nav className={`flex-1 py-4 space-y-3 overflow-y-auto custom-scrollbar ${isCollapsed ? "px-1.5" : "px-3"}`}>
-          {/* Top Dashboard Link */}
-          <Link href="/dashboard" prefetch={false} title={isCollapsed ? t("dashboard") : undefined}>
+          {/* Top Dashboard Link ("หน้าหลัก") */}
+          <Link href="/dashboard" prefetch={false} title={isCollapsed ? "หน้าหลัก" : undefined}>
             <div className={`relative flex items-center rounded-xl text-xs font-medium transition-all duration-200 group cursor-pointer ${
               isCollapsed ? "justify-center w-10 h-10 mx-auto" : "justify-between px-3 py-2.5"
             } ${
               pathname === "/dashboard" 
-                ? "bg-blue-600 text-white font-bold shadow-sm shadow-blue-500/20" 
+                ? "bg-blue-600 text-white font-medium shadow-sm shadow-blue-500/25" 
                 : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-800/60"
             }`}>
               <div className="flex items-center gap-2.5 min-w-0">
-                <LayoutDashboard className={`w-4 h-4 shrink-0 transition-transform ${
+                <Home className={`w-4 h-4 shrink-0 transition-transform ${
                   pathname === "/dashboard" ? "text-white" : "text-slate-500 dark:text-slate-400 group-hover:text-blue-600 dark:group-hover:text-blue-400"
                 }`} />
-                {!isCollapsed && <span className="truncate">{t("dashboard")}</span>}
+                {!isCollapsed && <span className="truncate">หน้าหลัก</span>}
               </div>
               {!isCollapsed && (
                 <ChevronRight className={`w-3.5 h-3.5 shrink-0 transition-transform ${
@@ -1484,117 +1486,136 @@ function AppContent({ children }: { children: React.ReactNode }) {
           </div>
         </nav>
 
-        {/* Bottom Feature Card: "Smart School Better Future" */}
+        {/* Bottom Feature Card: "ร่วมสร้างอนาคตไปด้วยกัน 💙" */}
         {!isCollapsed && (
           <div className="p-3 border-t border-slate-100 dark:border-slate-800/80 shrink-0">
-            <div className="rounded-2xl p-3 bg-gradient-to-b from-sky-50/80 via-blue-50/60 to-white dark:from-slate-800/70 dark:via-slate-800/40 dark:to-slate-800/20 border border-blue-100/80 dark:border-slate-700/60 shadow-2xs relative overflow-hidden">
-              <div className="relative z-10">
-                <div className="text-[11px] font-extrabold text-blue-900 dark:text-blue-300 leading-tight">
-                  Smart School
-                </div>
-                <div className="text-[10px] font-semibold text-blue-600 dark:text-blue-400">
-                  Better Future
-                </div>
-              </div>
-              <div className="mt-2 w-full h-22 rounded-xl overflow-hidden flex items-center justify-center bg-slate-100 dark:bg-slate-700/40">
-                <img
-                  src="/images/isometric_smart_school.jpg"
-                  alt="Smart School Campus"
-                  className="w-full h-full object-cover rounded-xl"
-                  onError={(e) => {
-                    (e.currentTarget as HTMLImageElement).style.display = 'none';
-                  }}
-                />
-              </div>
+            <div className="rounded-2xl overflow-hidden shadow-2xs relative border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40">
+              <img
+                src="/images/teacher/sidebar_banner.png"
+                alt="ร่วมสร้างอนาคตไปด้วยกัน"
+                className="w-full h-auto object-cover rounded-2xl"
+                onError={(e) => {
+                  (e.currentTarget as HTMLImageElement).src = "/images/isometric_smart_school.jpg";
+                }}
+              />
             </div>
           </div>
         )}
 
-        {/* User Footer Component */}
-        <div className={`mb-3 shrink-0 ${isCollapsed ? "px-1.5 py-2" : "p-3 border-t border-slate-100 dark:border-slate-800/80"}`}>
-          {isCollapsed ? (
-            <div className="flex flex-col items-center gap-2">
-              <div title={`${user.name} (${user.position || t("staff")})`}>
-                {user.image ? (
-                  <img src={user.image} alt={user.name} className="w-8 h-8 rounded-full object-cover shadow-2xs border border-slate-200 dark:border-slate-700 shrink-0" />
-                ) : (
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-xs font-bold shadow-2xs shrink-0">
-                    {user.name?.charAt(0)?.toUpperCase()}
-                  </div>
-                )}
-              </div>
-              <button
-                onClick={async () => {
-                  clearAllClientCaches();
-                  await signOut();
-                  router.push("/login");
-                }}
-                title={t("logout")}
-                className="w-9 h-9 flex items-center justify-center rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-500/10 dark:hover:text-red-400 text-slate-500 dark:text-slate-400 transition-colors cursor-pointer"
-              >
-                <LogOut className="w-4 h-4" />
-              </button>
-            </div>
-          ) : (
-            <div className="relative overflow-hidden rounded-xl bg-white dark:bg-slate-800/80 border border-slate-200/60 dark:border-slate-700/60 p-2.5 shadow-2xs">
-              <div className="flex items-center gap-2.5 mb-2.5">
-                {user.image ? (
-                  <img src={user.image} alt={user.name} className="w-8 h-8 rounded-full object-cover shadow-2xs border border-slate-200 dark:border-slate-700 shrink-0" />
-                ) : (
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-xs font-bold shadow-2xs shrink-0">
-                    {user.name?.charAt(0)?.toUpperCase()}
-                  </div>
-                )}
-                <div className="flex-1 min-w-0">
-                  <p className="text-[13px] font-bold text-slate-900 dark:text-white truncate leading-snug">{user.name}</p>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">{user.position || t("staff")}</p>
-                </div>
-              </div>
-              <button
-                onClick={async () => {
-                  clearAllClientCaches();
-                  await signOut();
-                  router.push("/login");
-                }}
-                className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-900/50 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-500/10 dark:hover:text-red-400 text-[12px] font-medium text-slate-600 dark:text-slate-300 transition-colors cursor-pointer"
-              >
-                <LogOut className="w-3.5 h-3.5" />
-                {t("logout")}
-              </button>
-            </div>
-          )}
+        {/* Standalone Logout Button */}
+        <div className={`mb-3 shrink-0 ${isCollapsed ? "px-1.5 py-2" : "px-3 pt-1 pb-2"}`}>
+          <button
+            type="button"
+            onClick={async () => {
+              clearAllClientCaches();
+              await signOut();
+              router.push("/login");
+            }}
+            title={t("logout")}
+            className={`w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl border border-rose-200/80 dark:border-rose-900/40 bg-white dark:bg-slate-900 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-rose-600 dark:text-rose-400 text-xs font-bold transition-all cursor-pointer shadow-2xs ${
+              isCollapsed ? "w-10 h-10 p-0 mx-auto" : ""
+            }`}
+          >
+            <LogOut className="w-4 h-4 text-rose-500 shrink-0" />
+            {!isCollapsed && <span>ออกจากระบบ</span>}
+          </button>
         </div>
       </aside>
 
       {/* Main Container */}
       <main className={`flex-1 flex flex-col min-w-0 min-h-screen transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${isCollapsed ? "lg:pl-[72px]" : "lg:pl-[256px]"}`}>
         
-        {/* Top Header */}
-        <header className="h-24 px-6 lg:px-10 flex items-center justify-between z-30 print:hidden">
-          <div className="flex items-center gap-4">
+        {/* Top Header matching media_1791947729556_c79c257e.jpg */}
+        <header className="h-18 px-4 sm:px-6 lg:px-8 border-b border-slate-100/90 dark:border-slate-800/80 bg-white/70 dark:bg-slate-900/70 backdrop-blur-md flex items-center justify-between gap-3 z-30 print:hidden select-none">
+          {/* Left: Menu Toggle + User Profile Capsule */}
+          <div className="flex items-center gap-3 min-w-0">
             <button
               type="button"
               onClick={toggleSidebar}
               title={isCollapsed ? "ขยายแถบเมนูด้านข้าง" : "พับเก็บแถบเมนูด้านข้าง"}
-              className="p-2.5 rounded-xl bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-purple-50 hover:text-purple-600 dark:hover:bg-slate-700 shadow-xs border border-slate-200/60 dark:border-slate-700/60 transition-all cursor-pointer"
+              className="p-2 rounded-xl bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-slate-700 shadow-2xs border border-slate-200/60 dark:border-slate-700/60 transition-all cursor-pointer shrink-0"
             >
-              <Menu className="w-5 h-5" />
+              <Menu className="w-4 h-4" />
             </button>
-            <div className="hidden md:block">
-              <h2 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
-                {t("welcomeBack")}, {user.name.split(" ")[0]} 
-                <motion.span 
-                  animate={{ rotate: [0, 14, -8, 14, -4, 10, 0, 0] }}
-                  transition={{ duration: 2.5, repeat: Infinity, repeatDelay: 1, ease: "easeInOut" }}
-                  className="text-2xl origin-[70%_70%] inline-block"
-                >
-                  👋
-                </motion.span>
-              </h2>
+
+            {/* User Identity Capsule */}
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full overflow-hidden shrink-0 border-2 border-blue-100 dark:border-slate-700 shadow-2xs bg-blue-50 flex items-center justify-center">
+                <img
+                  src={user.image || "/images/teacher/teacher_avatar.png"}
+                  alt={user.name}
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    (e.currentTarget as HTMLImageElement).src = "/images/teacher/teacher_avatar.png";
+                  }}
+                />
+              </div>
+              <div className="flex flex-col min-w-0">
+                <h2 className="font-extrabold text-slate-800 dark:text-white text-xs sm:text-[13.5px] leading-snug truncate">
+                  {user.name}
+                </h2>
+                <p className="text-[10px] sm:text-[11px] text-slate-500 dark:text-slate-400 font-medium truncate mt-0.5">
+                  {user.position || "ครู"} | {user.subjectGroup ? `กลุ่มสาระการเรียนรู้${user.subjectGroup}` : "กลุ่มสาระการเรียนรู้วิทยาศาสตร์"}
+                </p>
+              </div>
             </div>
           </div>
-          
-          <ToolbarButtons isAdmin={isAdmin} isApprover={isApprover} />
+
+          {/* Right Section: Date & Term Card + Search + Bell + Controls */}
+          <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
+            {/* Date & Term Card */}
+            <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-xl border border-blue-100/90 dark:border-slate-800 bg-blue-50/50 dark:bg-slate-800/50 shadow-2xs">
+              <Calendar className="w-4 h-4 text-blue-600 shrink-0" />
+              <div className="flex flex-col text-left leading-tight">
+                <span className="text-[11.5px] font-bold text-slate-800 dark:text-slate-100">
+                  วันพฤหัสบดีที่ 2 ตุลาคม 2569
+                </span>
+                <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">
+                  ภาคเรียนที่ 1/2569
+                </span>
+              </div>
+            </div>
+
+            {/* Search Box Pill */}
+            <div className="relative hidden sm:flex items-center">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3.5 pointer-events-none" />
+              <input
+                type="text"
+                readOnly
+                placeholder="ค้นหาข้อมูล..."
+                className="w-32 md:w-44 pl-9 pr-3.5 py-1.5 rounded-full border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-xs text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-none"
+              />
+            </div>
+
+            {/* Notification Bell with Badge */}
+            <div className="relative">
+              <button
+                type="button"
+                className="w-8 h-8 rounded-full bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 flex items-center justify-center transition-colors cursor-pointer relative"
+                title="การแจ้งเตือน"
+              >
+                <Bell className="w-3.5 h-3.5" />
+                <span className="absolute -top-1 -right-1 w-4 h-4 bg-rose-500 text-white rounded-full text-[10px] flex items-center justify-center font-bold shadow-xs">
+                  3
+                </span>
+              </button>
+            </div>
+
+            {/* Mini User Thumbnail */}
+            <div className="w-8 h-8 rounded-full overflow-hidden shrink-0 border border-slate-200 dark:border-slate-700 shadow-2xs">
+              <img
+                src={user.image || "/images/teacher/teacher_avatar.png"}
+                alt={user.name}
+                className="w-full h-full object-cover"
+                onError={(e) => {
+                  (e.currentTarget as HTMLImageElement).src = "/images/teacher/teacher_avatar.png";
+                }}
+              />
+            </div>
+
+            {/* App Toolbar Buttons (Theme, Lang, Fullscreen, etc.) */}
+            <ToolbarButtons isAdmin={isAdmin} isApprover={isApprover} />
+          </div>
         </header>
 
         {/* Page Content */}
