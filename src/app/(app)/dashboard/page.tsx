@@ -60,8 +60,8 @@ export default async function DashboardPage({
 
   // Define available dashboard tabs based on permissions & features enabled
   const availableSystems = [
-    { id: "all", label: "รวมทุกระบบ (KPI Hub)", icon: "LayoutDashboard" as const },
-    { id: "leave", label: "ระบบการลา & บุคลากร", icon: "CalendarDays" as const },
+    { id: "all", label: "ภาพรวมสถานศึกษา (SMS Hub)", icon: "LayoutDashboard" as const },
+    { id: "leave", label: "แดชบอร์ดระบบการลา & บุคลากร", icon: "CalendarDays" as const },
     { id: "document", label: "ระบบงานสารบรรณ", icon: "FileText" as const },
     ...(canViewRepairDash
       ? [{ id: "repair", label: "ระบบแจ้งซ่อม", icon: "Wrench" as const }]

@@ -34,7 +34,6 @@ import {
 } from "@/app/actions/leave";
 
 // Sub-components matching SMS Executive Hub
-import SMSHeroBanner from "./SMSHeroBanner";
 import ExecutiveLeaveStatCards from "./ExecutiveLeaveStatCards";
 import SMSLearningOutcomeChart from "./SMSLearningOutcomeChart";
 import SMSAttendanceDonutCard from "./SMSAttendanceDonutCard";
@@ -282,25 +281,8 @@ export default function ExecutiveLeaveDashboardView() {
               <span className="hidden sm:inline">รีเฟรช</span>
             </button>
 
-            <button
-              type="button"
-              onClick={() => setIsCustomizerOpen(true)}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md shadow-blue-500/20 transition-all cursor-pointer active:scale-95"
-              title="เพิ่มหรือปรับแต่งวิดเจ็ต"
-            >
-              <Sliders className="w-3.5 h-3.5" />
-              <span>ปรับแต่งวิดเจ็ต</span>
-            </button>
           </div>
         </div>
-
-        {/* Row 1: Hero Banner */}
-        {widgetConfig.heroBanner && (
-          <SMSHeroBanner
-            title="แดชบอร์ดภาพรวมสถานศึกษา (Executive KPI Hub)"
-            subtitle="ศูนย์รวมสถิติ ตัวชี้วัด KPI และการบริหารจัดการทุกระบบย่อยของโรงเรียน"
-          />
-        )}
 
         {/* Row 1.5: Subsystem Quick Hub (Status Bar) */}
         {widgetConfig.subsystemQuickHub && (
@@ -518,27 +500,6 @@ export default function ExecutiveLeaveDashboardView() {
           />
         </div>
       )}
-
-      {/* Floating Action Controls */}
-      <div className="fixed bottom-20 sm:bottom-6 right-4 sm:right-6 z-40 flex items-center gap-2">
-        <button
-          type="button"
-          onClick={loadAllDashboardData}
-          className="w-10 h-10 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-lg flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition cursor-pointer"
-          title="รีเฟรชข้อมูลแดชบอร์ด"
-        >
-          <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
-        </button>
-        <button
-          type="button"
-          onClick={() => setIsCustomizerOpen(true)}
-          className="px-4 py-2.5 rounded-full bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs transition-all shadow-lg flex items-center gap-1.5 cursor-pointer active:scale-95"
-          title="เพิ่มหรือปรับแต่งวิดเจ็ต"
-        >
-          <Sliders className="w-3.5 h-3.5" />
-          <span>ปรับแต่งวิดเจ็ต</span>
-        </button>
-      </div>
 
       {/* Drill-down Leave Details Modal */}
       <ExecutiveLeaveDetailModal

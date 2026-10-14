@@ -23,6 +23,7 @@
 | `TASK-20261014-02` | 2026-10-14 06:15 | Admin System Default Widget Persistence & Teacher Reset | Fullstack | `dashboard-widgets.ts`, `DashboardWidgetCustomizerModal.tsx` | 7 | Passed (230 tests) | Completed (`844cebb`) |
 | `TASK-20261014-03` | 2026-10-14 13:40 | Token Optimization v2.0 Architecture & Line Anchor Registry | Architecture | `CODEBASE_INDEX.md`, `token-efficiency.md` | 6 | Passed (230 tests) | Completed (`d208123`) |
 | `TASK-20261014-04` | 2026-10-14 14:40 | Classroom Portal Sidebar Item Normalization & TEACH Tag | Frontend | `layout.tsx` | 4 | Verified UI | Completed |
+| `TASK-20261014-05` | 2026-10-14 23:30 | Separate Leave Dashboard, Single Widget Button, Shared Calendar Sync & Calendar Page | Fullstack | `DashboardShell.tsx`, `SMSAcademicCalendarCard.tsx`, `SMSAnnouncementsCard.tsx`, `SchoolCalendarView.tsx`, `schoolCalendarSync.ts`, `layout.tsx` | 8 | Passed (CRUD verified) | Completed |
 
 ---
 

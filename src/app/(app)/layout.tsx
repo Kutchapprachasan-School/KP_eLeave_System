@@ -1434,6 +1434,9 @@ function AppContent({ children }: { children: React.ReactNode }) {
               {/* ศูนย์งานวิชาการ */}
               {renderNavItem({ href: "/academic", label: "ศูนย์งานวิชาการ", icon: GraduationCap })}
 
+              {/* ปฏิทินกิจกรรมสถานศึกษา */}
+              {renderNavItem({ href: "/calendar", label: "ปฏิทินกิจกรรม", icon: Calendar })}
+
               {/* ระบบตรวจข้อสอบ OMR */}
               {omrSubItems.length > 0 && (
                 <CollapsibleGroup

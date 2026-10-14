@@ -78,6 +78,7 @@
 | `/profile` | `(app)/profile/page.tsx` | โปรไฟล์ผู้ใช้ |
 | `/logs` | `(app)/logs/page.tsx` | System Logs |
 | `/manual` | `(app)/manual/page.tsx` | คู่มือการใช้งาน |
+| `/calendar` | `(app)/calendar/page.tsx` | ปฏิทินกิจกรรมสถานศึกษา (School Activities & Events Calendar) ดีไซน์เดียวกับระบบจัดการชั้นเรียน ซิงค์ข้อมูลผ่าน schoolCalendarSyncService |
 | `/archive` | `(app)/archive/page.tsx` | ข้อมูลย้อนหลัง/สำรอง |
 
 ### Document Module (`(app)/document/`)
