@@ -119,12 +119,12 @@ function NotificationBell({ isAdmin, isApprover }: { isAdmin: boolean; isApprove
       <button
         type="button"
         onClick={() => { setNotiOpen(!notiOpen); if (!notiOpen) fetchNotifications(); }}
-        className="w-8 h-8 rounded-full bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 flex items-center justify-center transition-colors cursor-pointer relative"
+        className="w-8 h-8 rounded-lg text-slate-600 dark:text-slate-300 hover:text-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center transition-colors cursor-pointer relative"
         title="การแจ้งเตือน"
       >
-        <Bell className="w-3.5 h-3.5" />
+        <Bell className="w-4 h-4" />
         {totalCount > 0 && (
-          <span className="absolute -top-1 -right-1 w-4 h-4 bg-rose-500 text-white rounded-full text-[10px] flex items-center justify-center font-bold shadow-xs">
+          <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-rose-500 text-white rounded-full text-[10px] flex items-center justify-center font-bold shadow-xs">
             {totalCount > 99 ? "99+" : totalCount}
           </span>
         )}
@@ -243,25 +243,8 @@ function NotificationBell({ isAdmin, isApprover }: { isAdmin: boolean; isApprove
 }
 
 function UserAvatarDropdown({ user, onLogout }: { user: any; onLogout: () => void }) {
-  const { theme, setTheme } = useTheme();
-  const { lang, setLang } = useI18n();
   const [isOpen, setIsOpen] = useState(false);
-  const [isFullscreen, setIsFullscreen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const onFsChange = () => setIsFullscreen(!!document.fullscreenElement);
-    document.addEventListener("fullscreenchange", onFsChange);
-    return () => document.removeEventListener("fullscreenchange", onFsChange);
-  }, []);
-
-  const toggleFullscreen = () => {
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen();
-    } else {
-      document.exitFullscreen();
-    }
-  };
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -278,17 +261,23 @@ function UserAvatarDropdown({ user, onLogout }: { user: any; onLogout: () => voi
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="w-8 h-8 rounded-full overflow-hidden shrink-0 border border-slate-200 dark:border-slate-700 hover:border-blue-500 shadow-2xs cursor-pointer transition-all focus:outline-none"
-        title="โปรไฟล์และตั้งค่า"
+        className="flex items-center gap-2 py-1 px-1.5 rounded-xl hover:bg-slate-100/80 dark:hover:bg-slate-800/80 transition-colors cursor-pointer focus:outline-none"
+        title="เมนูโปรไฟล์และตั้งค่า"
       >
-        <img
-          src={user.image || "/images/teacher/teacher_avatar.png"}
-          alt={user.name}
-          className="w-full h-full object-cover"
-          onError={(e) => {
-            (e.currentTarget as HTMLImageElement).src = "/images/teacher/teacher_avatar.png";
-          }}
-        />
+        <div className="w-8 h-8 rounded-full overflow-hidden shrink-0 border border-slate-200 dark:border-slate-700 shadow-2xs bg-slate-100">
+          <img
+            src={user.image || "/images/teacher/teacher_avatar.png"}
+            alt={user.name}
+            className="w-full h-full object-cover"
+            onError={(e) => {
+              (e.currentTarget as HTMLImageElement).src = "/images/teacher/teacher_avatar.png";
+            }}
+          />
+        </div>
+        <span className="font-semibold text-xs text-slate-800 dark:text-slate-100 max-w-[140px] truncate hidden sm:inline-block">
+          {user.name}
+        </span>
+        <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
       </button>
 
       <AnimatePresence>
@@ -314,84 +303,17 @@ function UserAvatarDropdown({ user, onLogout }: { user: any; onLogout: () => voi
                   {user.name}
                 </p>
                 <p className="text-[10.5px] text-slate-400 dark:text-slate-500 truncate">
-                  {user.position || "บุคลากร"}
+                  {user.position || "ครู"} {user.subjectGroup ? `| กลุ่มสาระฯ${user.subjectGroup}` : ""}
                 </p>
               </div>
             </div>
 
-            {/* Quick Preference Controls */}
-            <div className="space-y-2">
-              <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">
-                การตั้งค่ามุมมอง
-              </span>
-
-              {/* Language Switcher Pill */}
-              <div className="flex items-center justify-between p-1.5 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-100 dark:border-slate-800 text-xs">
-                <span className="font-semibold text-slate-600 dark:text-slate-300 text-[11px] px-1">
-                  ภาษา / Lang
-                </span>
-                <div className="flex bg-white dark:bg-slate-900 rounded-lg p-0.5 border border-slate-200 dark:border-slate-700">
-                  <button
-                    type="button"
-                    onClick={() => setLang("th")}
-                    className={`px-2 py-0.5 rounded-md text-[10.5px] font-bold transition-all cursor-pointer ${
-                      lang === "th"
-                        ? "bg-blue-600 text-white shadow-2xs"
-                        : "text-slate-500 hover:text-slate-900 dark:text-slate-400"
-                    }`}
-                  >
-                    TH
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setLang("en")}
-                    className={`px-2 py-0.5 rounded-md text-[10.5px] font-bold transition-all cursor-pointer ${
-                      lang === "en"
-                        ? "bg-blue-600 text-white shadow-2xs"
-                        : "text-slate-500 hover:text-slate-900 dark:text-slate-400"
-                    }`}
-                  >
-                    EN
-                  </button>
-                </div>
-              </div>
-
-              {/* Theme & Fullscreen Controls */}
-              <div className="grid grid-cols-2 gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-                  className="flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-100 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-300 transition-colors cursor-pointer"
-                >
-                  {theme === "dark" ? <Sun className="w-3.5 h-3.5 text-amber-400" /> : <Moon className="w-3.5 h-3.5 text-blue-600" />}
-                  <span className="text-[11px]">{theme === "dark" ? "สว่าง" : "มืด"}</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={toggleFullscreen}
-                  className="flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-100 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-300 transition-colors cursor-pointer"
-                >
-                  {isFullscreen ? <Minimize className="w-3.5 h-3.5" /> : <Maximize className="w-3.5 h-3.5" />}
-                  <span className="text-[11px]">{isFullscreen ? "ย่อจอ" : "เต็มจอ"}</span>
-                </button>
-              </div>
-
-              {/* Font Size Switcher Container */}
-              <div className="flex items-center justify-between p-1.5 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-100 dark:border-slate-800 text-xs">
-                <span className="font-semibold text-slate-600 dark:text-slate-300 text-[11px] px-1">
-                  ขนาดอักษร
-                </span>
-                <FontSizeSwitcher />
-              </div>
-            </div>
-
             {/* Profile & Settings Links */}
-            <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-1">
+            <div className="space-y-1">
               <Link
                 href="/profile"
                 onClick={() => setIsOpen(false)}
-                className="flex items-center gap-2 px-2 py-1.5 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-300 transition-colors"
+                className="flex items-center gap-2 px-2.5 py-2 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-300 transition-colors"
               >
                 <UserCircle className="w-4 h-4 text-blue-600" />
                 <span>โปรไฟล์ของฉัน</span>
@@ -399,7 +321,7 @@ function UserAvatarDropdown({ user, onLogout }: { user: any; onLogout: () => voi
               <Link
                 href="/settings/privacy"
                 onClick={() => setIsOpen(false)}
-                className="flex items-center gap-2 px-2 py-1.5 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-300 transition-colors"
+                className="flex items-center gap-2 px-2.5 py-2 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-300 transition-colors"
               >
                 <ShieldCheck className="w-4 h-4 text-emerald-600" />
                 <span>ความเป็นส่วนตัว & PDPA</span>
@@ -571,7 +493,40 @@ function AppContent({ children }: { children: React.ReactNode }) {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { data: session, isPending } = useSession();
-  const { t, lang } = useI18n();
+  const { t, lang, setLang } = useI18n();
+  const { theme, setTheme } = useTheme();
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [headerDateStr, setHeaderDateStr] = useState("วันพุธที่ 14 ตุลาคม พ.ศ. 2569");
+
+  useEffect(() => {
+    const onFsChange = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener("fullscreenchange", onFsChange);
+    return () => document.removeEventListener("fullscreenchange", onFsChange);
+  }, []);
+
+  useEffect(() => {
+    const dayNames = [
+      "วันอาทิตย์", "วันจันทร์", "วันอังคาร", "วันพุธ", "วันพฤหัสบดี", "วันศุกร์", "วันเสาร์"
+    ];
+    const monthNames = [
+      "มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน",
+      "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"
+    ];
+    const now = new Date();
+    const dayName = dayNames[now.getDay()];
+    const dateNum = now.getDate();
+    const monthName = monthNames[now.getMonth()];
+    const yearBE = now.getFullYear() + 543;
+    setHeaderDateStr(`${dayName}ที่ ${dateNum} ${monthName} พ.ศ. ${yearBE}`);
+  }, []);
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(() => {});
+    } else {
+      document.exitFullscreen().catch(() => {});
+    }
+  };
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   const [brandName, setBrandName] = useState("ระบบการลา");
@@ -1655,72 +1610,86 @@ function AppContent({ children }: { children: React.ReactNode }) {
       {/* Main Container */}
       <main className={`flex-1 flex flex-col min-w-0 min-h-screen transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${isCollapsed ? "lg:pl-[72px]" : "lg:pl-[256px]"}`}>
         
-        {/* Top Header matching media_1791947729556_c79c257e.jpg */}
-        <header className="h-18 px-4 sm:px-6 lg:px-8 border-b border-slate-100/90 dark:border-slate-800/80 bg-white/70 dark:bg-slate-900/70 backdrop-blur-md flex items-center justify-between gap-3 z-30 print:hidden select-none">
-          {/* Left: Menu Toggle + User Profile Capsule */}
-          <div className="flex items-center gap-3 min-w-0">
+        {/* Top Header matching media_1791955677504_61745d04.jpg */}
+        <header className="h-16 px-4 sm:px-6 lg:px-8 border-b border-slate-100/90 dark:border-slate-800/80 bg-white/70 dark:bg-slate-900/70 backdrop-blur-md flex items-center justify-between gap-3 z-30 print:hidden select-none">
+          {/* Left: Menu Toggle Button */}
+          <div className="flex items-center gap-3 shrink-0">
             <button
               type="button"
               onClick={toggleSidebar}
               title={isCollapsed ? "ขยายแถบเมนูด้านข้าง" : "พับเก็บแถบเมนูด้านข้าง"}
-              className="p-2 rounded-xl bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-slate-700 shadow-2xs border border-slate-200/60 dark:border-slate-700/60 transition-all cursor-pointer shrink-0"
+              className="p-2 rounded-xl bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-slate-700 shadow-2xs border border-slate-200/60 dark:border-slate-700/60 transition-all cursor-pointer"
             >
               <Menu className="w-4 h-4" />
             </button>
-
-            {/* User Identity Capsule */}
-            <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full overflow-hidden shrink-0 border-2 border-blue-100 dark:border-slate-700 shadow-2xs bg-blue-50 flex items-center justify-center">
-                <img
-                  src={user.image || "/images/teacher/teacher_avatar.png"}
-                  alt={user.name}
-                  className="w-full h-full object-cover"
-                  onError={(e) => {
-                    (e.currentTarget as HTMLImageElement).src = "/images/teacher/teacher_avatar.png";
-                  }}
-                />
-              </div>
-              <div className="flex flex-col min-w-0">
-                <h2 className="font-extrabold text-slate-800 dark:text-white text-xs sm:text-[13.5px] leading-snug truncate">
-                  {user.name}
-                </h2>
-                <p className="text-[10px] sm:text-[11px] text-slate-500 dark:text-slate-400 font-medium truncate mt-0.5">
-                  {user.position || "ครู"} | {user.subjectGroup ? `กลุ่มสาระการเรียนรู้${user.subjectGroup}` : "กลุ่มสาระการเรียนรู้วิทยาศาสตร์"}
-                </p>
-              </div>
-            </div>
           </div>
 
-          {/* Right Section: Date & Term Card + Search + Bell + Controls */}
-          <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
+          {/* Right Section: Date & Term Card + Search + [T] + [TH] + [Moon] + [Fullscreen] + [Bell] + Divider + [User Avatar & Name] */}
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             {/* Date & Term Card */}
-            <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-xl border border-blue-100/90 dark:border-slate-800 bg-blue-50/50 dark:bg-slate-800/50 shadow-2xs">
+            <div className="hidden lg:flex items-center gap-2.5 px-3.5 py-1.5 rounded-2xl border border-blue-100/90 dark:border-slate-800 bg-blue-50/40 dark:bg-slate-800/40 shadow-2xs">
               <Calendar className="w-4 h-4 text-blue-600 shrink-0" />
               <div className="flex flex-col text-left leading-tight">
-                <span className="text-[11.5px] font-bold text-slate-800 dark:text-slate-100">
-                  วันพฤหัสบดีที่ 2 ตุลาคม 2569
+                <span className="text-[11.5px] font-bold text-slate-800 dark:text-slate-100 whitespace-nowrap">
+                  {headerDateStr}
                 </span>
-                <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">
+                <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
                   ภาคเรียนที่ 1/2569
                 </span>
               </div>
             </div>
 
             {/* Search Box Pill */}
-            <div className="relative hidden sm:flex items-center">
-              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3.5 pointer-events-none" />
+            <div className="relative hidden md:flex items-center">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 pointer-events-none" />
               <input
                 type="text"
                 readOnly
-                placeholder="ค้นหาข้อมูล..."
-                className="w-32 md:w-44 pl-9 pr-3.5 py-1.5 rounded-full border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-xs text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-none"
+                placeholder="ค้นหานักเรียน..."
+                className="w-32 md:w-44 pl-8 pr-3 py-1.5 rounded-full border border-slate-200/80 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-800/60 text-xs text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-none"
               />
             </div>
 
-            {/* Notification Bell with Dropdown Panel */}
+            {/* [T] Font Size Switcher */}
+            <FontSizeSwitcher compact={true} />
+
+            {/* [TH] Language Switcher */}
+            <button
+              type="button"
+              onClick={() => setLang(lang === "th" ? "en" : "th")}
+              className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-600 hover:text-slate-900 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 font-bold text-xs cursor-pointer transition-colors"
+              title="สลับภาษา (TH/EN)"
+            >
+              {lang === "th" ? "TH" : "EN"}
+            </button>
+
+            {/* [Moon / Sun] Theme Toggle */}
+            <button
+              type="button"
+              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+              className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-600 hover:text-slate-900 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+              title={theme === "dark" ? "เปลี่ยนเป็นโหมดสว่าง" : "เปลี่ยนเป็นโหมดมืด"}
+            >
+              {theme === "dark" ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4" />}
+            </button>
+
+            {/* [Fullscreen] Toggle */}
+            <button
+              type="button"
+              onClick={toggleFullscreen}
+              className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-600 hover:text-slate-900 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+              title={isFullscreen ? "ย่อหน้าจอ" : "เต็มหน้าจอ"}
+            >
+              {isFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
+            </button>
+
+            {/* [Bell] Notification Bell with Dropdown Panel */}
             <NotificationBell isAdmin={isAdmin} isApprover={isApprover} />
 
-            {/* User Avatar with Profile Dropdown Menu */}
+            {/* Divider Line */}
+            <div className="h-5 w-px bg-slate-200 dark:bg-slate-700 mx-1 shrink-0" />
+
+            {/* User Profile Capsule with Dropdown Menu */}
             <UserAvatarDropdown
               user={user}
               onLogout={async () => {

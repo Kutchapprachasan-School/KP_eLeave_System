@@ -64,7 +64,7 @@ function applyRootFontSize(sizePx: number) {
   document.documentElement.style.fontSize = `${sizePx}px`;
 }
 
-export function FontSizeSwitcher() {
+export function FontSizeSwitcher({ compact = false }: { compact?: boolean } = {}) {
   const [open, setOpen] = useState(false);
   const [fontSize, setFontSize] = useState<number>(DEFAULT_FONT_SIZE);
   const [isCustomMode, setIsCustomMode] = useState<boolean>(false);
@@ -127,19 +127,30 @@ export function FontSizeSwitcher() {
   return (
     <div className="relative" ref={containerRef}>
       {/* Single Dropdown Trigger Button on Header */}
-      <button
-        type="button"
-        onClick={() => setOpen((prev) => !prev)}
-        className="flex items-center gap-1.5 h-10 px-3 rounded-full bg-slate-100/80 hover:bg-slate-200/80 dark:bg-slate-800/80 dark:hover:bg-slate-700/80 border border-slate-200/80 dark:border-slate-700 text-slate-700 dark:text-slate-200 transition-all duration-200 font-bold text-xs whitespace-nowrap shadow-2xs"
-        title="ปรับขนาดตัวอักษรของระบบ (บันทึกอัตโนมัติ)"
-      >
-        <span>{headerButtonText}</span>
-        <ChevronDown
-          className={`w-3.5 h-3.5 text-slate-500 transition-transform duration-200 ${
-            open ? "rotate-180" : ""
-          }`}
-        />
-      </button>
+      {compact ? (
+        <button
+          type="button"
+          onClick={() => setOpen((prev) => !prev)}
+          className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-600 hover:text-slate-900 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 font-bold text-sm cursor-pointer transition-colors"
+          title="ปรับขนาดตัวอักษรของระบบ"
+        >
+          <span>T</span>
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setOpen((prev) => !prev)}
+          className="flex items-center gap-1.5 h-10 px-3 rounded-full bg-slate-100/80 hover:bg-slate-200/80 dark:bg-slate-800/80 dark:hover:bg-slate-700/80 border border-slate-200/80 dark:border-slate-700 text-slate-700 dark:text-slate-200 transition-all duration-200 font-bold text-xs whitespace-nowrap shadow-2xs"
+          title="ปรับขนาดตัวอักษรของระบบ (บันทึกอัตโนมัติ)"
+        >
+          <span>{headerButtonText}</span>
+          <ChevronDown
+            className={`w-3.5 h-3.5 text-slate-500 transition-transform duration-200 ${
+              open ? "rotate-180" : ""
+            }`}
+          />
+        </button>
+      )}
 
       {/* Dropdown Panel */}
       <AnimatePresence>
