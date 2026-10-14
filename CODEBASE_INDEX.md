@@ -317,6 +317,7 @@
 ### Other Action Files
 | ไฟล์ | บรรทัด | หน้าที่ |
 |---|---|---|
+| `school-calendar.ts` | ~110 | ดึงวันหยุดและวันเรียนพิเศษจากระบบการลา (Holiday Settings ใน DB) ซิงค์เป็นหลักสำหรับปฏิทิน |
 | `dashboard-widgets.ts` | ~478 | Widget data สำหรับ Dashboard |
 | `curriculum-workflow.ts` | ~481 | Workflow หลักสูตร |
 | `recycle-bin.ts` | ~423 | ถังขยะ (soft delete/restore) |

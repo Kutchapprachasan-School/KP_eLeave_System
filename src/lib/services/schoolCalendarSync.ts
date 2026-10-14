@@ -641,4 +641,34 @@ export const schoolCalendarSyncService = {
       console.warn('Failed to purge mock data:', e);
     }
   },
+
+  // ดึงและซิงค์ข้อมูลวันหยุดและวันเรียนพิเศษจากระบบการลา (Holiday Settings ในฐานข้อมูล) เป็นแกนหลัก
+  async syncFromLeaveSystemHolidays(yearBE?: number): Promise<SchoolCalendarEvent[]> {
+    if (typeof window === 'undefined') return this.getEvents();
+    try {
+      const { getOfficialSchoolCalendarEvents } = await import('@/app/actions/school-calendar');
+      const officialEvents = await getOfficialSchoolCalendarEvents(yearBE);
+      if (officialEvents && officialEvents.length > 0) {
+        const current = this.getEvents();
+        // กรองเอาเฉพาะกิจกรรมที่ผู้ใช้สร้างเอง ไม่ใช่วันหยุดที่ซิงค์มา
+        const customEvents = current.filter(
+          (e) => !e.id.startsWith('th-hol-') && !e.id.startsWith('hol-db-') && !e.id.startsWith('holiday-')
+        );
+
+        // รวมวันหยุดและวันเรียนพิเศษอย่างเป็นทางการจากระบบการลาเข้ากับ custom events
+        const officialDayTitles = new Set(officialEvents.map((e) => `${e.year}-${e.month}-${e.day}-${e.title}`));
+        const filteredCustom = customEvents.filter(
+          (e) => !officialDayTitles.has(`${e.year}-${e.month}-${e.day}-${e.title}`)
+        );
+        const merged = [...officialEvents, ...filteredCustom];
+
+        localStorage.setItem(CALENDAR_STORAGE_KEY, JSON.stringify(merged));
+        window.dispatchEvent(new CustomEvent(CALENDAR_UPDATED_EVENT, { detail: merged }));
+        return merged;
+      }
+    } catch (e) {
+      console.warn('Failed to sync holidays from leave system:', e);
+    }
+    return this.getEvents();
+  },
 };

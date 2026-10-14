@@ -25,6 +25,7 @@
 | `TASK-20261014-04` | 2026-10-14 14:40 | Classroom Portal Sidebar Item Normalization & TEACH Tag | Frontend | `layout.tsx` | 4 | Verified UI | Completed |
 | `TASK-20261014-05` | 2026-10-14 23:30 | Separate Leave Dashboard, Single Widget Button, Shared Calendar Sync & Calendar Page | Fullstack | `DashboardShell.tsx`, `SMSAcademicCalendarCard.tsx`, `SMSAnnouncementsCard.tsx`, `SchoolCalendarView.tsx`, `schoolCalendarSync.ts`, `layout.tsx` | 8 | Passed (CRUD verified) | Completed (`6eccc3e`) |
 | `TASK-20261014-06` | 2026-10-15 00:05 | Purge Mock Data & Enforce 100% Real Thai Public Holidays and School Terms | Fullstack | `schoolCalendarSync.ts`, `SchoolCalendarView.tsx`, `SMSAcademicCalendarCard.tsx`, `SMSAnnouncementsCard.tsx` | 6 | Passed (Zero Mock, 29 Real Events) | Completed (`2eeed44`) |
+| `TASK-20261014-07` | 2026-10-15 00:35 | Leave System Holiday Settings as Primary Source of Truth for School Calendar | Fullstack | `school-calendar.ts`, `schoolCalendarSync.ts`, `SMSAcademicCalendarCard.tsx`, `SchoolCalendarView.tsx` | 7 | Passed (DB integration verified) | Completed |
 
 ---
 

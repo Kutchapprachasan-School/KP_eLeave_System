@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "version": "2.0.0",
   "summary": {
-    "totalTasksCompleted": 6,
+    "totalTasksCompleted": 7,
     "totalFilesReadTargeted": 16,
     "totalFullFilesAvoided": 13,
     "averageToolCallsPerTask": 5.5,
@@ -132,6 +132,28 @@
       "testResult": "passed (Zero mock events verified, 29 real holidays active)",
       "status": "completed",
       "commit": "2eeed44"
+    },
+    {
+      "taskId": "TASK-20261014-07",
+      "timestamp": "2026-10-15T00:35:00+07:00",
+      "taskName": "Leave System Holiday Settings as Primary Source of Truth for School Calendar",
+      "category": "fullstack",
+      "filesRead": [
+        "src/app/actions/holiday.ts",
+        "src/app/actions/leave.ts",
+        "src/app/(app)/settings/page.tsx"
+      ],
+      "filesChanged": [
+        "src/app/actions/school-calendar.ts",
+        "src/lib/services/schoolCalendarSync.ts",
+        "src/app/(app)/dashboard/_components/SMSAcademicCalendarCard.tsx",
+        "src/app/(app)/calendar/_components/SchoolCalendarView.tsx",
+        "CODEBASE_INDEX.md"
+      ],
+      "toolCallsCount": 7,
+      "repeatFixCycles": 0,
+      "testResult": "passed (DB prisma.holiday integration verified)",
+      "status": "completed"
     }
   ]
 }

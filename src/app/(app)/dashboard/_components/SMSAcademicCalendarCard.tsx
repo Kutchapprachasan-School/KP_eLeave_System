@@ -40,6 +40,11 @@ export default function SMSAcademicCalendarCard({
     schoolCalendarSyncService.purgeAllMockData();
     setEvents(schoolCalendarSyncService.getEvents());
 
+    // ซิงค์วันหยุดและวันเรียนพิเศษจากระบบการลา (Holiday Settings ใน DB) เป็นหลัก
+    schoolCalendarSyncService.syncFromLeaveSystemHolidays(currentYear).then((evs) => {
+      if (evs && evs.length > 0) setEvents(evs);
+    });
+
     const handleUpdate = () => {
       setEvents(schoolCalendarSyncService.getEvents());
     };
@@ -50,7 +55,7 @@ export default function SMSAcademicCalendarCard({
       window.removeEventListener(CALENDAR_UPDATED_EVENT, handleUpdate);
       window.removeEventListener("storage", handleUpdate);
     };
-  }, []);
+  }, [currentYear]);
 
   // คำนวณวันในเดือนและวันในสัปดาห์
   const calendarMatrix = useMemo(() => {
