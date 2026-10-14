@@ -370,13 +370,13 @@ function CollapsibleGroup({
           }}
           className={`relative flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-200 mx-auto cursor-pointer ${
             isAnyChildActive
-              ? "text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-500/10"
-              : "text-slate-500 dark:text-slate-400 hover:bg-slate-100/80 dark:hover:bg-slate-800/50"
+              ? "text-white bg-blue-600 shadow-sm shadow-blue-500/25 font-bold"
+              : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white"
           }`}
         >
-          <GroupIcon className="w-4.5 h-4.5" />
+          <GroupIcon className="w-4 h-4" />
           {badge !== undefined && badge > 0 && (
-            <span className="absolute top-1 right-1 flex items-center justify-center min-w-[14px] h-[14px] px-0.5 rounded-full bg-red-500 text-white text-[9px] font-bold">
+            <span className="absolute top-1 right-1 flex items-center justify-center min-w-[14px] h-[14px] px-0.5 rounded-full bg-rose-500 text-white text-[9px] font-bold">
               {badge > 9 ? "9+" : badge}
             </span>
           )}
@@ -390,26 +390,28 @@ function CollapsibleGroup({
       <button
         type="button"
         onClick={() => setIsOpen((prev) => !prev)}
-        className={`w-full flex items-center justify-between gap-2 px-2.5 py-2 rounded-xl text-[13px] font-bold transition-all duration-200 cursor-pointer select-none ${
+        className={`w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl text-xs font-semibold transition-all duration-200 cursor-pointer select-none group ${
           isAnyChildActive
-            ? "text-purple-600 dark:text-purple-400 bg-purple-50/70 dark:bg-purple-500/10"
-            : "text-slate-700 dark:text-slate-300 hover:bg-slate-100/80 dark:hover:bg-slate-800/50"
+            ? "text-blue-600 dark:text-blue-400 bg-blue-50/80 dark:bg-blue-950/40 font-bold"
+            : "text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white"
         }`}
       >
-        <div className="flex items-center gap-2 min-w-0">
-          <GroupIcon className="w-4 h-4 text-purple-600 dark:text-purple-400 shrink-0" />
+        <div className="flex items-center gap-2.5 min-w-0">
+          <GroupIcon className={`w-4 h-4 shrink-0 transition-transform ${
+            isAnyChildActive ? "text-blue-600 dark:text-blue-400" : "text-slate-500 dark:text-slate-400 group-hover:text-blue-600 dark:group-hover:text-blue-400"
+          }`} />
           <span className="truncate">{title}</span>
         </div>
-        <div className="flex items-center gap-1 shrink-0">
+        <div className="flex items-center gap-1.5 shrink-0">
           {badge !== undefined && badge > 0 && (
-            <span className="flex items-center justify-center min-w-4 h-4 px-1 rounded-full bg-red-500 text-white text-[9px] font-bold">
+            <span className="flex items-center justify-center min-w-4 h-4 px-1 rounded-full bg-rose-500 text-white text-[9px] font-bold">
               {badge}
             </span>
           )}
           {isOpen ? (
-            <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+            <ChevronDown className="w-3.5 h-3.5 text-slate-400 transition-transform" />
           ) : (
-            <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+            <ChevronRight className="w-3.5 h-3.5 text-slate-300 dark:text-slate-600 group-hover:text-slate-500 transition-transform" />
           )}
         </div>
       </button>
@@ -421,7 +423,7 @@ function CollapsibleGroup({
             animate={{ opacity: 1, height: "auto" }}
             exit={{ opacity: 0, height: 0 }}
             transition={{ duration: 0.2, ease: "easeInOut" }}
-            className="pl-2 overflow-hidden space-y-0.5 border-l-2 border-slate-100 dark:border-slate-800 ml-3.5 mt-0.5"
+            className="pl-2 overflow-hidden space-y-1 border-l-2 border-slate-100 dark:border-slate-800 ml-4.5 my-1"
           >
             {items.map((item) => renderNavItem(item, true))}
           </motion.div>
@@ -996,18 +998,12 @@ function AppContent({ children }: { children: React.ReactNode }) {
         <Link key={item.href} href={item.href} prefetch={false} title={item.label}>
           <div className={`relative flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-200 mx-auto ${
             isActive
-              ? "text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-500/10"
-              : "text-slate-500 dark:text-slate-400 hover:bg-slate-100/80 dark:hover:bg-slate-800/50"
+              ? "text-white bg-blue-600 shadow-sm shadow-blue-500/25 font-bold"
+              : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white"
           }`}>
-            {isActive && (
-              <motion.div
-                layoutId="activeNav"
-                className="absolute left-0 top-1/4 bottom-1/4 w-1 bg-purple-500 rounded-r-full"
-              />
-            )}
             <Icon className="w-4 h-4" />
             {item.badge !== undefined && item.badge > 0 && (
-              <span className="absolute top-1 right-1 flex items-center justify-center min-w-[14px] h-[14px] px-0.5 rounded-full bg-red-500 text-white text-[9px] font-bold">
+              <span className="absolute top-1 right-1 flex items-center justify-center min-w-[14px] h-[14px] px-0.5 rounded-full bg-rose-500 text-white text-[9px] font-bold">
                 {item.badge > 9 ? "9+" : item.badge}
               </span>
             )}
@@ -1019,25 +1015,35 @@ function AppContent({ children }: { children: React.ReactNode }) {
     return (
       <Link key={item.href} href={item.href} prefetch={false}>
         <div
-          className={`relative flex items-center gap-2.5 px-3 ${isSubItem ? "py-2 text-[12.5px]" : "py-2.5 text-[13px]"} rounded-xl font-medium transition-all duration-200 group overflow-hidden ${
+          className={`w-full flex items-center justify-between px-3 ${isSubItem ? "py-2 text-[12px]" : "py-2.5 text-xs"} rounded-xl transition-all duration-200 group cursor-pointer ${
             isActive
-              ? "text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-500/10 font-bold"
-              : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-800/50"
+              ? "bg-blue-600 text-white font-bold shadow-sm shadow-blue-500/20"
+              : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white"
           }`}
         >
-          {isActive && (
-            <motion.div
-              layoutId="activeNav"
-              className="absolute left-0 top-1/4 bottom-1/4 w-1 bg-purple-500 rounded-r-full"
-            />
-          )}
-          <Icon className={`${isSubItem ? "w-3.5 h-3.5" : "w-4 h-4"} transition-transform duration-200 ${isActive ? "scale-110" : "group-hover:scale-110"}`} />
-          <span className="flex-1 truncate">{item.label}</span>
-          {item.badge !== undefined && item.badge > 0 && (
-            <span className="flex items-center justify-center min-w-4 h-4 px-1 rounded-full bg-red-500 text-white text-[9px] font-bold">
-              {item.badge}
-            </span>
-          )}
+          <div className="flex items-center gap-2.5 min-w-0">
+            <Icon className={`${isSubItem ? "w-3.5 h-3.5" : "w-4 h-4"} shrink-0 transition-transform ${
+              isActive ? "text-white" : "text-slate-500 dark:text-slate-400 group-hover:text-blue-600 dark:group-hover:text-blue-400"
+            }`} />
+            <span className="truncate">{item.label}</span>
+          </div>
+
+          <div className="flex items-center gap-1 shrink-0">
+            {item.badge !== undefined && item.badge > 0 && (
+              <span className={`flex items-center justify-center min-w-4 h-4 px-1 rounded-full text-[9px] font-bold ${
+                isActive ? "bg-white text-blue-600" : "bg-rose-500 text-white"
+              }`}>
+                {item.badge}
+              </span>
+            )}
+            {!isSubItem && (
+              <ChevronRight
+                className={`w-3.5 h-3.5 shrink-0 transition-transform ${
+                  isActive ? "text-white/80" : "text-slate-300 dark:text-slate-600 group-hover:text-slate-500"
+                }`}
+              />
+            )}
+          </div>
         </div>
       </Link>
     );
@@ -1134,23 +1140,31 @@ function AppContent({ children }: { children: React.ReactNode }) {
       </AnimatePresence>
 
       {/* Sidebar Navigation */}
-      <aside className={`fixed top-0 bottom-0 left-0 z-50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-r border-slate-200/50 dark:border-slate-800/50 flex flex-col shadow-[4px_0_24px_rgba(0,0,0,0.02)] print:hidden transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${
+      <aside className={`fixed top-0 bottom-0 left-0 z-50 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border-r border-slate-100 dark:border-slate-800 flex flex-col shadow-[4px_0_24px_rgba(0,0,0,0.02)] print:hidden transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] select-none ${
         sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
-      } ${isCollapsed ? "lg:w-[64px]" : "lg:w-[220px]"} w-[220px]`}>
+      } ${isCollapsed ? "lg:w-[72px]" : "lg:w-[256px]"} w-[256px]`}>
         
-        {/* Brand */}
-        <div className="h-16 px-3 flex items-center justify-between border-b border-slate-100 dark:border-slate-800/60 shrink-0 overflow-hidden">
-          <div className={`flex items-center gap-2.5 min-w-0 ${isCollapsed ? "lg:justify-center lg:w-full" : ""}`}>
+        {/* Brand Header */}
+        <div className="p-3.5 border-b border-slate-100 dark:border-slate-800/80 flex items-center justify-between gap-3 shrink-0">
+          <div className={`flex items-center gap-3 min-w-0 ${isCollapsed ? "justify-center w-full" : ""}`}>
             {brandLogo ? (
-              <img src={brandLogo} alt="Logo" className="w-8 h-8 rounded-xl object-cover shadow-xs shrink-0" />
+              <img src={brandLogo} alt="Logo" className="w-9 h-9 rounded-xl object-cover shadow-xs shrink-0" />
             ) : (
-              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center shadow-xs shrink-0">
-                <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
+              <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-xs shrink-0 font-bold">
+                <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
               </div>
             )}
             {!isCollapsed && (
-              <div className="flex-1 min-w-0">
-                <h1 className="text-[13.5px] font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-slate-900 to-slate-600 dark:from-white dark:to-slate-300 leading-tight truncate">{brandName}</h1>
+              <div className="min-w-0">
+                <div className="font-extrabold text-slate-900 dark:text-white text-[13px] leading-tight truncate">
+                  {brandName}
+                </div>
+                <div className="text-[10.5px] text-slate-400 dark:text-slate-500 font-medium truncate mt-0.5">
+                  {brandSubheader || "KP School Management System"}
+                </div>
+                <div className="text-[9.5px] text-amber-600 dark:text-amber-400 font-semibold truncate mt-0.5">
+                  "โรงเรียนคุณภาพ สพฐ."
+                </div>
               </div>
             )}
           </div>
@@ -1160,16 +1174,24 @@ function AppContent({ children }: { children: React.ReactNode }) {
         <nav className={`flex-1 py-4 space-y-3 overflow-y-auto custom-scrollbar ${isCollapsed ? "px-1.5" : "px-3"}`}>
           {/* Top Dashboard Link */}
           <Link href="/dashboard" prefetch={false} title={isCollapsed ? t("dashboard") : undefined}>
-            <div className={`relative flex items-center rounded-xl text-[13px] font-medium transition-all duration-200 group overflow-hidden ${isCollapsed ? "justify-center w-10 h-10 mx-auto" : "gap-2.5 px-3 py-2.5"} ${
+            <div className={`relative flex items-center rounded-xl text-xs font-medium transition-all duration-200 group cursor-pointer ${
+              isCollapsed ? "justify-center w-10 h-10 mx-auto" : "justify-between px-3 py-2.5"
+            } ${
               pathname === "/dashboard" 
-                ? "text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-500/10 font-bold" 
-                : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-800/50"
+                ? "bg-blue-600 text-white font-bold shadow-sm shadow-blue-500/20" 
+                : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-800/60"
             }`}>
-              {pathname === "/dashboard" && (
-                <motion.div layoutId="activeNav" className="absolute left-0 top-1/4 bottom-1/4 w-1 bg-purple-500 rounded-r-full" />
+              <div className="flex items-center gap-2.5 min-w-0">
+                <LayoutDashboard className={`w-4 h-4 shrink-0 transition-transform ${
+                  pathname === "/dashboard" ? "text-white" : "text-slate-500 dark:text-slate-400 group-hover:text-blue-600 dark:group-hover:text-blue-400"
+                }`} />
+                {!isCollapsed && <span className="truncate">{t("dashboard")}</span>}
+              </div>
+              {!isCollapsed && (
+                <ChevronRight className={`w-3.5 h-3.5 shrink-0 transition-transform ${
+                  pathname === "/dashboard" ? "text-white/80" : "text-slate-300 dark:text-slate-600 group-hover:text-slate-500"
+                }`} />
               )}
-              <LayoutDashboard className={`w-4 h-4 transition-transform duration-200 ${pathname === "/dashboard" ? "scale-110" : "group-hover:scale-110"}`} />
-              {!isCollapsed && <span className="flex-1 truncate">{t("dashboard")}</span>}
             </div>
           </Link>
 
@@ -1179,7 +1201,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
             target="_blank"
             rel="noopener noreferrer"
             title={lang === "en" ? "Classroom Portal" : "ระบบจัดการชั้นเรียน"}
-            className={`group relative flex items-center rounded-xl text-[13px] font-medium transition-all duration-200 overflow-hidden bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-transparent hover:from-emerald-500/20 hover:via-teal-500/20 border border-emerald-500/20 dark:border-emerald-500/30 text-emerald-800 dark:text-emerald-300 hover:text-emerald-900 dark:hover:text-emerald-200 hover:shadow-xs ${isCollapsed ? "justify-center w-10 h-10 mx-auto" : "gap-2.5 px-3 py-2.5"}`}
+            className={`group relative flex items-center justify-between rounded-xl text-xs font-medium transition-all duration-200 overflow-hidden bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-transparent hover:from-emerald-500/20 hover:via-teal-500/20 border border-emerald-500/20 dark:border-emerald-500/30 text-emerald-800 dark:text-emerald-300 hover:text-emerald-900 dark:hover:text-emerald-200 hover:shadow-xs ${isCollapsed ? "justify-center w-10 h-10 mx-auto" : "px-3 py-2.5"}`}
           >
             <div className={`${isCollapsed ? "" : "p-1 rounded-lg bg-emerald-500/15"} text-emerald-600 dark:text-emerald-400 group-hover:scale-110 transition-transform shrink-0`}>
               <GraduationCap className="w-4 h-4" />
@@ -1202,9 +1224,9 @@ function AppContent({ children }: { children: React.ReactNode }) {
           {/* Section 1: บุคคล */}
           <div className="space-y-1">
             {isCollapsed ? (
-              <div className="h-px bg-slate-100 dark:bg-slate-800/80 mx-2 my-1" />
+              <div className="h-px bg-slate-100 dark:bg-slate-800/80 mx-2 my-2" />
             ) : (
-              <div className="px-3 pb-0.5 text-[11.5px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+              <div className="px-3 pb-1 pt-2.5 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
                 บุคคล
               </div>
             )}
@@ -1234,9 +1256,9 @@ function AppContent({ children }: { children: React.ReactNode }) {
           {/* Section 2: ทั่วไป */}
           <div className="space-y-1">
             {isCollapsed ? (
-              <div className="h-px bg-slate-100 dark:bg-slate-800/80 mx-2 my-1" />
+              <div className="h-px bg-slate-100 dark:bg-slate-800/80 mx-2 my-2" />
             ) : (
-              <div className="px-3 pb-0.5 text-[11.5px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+              <div className="px-3 pb-1 pt-2.5 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
                 ทั่วไป
               </div>
             )}
@@ -1298,9 +1320,9 @@ function AppContent({ children }: { children: React.ReactNode }) {
           {(academicPlanningSubItems.length > 0 || timetableSubItems.length > 0 || substituteSubItems.length > 0 || supervisionSubItems.length > 0 || examSubItems.length > 0 || omrSubItems.length > 0 || showExam || showTimetable || showSubstitute || showSupervision || isAdmin) && (
             <div className="space-y-1">
               {isCollapsed ? (
-                <div className="h-px bg-slate-100 dark:bg-slate-800/80 mx-2 my-1" />
+                <div className="h-px bg-slate-100 dark:bg-slate-800/80 mx-2 my-2" />
               ) : (
-                <div className="px-3 pb-0.5 text-[11.5px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                <div className="px-3 pb-1 pt-2.5 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
                   วิชาการ
                 </div>
               )}
@@ -1419,9 +1441,9 @@ function AppContent({ children }: { children: React.ReactNode }) {
           {budgetSubItems.length > 0 && (
             <div className="space-y-1">
               {isCollapsed ? (
-                <div className="h-px bg-slate-100 dark:bg-slate-800/80 mx-2 my-1" />
+                <div className="h-px bg-slate-100 dark:bg-slate-800/80 mx-2 my-2" />
               ) : (
-                <div className="px-3 pb-0.5 text-[11.5px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                <div className="px-3 pb-1 pt-2.5 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
                   งบประมาณ
                 </div>
               )}
@@ -1445,9 +1467,9 @@ function AppContent({ children }: { children: React.ReactNode }) {
           {settingsNavItems.length > 0 && (
             <div className="space-y-1">
               {isCollapsed ? (
-                <div className="h-px bg-slate-100 dark:bg-slate-800/80 mx-2 my-1" />
+                <div className="h-px bg-slate-100 dark:bg-slate-800/80 mx-2 my-2" />
               ) : (
-                <div className="px-3 pb-0.5 text-[11.5px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                <div className="px-3 pb-1 pt-2.5 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
                   ตั้งค่าระบบ
                 </div>
               )}
@@ -1462,15 +1484,41 @@ function AppContent({ children }: { children: React.ReactNode }) {
           </div>
         </nav>
 
+        {/* Bottom Feature Card: "Smart School Better Future" */}
+        {!isCollapsed && (
+          <div className="p-3 border-t border-slate-100 dark:border-slate-800/80 shrink-0">
+            <div className="rounded-2xl p-3 bg-gradient-to-b from-sky-50/80 via-blue-50/60 to-white dark:from-slate-800/70 dark:via-slate-800/40 dark:to-slate-800/20 border border-blue-100/80 dark:border-slate-700/60 shadow-2xs relative overflow-hidden">
+              <div className="relative z-10">
+                <div className="text-[11px] font-extrabold text-blue-900 dark:text-blue-300 leading-tight">
+                  Smart School
+                </div>
+                <div className="text-[10px] font-semibold text-blue-600 dark:text-blue-400">
+                  Better Future
+                </div>
+              </div>
+              <div className="mt-2 w-full h-22 rounded-xl overflow-hidden flex items-center justify-center bg-slate-100 dark:bg-slate-700/40">
+                <img
+                  src="/images/isometric_smart_school.jpg"
+                  alt="Smart School Campus"
+                  className="w-full h-full object-cover rounded-xl"
+                  onError={(e) => {
+                    (e.currentTarget as HTMLImageElement).style.display = 'none';
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* User Footer Component */}
-        <div className={`mb-3 mt-auto shrink-0 ${isCollapsed ? "px-1.5 py-2" : "p-3 mx-2.5"}`}>
+        <div className={`mb-3 shrink-0 ${isCollapsed ? "px-1.5 py-2" : "p-3 border-t border-slate-100 dark:border-slate-800/80"}`}>
           {isCollapsed ? (
             <div className="flex flex-col items-center gap-2">
               <div title={`${user.name} (${user.position || t("staff")})`}>
                 {user.image ? (
                   <img src={user.image} alt={user.name} className="w-8 h-8 rounded-full object-cover shadow-2xs border border-slate-200 dark:border-slate-700 shrink-0" />
                 ) : (
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center text-white text-xs font-bold shadow-2xs shrink-0">
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-xs font-bold shadow-2xs shrink-0">
                     {user.name?.charAt(0)?.toUpperCase()}
                   </div>
                 )}
@@ -1488,18 +1536,18 @@ function AppContent({ children }: { children: React.ReactNode }) {
               </button>
             </div>
           ) : (
-            <div className="relative overflow-hidden rounded-xl bg-white dark:bg-slate-800 border border-slate-200/50 dark:border-slate-700/50 p-2.5 shadow-2xs">
+            <div className="relative overflow-hidden rounded-xl bg-white dark:bg-slate-800/80 border border-slate-200/60 dark:border-slate-700/60 p-2.5 shadow-2xs">
               <div className="flex items-center gap-2.5 mb-2.5">
                 {user.image ? (
                   <img src={user.image} alt={user.name} className="w-8 h-8 rounded-full object-cover shadow-2xs border border-slate-200 dark:border-slate-700 shrink-0" />
                 ) : (
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center text-white text-xs font-bold shadow-2xs shrink-0">
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-xs font-bold shadow-2xs shrink-0">
                     {user.name?.charAt(0)?.toUpperCase()}
                   </div>
                 )}
                 <div className="flex-1 min-w-0">
-                  <p className="text-[13.5px] font-bold text-slate-900 dark:text-white truncate leading-snug">{user.name}</p>
-                  <p className="text-[11.5px] text-slate-500 dark:text-slate-400 truncate">{user.position || t("staff")}</p>
+                  <p className="text-[13px] font-bold text-slate-900 dark:text-white truncate leading-snug">{user.name}</p>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">{user.position || t("staff")}</p>
                 </div>
               </div>
               <button
@@ -1508,7 +1556,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
                   await signOut();
                   router.push("/login");
                 }}
-                className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-900/50 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-500/10 dark:hover:text-red-400 text-[12.5px] font-medium text-slate-600 dark:text-slate-300 transition-colors cursor-pointer"
+                className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-900/50 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-500/10 dark:hover:text-red-400 text-[12px] font-medium text-slate-600 dark:text-slate-300 transition-colors cursor-pointer"
               >
                 <LogOut className="w-3.5 h-3.5" />
                 {t("logout")}
@@ -1519,7 +1567,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
       </aside>
 
       {/* Main Container */}
-      <main className={`flex-1 flex flex-col min-w-0 min-h-screen transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${isCollapsed ? "lg:pl-[64px]" : "lg:pl-[220px]"}`}>
+      <main className={`flex-1 flex flex-col min-w-0 min-h-screen transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${isCollapsed ? "lg:pl-[72px]" : "lg:pl-[256px]"}`}>
         
         {/* Top Header */}
         <header className="h-24 px-6 lg:px-10 flex items-center justify-between z-30 print:hidden">
