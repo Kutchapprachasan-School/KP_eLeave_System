@@ -1,11 +1,23 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
+import Link from "next/link";
 import { useSession } from "@/lib/auth-client";
 import {
   CheckCircle2,
   RefreshCw,
   Sliders,
+  Calendar,
+  FileText,
+  Wrench,
+  Building2,
+  GraduationCap,
+  ArrowRight,
+  Sparkles,
+  Layers,
+  ChevronRight,
+  TrendingUp,
+  AlertCircle
 } from "lucide-react";
 import {
   type DashboardWidgetConfig,
@@ -21,15 +33,18 @@ import {
   rejectLeaveRequest,
 } from "@/app/actions/leave";
 
-// Sub-components matching media_1791947729556_c79c257e.jpg
+// Sub-components matching SMS Executive Hub
 import SMSHeroBanner from "./SMSHeroBanner";
-import SMSStatCards from "./SMSStatCards";
+import ExecutiveLeaveStatCards from "./ExecutiveLeaveStatCards";
 import SMSLearningOutcomeChart from "./SMSLearningOutcomeChart";
 import SMSAttendanceDonutCard from "./SMSAttendanceDonutCard";
 import SMSAnnouncementsCard from "./SMSAnnouncementsCard";
 import SMSAcademicCalendarCard from "./SMSAcademicCalendarCard";
+import SMSOperationsStrip from "./SMSOperationsStrip";
 
-// Operational e-Leave components
+// Analytics & Operational e-Leave components
+import ExecutiveLeaveCharts from "./ExecutiveLeaveCharts";
+import ExecutiveStudentLeaveOverview from "./ExecutiveStudentLeaveOverview";
 import ExecutiveApprovalQueue, { type LeaveQueueItem } from "./ExecutiveApprovalQueue";
 import ExecutiveLeaveDetailModal from "./ExecutiveLeaveDetailModal";
 import DashboardWidgetCustomizerModal from "./DashboardWidgetCustomizerModal";
@@ -42,10 +57,21 @@ export default function ExecutiveLeaveDashboardView() {
     currentUser?.role === "ADMIN" ||
     currentUser?.position === "แอดมิน" ||
     currentUser?.role === "DIRECTOR" ||
-    currentUser?.position === "ผู้อำนวยการ";
+    currentUser?.position === "ผู้อำนวยการ" ||
+    currentUser?.role === "HR" ||
+    currentUser?.role === "DEPT_HEAD";
 
-  // Widget Settings
-  const [widgetConfig, setWidgetConfig] = useState<DashboardWidgetConfig>(DEFAULT_WIDGET_CONFIG);
+  // Widget Settings with instant localStorage cache fallback
+  const [widgetConfig, setWidgetConfig] = useState<DashboardWidgetConfig>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const cached = localStorage.getItem("kp_dashboard_widget_config");
+        if (cached) return JSON.parse(cached);
+      } catch {}
+    }
+    return DEFAULT_WIDGET_CONFIG;
+  });
+
   const [isCustomizerOpen, setIsCustomizerOpen] = useState(false);
   const [selectedLeaveForModal, setSelectedLeaveForModal] = useState<LeaveQueueItem | null>(null);
 
@@ -67,12 +93,25 @@ export default function ExecutiveLeaveDashboardView() {
     try {
       // Parallel loading of configs and aggregated school stats
       const [config, stats, multiStats] = await Promise.all([
-        getDashboardWidgetConfig().catch(() => DEFAULT_WIDGET_CONFIG),
+        getDashboardWidgetConfig().catch(() => null),
         getDashboardStats("current", "th", undefined, "school").catch(() => null),
         getSchoolManagementExecutiveStats().catch(() => null),
       ]);
 
-      setWidgetConfig(config);
+      if (config) {
+        // Only override if localStorage doesn't have an explicit override or sync with server
+        try {
+          const cached = localStorage.getItem("kp_dashboard_widget_config");
+          if (cached) {
+            setWidgetConfig(JSON.parse(cached));
+          } else {
+            setWidgetConfig(config);
+          }
+        } catch {
+          setWidgetConfig(config);
+        }
+      }
+
       setStatsData(stats);
       setSchoolStats(multiStats);
 
@@ -172,20 +211,45 @@ export default function ExecutiveLeaveDashboardView() {
 
   const leaveConfigs = statsData?.leaveConfigs || [];
 
-  // Compute stat values from schoolStats with graceful fallbacks
+  // Derived Values
   const totalStudents = schoolStats?.student.totalStudents || 32;
-  const totalStaff =
-    (schoolStats?.staff.attendanceToday.present ?? 0) +
-    (schoolStats?.staff.attendanceToday.late ?? 0) +
-    (schoolStats?.staff.attendanceToday.absent ?? 0) || 28;
   const attendanceRate =
     schoolStats?.student.attendanceToday.attendanceRate && schoolStats.student.attendanceToday.attendanceRate > 0
       ? schoolStats.student.attendanceToday.attendanceRate
       : 95.6;
-  const pendingTasks =
-    (schoolStats?.staff.pendingLeaveCount ?? 0) +
-    (schoolStats?.document.pendingRoutingCount ?? 0) +
-    (schoolStats?.repair.activeCount ?? 0) || 8;
+  const sickAndPersonal =
+    (schoolStats?.student.attendanceToday.sick || 0) +
+    (schoolStats?.student.attendanceToday.personal || 0);
+
+  // Type & Department Chart Data
+  const typeData = useMemo(() => {
+    if (!leaveConfigs || !Array.isArray(leaveConfigs)) return [];
+    const mapped = leaveConfigs.map((cfg: any) => ({
+      type: cfg.type,
+      label: cfg.nameTh || cfg.type,
+      count: statsData?.usedDaysMap?.[cfg.type]?.days || 0,
+      color: cfg.color || "#3B82F6",
+    })).filter((t: any) => t.count > 0);
+
+    // Fallback baseline if no leaves registered yet
+    if (mapped.length === 0) {
+      return [
+        { type: "SICK", label: "ลาป่วย", count: 3, color: "#3B82F6" },
+        { type: "PERSONAL", label: "ลากิจ", count: 2, color: "#10B981" },
+        { type: "OFFICIAL", label: "ไปราชการ", count: 4, color: "#8B5CF6" },
+      ];
+    }
+    return mapped;
+  }, [leaveConfigs, statsData]);
+
+  const deptData = useMemo(() => {
+    if (!statsData?.deptStats || !Array.isArray(statsData.deptStats)) return [];
+    return statsData.deptStats.map((d: any) => ({
+      department: d.department,
+      count: d.totalDays || d.count || 0,
+      percentage: d.percentage || 0,
+    }));
+  }, [statsData]);
 
   return (
     <div className="space-y-4 sm:space-y-5 select-none font-sans">
@@ -197,50 +261,211 @@ export default function ExecutiveLeaveDashboardView() {
         </div>
       )}
 
-      {/* Row 1: Hero Banner matching media_1791947729556_c79c257e.jpg */}
-      {widgetConfig.heroBanner && (
-        <SMSHeroBanner
-          title="แดชบอร์ดภาพรวม"
-          subtitle="ภาพรวมข้อมูลสำคัญของห้องเรียนและการจัดการในระบบ"
-        />
-      )}
+      {/* Top Banner & Quick Hub Header */}
+      <div className="flex flex-col gap-3">
+        {/* Row 1: Hero Banner */}
+        {widgetConfig.heroBanner && (
+          <SMSHeroBanner
+            title="แดชบอร์ดภาพรวมสถานศึกษา (Executive KPI Hub)"
+            subtitle="ศูนย์รวมสถิติ ตัวชี้วัด KPI และการบริหารจัดการทุกระบบย่อยของโรงเรียน"
+          />
+        )}
 
-      {/* Row 2: 4 Top KPI Stat Cards */}
+        {/* Row 1.5: Subsystem Quick Hub (Status Bar) */}
+        {widgetConfig.subsystemQuickHub && (
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-3">
+            {/* 1. ระบบการลา */}
+            <Link
+              href="/approvals"
+              className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-3 shadow-2xs hover:shadow-md hover:-translate-y-0.5 transition-all group flex flex-col justify-between"
+            >
+              <div className="flex items-center justify-between text-xs text-slate-500 font-semibold">
+                <span className="flex items-center gap-1.5">
+                  <Calendar className="w-3.5 h-3.5 text-blue-600" />
+                  ระบบการลา
+                </span>
+                <span className="w-2 h-2 rounded-full bg-emerald-500" />
+              </div>
+              <div className="mt-2">
+                <div className="text-sm font-extrabold text-slate-800 dark:text-white group-hover:text-blue-600 transition-colors">
+                  {schoolStats?.staff.pendingLeaveCount ?? 0} <span className="text-[11px] font-normal text-slate-400">คำขอรอตรวจ</span>
+                </div>
+                <div className="text-[10px] text-slate-400 mt-0.5 truncate">
+                  ครูลาวันนี้ {schoolStats?.staff.staffOnLeaveTodayCount ?? 0} คน
+                </div>
+              </div>
+            </Link>
+
+            {/* 2. สารบรรณ */}
+            <Link
+              href="/document?view=history&tab=inbound"
+              className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-3 shadow-2xs hover:shadow-md hover:-translate-y-0.5 transition-all group flex flex-col justify-between"
+            >
+              <div className="flex items-center justify-between text-xs text-slate-500 font-semibold">
+                <span className="flex items-center gap-1.5">
+                  <FileText className="w-3.5 h-3.5 text-indigo-600" />
+                  งานสารบรรณ
+                </span>
+                <span className="w-2 h-2 rounded-full bg-blue-500" />
+              </div>
+              <div className="mt-2">
+                <div className="text-sm font-extrabold text-slate-800 dark:text-white group-hover:text-indigo-600 transition-colors">
+                  {schoolStats?.document.pendingRoutingCount ?? 0} <span className="text-[11px] font-normal text-slate-400">รอเกษียณ</span>
+                </div>
+                <div className="text-[10px] text-slate-400 mt-0.5 truncate">
+                  ออกเลขปีนี้ {schoolStats?.document.totalIssuedThisYear ?? 0} เรื่อง
+                </div>
+              </div>
+            </Link>
+
+            {/* 3. แจ้งซ่อม */}
+            <Link
+              href="/repair"
+              className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-3 shadow-2xs hover:shadow-md hover:-translate-y-0.5 transition-all group flex flex-col justify-between"
+            >
+              <div className="flex items-center justify-between text-xs text-slate-500 font-semibold">
+                <span className="flex items-center gap-1.5">
+                  <Wrench className="w-3.5 h-3.5 text-rose-600" />
+                  ระบบแจ้งซ่อม
+                </span>
+                <span className={`w-2 h-2 rounded-full ${schoolStats?.repair.overdueSlaCount ? "bg-rose-500 animate-pulse" : "bg-emerald-500"}`} />
+              </div>
+              <div className="mt-2">
+                <div className="text-sm font-extrabold text-slate-800 dark:text-white group-hover:text-rose-600 transition-colors">
+                  {schoolStats?.repair.activeCount ?? 0} <span className="text-[11px] font-normal text-slate-400">งานค้างอยู่</span>
+                </div>
+                <div className="text-[10px] text-slate-400 mt-0.5 truncate">
+                  {schoolStats?.repair.overdueSlaCount ? `⚠️ เกิน SLA ${schoolStats.repair.overdueSlaCount} งาน` : "อยู่ในเกณฑ์เวลา"}
+                </div>
+              </div>
+            </Link>
+
+            {/* 4. ทรัพยากรส่วนกลาง */}
+            <Link
+              href="/general/facility"
+              className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-3 shadow-2xs hover:shadow-md hover:-translate-y-0.5 transition-all group flex flex-col justify-between"
+            >
+              <div className="flex items-center justify-between text-xs text-slate-500 font-semibold">
+                <span className="flex items-center gap-1.5">
+                  <Building2 className="w-3.5 h-3.5 text-teal-600" />
+                  ห้องประชุม/รถ
+                </span>
+                <span className="w-2 h-2 rounded-full bg-teal-500" />
+              </div>
+              <div className="mt-2">
+                <div className="text-sm font-extrabold text-slate-800 dark:text-white group-hover:text-teal-600 transition-colors">
+                  {schoolStats?.facility.reservationsTodayCount ?? 0} <span className="text-[11px] font-normal text-slate-400">จองวันนี้</span>
+                </div>
+                <div className="text-[10px] text-slate-400 mt-0.5 truncate">
+                  รออนุมัติ {schoolStats?.facility.pendingReservationCount ?? 0} รายการ
+                </div>
+              </div>
+            </Link>
+
+            {/* 5. กิจการนักเรียน */}
+            <Link
+              href="/attendance"
+              className="col-span-2 sm:col-span-1 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-3 shadow-2xs hover:shadow-md hover:-translate-y-0.5 transition-all group flex flex-col justify-between"
+            >
+              <div className="flex items-center justify-between text-xs text-slate-500 font-semibold">
+                <span className="flex items-center gap-1.5">
+                  <GraduationCap className="w-3.5 h-3.5 text-purple-600" />
+                  ผู้เรียน/เช็กแถว
+                </span>
+                <span className="w-2 h-2 rounded-full bg-emerald-500" />
+              </div>
+              <div className="mt-2">
+                <div className="text-sm font-extrabold text-slate-800 dark:text-white group-hover:text-purple-600 transition-colors">
+                  {attendanceRate}% <span className="text-[11px] font-normal text-slate-400">มาเรียนวันนี้</span>
+                </div>
+                <div className="text-[10px] text-slate-400 mt-0.5 truncate">
+                  นักเรียนรวม {totalStudents} คน
+                </div>
+              </div>
+            </Link>
+          </div>
+        )}
+      </div>
+
+      {/* Row 2: Comprehensive Modular KPI Grid across all subsystems */}
       {widgetConfig.kpiStatsGrid && (
-        <SMSStatCards
-          totalStudents={totalStudents}
-          totalStaff={totalStaff}
-          attendanceRate={attendanceRate}
-          pendingTasks={pendingTasks}
-        />
-      )}
-
-      {/* Row 3: Middle Grid (Left: ผลการเรียนรู้ภาพรวม 60% / Right: สรุปการเข้าเรียน 40%) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-5 items-stretch">
-        <div className="lg:col-span-7 xl:col-span-8 flex flex-col min-w-0">
-          <SMSLearningOutcomeChart />
-        </div>
-        <div className="lg:col-span-5 xl:col-span-4 flex flex-col min-w-0">
-          <SMSAttendanceDonutCard
-            presentRate={attendanceRate}
-            lateRate={2.1}
-            absentRate={1.3}
-            leaveRate={0.9}
+        <div className="pt-1">
+          <ExecutiveLeaveStatCards
+            stats={schoolStats}
+            config={widgetConfig}
+            pendingCount={schoolStats?.staff.pendingLeaveCount}
+            staffOnLeaveTodayCount={schoolStats?.staff.staffOnLeaveTodayCount}
+            studentsOnLeaveTodayCount={sickAndPersonal}
+            proxyTeachingAssignedCount={schoolStats?.staff.proxyTeachingCount}
+            onFilterPending={() => {
+              const el = document.getElementById("approval-queue-section");
+              el?.scrollIntoView({ behavior: "smooth" });
+            }}
           />
         </div>
-      </div>
+      )}
 
-      {/* Row 4: Bottom Grid (Left: ประกาศและกิจกรรมล่าสุด 60% / Right: ปฏิทินการศึกษา 40%) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-5 items-stretch">
-        <div className="lg:col-span-7 xl:col-span-8 flex flex-col min-w-0">
-          <SMSAnnouncementsCard />
+      {/* Row 3: Academic & Student Learning Analytics Grid */}
+      {(widgetConfig.learningOutcomeChart || widgetConfig.attendanceDonutCard) && (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-5 items-stretch">
+          {widgetConfig.learningOutcomeChart && (
+            <div className={`${widgetConfig.attendanceDonutCard ? "lg:col-span-7 xl:col-span-8" : "lg:col-span-12"} flex flex-col min-w-0`}>
+              <SMSLearningOutcomeChart />
+            </div>
+          )}
+          {widgetConfig.attendanceDonutCard && (
+            <div className={`${widgetConfig.learningOutcomeChart ? "lg:col-span-5 xl:col-span-4" : "lg:col-span-12"} flex flex-col min-w-0`}>
+              <SMSAttendanceDonutCard
+                presentRate={attendanceRate}
+                lateRate={2.1}
+                absentRate={1.3}
+                leaveRate={0.9}
+              />
+            </div>
+          )}
         </div>
-        <div className="lg:col-span-5 xl:col-span-4 flex flex-col min-w-0">
-          <SMSAcademicCalendarCard />
-        </div>
-      </div>
+      )}
 
-      {/* Row 5: Approval Queue Widget (Primary Leave & Staff Workflow) */}
+      {/* Row 4: Operational Strips (งบประมาณ, สารบรรณ, แจ้งซ่อม, ทรัพยากร) */}
+      {widgetConfig.operationsStrip && (
+        <div className="pt-1">
+          <SMSOperationsStrip />
+        </div>
+      )}
+
+      {/* Row 5: Leave Distribution & Student Overview Analytics */}
+      {(widgetConfig.distributionCharts || widgetConfig.studentAffairsOverview) && (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-5 items-stretch">
+          {widgetConfig.distributionCharts && typeData.length > 0 && (
+            <div className={`${widgetConfig.studentAffairsOverview ? "lg:col-span-6" : "lg:col-span-12"} flex flex-col min-w-0`}>
+              <ExecutiveLeaveCharts typeData={typeData} deptData={deptData} />
+            </div>
+          )}
+          {widgetConfig.studentAffairsOverview && (
+            <div className={`${widgetConfig.distributionCharts && typeData.length > 0 ? "lg:col-span-6" : "lg:col-span-12"} flex flex-col min-w-0`}>
+              <ExecutiveStudentLeaveOverview studentStats={schoolStats?.student} />
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Row 6: Announcements & Academic Calendar */}
+      {(widgetConfig.announcementsCard || widgetConfig.academicCalendarCard) && (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-5 items-stretch">
+          {widgetConfig.announcementsCard && (
+            <div className={`${widgetConfig.academicCalendarCard ? "lg:col-span-7 xl:col-span-8" : "lg:col-span-12"} flex flex-col min-w-0`}>
+              <SMSAnnouncementsCard />
+            </div>
+          )}
+          {widgetConfig.academicCalendarCard && (
+            <div className={`${widgetConfig.announcementsCard ? "lg:col-span-5 xl:col-span-4" : "lg:col-span-12"} flex flex-col min-w-0`}>
+              <SMSAcademicCalendarCard />
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Row 7: Approval Queue Widget (Primary Leave & Staff Workflow) */}
       {widgetConfig.approvalQueue && (
         <div id="approval-queue-section" className="pt-2">
           <ExecutiveApprovalQueue
@@ -253,7 +478,7 @@ export default function ExecutiveLeaveDashboardView() {
         </div>
       )}
 
-      {/* Row 6: Monthly Trend Chart Widget (if enabled in widget settings) */}
+      {/* Row 8: Monthly Trend Chart Widget */}
       {widgetConfig.monthlyTrendChart && statsData?.monthlyData && (
         <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-[0_2px_12px_rgba(0,0,0,0.03)] p-5">
           <MonthlyTrendChart
@@ -263,28 +488,26 @@ export default function ExecutiveLeaveDashboardView() {
         </div>
       )}
 
-      {/* Admin Floating Controls */}
-      {isAdmin && (
-        <div className="fixed bottom-6 right-6 z-40 flex items-center gap-2">
-          <button
-            type="button"
-            onClick={loadAllDashboardData}
-            className="w-10 h-10 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-lg flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition cursor-pointer"
-            title="รีเฟรชข้อมูล"
-          >
-            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
-          </button>
-          <button
-            type="button"
-            onClick={() => setIsCustomizerOpen(true)}
-            className="px-4 py-2.5 rounded-full bg-blue-600 text-white hover:bg-blue-700 font-bold text-xs transition-all shadow-lg flex items-center gap-1.5 cursor-pointer"
-            title="ปรับแต่งวิดเจ็ต"
-          >
-            <Sliders className="w-3.5 h-3.5" />
-            <span>ปรับแต่ง</span>
-          </button>
-        </div>
-      )}
+      {/* Floating Action Controls */}
+      <div className="fixed bottom-6 right-6 z-40 flex items-center gap-2">
+        <button
+          type="button"
+          onClick={loadAllDashboardData}
+          className="w-10 h-10 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-lg flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition cursor-pointer"
+          title="รีเฟรชข้อมูลแดชบอร์ด"
+        >
+          <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+        </button>
+        <button
+          type="button"
+          onClick={() => setIsCustomizerOpen(true)}
+          className="px-4 py-2.5 rounded-full bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs transition-all shadow-lg flex items-center gap-1.5 cursor-pointer active:scale-95"
+          title="เพิ่มหรือปรับแต่งวิดเจ็ต"
+        >
+          <Sliders className="w-3.5 h-3.5" />
+          <span>ปรับแต่งวิดเจ็ต</span>
+        </button>
+      </div>
 
       {/* Drill-down Leave Details Modal */}
       <ExecutiveLeaveDetailModal
@@ -295,12 +518,15 @@ export default function ExecutiveLeaveDashboardView() {
         onReject={handleReject}
       />
 
-      {/* Admin Widget Customizer Modal */}
+      {/* Dashboard Widget Customizer Modal */}
       <DashboardWidgetCustomizerModal
         isOpen={isCustomizerOpen}
         onClose={() => setIsCustomizerOpen(false)}
         config={widgetConfig}
-        onUpdateConfig={(newConfig) => setWidgetConfig(newConfig)}
+        onUpdateConfig={(newConfig) => {
+          setWidgetConfig(newConfig);
+          showToast("อัปเดตการแสดงผลวิดเจ็ตเรียบร้อยแล้ว");
+        }}
         isAdmin={isAdmin}
       />
     </div>

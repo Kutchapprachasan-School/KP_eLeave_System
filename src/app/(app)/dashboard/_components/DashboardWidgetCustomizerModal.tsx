@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   X,
   Sliders,
@@ -13,7 +13,6 @@ import {
   TrendingUp,
   Calendar,
   Sparkles,
-  Lock,
   UserCheck,
   Clock,
   HeartHandshake,
@@ -23,6 +22,14 @@ import {
   Building2,
   Fingerprint,
   Layers,
+  Plus,
+  Trash2,
+  Search,
+  CheckCheck,
+  ToggleLeft,
+  ToggleRight,
+  Megaphone,
+  Briefcase
 } from "lucide-react";
 import {
   type DashboardWidgetConfig,
@@ -35,10 +42,11 @@ interface DashboardWidgetCustomizerModalProps {
   onClose: () => void;
   config: DashboardWidgetConfig;
   onUpdateConfig: (newConfig: DashboardWidgetConfig) => void;
-  isAdmin: boolean;
+  isAdmin?: boolean;
 }
 
 type WidgetCategory =
+  | "ทั้งหมด"
   | "เค้าโครง & วิดเจ็ตหลัก"
   | "การ์ด KPI ด้านผู้เรียน"
   | "การ์ด KPI ด้านบุคลากร"
@@ -49,7 +57,8 @@ interface WidgetItemMeta {
   title: string;
   description: string;
   icon: React.ReactNode;
-  category: WidgetCategory;
+  category: "เค้าโครง & วิดเจ็ตหลัก" | "การ์ด KPI ด้านผู้เรียน" | "การ์ด KPI ด้านบุคลากร" | "การ์ด KPI ด้านงานสนับสนุน";
+  badge?: string;
 }
 
 const WIDGET_METADATA: WidgetItemMeta[] = [
@@ -60,6 +69,7 @@ const WIDGET_METADATA: WidgetItemMeta[] = [
     description: "ส่วนต้อนรับผู้บริหารพร้อมคำขวัญสร้างแรงบันดาลใจและสรุปบทบาทหน้าที่",
     icon: <Sparkles className="w-4 h-4 text-amber-500" />,
     category: "เค้าโครง & วิดเจ็ตหลัก",
+    badge: "Header",
   },
   {
     key: "subsystemQuickHub",
@@ -67,20 +77,39 @@ const WIDGET_METADATA: WidgetItemMeta[] = [
     description: "แสดงภาพรวมสุขภาพและทางลัดเข้าสู่ระบบการลา, สารบรรณ, แจ้งซ่อม, ทรัพยากร และวิชาการ",
     icon: <Layers className="w-4 h-4 text-indigo-500" />,
     category: "เค้าโครง & วิดเจ็ตหลัก",
+    badge: "Quick Access",
   },
   {
     key: "kpiStatsGrid",
     title: "แผงการ์ดสถิติ KPI รวมสถานศึกษา (Modular KPI Grid)",
-    description: "เปิด/ปิด แผงการ์ดสถิติภาพรวมด้านบนสุดของหน้าแดชบอร์ด",
+    description: "แผงการ์ดสถิติภาพรวมผู้เรียน บุคลากร งานสารบรรณ และทรัพยากรส่วนกลาง",
     icon: <LayoutTemplate className="w-4 h-4 text-blue-500" />,
     category: "เค้าโครง & วิดเจ็ตหลัก",
+    badge: "KPI Matrix",
   },
   {
-    key: "approvalQueue",
-    title: "คิวงานพิจารณาอนุมัติคำขอลา (Approval Queue)",
-    description: "ตารางรายการคำขอลาของครูและบุคลากร พร้อมระบบอนุมัติ/ไม่อนุมัติเร่งด่วนใน 1 คลิก",
-    icon: <CheckCircle2 className="w-4 h-4 text-emerald-500" />,
+    key: "learningOutcomeChart",
+    title: "กราฟผลการเรียนรู้รายกลุ่มสาระ (Learning Outcomes)",
+    description: "กราฟแท่งเปรียบเทียบผลสัมฤทธิ์ทางการเรียนรู้ 8 กลุ่มสาระและสถิติเกรดเฉลี่ย",
+    icon: <GraduationCap className="w-4 h-4 text-blue-500" />,
     category: "เค้าโครง & วิดเจ็ตหลัก",
+    badge: "Academic",
+  },
+  {
+    key: "attendanceDonutCard",
+    title: "สถิติการเข้าเรียน & เช็กแถวประจำวัน",
+    description: "กราฟโดนัทสรุปเปอร์เซ็นต์มาเรียน สาย ขาด และลา ของนักเรียนในวันนี้",
+    icon: <PieChart className="w-4 h-4 text-emerald-500" />,
+    category: "เค้าโครง & วิดเจ็ตหลัก",
+    badge: "Daily Attendance",
+  },
+  {
+    key: "operationsStrip",
+    title: "แถบสถิติงานปฏิบัติการ 4 ฝ่าย (SMS Operations Strip)",
+    description: "สรุปงบประมาณการเงิน, งานสารบรรณ, ระบบแจ้งซ่อม และการจองห้อง/รถโรงเรียน",
+    icon: <Briefcase className="w-4 h-4 text-amber-500" />,
+    category: "เค้าโครง & วิดเจ็ตหลัก",
+    badge: "Operations",
   },
   {
     key: "distributionCharts",
@@ -88,6 +117,7 @@ const WIDGET_METADATA: WidgetItemMeta[] = [
     description: "กราฟโดนัทจำแนกประเภทการลา พร้อมสถิติเปอร์เซ็นต์แต่ละกลุ่มสาระการเรียนรู้",
     icon: <PieChart className="w-4 h-4 text-indigo-500" />,
     category: "เค้าโครง & วิดเจ็ตหลัก",
+    badge: "HR Analytics",
   },
   {
     key: "studentAffairsOverview",
@@ -95,6 +125,31 @@ const WIDGET_METADATA: WidgetItemMeta[] = [
     description: "สรุปอัตราการมาเรียน แถวเช้า ลาป่วย/กิจ และระบบเฝ้าระวังความเสี่ยง (EWS)",
     icon: <GraduationCap className="w-4 h-4 text-purple-500" />,
     category: "เค้าโครง & วิดเจ็ตหลัก",
+    badge: "Student Care",
+  },
+  {
+    key: "announcementsCard",
+    title: "ข่าวประชาสัมพันธ์และประกาศล่าสุด",
+    description: "การ์ดแสดงข่าวสาร กิจกรรม และประกาศสำคัญของสถานศึกษา",
+    icon: <Megaphone className="w-4 h-4 text-blue-500" />,
+    category: "เค้าโครง & วิดเจ็ตหลัก",
+    badge: "School News",
+  },
+  {
+    key: "academicCalendarCard",
+    title: "ปฏิทินการศึกษาและกิจกรรมโรงเรียน",
+    description: "ปฏิทินกิจกรรมโรงเรียน กำหนดการสอบ และวันสำคัญประจำภาคเรียน",
+    icon: <Calendar className="w-4 h-4 text-indigo-500" />,
+    category: "เค้าโครง & วิดเจ็ตหลัก",
+    badge: "Calendar",
+  },
+  {
+    key: "approvalQueue",
+    title: "คิวงานพิจารณาอนุมัติคำขอลา (Approval Queue)",
+    description: "ตารางรายการคำขอลาของครูและบุคลากร พร้อมระบบอนุมัติ/ไม่อนุมัติเร่งด่วนใน 1 คลิก",
+    icon: <CheckCircle2 className="w-4 h-4 text-emerald-500" />,
+    category: "เค้าโครง & วิดเจ็ตหลัก",
+    badge: "Workflow",
   },
   {
     key: "monthlyTrendChart",
@@ -102,6 +157,7 @@ const WIDGET_METADATA: WidgetItemMeta[] = [
     description: "กราฟเส้นติดตามปริมาณการลาตลอดปีงบประมาณ สามารถเปิด/ปิดดูรายประเภทได้",
     icon: <TrendingUp className="w-4 h-4 text-rose-500" />,
     category: "เค้าโครง & วิดเจ็ตหลัก",
+    badge: "Trends",
   },
 
   // ── 2. การ์ด KPI ด้านผู้เรียน ──
@@ -193,81 +249,148 @@ export default function DashboardWidgetCustomizerModal({
   onClose,
   config,
   onUpdateConfig,
-  isAdmin,
+  isAdmin = true,
 }: DashboardWidgetCustomizerModalProps) {
   const [localConfig, setLocalConfig] = useState<DashboardWidgetConfig>(config);
-  const [selectedCategory, setSelectedCategory] = useState<WidgetCategory>("เค้าโครง & วิดเจ็ตหลัก");
+  const [selectedCategory, setSelectedCategory] = useState<WidgetCategory>("ทั้งหมด");
+  const [filterMode, setFilterMode] = useState<"all" | "active" | "inactive">("all");
+  const [searchQuery, setSearchQuery] = useState("");
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
   // Sync state if modal reopens with updated props
-  React.useEffect(() => {
+  useEffect(() => {
     setLocalConfig(config);
   }, [config, isOpen]);
 
-  if (!isOpen) return null;
-
-  const handleToggle = (key: keyof DashboardWidgetConfig) => {
-    if (!isAdmin) return;
-    setLocalConfig((prev) => ({
-      ...prev,
-      [key]: !prev[key],
-    }));
-  };
-
-  const handleResetToDefault = () => {
-    if (!isAdmin) return;
-    setLocalConfig(DEFAULT_WIDGET_CONFIG);
-  };
-
-  const handleSave = async () => {
-    if (!isAdmin) return;
-    setSaving(true);
-    setSaveSuccess(false);
-
-    try {
-      const res = await saveDashboardWidgetConfig(localConfig);
-      if (res.success && res.config) {
-        onUpdateConfig(res.config);
-        setSaveSuccess(true);
-        setTimeout(() => {
-          setSaveSuccess(false);
-          onClose();
-        }, 800);
-      } else {
-        alert(res.error || "เกิดข้อผิดพลาดในการบันทึก");
-      }
-    } catch (err: any) {
-      alert(err?.message || "ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้");
-    } finally {
-      setSaving(false);
-    }
-  };
-
   const categories: WidgetCategory[] = [
+    "ทั้งหมด",
     "เค้าโครง & วิดเจ็ตหลัก",
     "การ์ด KPI ด้านผู้เรียน",
     "การ์ด KPI ด้านบุคลากร",
     "การ์ด KPI ด้านงานสนับสนุน",
   ];
 
-  const currentItems = WIDGET_METADATA.filter((item) => item.category === selectedCategory);
+  const handleToggle = (key: keyof DashboardWidgetConfig) => {
+    setLocalConfig((prev) => {
+      const updated = {
+        ...prev,
+        [key]: !prev[key],
+      };
+      try {
+        localStorage.setItem("kp_dashboard_widget_config", JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+  };
+
+  const handleEnableAll = () => {
+    const allEnabled = { ...localConfig };
+    WIDGET_METADATA.forEach((w) => {
+      allEnabled[w.key] = true;
+    });
+    setLocalConfig(allEnabled);
+    try {
+      localStorage.setItem("kp_dashboard_widget_config", JSON.stringify(allEnabled));
+    } catch {}
+  };
+
+  const handleDisableAll = () => {
+    const allDisabled = { ...localConfig };
+    WIDGET_METADATA.forEach((w) => {
+      allDisabled[w.key] = false;
+    });
+    setLocalConfig(allDisabled);
+    try {
+      localStorage.setItem("kp_dashboard_widget_config", JSON.stringify(allDisabled));
+    } catch {}
+  };
+
+  const handleResetToDefault = () => {
+    setLocalConfig(DEFAULT_WIDGET_CONFIG);
+    try {
+      localStorage.setItem("kp_dashboard_widget_config", JSON.stringify(DEFAULT_WIDGET_CONFIG));
+    } catch {}
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    setSaveSuccess(false);
+
+    try {
+      // 1. Instant client-side persistence
+      try {
+        localStorage.setItem("kp_dashboard_widget_config", JSON.stringify(localConfig));
+      } catch {}
+
+      // 2. Update parent component state immediately
+      onUpdateConfig(localConfig);
+
+      // 3. Save to server database asynchronously
+      await saveDashboardWidgetConfig(localConfig).catch(() => null);
+
+      setSaveSuccess(true);
+      setTimeout(() => {
+        setSaveSuccess(false);
+        onClose();
+      }, 500);
+    } catch (err: any) {
+      console.error("Save config error:", err);
+      onUpdateConfig(localConfig);
+      onClose();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Filter items
+  const filteredItems = useMemo(() => {
+    return WIDGET_METADATA.filter((item) => {
+      const matchesCategory =
+        selectedCategory === "ทั้งหมด" || item.category === selectedCategory;
+
+      const isChecked = Boolean(localConfig[item.key]);
+      const matchesStatus =
+        filterMode === "all" ||
+        (filterMode === "active" && isChecked) ||
+        (filterMode === "inactive" && !isChecked);
+
+      const matchesSearch =
+        !searchQuery.trim() ||
+        item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        item.description.toLowerCase().includes(searchQuery.toLowerCase());
+
+      return matchesCategory && matchesStatus && matchesSearch;
+    });
+  }, [localConfig, selectedCategory, filterMode, searchQuery]);
+
+  const activeCount = useMemo(() => {
+    return WIDGET_METADATA.filter((w) => Boolean(localConfig[w.key])).length;
+  }, [localConfig]);
+
+  if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/50 backdrop-blur-xs select-none">
-      <div className="bg-white dark:bg-slate-900 rounded-2xl sm:rounded-3xl border border-slate-100 dark:border-slate-800 shadow-2xl max-w-2xl w-full max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs select-none">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl sm:rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl max-w-2xl w-full max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+        
         {/* Header */}
-        <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/70 dark:bg-slate-800/40">
+        <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/80 dark:bg-slate-800/40">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 flex items-center justify-center shadow-xs">
+            <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-md shadow-blue-500/20">
               <Sliders className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="font-bold text-[#163A66] dark:text-white text-base sm:text-lg">
-                ปรับแต่งแดชบอร์ดสถานศึกษา (Widget & KPI Customizer)
-              </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                เปิด/ปิด วิดเจ็ตและ Card KPI ผู้เรียน บุคลากร สารบรรณ ตามความต้องการของผู้บริหาร
+              <div className="flex items-center gap-2">
+                <h3 className="font-extrabold text-slate-800 dark:text-white text-base sm:text-lg">
+                  ปรับแต่งและเพิ่มวิดเจ็ตแดชบอร์ด
+                </h3>
+                <span className="px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 text-xs font-bold">
+                  เปิดอยู่ {activeCount}/{WIDGET_METADATA.length}
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                เลือกเปิด/ปิด หรือเพิ่ม Card KPI จากทุกระบบย่อยลงในหน้าแดชบอร์ดหลัก
               </p>
             </div>
           </div>
@@ -275,99 +398,195 @@ export default function DashboardWidgetCustomizerModal({
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+            className="p-2 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Warning if non-admin */}
-        {!isAdmin && (
-          <div className="p-3 bg-amber-50 dark:bg-amber-950/40 border-b border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300 text-xs flex items-center gap-2">
-            <Lock className="w-4 h-4 shrink-0 text-amber-600" />
-            <span>คุณไม่มีสิทธิ์ผู้ดูแลระบบ (Admin) หรือผู้อำนวยการ จึงสามารถดูการตั้งค่านี้ได้เท่านั้น</span>
+        {/* Search & Quick Action Bar */}
+        <div className="p-3 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-center gap-2.5">
+          <div className="relative flex-1 w-full">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="ค้นหาวิดเจ็ตหรือการ์ด KPI..."
+              className="w-full pl-9 pr-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-xs text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-none focus:border-blue-500"
+            />
           </div>
-        )}
 
-        {/* Category Tab Bar */}
-        <div className="flex items-center gap-1.5 p-2 bg-slate-100/70 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 overflow-x-auto text-xs font-semibold">
-          {categories.map((cat) => (
+          {/* Filter Status Pills */}
+          <div className="flex items-center gap-1 shrink-0 self-end sm:self-auto bg-slate-100 dark:bg-slate-800 p-1 rounded-xl text-[11px] font-semibold">
             <button
-              key={cat}
               type="button"
-              onClick={() => setSelectedCategory(cat)}
-              className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer whitespace-nowrap ${
-                selectedCategory === cat
-                  ? "bg-white dark:bg-slate-700 text-blue-700 dark:text-blue-300 shadow-xs font-bold"
-                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+              onClick={() => setFilterMode("all")}
+              className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
+                filterMode === "all"
+                  ? "bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-300 shadow-2xs font-bold"
+                  : "text-slate-500 hover:text-slate-800 dark:text-slate-400"
               }`}
             >
-              {cat}
+              ทั้งหมด
             </button>
-          ))}
+            <button
+              type="button"
+              onClick={() => setFilterMode("active")}
+              className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
+                filterMode === "active"
+                  ? "bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-300 shadow-2xs font-bold"
+                  : "text-slate-500 hover:text-slate-800 dark:text-slate-400"
+              }`}
+            >
+              ใช้งานอยู่ ({activeCount})
+            </button>
+            <button
+              type="button"
+              onClick={() => setFilterMode("inactive")}
+              className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
+                filterMode === "inactive"
+                  ? "bg-white dark:bg-slate-700 text-amber-600 dark:text-amber-300 shadow-2xs font-bold"
+                  : "text-slate-500 hover:text-slate-800 dark:text-slate-400"
+              }`}
+            >
+              ยังไม่ได้เพิ่ม ({WIDGET_METADATA.length - activeCount})
+            </button>
+          </div>
         </div>
 
-        {/* Modal Body: Widgets List for Active Category */}
-        <div className="p-4 sm:p-5 overflow-y-auto space-y-2.5 text-xs flex-1">
-          {currentItems.map((item) => {
-            const isChecked = Boolean(localConfig[item.key]);
+        {/* Category Tabs */}
+        <div className="flex items-center gap-1.5 px-3 py-2 bg-slate-50/70 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800 overflow-x-auto text-xs font-semibold scrollbar-none">
+          {categories.map((cat) => {
+            const countInCat =
+              cat === "ทั้งหมด"
+                ? WIDGET_METADATA.length
+                : WIDGET_METADATA.filter((w) => w.category === cat).length;
+            const activeInCat =
+              cat === "ทั้งหมด"
+                ? activeCount
+                : WIDGET_METADATA.filter((w) => w.category === cat && localConfig[w.key]).length;
+
             return (
-              <div
-                key={item.key}
-                onClick={() => handleToggle(item.key)}
-                className={`flex items-start justify-between p-3.5 rounded-2xl border transition-all cursor-pointer ${
-                  isChecked
-                    ? "bg-blue-50/40 dark:bg-blue-950/20 border-blue-200 dark:border-blue-900/60 shadow-2xs"
-                    : "bg-slate-50/50 dark:bg-slate-800/30 border-slate-200 dark:border-slate-800 opacity-60 hover:opacity-100"
+              <button
+                key={cat}
+                type="button"
+                onClick={() => setSelectedCategory(cat)}
+                className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                  selectedCategory === cat
+                    ? "bg-white dark:bg-slate-700 text-blue-700 dark:text-blue-300 shadow-xs font-bold border border-slate-200/60 dark:border-slate-600"
+                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
                 }`}
               >
-                <div className="flex items-start gap-3">
-                  <div className="p-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 shadow-2xs mt-0.5">
-                    {item.icon}
-                  </div>
-                  <div>
-                    <div className="font-semibold text-[#163A66] dark:text-white text-sm flex items-center gap-1.5">
-                      <span>{item.title}</span>
-                      {isChecked && (
-                        <span className="text-[10px] bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 font-bold px-1.5 py-0.2 rounded-full">
-                          เปิดใช้งาน
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-slate-500 dark:text-slate-400 text-xs mt-0.5 leading-relaxed">
-                      {item.description}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Toggle switch */}
-                <div
-                  className={`w-11 h-6 flex items-center rounded-full p-1 cursor-pointer transition-colors duration-200 shrink-0 ml-3 ${
-                    isChecked
-                      ? "bg-blue-600 justify-end"
-                      : "bg-slate-300 dark:bg-slate-700 justify-start"
-                  }`}
-                >
-                  <div className="bg-white w-4 h-4 rounded-full shadow-md transition-transform" />
-                </div>
-              </div>
+                <span>{cat}</span>
+                <span className="text-[10px] opacity-75">
+                  ({activeInCat}/{countInCat})
+                </span>
+              </button>
             );
           })}
         </div>
 
-        {/* Modal Footer */}
-        <div className="p-4 sm:p-5 border-t border-slate-100 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-800/40 flex items-center justify-between">
-          <button
-            type="button"
-            onClick={handleResetToDefault}
-            disabled={!isAdmin || saving}
-            className="px-3 py-2 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/70 dark:hover:bg-slate-800 transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-            <span>คืนค่าเริ่มต้น</span>
-          </button>
+        {/* Modal Body: Widgets List */}
+        <div className="p-4 sm:p-5 overflow-y-auto space-y-2.5 text-xs flex-1 custom-scrollbar">
+          {filteredItems.length === 0 ? (
+            <div className="py-12 text-center text-slate-400">
+              <Sliders className="w-8 h-8 mx-auto mb-2 opacity-30" />
+              <p className="font-semibold text-sm">ไม่พบวิดเจ็ตที่ตรงกับเงื่อนไข</p>
+              <p className="text-xs mt-1">ลองเปลี่ยนหมวดหมู่หรือคำค้นหา</p>
+            </div>
+          ) : (
+            filteredItems.map((item) => {
+              const isChecked = Boolean(localConfig[item.key]);
+              return (
+                <div
+                  key={item.key}
+                  onClick={() => handleToggle(item.key)}
+                  className={`flex items-center justify-between p-3.5 rounded-2xl border transition-all cursor-pointer ${
+                    isChecked
+                      ? "bg-blue-50/40 dark:bg-blue-950/20 border-blue-200 dark:border-blue-900/60 shadow-2xs hover:border-blue-300"
+                      : "bg-slate-50/50 dark:bg-slate-800/30 border-slate-200 dark:border-slate-800 opacity-60 hover:opacity-100 hover:bg-slate-100/50"
+                  }`}
+                >
+                  <div className="flex items-start gap-3 min-w-0 pr-2">
+                    <div className="p-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 shadow-2xs shrink-0 mt-0.5">
+                      {item.icon}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="font-semibold text-slate-900 dark:text-white text-sm flex items-center gap-1.5 flex-wrap">
+                        <span>{item.title}</span>
+                        {item.badge && (
+                          <span className="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-medium px-1.5 py-0.5 rounded-md">
+                            {item.badge}
+                          </span>
+                        )}
+                        {isChecked && (
+                          <span className="text-[10px] bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 font-bold px-1.5 py-0.5 rounded-full flex items-center gap-0.5">
+                            <Check className="w-2.5 h-2.5" />
+                            เปิดใช้งาน
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-slate-500 dark:text-slate-400 text-xs mt-0.5 leading-relaxed truncate sm:whitespace-normal">
+                        {item.description}
+                      </p>
+                    </div>
+                  </div>
 
-          <div className="flex items-center gap-2">
+                  {/* Action Button: Toggle or Add */}
+                  <div className="shrink-0 flex items-center gap-2">
+                    {isChecked ? (
+                      <div
+                        className="w-11 h-6 flex items-center rounded-full p-1 cursor-pointer transition-colors duration-200 bg-blue-600 justify-end"
+                        title="คลิกเพื่อปิดใช้งาน"
+                      >
+                        <div className="bg-white w-4 h-4 rounded-full shadow-md transition-transform" />
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleToggle(item.key);
+                        }}
+                        className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-xs transition-transform active:scale-95 cursor-pointer"
+                        title="เพิ่มวิดเจ็ตนี้เข้าแดชบอร์ด"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>เพิ่ม</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {/* Modal Footer */}
+        <div className="p-4 sm:p-5 border-t border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/40 flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div className="flex items-center gap-1.5 self-start sm:self-auto">
+            <button
+              type="button"
+              onClick={handleEnableAll}
+              disabled={saving}
+              className="px-2.5 py-1.5 rounded-xl text-xs font-semibold text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40 transition-colors flex items-center gap-1 cursor-pointer"
+            >
+              <CheckCheck className="w-3.5 h-3.5" />
+              <span>เปิดทั้งหมด</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleResetToDefault}
+              disabled={saving}
+              className="px-2.5 py-1.5 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-200/70 dark:hover:bg-slate-800 transition-colors flex items-center gap-1 cursor-pointer"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>คืนค่าเริ่มต้น</span>
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
             <button
               type="button"
               onClick={onClose}
@@ -377,25 +596,23 @@ export default function DashboardWidgetCustomizerModal({
               ยกเลิก
             </button>
 
-            {isAdmin && (
-              <button
-                type="button"
-                onClick={handleSave}
-                disabled={saving}
-                className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all shadow-md shadow-blue-500/20 flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-              >
-                {saving ? (
-                  <span>กำลังบันทึก...</span>
-                ) : saveSuccess ? (
-                  <>
-                    <Check className="w-4 h-4" />
-                    <span>บันทึกแล้ว!</span>
-                  </>
-                ) : (
-                  <span>บันทึกการตั้งค่า</span>
-                )}
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={saving}
+              className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all shadow-md shadow-blue-500/20 flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+            >
+              {saving ? (
+                <span>กำลังบันทึก...</span>
+              ) : saveSuccess ? (
+                <>
+                  <Check className="w-4 h-4" />
+                  <span>บันทึกแล้ว!</span>
+                </>
+              ) : (
+                <span>บันทึกการตั้งค่า</span>
+              )}
+            </button>
           </div>
         </div>
       </div>

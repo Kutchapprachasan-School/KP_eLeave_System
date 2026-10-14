@@ -64,8 +64,8 @@
 | Route | ไฟล์ | หน้าที่ |
 |---|---|---|
 | App Layout & Navigation | `(app)/layout.tsx` | โครงสร้างหลัก (Sidebar 256px/72px, Top Header Bar Capsule พร้อม Date/Term Card, Search Pill, NotificationBell, UserAvatarDropdown รวม TH/EN & Theme & Font Size, Smart School Card) |
-| `/dashboard` | `(app)/dashboard/page.tsx` | Dashboard หลัก — ศูนย์กลาง SMS Executive Hub & ระบบย่อย |
-| `(app)/dashboard/_components/` | Sub-components | ExecutiveLeaveDashboardView, SMSHeroBanner, SMSStatCards, SMSLearningOutcomeChart, SMSAttendanceDonutCard, SMSAnnouncementsCard, SMSAcademicCalendarCard, ExecutiveApprovalQueue, MonthlyTrendChart, DashboardWidgetCustomizerModal, DashboardShell |
+| `/dashboard` | `(app)/dashboard/page.tsx` | Dashboard หลัก — ศูนย์รวม All-in-One KPI Hub รวมทุกระบบย่อย (การลา, สารบรรณ, ซ่อมบำรุง, ทรัพยากร, ผู้เรียน) |
+| `(app)/dashboard/_components/` | Sub-components | ExecutiveLeaveDashboardView (All-in-One KPI Hub), SMSHeroBanner, SubsystemQuickHub, ExecutiveLeaveStatCards (11 Modular KPI Cards), SMSLearningOutcomeChart, SMSAttendanceDonutCard, SMSOperationsStrip, ExecutiveLeaveCharts, ExecutiveStudentLeaveOverview, SMSAnnouncementsCard, SMSAcademicCalendarCard, ExecutiveApprovalQueue, MonthlyTrendChart, DashboardWidgetCustomizerModal, DashboardShell, SystemSelector |
 | `/leave` | `(app)/leave/page.tsx` | ระบบการลา (UI หลัก) |
 | `/request` | `(app)/request/page.tsx` | ยื่นคำขอลา |
 | `/approvals` | `(app)/approvals/page.tsx` | อนุมัติคำขอลา |

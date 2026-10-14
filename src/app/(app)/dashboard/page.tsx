@@ -60,7 +60,8 @@ export default async function DashboardPage({
 
   // Define available dashboard tabs based on permissions & features enabled
   const availableSystems = [
-    { id: "leave", label: "ระบบการลา", icon: "CalendarDays" as const },
+    { id: "all", label: "รวมทุกระบบ (KPI Hub)", icon: "LayoutDashboard" as const },
+    { id: "leave", label: "ระบบการลา & บุคลากร", icon: "CalendarDays" as const },
     { id: "document", label: "ระบบงานสารบรรณ", icon: "FileText" as const },
     ...(canViewRepairDash
       ? [{ id: "repair", label: "ระบบแจ้งซ่อม", icon: "Wrench" as const }]
@@ -81,7 +82,7 @@ export default async function DashboardPage({
 
   const activeSystem = availableSystems.some((s) => s.id === rawSystem)
     ? rawSystem!
-    : "leave";
+    : "all";
 
   // Fetch repair stats server-side if selected
   let repairStats: RepairDashStats | null = null;

@@ -40,9 +40,8 @@ export default function DashboardShell({
     if (activeSystem === "repair") return "ภาพรวมระบบแจ้งซ่อม";
     if (activeSystem === "document") return "ภาพรวมระบบงานสารบรรณ";
     if (activeSystem === "facility") return "ภาพรวมระบบทรัพยากรส่วนกลาง";
-    return leaveSubView === "executive"
-      ? "ระบบบริหารจัดการโรงเรียน (KP School Management System - Executive Hub)"
-      : "แดชบอร์ดสถิติการลา & ลงเวลา";
+    if (activeSystem === "leave" && leaveSubView === "classic") return "แดชบอร์ดสถิติการลา & ลงเวลา (มุมมองทั่วไป)";
+    return "ระบบบริหารจัดการโรงเรียน (KP School Management System - Executive KPI Hub)";
   };
 
   return (
@@ -100,15 +99,17 @@ export default function DashboardShell({
       </div>
 
       {/* Render selected view */}
-      {activeSystem === "repair" && repairView
+      {activeSystem === "all"
+        ? executiveLeaveView
+        : activeSystem === "repair" && repairView
         ? repairView
         : activeSystem === "document" && documentView
         ? documentView
         : activeSystem === "facility" && facilityView
         ? facilityView
-        : leaveSubView === "executive" && executiveLeaveView
-        ? executiveLeaveView
-        : leaveView}
+        : activeSystem === "leave" && leaveSubView === "classic"
+        ? leaveView
+        : executiveLeaveView}
     </div>
   );
 }

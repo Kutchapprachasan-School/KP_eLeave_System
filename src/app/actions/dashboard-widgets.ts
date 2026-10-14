@@ -8,13 +8,18 @@ import { revalidatePath } from "next/cache";
 export interface DashboardWidgetConfig {
   // Main Section Widgets
   heroBanner: boolean;
+  subsystemQuickHub: boolean;
   kpiStatsGrid: boolean;
-  approvalQueue: boolean;
+  learningOutcomeChart: boolean;
+  attendanceDonutCard: boolean;
+  operationsStrip: boolean;
   distributionCharts: boolean;
   studentAffairsOverview: boolean;
+  announcementsCard: boolean;
+  academicCalendarCard: boolean;
+  approvalQueue: boolean;
   monthlyTrendChart: boolean;
   leaveCalendar: boolean;
-  subsystemQuickHub: boolean;
 
   // Granular Modular KPI Cards
   kpiStaffLeavePending: boolean;
@@ -38,13 +43,18 @@ export interface DashboardWidgetConfig {
 export const DEFAULT_WIDGET_CONFIG: DashboardWidgetConfig = {
   // Main Section Widgets
   heroBanner: true,
+  subsystemQuickHub: true,
   kpiStatsGrid: true,
-  approvalQueue: true,
+  learningOutcomeChart: true,
+  attendanceDonutCard: true,
+  operationsStrip: true,
   distributionCharts: true,
   studentAffairsOverview: true,
+  announcementsCard: true,
+  academicCalendarCard: true,
+  approvalQueue: true,
   monthlyTrendChart: true,
   leaveCalendar: true,
-  subsystemQuickHub: true,
 
   // Granular Modular KPI Cards
   kpiStaffLeavePending: true,
@@ -120,14 +130,20 @@ export async function saveDashboardWidgetConfig(
     }
 
     const user = session.user as any;
-    const isAdmin =
+    const isAuthorized =
       user.role === "ADMIN" ||
       user.position === "แอดมิน" ||
       user.role === "DIRECTOR" ||
-      user.position === "ผู้อำนวยการ";
+      user.position === "ผู้อำนวยการ" ||
+      user.role === "HR" ||
+      user.role === "HR_STAFF" ||
+      user.role === "DEPT_HEAD" ||
+      user.role === "INSPECTOR" ||
+      user.role === "TEACHER" ||
+      Boolean(user.id);
 
-    if (!isAdmin) {
-      return { success: false, error: "เฉพาะแอดมินหรือผู้บริหารเท่านั้นที่สามารถปรับแต่งวิดเจ็ตได้" };
+    if (!isAuthorized) {
+      return { success: false, error: "กรุณาเข้าสู่ระบบก่อนทำการปรับแต่งวิดเจ็ต" };
     }
 
     const settings = await prisma.systemSettings.findUnique({
