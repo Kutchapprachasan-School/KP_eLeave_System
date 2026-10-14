@@ -79,9 +79,10 @@ const WIDGET_PERM_KEY = "__dashboardWidgets";
 
 /**
  * Retrieves the dashboard widget customization configuration for SMS Executive Hub.
- * Falls back safely to DEFAULT_WIDGET_CONFIG.
+ * If userId is provided and the user has a personal configuration, returns it.
+ * Otherwise, falls back to the School System Default configured by Admin, or DEFAULT_WIDGET_CONFIG.
  */
-export async function getDashboardWidgetConfig(): Promise<DashboardWidgetConfig> {
+export async function getDashboardWidgetConfig(userId?: string): Promise<DashboardWidgetConfig> {
   try {
     const settings = await prisma.systemSettings.findUnique({
       where: { id: "default" },
@@ -93,6 +94,17 @@ export async function getDashboardWidgetConfig(): Promise<DashboardWidgetConfig>
     }
 
     const parsed = JSON.parse(settings.rolePermissions);
+
+    // 1. Check user personal configuration if userId provided
+    if (userId && parsed[`${WIDGET_PERM_KEY}_user_${userId}`] && typeof parsed[`${WIDGET_PERM_KEY}_user_${userId}`] === "object") {
+      const userConfig = parsed[`${WIDGET_PERM_KEY}_user_${userId}`];
+      return {
+        ...DEFAULT_WIDGET_CONFIG,
+        ...userConfig,
+      };
+    }
+
+    // 2. Check System Default Widget Configuration set by Admin
     if (parsed[WIDGET_PERM_KEY] && typeof parsed[WIDGET_PERM_KEY] === "object") {
       const merged = {
         ...DEFAULT_WIDGET_CONFIG,
@@ -115,10 +127,13 @@ export async function getDashboardWidgetConfig(): Promise<DashboardWidgetConfig>
 }
 
 /**
- * Saves the dashboard widget customization configuration (Admin only).
+ * Saves the dashboard widget customization configuration.
+ * - If options.saveAsDefault === true (Admin only): Sets the system-wide default for teachers and all users.
+ * - Otherwise: Saves the personal customization for the current user.
  */
 export async function saveDashboardWidgetConfig(
-  newConfig: Partial<DashboardWidgetConfig>
+  newConfig: Partial<DashboardWidgetConfig>,
+  options: { saveAsDefault?: boolean } = {}
 ): Promise<{ success: boolean; config?: DashboardWidgetConfig; error?: string }> {
   try {
     const session = await auth.api.getSession({
@@ -130,20 +145,14 @@ export async function saveDashboardWidgetConfig(
     }
 
     const user = session.user as any;
-    const isAuthorized =
+    const isAdmin =
       user.role === "ADMIN" ||
       user.position === "แอดมิน" ||
       user.role === "DIRECTOR" ||
-      user.position === "ผู้อำนวยการ" ||
-      user.role === "HR" ||
-      user.role === "HR_STAFF" ||
-      user.role === "DEPT_HEAD" ||
-      user.role === "INSPECTOR" ||
-      user.role === "TEACHER" ||
-      Boolean(user.id);
+      user.position === "ผู้อำนวยการ";
 
-    if (!isAuthorized) {
-      return { success: false, error: "กรุณาเข้าสู่ระบบก่อนทำการปรับแต่งวิดเจ็ต" };
+    if (options.saveAsDefault && !isAdmin) {
+      return { success: false, error: "เฉพาะผู้ดูแลระบบหรือผู้อำนวยการเท่านั้นที่สามารถบันทึกเป็นค่ามาตรฐานของสถานศึกษาได้" };
     }
 
     const settings = await prisma.systemSettings.findUnique({
@@ -160,14 +169,17 @@ export async function saveDashboardWidgetConfig(
       }
     }
 
-    const currentWidgets = (currentPerms[WIDGET_PERM_KEY] as DashboardWidgetConfig) || DEFAULT_WIDGET_CONFIG;
+    // Target key: system default vs user personal override
+    const targetKey = options.saveAsDefault ? WIDGET_PERM_KEY : `${WIDGET_PERM_KEY}_user_${user.id}`;
+    const baseConfig = (currentPerms[targetKey] as DashboardWidgetConfig) || (currentPerms[WIDGET_PERM_KEY] as DashboardWidgetConfig) || DEFAULT_WIDGET_CONFIG;
+
     const updatedWidgets: DashboardWidgetConfig = {
       ...DEFAULT_WIDGET_CONFIG,
-      ...currentWidgets,
+      ...baseConfig,
       ...newConfig,
     };
 
-    currentPerms[WIDGET_PERM_KEY] = updatedWidgets;
+    currentPerms[targetKey] = updatedWidgets;
 
     await prisma.systemSettings.upsert({
       where: { id: "default" },
@@ -191,6 +203,68 @@ export async function saveDashboardWidgetConfig(
     return {
       success: false,
       error: err?.message || "ไม่สามารถบันทึกการตั้งค่าได้",
+    };
+  }
+}
+
+/**
+ * Resets the current user's personal widget configuration so they inherit the Admin's system default.
+ */
+export async function resetUserWidgetConfigToDefault(): Promise<{
+  success: boolean;
+  config?: DashboardWidgetConfig;
+  error?: string;
+}> {
+  try {
+    const session = await auth.api.getSession({
+      headers: await headers(),
+    });
+
+    if (!session?.user?.id) {
+      return { success: false, error: "Unauthorized" };
+    }
+
+    const userId = session.user.id;
+    const settings = await prisma.systemSettings.findUnique({
+      where: { id: "default" },
+      select: { rolePermissions: true },
+    });
+
+    let currentPerms: Record<string, any> = {};
+    if (settings?.rolePermissions) {
+      try {
+        currentPerms = JSON.parse(settings.rolePermissions);
+      } catch {
+        currentPerms = {};
+      }
+    }
+
+    const userKey = `${WIDGET_PERM_KEY}_user_${userId}`;
+    delete currentPerms[userKey];
+
+    await prisma.systemSettings.upsert({
+      where: { id: "default" },
+      update: {
+        rolePermissions: JSON.stringify(currentPerms),
+      },
+      create: {
+        id: "default",
+        rolePermissions: JSON.stringify(currentPerms),
+      },
+    });
+
+    const defaultConfig = (currentPerms[WIDGET_PERM_KEY] as DashboardWidgetConfig) || DEFAULT_WIDGET_CONFIG;
+    revalidatePath("/dashboard");
+
+    return {
+      success: true,
+      config: { ...DEFAULT_WIDGET_CONFIG, ...defaultConfig },
+    };
+  } catch (err: any) {
+    console.error("Failed to reset user widget config:", err);
+    return {
+      success: false,
+      error: err?.message || "ไม่สามารถรีเซ็ตการตั้งค่าได้",
     };
   }
 }

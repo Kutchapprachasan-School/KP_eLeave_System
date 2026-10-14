@@ -63,7 +63,7 @@
 
 | Route | ไฟล์ | หน้าที่ |
 |---|---|---|
-| App Layout & Navigation | `(app)/layout.tsx` | โครงสร้างหลัก (Sidebar 256px/72px, Top Header Bar สไตล์ SMS: วันที่ภาษาไทยไดนามิก/ภาคเรียน, ค้นหานักเรียน, T ขนาดฟอนต์, TH ภาษา, สลับธีม, เต็มจอ, กระดิ่งแจ้งเตือน, แคปซูลโปรไฟล์ผู้ใช้ขวาสุด) |
+| App Layout & Navigation | `(app)/layout.tsx` | โครงสร้างหลัก (Sidebar ดีไซน์ใหม่สไตล์ SMS ตามแบบระบบจัดการชั้นเรียน: โลโก้/ชื่อโรงเรียนกุดจับประชาสรรค์, ปุ่มปิด X, เมนูคลีนเรียบหรูพร้อมแบดจ์ Admin และตัวเลขนับ, ปุ่มออกจากระบบขอบน้ำเงิน, Top Header Bar สไตล์ SMS: วันที่ภาษาไทยไดนามิก/ภาคเรียน, ค้นหานักเรียน, T ขนาดฟอนต์, TH ภาษา, สลับธีม, เต็มจอ, กระดิ่งแจ้งเตือนแม่นยำไม่ขึ้นหลอก 3 รายการพร้อมป็อปอัปตอบสนองมือถือ, แคปซูลโปรไฟล์ผู้ใช้ขวาสุด) |
 | `/dashboard` | `(app)/dashboard/page.tsx` | Dashboard หลัก — ศูนย์รวม All-in-One KPI Hub รวมทุกระบบย่อย (การลา, สารบรรณ, ซ่อมบำรุง, ทรัพยากร, ผู้เรียน) |
 | `(app)/dashboard/_components/` | Sub-components | ExecutiveLeaveDashboardView (All-in-One KPI Hub), SMSHeroBanner, SubsystemQuickHub, ExecutiveLeaveStatCards (11 Modular KPI Cards), SMSLearningOutcomeChart, SMSAttendanceDonutCard, SMSOperationsStrip, ExecutiveLeaveCharts, ExecutiveStudentLeaveOverview, SMSAnnouncementsCard, SMSAcademicCalendarCard, ExecutiveApprovalQueue, MonthlyTrendChart, DashboardWidgetCustomizerModal, DashboardShell, SystemSelector |
 | `/leave` | `(app)/leave/page.tsx` | ระบบการลา (UI หลัก) |

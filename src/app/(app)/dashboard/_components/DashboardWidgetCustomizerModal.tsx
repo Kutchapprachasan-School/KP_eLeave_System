@@ -35,6 +35,7 @@ import {
   type DashboardWidgetConfig,
   DEFAULT_WIDGET_CONFIG,
   saveDashboardWidgetConfig,
+  resetUserWidgetConfigToDefault,
 } from "@/app/actions/dashboard-widgets";
 
 interface DashboardWidgetCustomizerModalProps {
@@ -257,11 +258,13 @@ export default function DashboardWidgetCustomizerModal({
   const [searchQuery, setSearchQuery] = useState("");
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [saveAsSystemDefault, setSaveAsSystemDefault] = useState(Boolean(isAdmin));
 
   // Sync state if modal reopens with updated props
   useEffect(() => {
     setLocalConfig(config);
-  }, [config, isOpen]);
+    if (isAdmin) setSaveAsSystemDefault(true);
+  }, [config, isOpen, isAdmin]);
 
   const categories: WidgetCategory[] = [
     "ทั้งหมด",
@@ -313,9 +316,36 @@ export default function DashboardWidgetCustomizerModal({
     } catch {}
   };
 
-  const handleSave = async () => {
+  const handleResetToAdminDefault = async () => {
+    setSaving(true);
+    try {
+      const res = await resetUserWidgetConfigToDefault();
+      if (res.success && res.config) {
+        setLocalConfig(res.config);
+        try {
+          localStorage.setItem("kp_dashboard_widget_config", JSON.stringify(res.config));
+        } catch {}
+        onUpdateConfig(res.config);
+      } else {
+        handleResetToDefault();
+      }
+      setSaveSuccess(true);
+      setTimeout(() => {
+        setSaveSuccess(false);
+        onClose();
+      }, 500);
+    } catch {
+      handleResetToDefault();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSave = async (asDefaultOverride?: boolean) => {
     setSaving(true);
     setSaveSuccess(false);
+
+    const isSystemDefaultSave = asDefaultOverride ?? (isAdmin && saveAsSystemDefault);
 
     try {
       // 1. Instant client-side persistence
@@ -327,7 +357,7 @@ export default function DashboardWidgetCustomizerModal({
       onUpdateConfig(localConfig);
 
       // 3. Save to server database asynchronously
-      await saveDashboardWidgetConfig(localConfig).catch(() => null);
+      await saveDashboardWidgetConfig(localConfig, { saveAsDefault: isSystemDefaultSave }).catch(() => null);
 
       setSaveSuccess(true);
       setTimeout(() => {
@@ -403,6 +433,36 @@ export default function DashboardWidgetCustomizerModal({
             <X className="w-5 h-5" />
           </button>
         </div>
+
+        {/* Admin System Default Option Banner */}
+        {isAdmin ? (
+          <div className="mx-4 sm:mx-5 mt-3 p-3 rounded-2xl bg-indigo-50/80 dark:bg-indigo-950/40 border border-indigo-200/80 dark:border-indigo-900/60 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
+              <span className="text-indigo-950 dark:text-indigo-200">
+                <strong>สิทธิ์ผู้ดูแลระบบ:</strong> กำหนดค่าเริ่มต้นของสถานศึกษา เพื่อให้ครูและผู้ใช้ทุกคนเห็นวิดเจ็ตนี้โดยอัตโนมัติ (ไม่โล่ง)
+              </span>
+            </div>
+            <label className="flex items-center gap-1.5 cursor-pointer font-bold text-indigo-700 dark:text-indigo-300 shrink-0 self-end sm:self-auto select-none">
+              <input
+                type="checkbox"
+                checked={saveAsSystemDefault}
+                onChange={(e) => setSaveAsSystemDefault(e.target.checked)}
+                className="w-4 h-4 accent-indigo-600 rounded cursor-pointer"
+              />
+              <span>บันทึกเป็นค่ามาตรฐานของโรงเรียน</span>
+            </label>
+          </div>
+        ) : (
+          <div className="mx-4 sm:mx-5 mt-3 p-2.5 rounded-2xl bg-blue-50/80 dark:bg-blue-950/30 border border-blue-200/60 dark:border-blue-900/40 flex items-center justify-between gap-2 text-xs">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-blue-600 shrink-0" />
+              <span className="text-blue-950 dark:text-blue-200">
+                คุณกำลังปรับแต่งวิดเจ็ตส่วนตัว หากต้องการใช้หน้าตามที่โรงเรียนกำหนดไว้ สามารถกด "ใช้ค่ามาตรฐานตามที่แอดมินกำหนด" ได้ตลอดเวลา
+              </span>
+            </div>
+          </div>
+        )}
 
         {/* Search & Quick Action Bar */}
         <div className="p-3 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-center gap-2.5">
@@ -577,12 +637,22 @@ export default function DashboardWidgetCustomizerModal({
             </button>
             <button
               type="button"
+              onClick={handleResetToAdminDefault}
+              disabled={saving}
+              className="px-2.5 py-1.5 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-200/70 dark:hover:bg-slate-800 transition-colors flex items-center gap-1 cursor-pointer"
+              title="คืนค่าเป็นค่ามาตรฐานสถานศึกษาที่ Admin กำหนดไว้"
+            >
+              <RotateCcw className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+              <span>ใช้ค่ามาตรฐานตามที่แอดมินกำหนด</span>
+            </button>
+            <button
+              type="button"
               onClick={handleResetToDefault}
               disabled={saving}
-              className="px-2.5 py-1.5 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-200/70 dark:hover:bg-slate-800 transition-colors flex items-center gap-1 cursor-pointer"
+              className="px-2.5 py-1.5 rounded-xl text-xs font-semibold text-slate-500 dark:text-slate-400 hover:bg-slate-200/50 dark:hover:bg-slate-800 transition-colors flex items-center gap-1 cursor-pointer"
+              title="รีเซ็ตกลับเป็นค่าเริ่มต้นจากระบบทั้งหมด"
             >
-              <RotateCcw className="w-3.5 h-3.5" />
-              <span>คืนค่าเริ่มต้น</span>
+              <span>รีเซ็ตทั้งหมด</span>
             </button>
           </div>
 
@@ -598,9 +668,13 @@ export default function DashboardWidgetCustomizerModal({
 
             <button
               type="button"
-              onClick={handleSave}
+              onClick={() => handleSave()}
               disabled={saving}
-              className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all shadow-md shadow-blue-500/20 flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+              className={`px-5 py-2 rounded-xl text-white text-xs font-bold transition-all shadow-md flex items-center gap-1.5 cursor-pointer disabled:opacity-50 ${
+                isAdmin && saveAsSystemDefault
+                  ? "bg-indigo-600 hover:bg-indigo-700 shadow-indigo-500/20"
+                  : "bg-blue-600 hover:bg-blue-700 shadow-blue-500/20"
+              }`}
             >
               {saving ? (
                 <span>กำลังบันทึก...</span>
@@ -610,7 +684,11 @@ export default function DashboardWidgetCustomizerModal({
                   <span>บันทึกแล้ว!</span>
                 </>
               ) : (
-                <span>บันทึกการตั้งค่า</span>
+                <span>
+                  {isAdmin && saveAsSystemDefault
+                    ? "บันทึกเป็นค่ามาตรฐานโรงเรียน"
+                    : "บันทึกการตั้งค่า"}
+                </span>
               )}
             </button>
           </div>

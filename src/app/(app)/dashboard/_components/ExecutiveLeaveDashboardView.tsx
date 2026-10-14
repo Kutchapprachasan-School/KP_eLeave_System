@@ -88,28 +88,27 @@ export default function ExecutiveLeaveDashboardView() {
     setTimeout(() => setToastMessage(null), 3500);
   };
 
+  useEffect(() => {
+    const handleOpenCustomizer = () => setIsCustomizerOpen(true);
+    window.addEventListener("open-dashboard-widget-customizer", handleOpenCustomizer);
+    return () => window.removeEventListener("open-dashboard-widget-customizer", handleOpenCustomizer);
+  }, []);
+
   const loadAllDashboardData = async () => {
     setLoading(true);
     try {
       // Parallel loading of configs and aggregated school stats
       const [config, stats, multiStats] = await Promise.all([
-        getDashboardWidgetConfig().catch(() => null),
+        getDashboardWidgetConfig(currentUser?.id).catch(() => null),
         getDashboardStats("current", "th", undefined, "school").catch(() => null),
         getSchoolManagementExecutiveStats().catch(() => null),
       ]);
 
       if (config) {
-        // Only override if localStorage doesn't have an explicit override or sync with server
+        setWidgetConfig(config);
         try {
-          const cached = localStorage.getItem("kp_dashboard_widget_config");
-          if (cached) {
-            setWidgetConfig(JSON.parse(cached));
-          } else {
-            setWidgetConfig(config);
-          }
-        } catch {
-          setWidgetConfig(config);
-        }
+          localStorage.setItem("kp_dashboard_widget_config", JSON.stringify(config));
+        } catch {}
       }
 
       setStatsData(stats);
@@ -263,6 +262,38 @@ export default function ExecutiveLeaveDashboardView() {
 
       {/* Top Banner & Quick Hub Header */}
       <div className="flex flex-col gap-3">
+        {/* Top Action Toolbar */}
+        <div className="flex items-center justify-between gap-3 px-1 pt-0.5">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-slate-700 dark:text-slate-200">
+              {isAdmin ? "แดชบอร์ดภาพรวมผู้บริหาร (Executive KPI)" : "แดชบอร์ดข้อมูลภาพรวม"}
+            </span>
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={loadAllDashboardData}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-300 shadow-2xs transition-colors cursor-pointer"
+              title="รีเฟรชข้อมูลแดชบอร์ด"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
+              <span className="hidden sm:inline">รีเฟรช</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setIsCustomizerOpen(true)}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md shadow-blue-500/20 transition-all cursor-pointer active:scale-95"
+              title="เพิ่มหรือปรับแต่งวิดเจ็ต"
+            >
+              <Sliders className="w-3.5 h-3.5" />
+              <span>ปรับแต่งวิดเจ็ต</span>
+            </button>
+          </div>
+        </div>
+
         {/* Row 1: Hero Banner */}
         {widgetConfig.heroBanner && (
           <SMSHeroBanner
@@ -489,7 +520,7 @@ export default function ExecutiveLeaveDashboardView() {
       )}
 
       {/* Floating Action Controls */}
-      <div className="fixed bottom-6 right-6 z-40 flex items-center gap-2">
+      <div className="fixed bottom-20 sm:bottom-6 right-4 sm:right-6 z-40 flex items-center gap-2">
         <button
           type="button"
           onClick={loadAllDashboardData}

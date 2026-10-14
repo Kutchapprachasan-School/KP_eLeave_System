@@ -101,7 +101,7 @@ function NotificationBell({ isAdmin, isApprover }: { isAdmin: boolean; isApprove
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  const totalCount = counts.users + counts.leaves || 3;
+  const totalCount = (counts.users || 0) + (counts.leaves || 0);
 
   const timeAgo = (iso: string) => {
     const diff = Date.now() - new Date(iso).getTime();
@@ -138,7 +138,7 @@ function NotificationBell({ isAdmin, isApprover }: { isAdmin: boolean; isApprove
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 8, scale: 0.96 }}
             transition={{ duration: 0.2, ease: "easeOut" }}
-            className="absolute right-0 top-11 w-[380px] max-h-[480px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.15)] dark:shadow-[0_20px_60px_rgba(0,0,0,0.4)] z-[100] overflow-hidden flex flex-col"
+            className="fixed inset-x-3 top-16 sm:absolute sm:inset-auto sm:right-0 sm:top-11 sm:w-[380px] max-h-[calc(100vh-5rem)] sm:max-h-[480px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.15)] dark:shadow-[0_20px_60px_rgba(0,0,0,0.4)] z-[100] overflow-hidden flex flex-col"
           >
             {/* Header */}
             <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between shrink-0">
@@ -444,13 +444,13 @@ function CollapsibleGroup({
       <button
         type="button"
         onClick={() => setIsOpen((prev) => !prev)}
-        className={`w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl text-xs font-semibold transition-all duration-200 cursor-pointer select-none group ${
+        className={`w-full flex items-center justify-between gap-3 px-3.5 py-2.5 rounded-xl text-xs sm:text-[13px] font-medium transition-all duration-200 cursor-pointer select-none group ${
           isAnyChildActive
             ? "text-blue-600 dark:text-blue-400 bg-blue-50/80 dark:bg-blue-950/40 font-bold"
-            : "text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white"
+            : "text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white"
         }`}
       >
-        <div className="flex items-center gap-2.5 min-w-0">
+        <div className="flex items-center gap-3 min-w-0">
           <GroupIcon className={`w-4 h-4 shrink-0 transition-transform ${
             isAnyChildActive ? "text-blue-600 dark:text-blue-400" : "text-slate-500 dark:text-slate-400 group-hover:text-blue-600 dark:group-hover:text-blue-400"
           }`} />
@@ -458,7 +458,7 @@ function CollapsibleGroup({
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
           {badge !== undefined && badge > 0 && (
-            <span className="flex items-center justify-center min-w-4 h-4 px-1 rounded-full bg-rose-500 text-white text-[9px] font-bold">
+            <span className="min-w-4 h-4 px-1 rounded-full bg-rose-500 text-white text-[10px] font-bold flex items-center justify-center">
               {badge}
             </span>
           )}
@@ -1099,36 +1099,38 @@ function AppContent({ children }: { children: React.ReactNode }) {
       );
     }
 
+    const isAdminItem = item.isAdminBadge || (isAdmin && (item.href === "/settings" || item.href === "/users" || item.href === "/logs" || item.href.startsWith("/admin/") || item.href === "/academic/settings"));
+
     return (
       <Link key={item.href} href={item.href} prefetch={false}>
         <div
-          className={`w-full flex items-center justify-between px-3 ${isSubItem ? "py-2 text-[12px]" : "py-2.5 text-xs"} rounded-xl transition-all duration-200 group cursor-pointer ${
+          className={`w-full flex items-center justify-between px-3.5 ${isSubItem ? "py-2 pl-9 text-xs" : "py-2.5 text-xs sm:text-[13px]"} rounded-xl transition-all duration-200 group cursor-pointer ${
             isActive
-              ? "bg-blue-600 text-white font-bold shadow-sm shadow-blue-500/20"
-              : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white"
+              ? "bg-blue-600 text-white font-bold shadow-xs"
+              : "text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white font-medium"
           }`}
         >
-          <div className="flex items-center gap-2.5 min-w-0">
+          <div className="flex items-center gap-3 min-w-0">
             <Icon className={`${isSubItem ? "w-3.5 h-3.5" : "w-4 h-4"} shrink-0 transition-transform ${
               isActive ? "text-white" : "text-slate-500 dark:text-slate-400 group-hover:text-blue-600 dark:group-hover:text-blue-400"
             }`} />
             <span className="truncate">{item.label}</span>
           </div>
 
-          <div className="flex items-center gap-1 shrink-0">
+          <div className="flex items-center gap-1.5 shrink-0">
+            {isAdminItem && (
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                isActive ? "bg-white text-indigo-600" : "bg-indigo-600 text-white"
+              }`}>
+                Admin
+              </span>
+            )}
             {item.badge !== undefined && item.badge > 0 && (
-              <span className={`flex items-center justify-center min-w-4 h-4 px-1 rounded-full text-[9px] font-bold ${
+              <span className={`flex items-center justify-center min-w-4 h-4 px-1 rounded-full text-[10px] font-bold ${
                 isActive ? "bg-white text-blue-600" : "bg-rose-500 text-white"
               }`}>
                 {item.badge}
               </span>
-            )}
-            {!isSubItem && (
-              <ChevronRight
-                className={`w-3.5 h-3.5 shrink-0 transition-transform ${
-                  isActive ? "text-white/80" : "text-slate-300 dark:text-slate-600 group-hover:text-slate-500"
-                }`}
-              />
             )}
           </div>
         </div>
@@ -1231,9 +1233,9 @@ function AppContent({ children }: { children: React.ReactNode }) {
         sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
       } ${isCollapsed ? "lg:w-[72px]" : "lg:w-[256px]"} w-[256px]`}>
         
-        {/* Brand Header */}
-        <div className="p-3.5 border-b border-slate-100 dark:border-slate-800/80 flex items-center justify-between gap-3 shrink-0">
-          <div className={`flex items-center gap-3 min-w-0 ${isCollapsed ? "justify-center w-full" : ""}`}>
+        {/* Brand Header matching Image 2 */}
+        <div className="p-3.5 border-b border-slate-100 dark:border-slate-800/80 flex items-center justify-between gap-2.5 shrink-0">
+          <div className={`flex items-center gap-2.5 min-w-0 ${isCollapsed ? "justify-center w-full" : ""}`}>
             <div className="w-10 h-10 rounded-xl overflow-hidden shrink-0 flex items-center justify-center shadow-2xs bg-white border border-slate-100 p-0.5">
               <img
                 src="/images/teacher/school_logo.png"
@@ -1246,39 +1248,51 @@ function AppContent({ children }: { children: React.ReactNode }) {
             </div>
             {!isCollapsed && (
               <div className="min-w-0">
-                <div className="font-extrabold text-slate-900 dark:text-white text-[13px] leading-tight truncate">
-                  {brandName || "โรงเรียนคำยางพิทยา"}
+                <div className="font-extrabold text-slate-900 dark:text-white text-xs sm:text-sm leading-tight truncate">
+                  {brandName || "โรงเรียนกุดจับประชาสรรค์"}
                 </div>
-                <div className="text-[10px] text-slate-400 dark:text-slate-500 font-medium truncate mt-0.5">
-                  ต.นาสูง อ.วังสามหมอ จ.อุดรธานี
+                <div className="text-[10px] sm:text-[11px] text-slate-400 dark:text-slate-500 font-medium truncate mt-0.5">
+                  {brandSubheader || "อ.กุดจับ จ.อุดรธานี"}
                 </div>
               </div>
             )}
           </div>
+
+          {!isCollapsed && (
+            <button
+              type="button"
+              onClick={() => {
+                if (typeof window !== "undefined" && window.innerWidth < 1024) {
+                  setSidebarOpen(false);
+                } else {
+                  toggleSidebar();
+                }
+              }}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shrink-0 flex items-center justify-center cursor-pointer"
+              title="ปิดเมนูด้านข้าง"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
         </div>
 
         {/* Navigation */}
-        <nav className={`flex-1 py-4 space-y-3 overflow-y-auto custom-scrollbar ${isCollapsed ? "px-1.5" : "px-3"}`}>
+        <nav className={`flex-1 py-3.5 space-y-1.5 overflow-y-auto custom-scrollbar ${isCollapsed ? "px-1.5" : "px-3"}`}>
           {/* Top Dashboard Link ("หน้าหลัก") */}
           <Link href="/dashboard" prefetch={false} title={isCollapsed ? "หน้าหลัก" : undefined}>
-            <div className={`relative flex items-center rounded-xl text-xs font-medium transition-all duration-200 group cursor-pointer ${
-              isCollapsed ? "justify-center w-10 h-10 mx-auto" : "justify-between px-3 py-2.5"
+            <div className={`relative flex items-center rounded-xl text-xs sm:text-[13px] transition-all duration-200 group cursor-pointer ${
+              isCollapsed ? "justify-center w-10 h-10 mx-auto" : "justify-between px-3.5 py-2.5"
             } ${
               pathname === "/dashboard" 
-                ? "bg-blue-600 text-white font-medium shadow-sm shadow-blue-500/25" 
-                : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-800/60"
+                ? "bg-blue-600 text-white font-bold shadow-xs" 
+                : "text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white font-medium"
             }`}>
-              <div className="flex items-center gap-2.5 min-w-0">
+              <div className="flex items-center gap-3 min-w-0">
                 <Home className={`w-4 h-4 shrink-0 transition-transform ${
                   pathname === "/dashboard" ? "text-white" : "text-slate-500 dark:text-slate-400 group-hover:text-blue-600 dark:group-hover:text-blue-400"
                 }`} />
                 {!isCollapsed && <span className="truncate">หน้าหลัก</span>}
               </div>
-              {!isCollapsed && (
-                <ChevronRight className={`w-3.5 h-3.5 shrink-0 transition-transform ${
-                  pathname === "/dashboard" ? "text-white/80" : "text-slate-300 dark:text-slate-600 group-hover:text-slate-500"
-                }`} />
-              )}
             </div>
           </Link>
 
@@ -1571,24 +1585,8 @@ function AppContent({ children }: { children: React.ReactNode }) {
           </div>
         </nav>
 
-        {/* Bottom Feature Card: "ร่วมสร้างอนาคตไปด้วยกัน 💙" */}
-        {!isCollapsed && (
-          <div className="p-3 border-t border-slate-100 dark:border-slate-800/80 shrink-0">
-            <div className="rounded-2xl overflow-hidden shadow-2xs relative border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40">
-              <img
-                src="/images/teacher/sidebar_banner.png"
-                alt="ร่วมสร้างอนาคตไปด้วยกัน"
-                className="w-full h-auto object-cover rounded-2xl"
-                onError={(e) => {
-                  (e.currentTarget as HTMLImageElement).src = "/images/isometric_smart_school.jpg";
-                }}
-              />
-            </div>
-          </div>
-        )}
-
-        {/* Standalone Logout Button */}
-        <div className={`mb-3 shrink-0 ${isCollapsed ? "px-1.5 py-2" : "px-3 pt-1 pb-2"}`}>
+        {/* Standalone Logout Button matching Image 2 */}
+        <div className={`p-3 border-t border-slate-100 dark:border-slate-800 shrink-0 ${isCollapsed ? "px-1.5 py-2" : ""}`}>
           <button
             type="button"
             onClick={async () => {
@@ -1597,11 +1595,11 @@ function AppContent({ children }: { children: React.ReactNode }) {
               router.push("/login");
             }}
             title={t("logout")}
-            className={`w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl border border-rose-200/80 dark:border-rose-900/40 bg-white dark:bg-slate-900 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-rose-600 dark:text-rose-400 text-xs font-bold transition-all cursor-pointer shadow-2xs ${
+            className={`w-full flex items-center justify-center gap-2 py-2.5 px-3 rounded-2xl border border-blue-500/80 bg-white dark:bg-slate-900 hover:bg-blue-50 dark:hover:bg-blue-950/30 text-blue-600 dark:text-blue-400 text-xs sm:text-sm font-bold transition-all cursor-pointer shadow-2xs ${
               isCollapsed ? "w-10 h-10 p-0 mx-auto" : ""
             }`}
           >
-            <LogOut className="w-4 h-4 text-rose-500 shrink-0" />
+            <LogOut className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
             {!isCollapsed && <span>ออกจากระบบ</span>}
           </button>
         </div>

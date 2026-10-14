@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import SystemSelector, { type SystemOption } from "./SystemSelector";
-import { Loader2, LayoutDashboard, UserCheck } from "lucide-react";
+import { Loader2, LayoutDashboard, UserCheck, Sliders } from "lucide-react";
 
 type Props = {
   initialSystem: string;
@@ -95,6 +95,21 @@ export default function DashboardShell({
               onChange={handleSystemChange}
             />
           )}
+
+          {/* Quick Customize Widgets Button */}
+          <button
+            type="button"
+            onClick={() => {
+              if (typeof window !== "undefined") {
+                window.dispatchEvent(new CustomEvent("open-dashboard-widget-customizer"));
+              }
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200/90 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 shadow-2xs transition-all cursor-pointer"
+            title="เพิ่มหรือปรับแต่งวิดเจ็ต"
+          >
+            <Sliders className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+            <span>ปรับแต่งวิดเจ็ต</span>
+          </button>
         </div>
       </div>
 
