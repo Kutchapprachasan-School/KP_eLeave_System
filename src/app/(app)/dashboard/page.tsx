@@ -7,6 +7,7 @@ import { getRepairDashboardStatsAction } from "@/app/actions/repair/report";
 import { hasRepairPermission } from "@/lib/permissions";
 import DashboardShell from "./_components/DashboardShell";
 import LeaveDashboardClient from "./_components/LeaveDashboardClient";
+import ExecutiveLeaveDashboardView from "./_components/ExecutiveLeaveDashboardView";
 import RepairDashboardView, { type RepairDashStats } from "./_components/RepairDashboardView";
 import DocumentDashboardView from "./_components/DocumentDashboardView";
 import FacilityDashboardView from "./_components/FacilityDashboardView";
@@ -97,6 +98,7 @@ export default async function DashboardPage({
       initialSystem={activeSystem}
       availableSystems={availableSystems}
       leaveView={<LeaveDashboardClient />}
+      executiveLeaveView={<ExecutiveLeaveDashboardView />}
       documentView={<DocumentDashboardView />}
       facilityView={<FacilityDashboardView />}
       repairView={
