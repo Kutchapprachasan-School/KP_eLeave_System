@@ -500,3 +500,88 @@
 | `src/events/eventCatalog.ts` | Event catalog |
 | `src/repositories/` | photo.repository, repair.repository |
 | `src/workers/omrScanner.worker.ts` | OMR scanner Web Worker |
+
+---
+
+## 🎯 Line Anchor Registry (ผังเลขบรรทัดไฟล์แกนหลัก > 300 บรรทัด)
+> **กฎการอ่านไฟล์:** ห้ามเปิดสุ่ม ให้ดูเลขบรรทัดจากตารางนี้แล้วใช้ `view_file` กำหนด `StartLine` / `EndLine` ทันที
+
+### 1. `src/app/(app)/layout.tsx` (1,783 บรรทัด)
+| ส่วนประกอบ / ฟังก์ชัน | บรรทัด | หน้าที่ |
+|---|---|---|
+| Imports, Types & Permission Consts | L1–L60 | Lucide icons, hooks, DEFAULT_PERMISSIONS |
+| `NotificationBell` Component | L61–L244 | กระดิ่งแจ้งเตือน, Badge นับจริง, Modal แจ้งเตือน Responsive |
+| `UserAvatarDropdown` Component | L245–L351 | แคปซูลโปรไฟล์ผู้ใช้ขวาสุด, เมนูโปรไฟล์, PDPA, ปุ่มออกจากระบบ |
+| `DEFAULT_PERMISSIONS` Object | L352–L362 | สิทธิ์พื้นฐานรายโมดูล |
+| `CollapsibleGroup` Component | L363–L485 | กลุ่มเมนูพับได้ใน Sidebar (สไตล์ SMS ภาพที่ 2) |
+| `AppLayout` Shell & State Hooks | L486–L560 | สถานะ Sidebar, Theme, Language, Fullscreen |
+| Settings & Duty Loaders | L561–L850 | ดึงชื่อ/โลโก้โรงเรียน, สิทธิ์หน้าที่, AMSS |
+| User Role Resolution | L855–L908 | คำนวณ `effectiveUser`, `isAdmin`, `isApprover` |
+| SubItems Nav Configuration | L909–L1060 | เมนูย่อย: การลา, สารบรรณ, แจ้งซ่อม, ทรัพยากร, วิชาการ, งบ |
+| `renderNavItem` Function | L1061–L1140 | เรนเดอร์ปุ่มเมนู Sidebar (สไตล์ SMS มินิมอล, แบดจ์ Admin สีม่วง) |
+| Access Control & Mobile Nav Items | L1141–L1180 | `checkPermission`, แถบเมนูด้านล่างบนมือถือ |
+| Impersonation Mode Banner | L1181–L1215 | แถบสีส้มจำลองสิทธิ์ผู้ใช้ |
+| Sidebar Shell & Overlay | L1216–L1233 | `<aside>` desktop 256/72px & mobile drawer |
+| Sidebar Brand Header | L1234–L1275 | โลโก้, ร.ร.กุดจับประชาสรรค์, ปุ่มปิด `[✕]` |
+| Sidebar Top Home Link | L1276–L1300 | ปุ่ม "หน้าหลัก" แคปซูลสีน้ำเงิน (`Home` icon, ไม่มีลูกศร) |
+| Classroom Portal Shortcut | L1301–L1315 | ลิงก์สู่ระบบจัดการชั้นเรียน |
+| Sidebar Group 1: บุคคล | L1316–L1345 | ลงเวลา, แฟ้ม PA, ระบบการลา |
+| Sidebar Group 2: ทั่วไป | L1346–L1410 | จองทรัพยากร, สารบรรณ, แจ้งซ่อม |
+| Sidebar Group 3: วิชาการ | L1411–L1530 | ศูนย์วิชาการ, OMR, ตารางสอบ, ตารางสอน, นิเทศ, วางแผน |
+| Sidebar Group 4: งบประมาณ | L1531–L1555 | บริหารงบประมาณ & เบิกจ่าย |
+| Sidebar Group 5: ตั้งค่า & โปรไฟล์ | L1556–L1585 | ตั้งค่าระบบ, บุคคล, Logs, Profile, PDPA |
+| Sidebar Bottom Logout Button | L1586–L1615 | ปุ่ม `[→ ออกจากระบบ]` ทรงแคปซูลขอบน้ำเงิน สไตล์ภาพที่ 2 |
+| Top Header Bar (SMS Reference) | L1616–L1725 | เมนูแฮมเบอร์เกอร์, วันที่ภาษาไทย, ค้นหา, [T], [TH], [🌙], [⛶], [🔔], User Capsule |
+| Main Page Content & Bottom Nav | L1726–L1783 | แสดง `{children}` และแถบเมนูด้านล่างมือถือ |
+
+### 2. `prisma/schema.prisma` (3,228 บรรทัด)
+| โมเดลหลัก | บรรทัด | หน้าที่ |
+|---|---|---|
+| Datasource & Generator | L1–L10 | Postgres & prisma-client-js |
+| `User`, `Account`, `Session` | L11–L115 | บุคลากร, การยืนยันตัวตน, Session |
+| `LeaveRequest`, `LeaveType`, `LeaveBalance` | L116–L240 | ระบบการลา, วันลาคงเหลือ, ชนิดการลา |
+| `Attendance`, `WorkShift`, `AttendanceNonce` | L241–L450 | ระบบลงเวลา, กะการทำงาน, สแกนใบหน้า |
+| `DocumentRecord`, `IncomingDocument`, `DocumentRouting` | L451–L750 | ทะเบียนหนังสือราชการ, หนังสือเข้า AMSS, เกษียณ |
+| `RepairRequest`, `RepairPhoto`, `RepairComment` | L751–L920 | แจ้งซ่อม, รูปถ่ายหน้างาน, ความเห็นช่าง |
+| `FacilityResource`, `FacilityReservation` | L921–L1120 | ทรัพยากรส่วนกลาง, ยื่นจองห้อง/รถ |
+| `TimetableSlot`, `TimetableVersion`, `Offering` | L1121–L1800 | ตารางสอน, เวอร์ชันตาราง, รายวิชา |
+| `SupervisionSession`, `SubstituteRecord` | L1801–L2200 | การนิเทศการสอน, บันทึกสอนแทน |
+| `ExamPaper`, `ExamSubmission`, `OmrSheet` | L2201–L2550 | คลังข้อสอบ, ผลสอบ OMR, การตรวจกระดาษคำตอบ |
+| `FiscalYear`, `Project`, `ActivityExpense` | L2551–L3228 | งบประมาณ, แผนงานโครงการ, บันทึกการเบิกจ่าย |
+
+### 3. `src/app/actions/dashboard-widgets.ts` (557 บรรทัด)
+| ฟังก์ชัน / ข้อมูล | บรรทัด | หน้าที่ |
+|---|---|---|
+| `interface DashboardWidgetConfig` | L8–L41 | โครงสร้างคอนฟิกวิดเจ็ต 24 ตัว |
+| `DEFAULT_WIDGET_CONFIG` | L43–L77 | ค่ามาตรฐานระบบเริ่มต้น (เปิดครบ ไม่โล่ง) |
+| `getDashboardWidgetConfig(userId?)` | L80–L120 | ดึงค่าคอนฟิกส่วนตัว หรือค่ามาตรฐานสถานศึกษาที่ Admin กำหนด |
+| `saveDashboardWidgetConfig(newConfig, opts)` | L121–L195 | บันทึกวิดเจ็ต (รองรับ `saveAsDefault` สำหรับ Admin) |
+| `resetUserWidgetConfigToDefault()` | L196–L255 | คืนค่าของครูให้กลับไปใช้ค่ามาตรฐานโรงเรียน |
+| `SchoolManagementExecutiveStats` | L256–L300 | Types สถิติบูรณาการ 5 ระบบย่อย |
+| `getSchoolManagementExecutiveStats()` | L301–L557 | รวบรวมสถิติจริงจาก DB ทุกโมดูล |
+
+### 4. `src/app/(app)/dashboard/_components/ExecutiveLeaveDashboardView.tsx` (566 บรรทัด)
+| ส่วนประกอบ / ฟังก์ชัน | บรรทัด | หน้าที่ |
+|---|---|---|
+| States & Data Loading | L53–L130 | โหลดสถิติ, จัดการ localStorage, Event listener ปรับแต่งวิดเจ็ต |
+| Approval Actions Handler | L131–L220 | อนุมัติ/ปฏิเสธการลาแบบเรียลไทม์ |
+| Top Action Toolbar | L266–L300 | ปุ่ม `[↻ รีเฟรช]` และ `[⚙ ปรับแต่งวิดเจ็ต]` บนสุดของหน้า |
+| Row 1: SMSHeroBanner | L301–L315 | แบนเนอร์ผู้บริหารและปรัชญาโรงเรียน |
+| Row 1.5: SubsystemQuickHub | L316–L360 | แถบสถานะย่อ 5 ระบบย่อย |
+| Row 2: ExecutiveLeaveStatCards | L361–L410 | ตารางการ์ด KPI รวม 11 ตัว |
+| Row 3: SMS Charts (Academic & Attendance) | L411–L440 | กราฟผลสัมฤทธิ์ 8 กลุ่มสาระ & โดนัทเช็คชื่อรายวัน |
+| Row 4: SMSOperationsStrip | L441–L470 | สรุปงบประมาณ, หนังสือ, แจ้งซ่อม, ทรัพยากร |
+| Row 5–8: Detail Analytics & Approval Queue | L471–L530 | คิวตรวจใบลา, แนวโน้มรายเดือน, สถิติกิจการนักเรียน |
+| Floating Controls & Customizer Modal | L531–L566 | ปุ่มลอยยกสูง (`bottom-20`), Drill-down Modal, Widget Customizer |
+
+### 5. `src/app/(app)/dashboard/_components/DashboardWidgetCustomizerModal.tsx` (682 บรรทัด)
+| ส่วนประกอบ / ฟังก์ชัน | บรรทัด | หน้าที่ |
+|---|---|---|
+| `WIDGET_METADATA` Array | L64–L250 | รายการวิดเจ็ตทั้ง 24 ตัวพร้อมไอคอนและหมวดหมู่ |
+| Handlers & Toggles | L251–L310 | เปิดทั้งหมด, ปิดทั้งหมด, สลับรายตัว |
+| `handleResetToAdminDefault` | L311–L340 | คืนค่าเป็นค่ามาตรฐานสถานศึกษาที่ Admin กำหนด |
+| `handleSave(asDefaultOverride)` | L341–L385 | บันทึกค่า (แยกเคสแอดมินบันทึกค่าระบบกลาง vs ครูบันทึกส่วนตัว) |
+| Header & Admin Guidance Banner | L386–L475 | หัวข้อ Modal และแบนเนอร์แจ้งสิทธิ์แอดมินพร้อม Checkbox |
+| Search & Filter Pills | L476–L520 | ค้นหาวิดเจ็ต & แท็บตัวกรอง |
+| Widget Items List | L521–L630 | รายการการ์ดวิดเจ็ต ปุ่มสลับเปิด-ปิด |
+| Modal Footer Action Buttons | L631–L682 | ปุ่ม `[ใช้ค่ามาตรฐานตามที่แอดมินกำหนด]`, `[รีเซ็ตทั้งหมด]`, `[บันทึก]` |

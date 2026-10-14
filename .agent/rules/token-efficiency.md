@@ -57,17 +57,41 @@
   
   **→ ต้องอัปเดต `CODEBASE_INDEX.md` ให้ตรงกับสถานะปัจจุบันทันที**
 - **ห้าม:** ปล่อยให้ Index ล้าสมัย — ถ้า Index ผิด = Agent ต้องไล่อ่านไฟล์ใหม่ = เสีย Token ซ้ำ
-- **โครงสร้าง Index:** แบ่งตาม module/feature พร้อมระบุ path, บรรทัดสำคัญ, และหน้าที่หลัก
+- **โครงสร้าง Index:** แบ่งตาม module/feature พร้อมระบุ path, Line Anchor Registry สำหรับไฟล์แกนหลัก (>300 บรรทัด), และหน้าที่หลัก
+
+## 🔍 7. Single-Line Pre-filter Search (ห้ามสุ่มเดาช่วงบรรทัด)
+
+- **ห้าม:** สุ่มเปิด `view_file` ทีละ 200 บรรทัดเพื่อคลำหาฟังก์ชัน เพราะเสีย Token ไปเปล่าประโยชน์
+- **ถ้าไม่รู้เลขบรรทัด:** ให้ใช้ PowerShell 1 บรรทัดยิงหา LineNumber ทันทีก่อนอ่าน:
+  ```powershell
+  Select-String -Path "path/to/file.tsx" -Pattern "TargetFunction|TargetSymbol" | Select-Object -First 3 LineNumber, Line
+  ```
+- **กิน Token เพียง ~30-50 tokens** แล้วสามารถใช้ `view_file` ไปยัง `StartLine/EndLine` ได้ตรงเป้าในครั้งเดียว 100%
+
+## 🧪 8. Scoped Test Filter (ห้าม Dump Full Test Suite พร่ำเพรื่อ)
+
+- **เมื่อแก้โค้ดเฉพาะจุด:** ให้รันเฉพาะไฟล์ทดสอบที่เกี่ยวข้อง เช่น:
+  ```powershell
+  node --test eLeave/tests/unit/specificModule.test.js
+  ```
+- **รัน Full Suite (`npm test`):** เฉพาะก่อน Commit สุดท้ายเพื่อยืนยัน Zero Regression เท่านั้น
+- **ลด Log สะสมใน Context:** ได้นับหมื่น Tokens ต่อรอบ
+
+## 🏆 9. Zero-Compromise Quality Invariant (ประหยัดแต่คุณภาพต้องเทียบเท่าหรือดีกว่ามาตรฐาน)
+
+- **ไม่ตัดทอน Architecture:** การประหยัด Token ต้องไม่ตัด Type safety, Error handling, PDPA Security หรือสถาปัตยกรรม Clean Architecture
+- **Response ที่กระชับและอุดมข้อมูล:** สรุปตรงประเด็น เน้นผลลัพธ์ที่เป็นรูปธรรมและ GitHub links ชี้ตรงบรรทัด (`file:///...#L123`) ไม่ Dump โค้ดยาวซ้ำในคำตอบโดยไม่จำเป็น
 
 ---
 
-## 📊 สรุปเป้าหมาย
+## 📊 สรุปเป้าหมาย Token Efficiency v2.0
 
 | ปัญหา | วิธีแก้ | เป้าหมาย |
 |---|---|---|
-| อ่านไฟล์ซ้ำทั้งไฟล์ | Targeted View + Index | ลด Token อ่านไฟล์ 70%+ |
-| Context บวมจนล้น | Milestone Handoff | ตัดตอนทุก 3-5 tasks |
-| ใช้ Model ใหญ่ทุกงาน | Smart Model Routing | Flash สำหรับงานง่าย |
-| Log ยาวพ่นลงแชท | Scratchpad Redirect | Output > 50 บรรทัด → ไฟล์ |
-| Subagent ทิ้ง Context | Ephemeral Swarm | จบแล้ว kill ทันที |
-| ไม่รู้ว่าอะไรอยู่ไหน | CODEBASE_INDEX.md | อัปเดตทุกครั้งที่แก้ไฟล์ |
+| อ่านไฟล์ซ้ำทั้งไฟล์ | Targeted View + Line Anchors | ลด Token อ่านไฟล์ 85%+ |
+| คลำหาฟังก์ชันในไฟล์ใหญ่ | Single-Line Pre-filter Search | ตรงจุดใน 1 ครั้ง ไม่เสีย Token เดา |
+| Context บวมจนล้น | Milestone Handoff (ทุก 3-5 tasks) | Context สะอาด ไม่เกิด Truncation |
+| รันเทสต์พ่น Log บวม | Scoped Test Filter | รันเฉพาะจุดที่แตะ |
+| ใช้ Model ใหญ่ทุกงาน | Smart Model Routing (Flash/Pro) | Flash สำหรับงานสแกน |
+| ไม่รู้ว่าอะไรอยู่ไหน | CODEBASE_INDEX.md + Line Anchor Registry | อัปเดตผังบรรทัดทุกครั้ง |
+| ลด Token จนงานหยาบ | Zero-Compromise Quality Invariant | คุณภาพมาตรฐาน Enterprise 100% |
