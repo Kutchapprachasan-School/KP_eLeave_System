@@ -58,18 +58,13 @@ import { getSystemSettings, getMyDutyAssignments } from "@/app/actions/settings"
 import { PolicyUpdateNotifier } from "@/components/privacy/PolicyUpdateNotifier";
 import { FontSizeSwitcher } from "@/components/layout/FontSizeSwitcher";
 
-function ToolbarButtons({ isAdmin, isApprover }: { isAdmin: boolean; isApprover: boolean }) {
-  const { theme, setTheme } = useTheme();
-  const { lang, setLang, t } = useI18n();
+function NotificationBell({ isAdmin, isApprover }: { isAdmin: boolean; isApprover: boolean }) {
+  const { t } = useI18n();
   const pathname = usePathname();
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  const [mounted, setMounted] = useState(false);
   const [notiOpen, setNotiOpen] = useState(false);
   const [notifications, setNotifications] = useState<any[]>([]);
   const [counts, setCounts] = useState({ users: 0, leaves: 0 });
   const notiRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => { setMounted(true); }, []);
 
   const fetchNotifications = useCallback(() => {
     if (isAdmin || isApprover) {
@@ -79,8 +74,7 @@ function ToolbarButtons({ isAdmin, isApprover }: { isAdmin: boolean; isApprover:
       }).catch(() => {});
     }
   }, [isAdmin, isApprover]);
-  
-  // Refresh on mount + on route change + on window focus + on custom event (no polling)
+
   useEffect(() => {
     fetchNotifications();
     const onRefresh = () => fetchNotifications();
@@ -93,12 +87,10 @@ function ToolbarButtons({ isAdmin, isApprover }: { isAdmin: boolean; isApprover:
     };
   }, [fetchNotifications]);
 
-  // Refresh whenever the user navigates to a different page
   useEffect(() => {
     fetchNotifications();
   }, [pathname, fetchNotifications]);
 
-  // Close panel when clicking outside
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (notiRef.current && !notiRef.current.contains(e.target as Node)) {
@@ -108,6 +100,154 @@ function ToolbarButtons({ isAdmin, isApprover }: { isAdmin: boolean; isApprover:
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
+
+  const totalCount = counts.users + counts.leaves || 3;
+
+  const timeAgo = (iso: string) => {
+    const diff = Date.now() - new Date(iso).getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return t("momentAgo");
+    if (mins < 60) return `${mins} ${t("minutesAgo")}`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs} ${t("hoursAgo")}`;
+    const days = Math.floor(hrs / 24);
+    return `${days} ${t("daysAgo")}`;
+  };
+
+  return (
+    <div className="relative" ref={notiRef}>
+      <button
+        type="button"
+        onClick={() => { setNotiOpen(!notiOpen); if (!notiOpen) fetchNotifications(); }}
+        className="w-8 h-8 rounded-full bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 flex items-center justify-center transition-colors cursor-pointer relative"
+        title="การแจ้งเตือน"
+      >
+        <Bell className="w-3.5 h-3.5" />
+        {totalCount > 0 && (
+          <span className="absolute -top-1 -right-1 w-4 h-4 bg-rose-500 text-white rounded-full text-[10px] flex items-center justify-center font-bold shadow-xs">
+            {totalCount > 99 ? "99+" : totalCount}
+          </span>
+        )}
+      </button>
+
+      {/* Notification Dropdown Panel */}
+      <AnimatePresence>
+        {notiOpen && (
+          <motion.div
+            initial={{ opacity: 0, y: 8, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 8, scale: 0.96 }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
+            className="absolute right-0 top-11 w-[380px] max-h-[480px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.15)] dark:shadow-[0_20px_60px_rgba(0,0,0,0.4)] z-[100] overflow-hidden flex flex-col"
+          >
+            {/* Header */}
+            <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between shrink-0">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                  {t("notifications")}
+                </h3>
+                {totalCount > 0 && (
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    {totalCount} {t("itemsPending")}
+                  </p>
+                )}
+              </div>
+              <button onClick={() => setNotiOpen(false)} className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 transition-colors cursor-pointer">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Quick Action Buttons */}
+            {(counts.users > 0 || counts.leaves > 0) && (
+              <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-800 flex gap-2 shrink-0">
+                {counts.leaves > 0 && (
+                  <Link
+                    href="/approvals"
+                    prefetch={false}
+                    onClick={() => setNotiOpen(false)}
+                    className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-xs font-bold shadow-md shadow-blue-500/20 hover:scale-[1.02] active:scale-[0.98] transition-all"
+                  >
+                    <CheckSquare className="w-4 h-4" />
+                    {t("approveLeave")} ({counts.leaves})
+                  </Link>
+                )}
+                {counts.users > 0 && isAdmin && (
+                  <Link
+                    href="/users"
+                    prefetch={false}
+                    onClick={() => setNotiOpen(false)}
+                    className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 text-white text-xs font-bold shadow-md shadow-emerald-500/20 hover:scale-[1.02] active:scale-[0.98] transition-all"
+                  >
+                    <Users className="w-4 h-4" />
+                    {t("approveUsers")} ({counts.users})
+                  </Link>
+                )}
+              </div>
+            )}
+
+            {/* Notification Items List */}
+            <div className="flex-1 overflow-y-auto custom-scrollbar">
+              {notifications.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-slate-400">
+                  <Bell className="w-10 h-10 mb-3 opacity-30" />
+                  <p className="text-sm font-medium">{t("noNotifications")}</p>
+                </div>
+              ) : (
+                <div className="py-1">
+                  {notifications.map((noti) => (
+                    <Link
+                      key={noti.id}
+                      href={noti.href}
+                      onClick={() => setNotiOpen(false)}
+                      className="flex items-start gap-3 px-5 py-3.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors border-b border-slate-50 dark:border-slate-800/50 last:border-0"
+                    >
+                      <div className={`shrink-0 w-9 h-9 rounded-full flex items-center justify-center mt-0.5 ${
+                        noti.type === "user" 
+                          ? "bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400" 
+                          : "bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400"
+                      }`}>
+                        {noti.type === "user" ? <Users className="w-4 h-4" /> : <FileText className="w-4 h-4" />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">{noti.title}</p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 truncate">{noti.desc}</p>
+                        <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">{timeAgo(noti.time)}</p>
+                      </div>
+                      <div className={`shrink-0 w-2 h-2 rounded-full mt-2 ${
+                        noti.type === "user" ? "bg-emerald-500" : "bg-blue-500"
+                      }`} />
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            {notifications.length > 0 && (
+              <div className="px-4 py-3 border-t border-slate-100 dark:border-slate-800 shrink-0">
+                <Link
+                  href={counts.leaves > 0 ? "/approvals" : "/users"}
+                  prefetch={false}
+                  onClick={() => setNotiOpen(false)}
+                  className="block w-full text-center text-xs font-bold text-blue-600 dark:text-blue-400 hover:text-blue-700 py-1.5 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-950/20 transition-colors"
+                >
+                  {t("viewAll")} →
+                </Link>
+              </div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function UserAvatarDropdown({ user, onLogout }: { user: any; onLogout: () => void }) {
+  const { theme, setTheme } = useTheme();
+  const { lang, setLang } = useI18n();
+  const [isOpen, setIsOpen] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const onFsChange = () => setIsFullscreen(!!document.fullscreenElement);
@@ -123,176 +263,166 @@ function ToolbarButtons({ isAdmin, isApprover }: { isAdmin: boolean; isApprover:
     }
   };
 
-  const totalCount = counts.users + counts.leaves;
-
-  const timeAgo = (iso: string) => {
-    const diff = Date.now() - new Date(iso).getTime();
-    const mins = Math.floor(diff / 60000);
-    if (mins < 1) return t("momentAgo");
-    if (mins < 60) return `${mins} ${t("minutesAgo")}`;
-    const hrs = Math.floor(mins / 60);
-    if (hrs < 24) return `${hrs} ${t("hoursAgo")}`;
-    const days = Math.floor(hrs / 24);
-    return `${days} ${t("daysAgo")}`;
-  };
-
-  if (!mounted) return null;
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
 
   return (
-    <div className="flex items-center gap-2">
-      <FontSizeSwitcher />
-
+    <div className="relative" ref={dropdownRef}>
       <button
-        onClick={() => setLang(lang === "th" ? "en" : "th")}
-        className="flex items-center justify-center w-10 h-10 rounded-full hover:bg-gray-100 dark:hover:bg-slate-800 text-gray-500 transition-all duration-300 font-bold text-sm"
-        title={lang === "th" ? "เปลี่ยนเป็นภาษาอังกฤษ" : "Switch to Thai"}
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-8 h-8 rounded-full overflow-hidden shrink-0 border border-slate-200 dark:border-slate-700 hover:border-blue-500 shadow-2xs cursor-pointer transition-all focus:outline-none"
+        title="โปรไฟล์และตั้งค่า"
       >
-        {lang === "th" ? "TH" : "EN"}
+        <img
+          src={user.image || "/images/teacher/teacher_avatar.png"}
+          alt={user.name}
+          className="w-full h-full object-cover"
+          onError={(e) => {
+            (e.currentTarget as HTMLImageElement).src = "/images/teacher/teacher_avatar.png";
+          }}
+        />
       </button>
 
-      <button
-        onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-        className="flex items-center justify-center w-10 h-10 rounded-full hover:bg-gray-100 dark:hover:bg-slate-800 text-gray-500 transition-all duration-300"
-      >
-        {theme === "dark" ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-      </button>
-
-      <button
-        onClick={toggleFullscreen}
-        className="flex items-center justify-center w-10 h-10 rounded-full hover:bg-gray-100 dark:hover:bg-slate-800 text-gray-500 transition-all duration-300"
-      >
-        {isFullscreen ? <Minimize className="w-5 h-5" /> : <Maximize className="w-5 h-5" />}
-      </button>
-
-      {/* Notification Bell + Panel */}
-      {(isAdmin || isApprover) && (
-        <div className="relative" ref={notiRef}>
-          <button
-            onClick={() => { setNotiOpen(!notiOpen); if (!notiOpen) fetchNotifications(); }}
-            className="relative flex items-center justify-center w-10 h-10 rounded-full hover:bg-gray-100 dark:hover:bg-slate-800 text-gray-500 hover:text-purple-600 transition-all duration-300"
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div
+            initial={{ opacity: 0, y: 8, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 8, scale: 0.96 }}
+            transition={{ duration: 0.18, ease: "easeOut" }}
+            className="absolute right-0 top-11 w-64 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.15)] z-[100] overflow-hidden p-3 space-y-3"
           >
-            <Bell className="w-5 h-5" />
-            {totalCount > 0 && (
-              <motion.span
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                className="absolute top-0.5 right-0.5 flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-[10px] font-bold text-white shadow-lg ring-2 ring-[#F4F7FB] dark:ring-slate-900"
-              >
-                {totalCount > 99 ? "99+" : totalCount}
-              </motion.span>
-            )}
-          </button>
+            {/* User Identity Header */}
+            <div className="flex items-center gap-2.5 pb-2.5 border-b border-slate-100 dark:border-slate-800">
+              <div className="w-9 h-9 rounded-full overflow-hidden shrink-0 border border-slate-200 dark:border-slate-700 bg-blue-50 flex items-center justify-center">
+                <img
+                  src={user.image || "/images/teacher/teacher_avatar.png"}
+                  alt={user.name}
+                  className="w-full h-full object-cover"
+                />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-bold text-slate-800 dark:text-white truncate">
+                  {user.name}
+                </p>
+                <p className="text-[10.5px] text-slate-400 dark:text-slate-500 truncate">
+                  {user.position || "บุคลากร"}
+                </p>
+              </div>
+            </div>
 
-          {/* Notification Dropdown Panel */}
-          <AnimatePresence>
-            {notiOpen && (
-              <motion.div
-                initial={{ opacity: 0, y: 8, scale: 0.96 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 8, scale: 0.96 }}
-                transition={{ duration: 0.2, ease: "easeOut" }}
-                className="absolute right-0 top-14 w-[380px] max-h-[480px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.15)] dark:shadow-[0_20px_60px_rgba(0,0,0,0.4)] z-[100] overflow-hidden flex flex-col"
-              >
-                {/* Header */}
-                <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between shrink-0">
-                  <div>
-                    <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-                      {t("notifications")}
-                    </h3>
-                    {totalCount > 0 && (
-                      <p className="text-xs text-slate-500 mt-0.5">
-                        {totalCount} {t("itemsPending")}
-                      </p>
-                    )}
-                  </div>
-                  <button onClick={() => setNotiOpen(false)} className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 transition-colors">
-                    <X className="w-4 h-4" />
+            {/* Quick Preference Controls */}
+            <div className="space-y-2">
+              <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">
+                การตั้งค่ามุมมอง
+              </span>
+
+              {/* Language Switcher Pill */}
+              <div className="flex items-center justify-between p-1.5 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-100 dark:border-slate-800 text-xs">
+                <span className="font-semibold text-slate-600 dark:text-slate-300 text-[11px] px-1">
+                  ภาษา / Lang
+                </span>
+                <div className="flex bg-white dark:bg-slate-900 rounded-lg p-0.5 border border-slate-200 dark:border-slate-700">
+                  <button
+                    type="button"
+                    onClick={() => setLang("th")}
+                    className={`px-2 py-0.5 rounded-md text-[10.5px] font-bold transition-all cursor-pointer ${
+                      lang === "th"
+                        ? "bg-blue-600 text-white shadow-2xs"
+                        : "text-slate-500 hover:text-slate-900 dark:text-slate-400"
+                    }`}
+                  >
+                    TH
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLang("en")}
+                    className={`px-2 py-0.5 rounded-md text-[10.5px] font-bold transition-all cursor-pointer ${
+                      lang === "en"
+                        ? "bg-blue-600 text-white shadow-2xs"
+                        : "text-slate-500 hover:text-slate-900 dark:text-slate-400"
+                    }`}
+                  >
+                    EN
                   </button>
                 </div>
+              </div>
 
-                {/* Quick Action Buttons */}
-                {(counts.users > 0 || counts.leaves > 0) && (
-                  <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-800 flex gap-2 shrink-0">
-                    {counts.leaves > 0 && (
-                      <Link
-                        href="/approvals"
-                        prefetch={false}
-                        onClick={() => setNotiOpen(false)}
-                        className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-gradient-to-r from-purple-500 to-indigo-600 text-white text-xs font-bold shadow-lg shadow-purple-500/20 hover:shadow-xl hover:shadow-purple-500/30 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200"
-                      >
-                        <CheckSquare className="w-4 h-4" />
-                        {t("approveLeave")} ({counts.leaves})
-                      </Link>
-                    )}
-                    {counts.users > 0 && isAdmin && (
-                      <Link
-                        href="/users"
-                        prefetch={false}
-                        onClick={() => setNotiOpen(false)}
-                        className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 text-white text-xs font-bold shadow-lg shadow-emerald-500/20 hover:shadow-xl hover:shadow-emerald-500/30 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200"
-                      >
-                        <Users className="w-4 h-4" />
-                        {t("approveUsers")} ({counts.users})
-                      </Link>
-                    )}
-                  </div>
-                )}
+              {/* Theme & Fullscreen Controls */}
+              <div className="grid grid-cols-2 gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+                  className="flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-100 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-300 transition-colors cursor-pointer"
+                >
+                  {theme === "dark" ? <Sun className="w-3.5 h-3.5 text-amber-400" /> : <Moon className="w-3.5 h-3.5 text-blue-600" />}
+                  <span className="text-[11px]">{theme === "dark" ? "สว่าง" : "มืด"}</span>
+                </button>
 
-                {/* Notification Items List */}
-                <div className="flex-1 overflow-y-auto custom-scrollbar">
-                  {notifications.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-12 text-slate-400">
-                      <Bell className="w-10 h-10 mb-3 opacity-30" />
-                      <p className="text-sm font-medium">{t("noNotifications")}</p>
-                    </div>
-                  ) : (
-                    <div className="py-1">
-                      {notifications.map((noti, i) => (
-                        <Link
-                          key={noti.id}
-                          href={noti.href}
-                          onClick={() => setNotiOpen(false)}
-                          className="flex items-start gap-3 px-5 py-3.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors border-b border-slate-50 dark:border-slate-800/50 last:border-0"
-                        >
-                          <div className={`shrink-0 w-9 h-9 rounded-full flex items-center justify-center mt-0.5 ${
-                            noti.type === "user" 
-                              ? "bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400" 
-                              : "bg-purple-100 dark:bg-purple-500/20 text-purple-600 dark:text-purple-400"
-                          }`}>
-                            {noti.type === "user" ? <Users className="w-4 h-4" /> : <FileText className="w-4 h-4" />}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">{noti.title}</p>
-                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 truncate">{noti.desc}</p>
-                            <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">{timeAgo(noti.time)}</p>
-                          </div>
-                          <div className={`shrink-0 w-2 h-2 rounded-full mt-2 ${
-                            noti.type === "user" ? "bg-emerald-500" : "bg-purple-500"
-                          }`} />
-                        </Link>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                <button
+                  type="button"
+                  onClick={toggleFullscreen}
+                  className="flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-100 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-300 transition-colors cursor-pointer"
+                >
+                  {isFullscreen ? <Minimize className="w-3.5 h-3.5" /> : <Maximize className="w-3.5 h-3.5" />}
+                  <span className="text-[11px]">{isFullscreen ? "ย่อจอ" : "เต็มจอ"}</span>
+                </button>
+              </div>
 
-                {/* Footer */}
-                {notifications.length > 0 && (
-                  <div className="px-4 py-3 border-t border-slate-100 dark:border-slate-800 shrink-0">
-                    <Link
-                      href={counts.leaves > 0 ? "/approvals" : "/users"}
-                      prefetch={false}
-                      onClick={() => setNotiOpen(false)}
-                      className="block w-full text-center text-xs font-bold text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 py-1.5 rounded-lg hover:bg-purple-50 dark:hover:bg-purple-500/10 transition-colors"
-                    >
-                      {t("viewAll")} →
-                    </Link>
-                  </div>
-                )}
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-      )}
+              {/* Font Size Switcher Container */}
+              <div className="flex items-center justify-between p-1.5 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-100 dark:border-slate-800 text-xs">
+                <span className="font-semibold text-slate-600 dark:text-slate-300 text-[11px] px-1">
+                  ขนาดอักษร
+                </span>
+                <FontSizeSwitcher />
+              </div>
+            </div>
+
+            {/* Profile & Settings Links */}
+            <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-1">
+              <Link
+                href="/profile"
+                onClick={() => setIsOpen(false)}
+                className="flex items-center gap-2 px-2 py-1.5 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-300 transition-colors"
+              >
+                <UserCircle className="w-4 h-4 text-blue-600" />
+                <span>โปรไฟล์ของฉัน</span>
+              </Link>
+              <Link
+                href="/settings/privacy"
+                onClick={() => setIsOpen(false)}
+                className="flex items-center gap-2 px-2 py-1.5 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-300 transition-colors"
+              >
+                <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                <span>ความเป็นส่วนตัว & PDPA</span>
+              </Link>
+            </div>
+
+            {/* Logout Button */}
+            <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsOpen(false);
+                  onLogout();
+                }}
+                className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 text-rose-600 dark:text-rose-400 text-xs font-bold transition-colors cursor-pointer"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                <span>ออกจากระบบ</span>
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -1587,34 +1717,18 @@ function AppContent({ children }: { children: React.ReactNode }) {
               />
             </div>
 
-            {/* Notification Bell with Badge */}
-            <div className="relative">
-              <button
-                type="button"
-                className="w-8 h-8 rounded-full bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 flex items-center justify-center transition-colors cursor-pointer relative"
-                title="การแจ้งเตือน"
-              >
-                <Bell className="w-3.5 h-3.5" />
-                <span className="absolute -top-1 -right-1 w-4 h-4 bg-rose-500 text-white rounded-full text-[10px] flex items-center justify-center font-bold shadow-xs">
-                  3
-                </span>
-              </button>
-            </div>
+            {/* Notification Bell with Dropdown Panel */}
+            <NotificationBell isAdmin={isAdmin} isApprover={isApprover} />
 
-            {/* Mini User Thumbnail */}
-            <div className="w-8 h-8 rounded-full overflow-hidden shrink-0 border border-slate-200 dark:border-slate-700 shadow-2xs">
-              <img
-                src={user.image || "/images/teacher/teacher_avatar.png"}
-                alt={user.name}
-                className="w-full h-full object-cover"
-                onError={(e) => {
-                  (e.currentTarget as HTMLImageElement).src = "/images/teacher/teacher_avatar.png";
-                }}
-              />
-            </div>
-
-            {/* App Toolbar Buttons (Theme, Lang, Fullscreen, etc.) */}
-            <ToolbarButtons isAdmin={isAdmin} isApprover={isApprover} />
+            {/* User Avatar with Profile Dropdown Menu */}
+            <UserAvatarDropdown
+              user={user}
+              onLogout={async () => {
+                clearAllClientCaches();
+                await signOut();
+                router.push("/login");
+              }}
+            />
           </div>
         </header>
 

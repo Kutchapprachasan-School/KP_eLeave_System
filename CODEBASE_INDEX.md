@@ -63,7 +63,7 @@
 
 | Route | ไฟล์ | หน้าที่ |
 |---|---|---|
-| App Layout & Navigation | `(app)/layout.tsx` | โครงสร้างหลัก (Sidebar 256px/72px, AdminHeader, Collapsible Categories, Brand Header, User Footer, Smart School Card) |
+| App Layout & Navigation | `(app)/layout.tsx` | โครงสร้างหลัก (Sidebar 256px/72px, Top Header Bar Capsule พร้อม Date/Term Card, Search Pill, NotificationBell, UserAvatarDropdown รวม TH/EN & Theme & Font Size, Smart School Card) |
 | `/dashboard` | `(app)/dashboard/page.tsx` | Dashboard หลัก — ศูนย์กลาง SMS Executive Hub & ระบบย่อย |
 | `(app)/dashboard/_components/` | Sub-components | ExecutiveLeaveDashboardView, SMSHeroBanner, SMSStatCards, SMSLearningOutcomeChart, SMSAttendanceDonutCard, SMSAnnouncementsCard, SMSAcademicCalendarCard, ExecutiveApprovalQueue, MonthlyTrendChart, DashboardWidgetCustomizerModal, DashboardShell |
 | `/leave` | `(app)/leave/page.tsx` | ระบบการลา (UI หลัก) |
