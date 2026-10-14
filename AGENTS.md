@@ -20,3 +20,9 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 ## 2. Git & Deployment Pipeline (กฎการพัฒนาและการขึ้น Production)
 - พัฒนาและทดสอบบนกิ่ง `dev` เท่านั้น ห้าม commit ตรงเข้า `main`
 - ตรวจสอบความสะอาดของ Database เสมอก่อนส่งมอบงาน ต้องไม่มีบัญชีทดสอบหลงเหลืออยู่ในระบบ (`WHERE email LIKE '%test%' OR name LIKE '%ทดสอบ%' = 0`)
+
+## 3. Token Efficiency & Context Management (ห้าม Context บวม)
+- **อ่านรายละเอียดทั้งหมดใน:** [`.agent/rules/token-efficiency.md`](file:///g:/My%20Drive/01%20Web%20app/01%20ระบบการลา/.agent/rules/token-efficiency.md)
+- **ก่อนเปิดไฟล์ใดๆ:** ดู [`CODEBASE_INDEX.md`](file:///g:/My%20Drive/01%20Web%20app/01%20ระบบการลา/CODEBASE_INDEX.md) ก่อนทุกครั้ง เพื่อหาเลขบรรทัดและ path ที่ถูกต้อง
+- **Targeted View เท่านั้น:** ไฟล์ > 100 บรรทัด ห้ามเปิดทั้งไฟล์ซ้ำ ใช้ `StartLine`+`EndLine` เสมอ
+- **อัปเดต `CODEBASE_INDEX.md` ทันที:** ทุกครั้งที่สร้าง/ลบ/ย้ายไฟล์ หรือเพิ่ม/ลบ/เปลี่ยนชื่อ function สำคัญ
