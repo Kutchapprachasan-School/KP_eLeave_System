@@ -18,7 +18,7 @@ import {
   type UserCapabilities,
 } from "@/lib/permissions";
 
-export const DEFAULT_SCHOOL_LOGO = "/images/teacher/school_logo.png";
+const DEFAULT_SCHOOL_LOGO = "/images/teacher/school_logo.png";
 
 async function getActualUser() {
   const session = await auth.api.getSession({
