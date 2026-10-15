@@ -38,7 +38,7 @@ export default function LoginPage() {
   // Dynamic branding from SystemSettings
   const [schoolName, setSchoolName] = useState("ระบบจัดการการลา");
   const [subheader, setSubheader] = useState("ระบบจัดการการลา");
-  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [logoUrl, setLogoUrl] = useState<string | null>("/images/teacher/school_logo.png");
   const [footerText, setFooterText] = useState("© 2006 Panchapon Getrat KP-school");
   const [isLoadingBrand, setIsLoadingBrand] = useState(false);
 
@@ -59,7 +59,7 @@ export default function LoginPage() {
     getSystemSettings().then((s) => {
       const finalSchoolName = s.schoolName || (lang === "en" ? "Leave Management System" : "ระบบจัดการการลา");
       const finalSubheader = s.subheader || (lang === "en" ? "Leave Management System" : "ระบบจัดการการลา");
-      const finalLogoUrl = s.logoUrl || null;
+      const finalLogoUrl = s.logoUrl || "/images/teacher/school_logo.png";
       const finalFooterText = s.footerText || "© 2006 Panchapon Getrat KP-school";
 
       setSchoolName(finalSchoolName);
@@ -223,13 +223,16 @@ export default function LoginPage() {
 
         {/* Branding Header */}
         <div className="flex flex-col items-center mb-8">
-          {logoUrl ? (
-            <img src={logoUrl} alt="Logo" className="w-20 h-20 rounded-2xl object-cover shadow-lg mb-4" />
-          ) : (
-            <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-purple-500/30 mb-4">
-              <Lock className="w-9 h-9 text-white" />
-            </div>
-          )}
+          <div className="w-20 h-20 rounded-2xl bg-white border border-slate-100 shadow-md p-1.5 flex items-center justify-center mb-4">
+            <img
+              src={logoUrl || "/images/teacher/school_logo.png"}
+              alt="School Logo"
+              className="w-full h-full object-contain"
+              onError={(e) => {
+                (e.currentTarget as HTMLImageElement).src = "/images/teacher/school_logo.png";
+              }}
+            />
+          </div>
           <h1 className="text-xl font-bold text-slate-900 dark:text-white text-center">{schoolName}</h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 text-center">{subheader}</p>
         </div>

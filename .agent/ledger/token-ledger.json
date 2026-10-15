@@ -2,9 +2,9 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "version": "2.0.0",
   "summary": {
-    "totalTasksCompleted": 7,
-    "totalFilesReadTargeted": 16,
-    "totalFullFilesAvoided": 13,
+    "totalTasksCompleted": 8,
+    "totalFilesReadTargeted": 20,
+    "totalFullFilesAvoided": 17,
     "averageToolCallsPerTask": 5.5,
     "averageRepeatFixCycles": 0.0,
     "testPassSummary": "230 passed, 11 failed (zod module resolution in runner)",
@@ -153,6 +153,41 @@
       "toolCallsCount": 7,
       "repeatFixCycles": 0,
       "testResult": "passed (DB prisma.holiday integration verified)",
+      "status": "completed",
+      "commit": "81b73d9"
+    },
+    {
+      "taskId": "TASK-20261015-01",
+      "timestamp": "2026-10-15T11:30:00+07:00",
+      "taskName": "Official School Logo Asset Persistence Across Deployments",
+      "category": "branding-fullstack",
+      "filesRead": [
+        "src/app/actions/settings.ts (targeted)",
+        "src/app/login/page.tsx (targeted)",
+        "src/app/(app)/layout.tsx (targeted)",
+        "src/app/(app)/settings/page.tsx (targeted)"
+      ],
+      "filesChanged": [
+        "public/images/teacher/school_logo.png",
+        "public/logo.png",
+        "public/images/school_logo.png",
+        "public/images/admin/school_logo_crest.png",
+        "public/images/admin/school_emblem.png",
+        "public/icon.png",
+        "src/app/icon.png",
+        "src/app/icon.jpg",
+        "prisma/seed.ts",
+        "src/app/actions/settings.ts",
+        "src/app/actions/privacy_actions.ts",
+        "src/app/layout.tsx",
+        "src/app/login/page.tsx",
+        "src/app/(app)/layout.tsx",
+        "src/app/(app)/settings/page.tsx",
+        "src/app/print/repair/[id]/page.tsx"
+      ],
+      "toolCallsCount": 8,
+      "repeatFixCycles": 0,
+      "testResult": "passed (72 unit tests passed, 0 orphaned test accounts)",
       "status": "completed"
     }
   ]

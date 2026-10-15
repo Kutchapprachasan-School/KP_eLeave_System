@@ -10,7 +10,7 @@ export const revalidate = 0;
 export const fetchCache = "force-no-store";
 
 export async function generateMetadata(): Promise<Metadata> {
-  let iconUrl: string = "/icon.jpg";
+  let iconUrl: string = "/images/teacher/school_logo.png";
   let appTitleSuffix: string = "e-Leave System";
 
   try {

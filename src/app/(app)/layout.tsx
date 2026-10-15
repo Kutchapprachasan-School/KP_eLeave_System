@@ -642,7 +642,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
       }
       const finalSchoolName = s.schoolName || t("loginTitle");
       const finalSubheader = s.subheader || "ระบบจัดการการลา";
-      const finalLogoUrl = s.logoUrl || null;
+      const finalLogoUrl = s.logoUrl || "/images/teacher/school_logo.png";
       const finalEnableLeave = (s as any).enableLeave !== false;
       const finalEnableAttendance = s.enableAttendance === true;
       const finalEnableDocument = s.enableDocument === true;
@@ -1238,11 +1238,11 @@ function AppContent({ children }: { children: React.ReactNode }) {
           <div className={`flex items-center gap-2.5 min-w-0 ${isCollapsed ? "justify-center w-full" : ""}`}>
             <div className="w-10 h-10 rounded-xl overflow-hidden shrink-0 flex items-center justify-center shadow-2xs bg-white border border-slate-100 p-0.5">
               <img
-                src="/images/teacher/school_logo.png"
+                src={brandLogo || "/images/teacher/school_logo.png"}
                 alt="Logo"
                 className="w-full h-full object-contain"
                 onError={(e) => {
-                  if (brandLogo) (e.currentTarget as HTMLImageElement).src = brandLogo;
+                  (e.currentTarget as HTMLImageElement).src = "/images/teacher/school_logo.png";
                 }}
               />
             </div>

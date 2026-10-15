@@ -139,8 +139,8 @@ export default function PrintRepairPage() {
     );
   }
 
-  const schoolName = settings?.schoolName || "โรงเรียนกุฉินารายณ์";
-  const logoUrl = settings?.logoUrl;
+  const schoolName = settings?.schoolName || "โรงเรียนกุดจับประชาสรรค์";
+  const logoUrl = settings?.logoUrl || "/images/teacher/school_logo.png";
 
   const beforePhotos = photos?.BEFORE || [];
   const afterPhotos = photos?.AFTER || [];

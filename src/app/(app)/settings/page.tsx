@@ -336,7 +336,7 @@ export default function SettingsPage() {
 
   const [affiliation, setAffiliation] = useState("");
 
-  const [logoUrl, setLogoUrl] = useState("");
+  const [logoUrl, setLogoUrl] = useState("/images/teacher/school_logo.png");
 
   const [footerText, setFooterText] = useState("");
 
@@ -704,7 +704,7 @@ export default function SettingsPage() {
 
       setAffiliation(data.affiliation || "สำนักงานเขตพื้นที่การศึกษามัธยมศึกษาอุดรธานี");
 
-      setLogoUrl(data.logoUrl || "");
+      setLogoUrl(data.logoUrl || "/images/teacher/school_logo.png");
 
       setFooterText(data.footerText);
 
@@ -2980,17 +2980,16 @@ export default function SettingsPage() {
 
           <div className="flex items-center gap-6">
 
-            <div className="w-20 h-20 rounded-xl bg-gray-50 dark:bg-gray-800 border-2 border-dashed border-gray-300 dark:border-gray-700 flex items-center justify-center overflow-hidden">
+            <div className="w-20 h-20 rounded-xl bg-white dark:bg-gray-800 border-2 border-slate-200 dark:border-gray-700 flex items-center justify-center overflow-hidden p-1 shadow-xs">
 
-              {logoUrl ? (
-
-                <img src={logoUrl} alt="Logo" className="w-full h-full object-contain p-1" />
-
-              ) : (
-
-                <ImageIcon className="w-8 h-8 text-gray-400" />
-
-              )}
+              <img
+                src={logoUrl || "/images/teacher/school_logo.png"}
+                alt="Logo"
+                className="w-full h-full object-contain p-0.5"
+                onError={(e) => {
+                  (e.currentTarget as HTMLImageElement).src = "/images/teacher/school_logo.png";
+                }}
+              />
 
             </div>
 
@@ -9707,19 +9706,19 @@ function doPost(e) {
 
                   onClick={() => {
 
-                    setLogoUrl("");
+                    setLogoUrl("/images/teacher/school_logo.png");
 
                     setLogoActionSheetOpen(false);
 
-                    showToast("success", lang === "en" ? "Logo removed successfully. Click save to apply changes." : "ลบโลโก้สำเร็จ กรุณากดบันทึกเพื่อบันทึกการตั้งค่า");
+                    showToast("success", lang === "en" ? "Reset to default school logo. Click save to apply changes." : "คืนค่าเป็นโลโก้เริ่มต้นของโรงเรียนสำเร็จ กรุณากดบันทึกการตั้งค่า");
 
                   }}
 
-                  className="w-full py-3 px-4 rounded-xl text-sm font-semibold text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20 text-center transition-colors"
+                  className="w-full py-3 px-4 rounded-xl text-sm font-semibold text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/20 text-center transition-colors"
 
                 >
 
-                  {lang === "en" ? "🗑️ Remove Current Logo" : "🗑️ ลบรูปภาพปัจจุบัน"}
+                  {lang === "en" ? "🔄 Reset to Default Logo" : "🔄 คืนค่าโลโก้เริ่มต้นโรงเรียน"}
 
                 </button>
 

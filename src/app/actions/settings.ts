@@ -18,6 +18,8 @@ import {
   type UserCapabilities,
 } from "@/lib/permissions";
 
+export const DEFAULT_SCHOOL_LOGO = "/images/teacher/school_logo.png";
+
 async function getActualUser() {
   const session = await auth.api.getSession({
     headers: await headers()
@@ -155,26 +157,21 @@ export async function getSystemSettings() {
       settings = await prisma.systemSettings.create({
         data: {
           id: "default",
-          schoolName: "ชื่อโรงเรียน",
+          schoolName: "โรงเรียนกุดจับประชาสรรค์",
           subheader: "ระบบจัดการการลา",
-
-          footerText: "© 2006 Panchapon Getrat KP-school",
-
+          logoUrl: DEFAULT_SCHOOL_LOGO,
+          footerText: "© 2026 Panchapon Getrat KP-school",
           developerSecret: "admin1234"
-
         }
-
       });
-
     }
 
     // Don't send developerSecret to the client
-
     const { developerSecret, ...safeSettings } = settings;
 
     return {
-
       ...safeSettings,
+      logoUrl: safeSettings.logoUrl || DEFAULT_SCHOOL_LOGO,
 
       iappApiKey: (safeSettings as any).iappApiKey || "",
       enableLeave: (safeSettings as any).enableLeave ?? true,
@@ -230,9 +227,8 @@ export async function getSystemSettings() {
         const { developerSecret, ...safeRow } = row;
 
         return {
-
           ...safeRow,
-
+          logoUrl: row.logoUrl || DEFAULT_SCHOOL_LOGO,
           iappApiKey: row.iappApiKey || "",
           enableAttendance: row.enableAttendance ?? false,
           enableDocument: row.enableDocument ?? false,
@@ -269,7 +265,7 @@ export async function getSystemSettings() {
       schoolName: "โรงเรียนกุดจับประชาสรรค์",
       affiliation: "สำนักงานเขตพื้นที่การศึกษามัธยมศึกษาอุดรธานี",
       subheader: "School Management System",
-      logoUrl: null,
+      logoUrl: DEFAULT_SCHOOL_LOGO,
       footerText: "© 2026 Panchapon Getrat KP-school",
 
       lineChannelAccessToken: null,
@@ -500,7 +496,7 @@ export async function updateSystemSettings(data: {
 
         affiliation: data.affiliation !== undefined ? data.affiliation : undefined,
 
-        logoUrl: data.logoUrl !== undefined ? (data.logoUrl === "" ? null : data.logoUrl) : undefined,
+        logoUrl: data.logoUrl !== undefined ? (data.logoUrl === "" ? DEFAULT_SCHOOL_LOGO : data.logoUrl) : undefined,
 
         lineChannelAccessToken: data.lineChannelAccessToken !== undefined ? data.lineChannelAccessToken : undefined,
 
@@ -591,7 +587,7 @@ export async function updateSystemSettings(data: {
 
         affiliation: data.affiliation || "สำนักงานเขตพื้นที่การศึกษามัธยมศึกษาอุดรธานี",
 
-        logoUrl: data.logoUrl === "" ? null : data.logoUrl,
+        logoUrl: data.logoUrl === "" || !data.logoUrl ? DEFAULT_SCHOOL_LOGO : data.logoUrl,
 
         lineChannelAccessToken: data.lineChannelAccessToken,
 
