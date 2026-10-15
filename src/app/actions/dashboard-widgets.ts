@@ -566,3 +566,171 @@ export async function getSchoolManagementExecutiveStats(): Promise<SchoolManagem
 
   return stats;
 }
+
+export interface LearningOutcomeSeries {
+  key: string;
+  name: string;
+  color: string;
+}
+
+export interface LearningOutcomeChartItem {
+  month: string;
+  [key: string]: string | number;
+}
+
+export interface LearningOutcomeData {
+  classrooms: { id: string; name: string }[];
+  series: LearningOutcomeSeries[];
+  chartData: LearningOutcomeChartItem[];
+  totalExamsCount: number;
+}
+
+/**
+ * Retrieves real learning outcome data aggregated from ClassRoom and ExamSubmission.
+ * ponytail: lean outcome aggregation from real classrooms and exam submissions.
+ */
+export async function getLearningOutcomesAction(
+  academicYear?: number,
+  term?: number,
+  selectedClass?: string
+): Promise<LearningOutcomeData> {
+  const now = new Date();
+  const currentYear = academicYear || now.getFullYear() + 543;
+  const currentTerm = term || (now.getMonth() + 1 >= 5 && now.getMonth() + 1 <= 10 ? 1 : 2);
+
+  try {
+    // 1. Fetch classrooms from classroom management system
+    const classrooms = await prisma.classRoom.findMany({
+      select: { id: true, name: true, gradeLevel: true, roomNumber: true },
+      orderBy: [{ gradeLevel: "asc" }, { roomNumber: "asc" }],
+    });
+
+    const classroomList = classrooms.map((c) => ({
+      id: c.id,
+      name: c.name.startsWith("ห้อง ") ? c.name : `ห้อง ${c.name}`,
+    }));
+
+    // 2. Fetch real exam submissions for academicYear and term
+    const submissions = await prisma.examSubmission.findMany({
+      where: {
+        examPaper: {
+          academicYear: currentYear,
+          term: currentTerm,
+        },
+      },
+      select: {
+        id: true,
+        classroom: true,
+        netScore: true,
+        createdAt: true,
+        examPaper: {
+          select: {
+            maxScore: true,
+          },
+        },
+      },
+      orderBy: { createdAt: "asc" },
+    });
+
+    // Month labels for semester
+    const monthLabels =
+      currentTerm === 1
+        ? [
+            { monthNum: 5, label: "พ.ค." },
+            { monthNum: 6, label: "มิ.ย." },
+            { monthNum: 7, label: "ก.ค." },
+            { monthNum: 8, label: "ส.ค." },
+            { monthNum: 9, label: "ก.ย." },
+            { monthNum: 10, label: "ต.ค." },
+          ]
+        : [
+            { monthNum: 11, label: "พ.ย." },
+            { monthNum: 12, label: "ธ.ค." },
+            { monthNum: 1, label: "ม.ค." },
+            { monthNum: 2, label: "ก.พ." },
+            { monthNum: 3, label: "มี.ค." },
+            { monthNum: 4, label: "เม.ย." },
+          ];
+
+    // Determine target series
+    let series: LearningOutcomeSeries[] = [];
+    if (selectedClass && selectedClass !== "ทุกห้องเรียน") {
+      series = [
+        { key: "selectedClass", name: selectedClass, color: "#2563EB" },
+        { key: "schoolAvg", name: "ค่าเฉลี่ยทั้งโรงเรียน", color: "#A855F7" },
+      ];
+    } else {
+      if (classroomList.length >= 2) {
+        series = [
+          { key: "class_0", name: classroomList[0].name, color: "#2563EB" },
+          { key: "class_1", name: classroomList[1].name, color: "#A855F7" },
+        ];
+      } else if (classroomList.length === 1) {
+        series = [
+          { key: "class_0", name: classroomList[0].name, color: "#2563EB" },
+          { key: "schoolAvg", name: "ค่าเฉลี่ยทั้งโรงเรียน", color: "#A855F7" },
+        ];
+      } else {
+        series = [
+          { key: "schoolAvg", name: "ค่าเฉลี่ยผลการเรียน", color: "#2563EB" },
+        ];
+      }
+    }
+
+    // Build chart data
+    const chartData = monthLabels.map((m) => {
+      const row: LearningOutcomeChartItem = { month: m.label };
+
+      const monthlySubs = submissions.filter(
+        (s) => new Date(s.createdAt).getMonth() + 1 === m.monthNum
+      );
+
+      const calcAvg = (subs: typeof submissions) => {
+        if (subs.length === 0) return 0;
+        const sum = subs.reduce((acc, curr) => {
+          const max = Number(curr.examPaper?.maxScore) || 100;
+          const net = Number(curr.netScore) || 0;
+          return acc + (net / max) * 100;
+        }, 0);
+        return Math.round(sum / subs.length);
+      };
+
+      if (selectedClass && selectedClass !== "ทุกห้องเรียน") {
+        const classSubs = monthlySubs.filter(
+          (s) => s.classroom && (selectedClass.includes(s.classroom) || s.classroom.includes(selectedClass))
+        );
+        row["selectedClass"] = calcAvg(classSubs);
+        row["schoolAvg"] = calcAvg(monthlySubs);
+      } else {
+        series.forEach((s) => {
+          if (s.key === "schoolAvg") {
+            row[s.key] = calcAvg(monthlySubs);
+          } else {
+            const classSubs = monthlySubs.filter(
+              (sub) => sub.classroom && (s.name.includes(sub.classroom) || sub.classroom.includes(s.name))
+            );
+            row[s.key] = calcAvg(classSubs);
+          }
+        });
+      }
+
+      return row;
+    });
+
+    return {
+      classrooms: classroomList,
+      series,
+      chartData,
+      totalExamsCount: submissions.length,
+    };
+  } catch (error) {
+    console.error("Error in getLearningOutcomesAction:", error);
+    return {
+      classrooms: [],
+      series: [],
+      chartData: [],
+      totalExamsCount: 0,
+    };
+  }
+}
+

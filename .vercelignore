@@ -5,8 +5,10 @@
 /eLeave_Uploads
 *.pdf
 *.xlsx
-*.jpg
-*.png
+# Do NOT ignore images in public/ or src/
+!public/**
+!src/**
+rendered_pages
 node_modules_old
 temp_prisma_install
 temp_prisma_install_2

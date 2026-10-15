@@ -263,7 +263,7 @@ export default function SchoolCalendarView() {
         <div className="space-y-1">
           <div className="flex items-center gap-2">
             <span className="px-2.5 py-0.5 rounded-full bg-white/20 text-white text-xs font-bold backdrop-blur-xs">
-              ภาคเรียนที่ 1/2569
+              ภาคเรียนที่ {currentMonth >= 5 && currentMonth <= 10 ? 1 : 2}/{currentYear}
             </span>
             <span className="text-blue-100 text-xs">ซิงค์กับระบบจัดการชั้นเรียน</span>
           </div>
@@ -404,11 +404,12 @@ export default function SchoolCalendarView() {
           {/* Days Grid */}
           <div className="grid grid-cols-7 auto-rows-fr divide-x divide-y divide-slate-100 dark:divide-slate-800">
             {calendarCells.map((cell, idx) => {
+              const now = new Date();
               const isToday =
                 cell.isCurrentMonth &&
-                cell.day === 2 &&
-                currentMonth === 10 &&
-                currentYear === 2569;
+                cell.day === now.getDate() &&
+                currentMonth === (now.getMonth() + 1) &&
+                currentYear === (now.getFullYear() + 543);
 
               return (
                 <div

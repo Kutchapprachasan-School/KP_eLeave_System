@@ -193,11 +193,12 @@ export default function SMSAcademicCalendarCard({
           {calendarMatrix.map((item, idx) => {
             const isSelected = item.isCurrentMonth && selectedDay === item.day;
             const hasEvent = item.events.length > 0;
+            const now = new Date();
             const isToday =
               item.isCurrentMonth &&
-              item.day === 2 &&
-              currentMonth === 10 &&
-              currentYear === 2569;
+              item.day === now.getDate() &&
+              currentMonth === (now.getMonth() + 1) &&
+              currentYear === (now.getFullYear() + 543);
 
             let dotColor = "bg-blue-500";
             if (hasEvent) {
