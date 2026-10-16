@@ -71,8 +71,8 @@ export default function ExecutiveLeaveStatCards({
   const staffClockedIn = stats?.staff.attendanceToday.totalClockIn ?? 0;
 
   const totalStudents = stats?.student.totalStudents || 1138;
-  const studentPresent = stats?.student.attendanceToday.present ?? Math.round(totalStudents * (studentRate / 100));
   const studentRate = stats?.student.attendanceToday.attendanceRate ?? 100;
+  const studentPresent = stats?.student.attendanceToday.present ?? Math.round(totalStudents * (studentRate / 100));
   const studentSickAndPersonal =
     (stats?.student.attendanceToday.sick ?? 0) +
     (stats?.student.attendanceToday.personal ?? 0) ||
