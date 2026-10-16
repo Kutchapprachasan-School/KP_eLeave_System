@@ -1087,7 +1087,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
     const isAdminItem = item.isAdminBadge || (isAdmin && (item.href === "/settings" || item.href === "/users" || item.href === "/logs" || item.href.startsWith("/admin/") || item.href === "/academic/settings"));
 
     return (
-      <Link key={item.href} href={item.href} prefetch={false}>
+      <Link key={item.href} href={item.href} prefetch={false} onClick={() => setSidebarOpen(false)}>
         <div
           className={`w-full flex items-center justify-between px-2.5 ${isSubItem ? "py-1.5 pl-6 text-[11.5px]" : "py-1.5 text-xs sm:text-[12.5px]"} rounded-xl transition-all duration-200 group cursor-pointer ${
             isActive
@@ -1290,12 +1290,12 @@ function AppContent({ children }: { children: React.ReactNode }) {
 
       {/* Sidebar Navigation matching Classroom Management System */}
       <aside
-        className={`fixed top-0 bottom-0 left-0 z-50 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border-r border-slate-100 dark:border-slate-800 flex flex-col shadow-[4px_0_24px_rgba(0,0,0,0.02)] print:hidden transition-all duration-300 ease-in-out select-none ${
-          sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+        className={`fixed top-0 bottom-0 left-0 z-50 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border-r border-slate-100 dark:border-slate-800 flex flex-col shadow-[4px_0_24px_rgba(0,0,0,0.02)] print:hidden transition-all duration-300 ease-in-out select-none w-[240px] ${
+          sidebarOpen ? "translate-x-0" : "-translate-x-full"
         } ${
           isCollapsed
-            ? "lg:w-0 lg:opacity-0 lg:-translate-x-full lg:overflow-hidden lg:border-r-0 lg:pointer-events-none"
-            : "w-[240px] lg:w-[240px] opacity-100 translate-x-0"
+            ? "lg:-translate-x-full lg:w-0 lg:opacity-0 lg:overflow-hidden lg:border-r-0 lg:pointer-events-none"
+            : "lg:translate-x-0 lg:w-[240px] lg:opacity-100"
         }`}
         aria-hidden={isCollapsed}
       >
@@ -1344,7 +1344,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
           {/* Navigation */}
           <nav className="flex-1 py-3 px-2.5 space-y-1 overflow-y-auto custom-scrollbar">
             {/* Top Dashboard Link ("หน้าหลัก") */}
-            <Link href="/dashboard" prefetch={false} title="หน้าหลัก">
+            <Link href="/dashboard" prefetch={false} title="หน้าหลัก" onClick={() => setSidebarOpen(false)}>
               <div className={`relative flex items-center justify-between px-3 py-2 rounded-xl text-xs sm:text-[12.5px] transition-all duration-200 group cursor-pointer ${
                 pathname === "/dashboard" 
                   ? "bg-blue-600 text-white font-bold shadow-xs" 
