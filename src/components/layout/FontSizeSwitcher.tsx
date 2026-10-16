@@ -166,7 +166,7 @@ export function FontSizeSwitcher({ compact = false }: { compact?: boolean } = {}
               <span className="text-xs font-bold text-slate-800 dark:text-slate-100">
                 ปรับขนาดฟอนต์การแสดงผล
               </span>
-              <span className="text-[11px] font-mono font-bold px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300">
+              <span className="text-[11px] font-mono font-bold px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-500/20 text-amber-800 dark:text-amber-300">
                 ปัจจุบัน: {fontSize}px
               </span>
             </div>
@@ -186,7 +186,7 @@ export function FontSizeSwitcher({ compact = false }: { compact?: boolean } = {}
                     }}
                     className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-left transition-all ${
                       isSelected
-                        ? "bg-purple-50 dark:bg-purple-500/15 text-purple-700 dark:text-purple-300 font-bold border border-purple-200 dark:border-purple-500/30"
+                        ? "bg-amber-50 dark:bg-amber-500/15 text-amber-800 dark:text-amber-300 font-bold border border-amber-200 dark:border-amber-500/30"
                         : "hover:bg-slate-50 dark:hover:bg-slate-800/70 text-slate-700 dark:text-slate-200 font-medium"
                     }`}
                   >
@@ -194,7 +194,7 @@ export function FontSizeSwitcher({ compact = false }: { compact?: boolean } = {}
                       <span
                         className={`inline-flex items-center justify-center w-8 h-7 rounded-lg text-xs font-extrabold shrink-0 ${
                           isSelected
-                            ? "bg-purple-600 text-white"
+                            ? "bg-amber-500 text-white"
                             : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300"
                         }`}
                       >
@@ -205,7 +205,7 @@ export function FontSizeSwitcher({ compact = false }: { compact?: boolean } = {}
                       </span>
                     </div>
                     {isSelected && (
-                      <Check className="w-4 h-4 text-purple-600 dark:text-purple-400 shrink-0 ml-2" />
+                      <Check className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 ml-2" />
                     )}
                   </button>
                 );
@@ -215,7 +215,7 @@ export function FontSizeSwitcher({ compact = false }: { compact?: boolean } = {}
               <div
                 className={`mt-1 rounded-xl border transition-all p-3 ${
                   isCustomMode
-                    ? "bg-purple-50/70 dark:bg-purple-500/10 border-purple-300 dark:border-purple-500/40"
+                    ? "bg-amber-50/70 dark:bg-amber-500/10 border-amber-300 dark:border-amber-500/40"
                     : "bg-slate-50/80 dark:bg-slate-800/50 border-slate-200/80 dark:border-slate-800"
                 }`}
               >
@@ -228,7 +228,7 @@ export function FontSizeSwitcher({ compact = false }: { compact?: boolean } = {}
                     <span
                       className={`inline-flex items-center justify-center w-7 h-7 rounded-lg ${
                         isCustomMode
-                          ? "bg-purple-600 text-white"
+                          ? "bg-amber-500 text-white"
                           : "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
                       }`}
                     >
@@ -243,7 +243,7 @@ export function FontSizeSwitcher({ compact = false }: { compact?: boolean } = {}
                       </div>
                     </div>
                   </div>
-                  <span className="text-xs font-mono font-extrabold text-purple-600 dark:text-purple-300">
+                  <span className="text-xs font-mono font-extrabold text-amber-600 dark:text-amber-400">
                     {fontSize}px
                   </span>
                 </button>
@@ -270,7 +270,7 @@ export function FontSizeSwitcher({ compact = false }: { compact?: boolean } = {}
                       onChange={(e) =>
                         updateFontSize(parseFloat(e.target.value), "custom")
                       }
-                      className="w-full accent-purple-600 cursor-pointer h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg"
+                      className="w-full accent-amber-500 cursor-pointer h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg"
                     />
                     <div className="flex justify-between text-[9px] font-mono text-slate-400 px-0.5">
                       <span>11px</span>

@@ -16,6 +16,7 @@ export function BrandLoadingScreen({
   const [currentLogo, setCurrentLogo] = useState(logoUrl || "/images/teacher/school_logo.png");
   const [currentName, setCurrentName] = useState(schoolName);
   const [currentSubheader, setCurrentSubheader] = useState(subheader);
+  const [isLogoLoaded, setIsLogoLoaded] = useState(false);
 
   useEffect(() => {
     // Read cached school identity from localStorage on client-side mount
@@ -30,37 +31,39 @@ export function BrandLoadingScreen({
   }, []);
 
   return (
-    <div className="fixed inset-0 z-[100] flex min-h-screen flex-col items-center justify-center bg-gradient-to-br from-slate-50 via-slate-100 to-indigo-50/50 dark:from-slate-950 dark:via-slate-900 dark:to-indigo-950/20 p-6 overflow-hidden select-none">
-      {/* Decorative ambient background lights */}
-      <div className="absolute top-1/4 left-1/4 w-72 h-72 bg-purple-400/10 dark:bg-purple-500/5 rounded-full blur-[100px] pointer-events-none animate-pulse" />
-      <div
-        className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-indigo-400/10 dark:bg-indigo-500/5 rounded-full blur-[100px] pointer-events-none animate-pulse"
-        style={{ animationDelay: "1s" }}
-      />
-
+    <div className="fixed inset-0 z-[100] flex min-h-screen flex-col items-center justify-center bg-slate-50 dark:bg-slate-950 p-6 overflow-hidden select-none">
       <div className="relative z-10 flex flex-col items-center max-w-sm w-full text-center space-y-6">
-        {/* Logo container with pulse rings */}
+        {/* Clean, grounded school crest presentation */}
         <div className="relative flex items-center justify-center">
-          <div className="absolute inset-0 rounded-full bg-orange-500/20 dark:bg-amber-400/10 animate-ping opacity-75" />
-          <div className="absolute -inset-4 rounded-full bg-gradient-to-tr from-orange-500/10 to-amber-500/10 blur-md animate-pulse" />
-
-          <div className="relative w-24 h-24 rounded-3xl bg-white dark:bg-slate-800 p-2 shadow-[0_8px_30px_rgb(0,0,0,0.08)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.4)] border border-slate-100 dark:border-slate-700/50 flex items-center justify-center overflow-hidden">
+          <div className="relative w-24 h-24 rounded-2xl bg-white dark:bg-slate-900 p-2.5 shadow-sm border border-slate-200 dark:border-slate-800 flex items-center justify-center overflow-hidden">
             <img
               src={currentLogo}
               alt="School Logo"
-              className="w-full h-full object-contain rounded-2xl"
+              className={`w-full h-full object-contain rounded-xl transition-opacity duration-200 ${
+                isLogoLoaded ? "opacity-100" : "opacity-0"
+              }`}
               loading="eager"
               decoding="sync"
+              onLoad={() => setIsLogoLoaded(true)}
               onError={(e) => {
-                (e.currentTarget as HTMLImageElement).src = "/images/teacher/school_logo.png";
+                const target = e.currentTarget as HTMLImageElement;
+                if (target.src !== "/images/teacher/school_logo.png") {
+                  target.src = "/images/teacher/school_logo.png";
+                }
+                setIsLogoLoaded(true);
               }}
             />
+            {!isLogoLoaded && (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="w-6 h-6 rounded-full border-2 border-amber-200 dark:border-amber-900/50 border-t-amber-500 animate-spin" />
+              </div>
+            )}
           </div>
         </div>
 
         {/* School Name & Subsystem Brand */}
         <div className="space-y-1.5">
-          <h2 className="text-lg font-bold text-gray-900 dark:text-white leading-snug px-4 line-clamp-2">
+          <h2 className="text-lg font-bold text-slate-900 dark:text-white leading-snug px-4 line-clamp-2">
             {currentName}
           </h2>
 
@@ -69,10 +72,10 @@ export function BrandLoadingScreen({
           </p>
         </div>
 
-        {/* High-fidelity Progress Bar */}
+        {/* School Orange Progress Bar */}
         <div className="w-40 pt-2 mx-auto">
           <div className="h-1.5 w-full bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden relative">
-            <div className="h-full bg-gradient-to-r from-orange-500 via-amber-500 to-orange-500 rounded-full absolute top-0 bottom-0 animate-brand-progress" />
+            <div className="h-full bg-gradient-to-r from-amber-500 via-orange-500 to-amber-500 rounded-full absolute top-0 bottom-0 animate-brand-progress" />
           </div>
         </div>
       </div>

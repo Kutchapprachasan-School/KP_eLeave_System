@@ -188,7 +188,7 @@ function NotificationBell({ isAdmin, isApprover }: { isAdmin: boolean; isApprove
                     href="/approvals"
                     prefetch={false}
                     onClick={() => setNotiOpen(false)}
-                    className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-xs font-bold shadow-md shadow-blue-500/20 hover:scale-[1.02] active:scale-[0.98] transition-all"
+                    className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md shadow-blue-500/20 hover:scale-[1.02] active:scale-[0.98] transition-all"
                   >
                     <CheckSquare className="w-4 h-4" />
                     {t("approveLeave")} ({counts.leaves})
@@ -1036,7 +1036,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
           <div className="flex items-center gap-1.5 shrink-0">
             {isAdminItem && (
               <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
-                isActive ? "bg-white text-indigo-600" : "bg-indigo-600 text-white"
+                isActive ? "bg-white text-amber-700" : "bg-amber-600 text-white"
               }`}>
                 Admin
               </span>
@@ -1103,7 +1103,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
       label: lang === "en" ? "Attendance" : "ลงเวลาปฏิบัติราชการ",
       desc: lang === "en" ? "Daily check-in & check-out" : "บันทึกเวลาเข้า-ออกงานประจำวัน",
       icon: Clock,
-      color: "bg-indigo-50 text-indigo-600 dark:bg-indigo-950/50 dark:text-indigo-400"
+      color: "bg-sky-50 text-sky-600 dark:bg-sky-950/50 dark:text-sky-400"
     }] : []),
     ...(showDocument ? [{
       href: "/document",
