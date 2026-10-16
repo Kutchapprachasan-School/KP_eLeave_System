@@ -576,7 +576,6 @@ function AppContent({ children }: { children: React.ReactNode }) {
   const [enableCertificate, setEnableCertificate] = useState(true);
   const [enableAcademicPlanning, setEnableAcademicPlanning] = useState(true);
   const [academicPlanningAllowedUserIds, setAcademicPlanningAllowedUserIds] = useState<string[]>([]);
-  const [brandSubheader, setBrandSubheader] = useState("ระบบจัดการการลา");
   const [classroomPortalUrl, setClassroomPortalUrl] = useState(
     process.env.NEXT_PUBLIC_CLASSROOM_PORTAL_URL || "https://kp-classroom-management.vercel.app"
   );
