@@ -26,6 +26,25 @@ export default function GlobalAppErrorBoundary({ error, reset }: ErrorProps) {
         transition={{ type: "spring", stiffness: 200, damping: 20 }}
         className="w-full max-w-lg bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200 dark:border-slate-800 rounded-3xl p-8 shadow-xl text-center"
       >
+        {/* School Brand Header */}
+        <div className="flex items-center justify-center gap-2.5 pb-4 mb-4 border-b border-slate-100 dark:border-slate-800">
+          <div className="w-10 h-10 rounded-xl overflow-hidden shrink-0 flex items-center justify-center bg-white border border-slate-100 p-0.5 shadow-2xs">
+            <img
+              src="/images/teacher/school_logo.png"
+              alt="Logo"
+              className="w-full h-full object-contain"
+            />
+          </div>
+          <div className="text-left">
+            <div className="font-extrabold text-slate-900 dark:text-white text-xs leading-tight">
+              โรงเรียนกุดจับประชาสรรค์
+            </div>
+            <div className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
+              ระบบบริหารจัดการสถานศึกษา
+            </div>
+          </div>
+        </div>
+
         <div className="flex justify-center mb-6">
           <div className="w-16 h-16 bg-rose-50 dark:bg-rose-950/20 text-rose-500 rounded-full flex items-center justify-center">
             <ShieldAlert className="w-8 h-8" />

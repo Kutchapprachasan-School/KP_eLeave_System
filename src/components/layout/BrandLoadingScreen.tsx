@@ -13,7 +13,6 @@ export function BrandLoadingScreen({
   subheader = "ระบบบริหารจัดการสถานศึกษา",
   logoUrl = "/images/teacher/school_logo.png",
 }: BrandLoadingScreenProps) {
-  const [logoReady, setLogoReady] = useState(false);
   const [currentLogo, setCurrentLogo] = useState(logoUrl || "/images/teacher/school_logo.png");
   const [currentName, setCurrentName] = useState(schoolName);
   const [currentSubheader, setCurrentSubheader] = useState(subheader);
@@ -49,15 +48,11 @@ export function BrandLoadingScreen({
             <img
               src={currentLogo}
               alt="School Logo"
-              className={`w-full h-full object-contain rounded-2xl transition-opacity duration-200 ${
-                logoReady ? "opacity-100" : "opacity-95"
-              }`}
+              className="w-full h-full object-contain rounded-2xl"
               loading="eager"
               decoding="sync"
-              onLoad={() => setLogoReady(true)}
               onError={(e) => {
                 (e.currentTarget as HTMLImageElement).src = "/images/teacher/school_logo.png";
-                setLogoReady(true);
               }}
             />
           </div>

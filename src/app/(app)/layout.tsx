@@ -858,6 +858,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
   const showSubstitute = enableSubstitute || isAdmin;
   const showSupervision = enableSupervision || isAdmin;
   const showExam = enableExam || isAdmin;
+  const enableAcademic = showTimetable || showSubstitute || showSupervision || showExam || showAcademicPlanning || (enableAcademicSettings && isAdmin);
 
   // Sub-items for Leave System (ระบบการลา)
   const leaveSubItems = showLeave

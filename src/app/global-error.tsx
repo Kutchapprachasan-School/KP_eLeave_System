@@ -17,6 +17,25 @@ export default function GlobalError({ error, reset }: GlobalErrorProps) {
     <html lang="th">
       <body className="min-h-screen bg-[#F4F7FB] flex items-center justify-center p-4 font-sans text-slate-800 antialiased">
         <div className="w-full max-w-md bg-white border border-slate-200 rounded-3xl p-8 shadow-xl text-center space-y-6">
+          {/* School Brand Header */}
+          <div className="flex items-center justify-center gap-2.5 pb-2 border-b border-slate-100">
+            <div className="w-10 h-10 rounded-xl overflow-hidden shrink-0 flex items-center justify-center bg-white border border-slate-100 p-0.5 shadow-2xs">
+              <img
+                src="/images/teacher/school_logo.png"
+                alt="Logo"
+                className="w-full h-full object-contain"
+              />
+            </div>
+            <div className="text-left">
+              <div className="font-extrabold text-slate-900 text-xs leading-tight">
+                โรงเรียนกุดจับประชาสรรค์
+              </div>
+              <div className="text-[10px] text-slate-400 font-medium">
+                ระบบบริหารจัดการสถานศึกษา
+              </div>
+            </div>
+          </div>
+
           <div className="w-16 h-16 bg-rose-50 text-rose-500 rounded-2xl flex items-center justify-center mx-auto shadow-inner">
             <ShieldAlert className="w-8 h-8" />
           </div>
