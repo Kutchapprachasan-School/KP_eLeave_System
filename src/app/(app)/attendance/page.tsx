@@ -528,7 +528,7 @@ export default function AttendancePage() {
     >
       {/* Header with Clock */}
       <motion.div variants={itemVariants} className="text-center space-y-2">
-        <h1 className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-violet-600 to-indigo-600 bg-clip-text text-transparent">
+        <h1 className="text-2xl md:text-3xl font-bold text-slate-900 dark:text-white">
           ระบบลงเวลาเข้างาน
         </h1>
         <div className="text-5xl md:text-6xl font-mono font-bold text-slate-900 dark:text-white tracking-tight">
@@ -889,7 +889,7 @@ export default function AttendancePage() {
                 </button>
                 <button
                   onClick={() => handleConsent(true)}
-                  className="flex-1 px-4 py-3 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 text-white text-sm font-bold hover:from-violet-700 hover:to-indigo-700 shadow-lg shadow-violet-500/25 transition-all"
+                  className="flex-1 px-4 py-3 rounded-xl bg-[#163A66] hover:bg-[#112d50] text-white text-sm font-bold shadow-md shadow-[#163A66]/20 transition-all cursor-pointer"
                 >
                   ยินยอม
                 </button>

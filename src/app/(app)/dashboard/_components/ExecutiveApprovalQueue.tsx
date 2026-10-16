@@ -237,7 +237,7 @@ export default function ExecutiveApprovalQueue({
                           >
                             {leave.totalDays}
                           </span>
-                          <span className="text-[10px] text-slate-400 ml-0.5">วัน</span>
+                          <span className="text-xs text-slate-400 ml-0.5">วัน</span>
                         </td>
 
                         {/* 5. Proxy Teacher */}
@@ -255,20 +255,20 @@ export default function ExecutiveApprovalQueue({
                         {/* 6. Status Badge */}
                         <td className="py-3.5 text-center">
                           {isPending && (
-                            <span className="px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 font-bold text-[10px] inline-flex items-center gap-1">
-                              <Clock className="w-3 h-3" />
+                            <span className="px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-200 dark:border-amber-800 font-bold text-xs inline-flex items-center gap-1 shadow-2xs">
+                              <Clock className="w-3.5 h-3.5" />
                               รออนุมัติ
                             </span>
                           )}
                           {isCompleted && (
-                            <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-medium text-[10px] inline-flex items-center gap-1">
-                              <Check className="w-3 h-3" />
+                            <span className="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 font-bold text-xs inline-flex items-center gap-1 shadow-2xs">
+                              <Check className="w-3.5 h-3.5" />
                               อนุมัติแล้ว
                             </span>
                           )}
                           {isRejected && (
-                            <span className="px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200 font-medium text-[10px] inline-flex items-center gap-1">
-                              <X className="w-3 h-3" />
+                            <span className="px-2.5 py-1 rounded-full bg-rose-50 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300 border border-rose-200 dark:border-rose-800 font-bold text-xs inline-flex items-center gap-1 shadow-2xs">
+                              <X className="w-3.5 h-3.5" />
                               ไม่อนุมัติ
                             </span>
                           )}
@@ -354,7 +354,7 @@ export default function ExecutiveApprovalQueue({
                       </div>
 
                       <span
-                        className={`px-2 py-0.5 rounded-md font-semibold text-[10px] border ${getLeaveTypeBadgeClass(
+                        className={`px-2.5 py-0.5 rounded-md font-bold text-xs border ${getLeaveTypeBadgeClass(
                           leave.leaveType
                         )}`}
                       >
@@ -362,7 +362,7 @@ export default function ExecutiveApprovalQueue({
                       </span>
                     </div>
 
-                    <div className="mt-2.5 pt-2 border-t border-slate-100 grid grid-cols-2 gap-2 text-[11px]">
+                    <div className="mt-2.5 pt-2 border-t border-slate-100 grid grid-cols-2 gap-2 text-xs">
                       <div>
                         <span className="text-slate-400 block">ช่วงวันที่:</span>
                         <span className="font-medium text-slate-700">
@@ -378,8 +378,8 @@ export default function ExecutiveApprovalQueue({
                     </div>
 
                     {leave.hasProxyTeacher && (
-                      <div className="mt-1.5 text-[10px] text-emerald-700 bg-emerald-50 px-2 py-1 rounded-md flex items-center gap-1">
-                        <Check className="w-3 h-3 shrink-0" />
+                      <div className="mt-1.5 text-xs text-emerald-800 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 px-2.5 py-1 rounded-md flex items-center gap-1 font-medium">
+                        <Check className="w-3.5 h-3.5 shrink-0" />
                         <span>ครูสอนแทน: {leave.proxyTeacherName || "จัดสอนแทนแล้ว"}</span>
                       </div>
                     )}

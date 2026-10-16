@@ -337,6 +337,7 @@ export default function SettingsPage() {
   const [affiliation, setAffiliation] = useState("");
 
   const [logoUrl, setLogoUrl] = useState("/images/teacher/school_logo.png");
+  const [settingsSearch, setSettingsSearch] = useState("");
 
   const [footerText, setFooterText] = useState("");
 
@@ -2858,6 +2859,7 @@ export default function SettingsPage() {
         if (item.href) {
           router.push(item.href);
         } else {
+          router.push(`/settings?section=${item.id}`);
           onClick();
         }
       }}
@@ -2900,8 +2902,10 @@ export default function SettingsPage() {
       ];
       if (activeSection && subsystemSections.includes(activeSection)) {
         setActiveSection("subsystems");
+        router.push("/settings?section=subsystems");
       } else {
         setActiveSection(null);
+        router.push("/settings");
       }
     };
 
@@ -4662,7 +4666,7 @@ export default function SettingsPage() {
 
               >
 
-                <UploadCloud className="w-8 h-8 text-slate-400 dark:text-slate-500 animate-bounce" />
+                <UploadCloud className="w-8 h-8 text-slate-400 dark:text-slate-500 group-hover:scale-110 transition-transform duration-200" />
 
                 <span className="text-sm font-bold text-slate-700 dark:text-slate-350">
 
@@ -9122,100 +9126,88 @@ function doPost(e) {
 
   const renderMenuList = () => {
 
-    if (isInspector) {
-      return (
-        <div className="space-y-6">
-          {coreSystemItems.length > 0 && (
-            <div>
-              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 pl-2 mb-3">
-                {lang === "en" ? "Global System Settings" : "การตั้งค่าภาพรวมทั้งระบบ"}
-              </p>
-              <div className="space-y-2">
-                {coreSystemItems.map((item) => (
-                  <MenuItemRow key={item.id} item={item} onClick={() => setActiveSection(item.id)} />
-                ))}
-              </div>
-            </div>
-          )}
-
-          <div>
-            <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 pl-2 mb-3 flex items-center gap-1.5">
-              <CalendarDays className="w-3.5 h-3.5" />
-              {lang === "en" ? "Leave Subsystem Settings" : "ตั้งค่าระบบการลา (Leave System)"}
-            </p>
-            <div className="space-y-2">
-              {inspectorItems.map((item) => (
-                <MenuItemRow key={item.id} item={item} onClick={() => setActiveSection(item.id)} />
-              ))}
-            </div>
-          </div>
-        </div>
+    const q = settingsSearch.toLowerCase().trim();
+    const filterItems = (items: MenuItem[]) => {
+      if (!q) return items;
+      return items.filter(
+        (it) =>
+          it.title.toLowerCase().includes(q) ||
+          it.description.toLowerCase().includes(q) ||
+          it.id.toLowerCase().includes(q)
       );
-    }
+    };
 
-    if (isHRHead) {
-      return (
-        <div className="space-y-6">
-          {coreSystemItems.length > 0 && (
-            <div>
-              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 pl-2 mb-3">
-                {lang === "en" ? "Global System Settings" : "การตั้งค่าภาพรวมทั้งระบบ"}
-              </p>
-              <div className="space-y-2">
-                {coreSystemItems.map((item) => (
-                  <MenuItemRow key={item.id} item={item} onClick={() => setActiveSection(item.id)} />
-                ))}
-              </div>
-            </div>
-          )}
-
-          <div>
-            <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 pl-2 mb-3 flex items-center gap-1.5">
-              <CalendarDays className="w-3.5 h-3.5" />
-              {lang === "en" ? "Leave Subsystem Settings" : "ตั้งค่าระบบการลา (Leave System)"}
-            </p>
-            <div className="space-y-2">
-              {hrHeadItems.map((item) => (
-                <MenuItemRow key={item.id} item={item} onClick={() => setActiveSection(item.id)} />
-              ))}
-            </div>
-          </div>
-        </div>
-      );
-    }
+    const currentCore = filterItems(coreSystemItems);
+    const targetLeaveItems = isInspector ? inspectorItems : isHRHead ? hrHeadItems : leaveSystemItems;
+    const currentLeave = filterItems(targetLeaveItems);
+    const hasAnyResults = currentCore.length > 0 || currentLeave.length > 0;
 
     return (
       <div className="space-y-6">
-        {/* Group 1: Core System-Wide Settings */}
-        {coreSystemItems.length > 0 && (
-          <div>
-            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 pl-2 mb-3">
-              {lang === "en" ? "Global System Settings" : "การตั้งค่าภาพรวมทั้งระบบ"}
+        {/* Quick Search & Sub-route Filter Bar */}
+        <div className="relative">
+          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+          <input
+            type="text"
+            placeholder={lang === "en" ? "Filter settings (subsystems, approval chain, quotas, holidays)..." : "🔍 ค้นหาการตั้งค่า (เปิด/ปิดระบบย่อย, สายอนุมัติ, โควตา, วันหยุด, ข้อมูลโรงเรียน)..."}
+            value={settingsSearch}
+            onChange={(e) => setSettingsSearch(e.target.value)}
+            className="w-full h-11 pl-10 pr-9 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 text-xs sm:text-sm font-medium focus:ring-2 focus:ring-[#163A66]/20 focus:border-[#163A66] transition-all text-slate-900 dark:text-white placeholder:text-slate-400 shadow-2xs"
+          />
+          {settingsSearch && (
+            <button
+              type="button"
+              onClick={() => setSettingsSearch("")}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5 rounded-full cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+
+        {!hasAnyResults && q ? (
+          <div className="text-center py-12 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6">
+            <p className="text-sm font-semibold text-slate-600 dark:text-slate-400">
+              ไม่พบการตั้งค่าที่ตรงกับ &ldquo;{settingsSearch}&rdquo;
             </p>
-            <div className="space-y-2">
-              {coreSystemItems.map((item) => (
-                <MenuItemRow key={item.id} item={item} onClick={() => setActiveSection(item.id)} />
-              ))}
-            </div>
+            <button
+              type="button"
+              onClick={() => setSettingsSearch("")}
+              className="mt-3 text-xs text-[#163A66] dark:text-sky-400 font-bold hover:underline cursor-pointer"
+            >
+              ล้างคำค้นหา
+            </button>
           </div>
+        ) : (
+          <>
+            {currentCore.length > 0 && (
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 pl-2 mb-3">
+                  {lang === "en" ? "Global System Settings" : "การตั้งค่าภาพรวมทั้งระบบ"}
+                </p>
+                <div className="space-y-2">
+                  {currentCore.map((item) => (
+                    <MenuItemRow key={item.id} item={item} onClick={() => setActiveSection(item.id)} />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {currentLeave.length > 0 && (
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 pl-2 mb-3 flex items-center gap-1.5">
+                  <CalendarDays className="w-3.5 h-3.5" />
+                  {lang === "en" ? "Leave Subsystem Settings" : "ตั้งค่าระบบการลา (Leave System)"}
+                </p>
+                <div className="space-y-2">
+                  {currentLeave.map((item) => (
+                    <MenuItemRow key={item.id} item={item} onClick={() => setActiveSection(item.id)} />
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
         )}
-
-        {/* Group 2: Leave Management System Settings */}
-        {leaveSystemItems.length > 0 && (
-          <div>
-            <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 pl-2 mb-3 flex items-center gap-1.5">
-              <CalendarDays className="w-3.5 h-3.5" />
-              {lang === "en" ? "Leave Subsystem Settings" : "ตั้งค่าระบบการลา (Leave System)"}
-            </p>
-            <div className="space-y-2">
-              {leaveSystemItems.map((item) => (
-                <MenuItemRow key={item.id} item={item} onClick={() => setActiveSection(item.id)} />
-              ))}
-            </div>
-          </div>
-        )}
-
-
       </div>
     );
   };
@@ -10170,7 +10162,7 @@ function DocMemoSectionsTab({
             resetForm();
             setShowForm(true);
           }}
-          className="flex items-center justify-center gap-2 px-4 h-10 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 active:scale-95 text-white text-xs font-bold transition-all shadow-md shadow-purple-600/20 cursor-pointer border border-purple-500/20 shrink-0"
+          className="flex items-center justify-center gap-2 px-4 h-10 rounded-xl bg-[#163A66] hover:bg-[#112d50] active:scale-95 text-white text-xs font-bold transition-all shadow-sm cursor-pointer shrink-0"
         >
           <Plus className="w-4 h-4" />
           <span>เพิ่มงานย่อย</span>
@@ -10455,7 +10447,7 @@ function DocMemoSectionsTab({
                         <button
                           type="button"
                           onClick={() => handleEdit(s)}
-                          className="p-1.5 rounded-xl hover:bg-purple-100 dark:hover:bg-purple-900/50 text-slate-500 hover:text-purple-700 dark:text-slate-400 dark:hover:text-purple-300 transition-colors cursor-pointer"
+                          className="p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 transition-colors cursor-pointer"
                           title="แก้ไข"
                         >
                           <Pencil className="w-4 h-4" />
@@ -10463,7 +10455,7 @@ function DocMemoSectionsTab({
                         <button
                           type="button"
                           onClick={() => handleDelete(s.id)}
-                          className="p-1.5 rounded-xl hover:bg-rose-100 dark:hover:bg-rose-900/50 text-slate-500 hover:text-rose-700 dark:text-slate-400 dark:hover:text-rose-300 transition-colors cursor-pointer"
+                          className="p-1.5 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-950/40 text-rose-500 hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-300 transition-colors cursor-pointer"
                           title="ลบ"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -10656,7 +10648,7 @@ function DocPatternBuilderTab({
                   <button
                     type="button"
                     onClick={() => startEdit(c)}
-                    className="p-2 rounded-lg hover:bg-purple-50 dark:hover:bg-purple-500/10 text-slate-400 hover:text-purple-600 dark:hover:text-purple-400 transition-colors"
+                    className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-[#163A66] dark:hover:text-sky-400 transition-colors"
                     title="แก้ไข"
                   >
                     <Pencil className="w-4 h-4" />
@@ -10669,17 +10661,17 @@ function DocPatternBuilderTab({
                 {isEditing ? (
                   <div className="space-y-4">
                     {/* Live Preview */}
-                    <div className="bg-gradient-to-br from-purple-50 to-indigo-50 dark:from-purple-500/5 dark:to-indigo-500/5 rounded-xl p-4 border border-purple-100 dark:border-purple-500/20">
+                    <div className="bg-slate-50 dark:bg-slate-900/60 rounded-xl p-4 border border-slate-200 dark:border-slate-800">
                       <div className="flex items-center gap-2 mb-2">
-                        <Eye className="w-4 h-4 text-purple-500" />
-                        <span className="text-xs font-semibold text-purple-600 dark:text-purple-400">
+                        <Eye className="w-4 h-4 text-[#163A66] dark:text-sky-400" />
+                        <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
                           ตัวอย่างเลขเอกสาร
                         </span>
                       </div>
-                      <p className="text-xl font-bold text-purple-700 dark:text-purple-300 font-mono tracking-wide">
+                      <p className="text-xl font-bold text-[#163A66] dark:text-sky-400 font-mono tracking-wide">
                         {livePreview}
                       </p>
-                      <p className="text-[11px] text-purple-400 mt-1">
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
                         ลำดับตัวอย่าง: 124
                       </p>
                     </div>
@@ -11032,14 +11024,14 @@ function DocSigneesTab({
             className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-5 shadow-sm hover:border-slate-300 dark:hover:border-slate-650 transition-colors group"
           >
             <div className="flex items-start justify-between mb-3">
-              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-400 to-indigo-500 flex items-center justify-center text-white font-bold text-sm shadow-sm">
+              <div className="w-10 h-10 rounded-full bg-[#163A66] flex items-center justify-center text-white font-bold text-sm shadow-sm">
                 {s.name.charAt(0)}
               </div>
               <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                 <button
                   type="button"
                   onClick={() => handleEdit(s)}
-                  className="p-1.5 rounded-lg hover:bg-purple-50 dark:hover:bg-purple-500/10 text-slate-400 hover:text-purple-600 dark:hover:text-purple-400 transition-colors"
+                  className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-[#163A66] dark:hover:text-sky-400 transition-colors"
                   title="แก้ไข"
                 >
                   <Pencil className="w-3.5 h-3.5" />
@@ -11047,7 +11039,7 @@ function DocSigneesTab({
                 <button
                   type="button"
                   onClick={() => handleDelete(s.id)}
-                  className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-500/10 text-slate-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
+                  className="p-1.5 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/40 text-rose-500 hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-300 transition-colors"
                   title="ลบ"
                 >
                   <Trash2 className="w-3.5 h-3.5" />

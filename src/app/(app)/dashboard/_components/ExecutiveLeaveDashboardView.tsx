@@ -17,7 +17,8 @@ import {
   Layers,
   ChevronRight,
   TrendingUp,
-  AlertCircle
+  AlertCircle,
+  CheckSquare
 } from "lucide-react";
 import {
   type DashboardWidgetConfig,
@@ -75,6 +76,7 @@ export default function ExecutiveLeaveDashboardView() {
 
   const [isCustomizerOpen, setIsCustomizerOpen] = useState(false);
   const [selectedLeaveForModal, setSelectedLeaveForModal] = useState<LeaveQueueItem | null>(null);
+  const [dashboardFocusTab, setDashboardFocusTab] = useState<"all" | "administrative" | "academic">("all");
 
   // Data States
   const [loading, setLoading] = useState(true);
@@ -303,9 +305,9 @@ export default function ExecutiveLeaveDashboardView() {
               </div>
               <div className="mt-2">
                 <div className="text-sm font-extrabold text-slate-800 dark:text-white group-hover:text-blue-600 transition-colors">
-                  {schoolStats?.staff.pendingLeaveCount ?? 0} <span className="text-[11px] font-normal text-slate-400">คำขอรอตรวจ</span>
+                  {schoolStats?.staff.pendingLeaveCount ?? 0} <span className="text-xs font-normal text-slate-500 dark:text-slate-400">คำขอรอตรวจ</span>
                 </div>
-                <div className="text-[10px] text-slate-400 mt-0.5 truncate">
+                <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 truncate">
                   ครูลาวันนี้ {schoolStats?.staff.staffOnLeaveTodayCount ?? 0} คน
                 </div>
               </div>
@@ -325,9 +327,9 @@ export default function ExecutiveLeaveDashboardView() {
               </div>
               <div className="mt-2">
                 <div className="text-sm font-extrabold text-slate-800 dark:text-white group-hover:text-indigo-600 transition-colors">
-                  {schoolStats?.document.pendingRoutingCount ?? 0} <span className="text-[11px] font-normal text-slate-400">รอเกษียณ</span>
+                  {schoolStats?.document.pendingRoutingCount ?? 0} <span className="text-xs font-normal text-slate-500 dark:text-slate-400">รอเกษียณ</span>
                 </div>
-                <div className="text-[10px] text-slate-400 mt-0.5 truncate">
+                <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 truncate">
                   ออกเลขปีนี้ {schoolStats?.document.totalIssuedThisYear ?? 0} เรื่อง
                 </div>
               </div>
@@ -347,9 +349,9 @@ export default function ExecutiveLeaveDashboardView() {
               </div>
               <div className="mt-2">
                 <div className="text-sm font-extrabold text-slate-800 dark:text-white group-hover:text-rose-600 transition-colors">
-                  {schoolStats?.repair.activeCount ?? 0} <span className="text-[11px] font-normal text-slate-400">งานค้างอยู่</span>
+                  {schoolStats?.repair.activeCount ?? 0} <span className="text-xs font-normal text-slate-500 dark:text-slate-400">งานค้างอยู่</span>
                 </div>
-                <div className="text-[10px] text-slate-400 mt-0.5 truncate">
+                <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 truncate">
                   {schoolStats?.repair.overdueSlaCount ? `⚠️ เกิน SLA ${schoolStats.repair.overdueSlaCount} งาน` : "อยู่ในเกณฑ์เวลา"}
                 </div>
               </div>
@@ -369,9 +371,9 @@ export default function ExecutiveLeaveDashboardView() {
               </div>
               <div className="mt-2">
                 <div className="text-sm font-extrabold text-slate-800 dark:text-white group-hover:text-teal-600 transition-colors">
-                  {schoolStats?.facility.reservationsTodayCount ?? 0} <span className="text-[11px] font-normal text-slate-400">จองวันนี้</span>
+                  {schoolStats?.facility.reservationsTodayCount ?? 0} <span className="text-xs font-normal text-slate-500 dark:text-slate-400">จองวันนี้</span>
                 </div>
-                <div className="text-[10px] text-slate-400 mt-0.5 truncate">
+                <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 truncate">
                   รออนุมัติ {schoolStats?.facility.pendingReservationCount ?? 0} รายการ
                 </div>
               </div>
@@ -391,9 +393,9 @@ export default function ExecutiveLeaveDashboardView() {
               </div>
               <div className="mt-2">
                 <div className="text-sm font-extrabold text-slate-800 dark:text-white group-hover:text-purple-600 transition-colors">
-                  {attendanceRate}% <span className="text-[11px] font-normal text-slate-400">มาเรียนวันนี้</span>
+                  {attendanceRate}% <span className="text-xs font-normal text-slate-500 dark:text-slate-400">มาเรียนวันนี้</span>
                 </div>
-                <div className="text-[10px] text-slate-400 mt-0.5 truncate">
+                <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 truncate">
                   นักเรียนรวม {totalStudents.toLocaleString("th-TH")} คน
                 </div>
               </div>
@@ -420,87 +422,245 @@ export default function ExecutiveLeaveDashboardView() {
         </div>
       )}
 
-      {/* Row 3: Academic & Student Learning Analytics Grid */}
-      {(widgetConfig.learningOutcomeChart || widgetConfig.attendanceDonutCard) && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-5 items-stretch">
-          {widgetConfig.learningOutcomeChart && (
-            <div className={`${widgetConfig.attendanceDonutCard ? "lg:col-span-7 xl:col-span-8" : "lg:col-span-12"} flex flex-col min-w-0`}>
-              <SMSLearningOutcomeChart />
-            </div>
-          )}
-          {widgetConfig.attendanceDonutCard && (
-            <div className={`${widgetConfig.learningOutcomeChart ? "lg:col-span-5 xl:col-span-4" : "lg:col-span-12"} flex flex-col min-w-0`}>
-              <SMSAttendanceDonutCard
-                presentRate={attendanceRate}
-                lateRate={2.1}
-                absentRate={1.3}
-                leaveRate={0.9}
+      {/* Category Focus Bar (Separating Staff Operations from Student Academic Curves) */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-2 shadow-2xs">
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+          <button
+            type="button"
+            onClick={() => setDashboardFocusTab("all")}
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+              dashboardFocusTab === "all"
+                ? "bg-[#163A66] text-white shadow-xs"
+                : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-800"
+            }`}
+          >
+            ภาพรวมทั้งหมด
+          </button>
+          <button
+            type="button"
+            onClick={() => setDashboardFocusTab("administrative")}
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
+              dashboardFocusTab === "administrative"
+                ? "bg-[#163A66] text-white shadow-xs"
+                : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-800"
+            }`}
+          >
+            <CheckSquare className="w-3.5 h-3.5" />
+            งานบริหาร & คิวอนุมัติ
+          </button>
+          <button
+            type="button"
+            onClick={() => setDashboardFocusTab("academic")}
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
+              dashboardFocusTab === "academic"
+                ? "bg-[#163A66] text-white shadow-xs"
+                : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-800"
+            }`}
+          >
+            <GraduationCap className="w-3.5 h-3.5" />
+            วิชาการ & ผลสัมฤทธิ์
+          </button>
+        </div>
+
+        <span className="text-[11px] text-slate-400 dark:text-slate-500 hidden md:inline-block pr-2">
+          {dashboardFocusTab === "administrative"
+            ? "คิวอนุมัติการลาและระบบสนับสนุนบุคลากร"
+            : dashboardFocusTab === "academic"
+            ? "ผลการเรียนรู้และสถิตินักเรียน"
+            : "แสดงข้อมูลสถานศึกษาทุกมิติ"}
+        </span>
+      </div>
+
+      {/* VIEW: ADMINISTRATIVE FOCUS (Leaves, Documents, Staff Approvals first) */}
+      {dashboardFocusTab === "administrative" && (
+        <>
+          {/* Priority 1: Approval Queue Widget */}
+          {widgetConfig.approvalQueue && (
+            <div id="approval-queue-section">
+              <ExecutiveApprovalQueue
+                leaves={queueLeaves}
+                onApprove={handleApprove}
+                onReject={handleReject}
+                onViewDetails={(leave) => setSelectedLeaveForModal(leave)}
+                actionLoadingId={actionLoadingId}
               />
             </div>
           )}
-        </div>
-      )}
 
-      {/* Row 4: Operational Strips (งบประมาณ, สารบรรณ, แจ้งซ่อม, ทรัพยากร) */}
-      {widgetConfig.operationsStrip && (
-        <div className="pt-1">
-          <SMSOperationsStrip />
-        </div>
-      )}
+          {/* Priority 2: Operational Strips (งบประมาณ, สารบรรณ, แจ้งซ่อม, ทรัพยากร) */}
+          {widgetConfig.operationsStrip && (
+            <div className="pt-1">
+              <SMSOperationsStrip />
+            </div>
+          )}
 
-      {/* Row 5: Leave Distribution & Student Overview Analytics */}
-      {(widgetConfig.distributionCharts || widgetConfig.studentAffairsOverview) && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-5 items-stretch">
+          {/* Priority 3: Leave Distribution Charts */}
           {widgetConfig.distributionCharts && typeData.length > 0 && (
-            <div className={`${widgetConfig.studentAffairsOverview ? "lg:col-span-6" : "lg:col-span-12"} flex flex-col min-w-0`}>
+            <div className="w-full min-w-0">
               <ExecutiveLeaveCharts typeData={typeData} deptData={deptData} />
             </div>
           )}
+
+          {/* Priority 4: Monthly Trend Chart Widget */}
+          {widgetConfig.monthlyTrendChart && statsData?.monthlyData && (
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-[0_2px_12px_rgba(0,0,0,0.03)] p-5">
+              <MonthlyTrendChart
+                monthlyData={statsData.monthlyData}
+                leaveConfigs={leaveConfigs}
+              />
+            </div>
+          )}
+
+          {/* Priority 5: Announcements & Calendar */}
+          {(widgetConfig.announcementsCard || widgetConfig.academicCalendarCard) && (
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-5 items-stretch">
+              {widgetConfig.announcementsCard && (
+                <div className={`${widgetConfig.academicCalendarCard ? "lg:col-span-7 xl:col-span-8" : "lg:col-span-12"} flex flex-col min-w-0`}>
+                  <SMSAnnouncementsCard />
+                </div>
+              )}
+              {widgetConfig.academicCalendarCard && (
+                <div className={`${widgetConfig.announcementsCard ? "lg:col-span-5 xl:col-span-4" : "lg:col-span-12"} flex flex-col min-w-0`}>
+                  <SMSAcademicCalendarCard />
+                </div>
+              )}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* VIEW: ACADEMIC FOCUS (Student Learning Curves, Attendance Donut, Student Affairs) */}
+      {dashboardFocusTab === "academic" && (
+        <>
+          {(widgetConfig.learningOutcomeChart || widgetConfig.attendanceDonutCard) && (
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-5 items-stretch">
+              {widgetConfig.learningOutcomeChart && (
+                <div className={`${widgetConfig.attendanceDonutCard ? "lg:col-span-7 xl:col-span-8" : "lg:col-span-12"} flex flex-col min-w-0`}>
+                  <SMSLearningOutcomeChart />
+                </div>
+              )}
+              {widgetConfig.attendanceDonutCard && (
+                <div className={`${widgetConfig.learningOutcomeChart ? "lg:col-span-5 xl:col-span-4" : "lg:col-span-12"} flex flex-col min-w-0`}>
+                  <SMSAttendanceDonutCard
+                    presentRate={attendanceRate}
+                    lateRate={2.1}
+                    absentRate={1.3}
+                    leaveRate={0.9}
+                  />
+                </div>
+              )}
+            </div>
+          )}
+
           {widgetConfig.studentAffairsOverview && (
-            <div className={`${widgetConfig.distributionCharts && typeData.length > 0 ? "lg:col-span-6" : "lg:col-span-12"} flex flex-col min-w-0`}>
+            <div className="w-full min-w-0">
               <ExecutiveStudentLeaveOverview studentStats={schoolStats?.student} />
             </div>
           )}
-        </div>
-      )}
 
-      {/* Row 6: Announcements & Academic Calendar */}
-      {(widgetConfig.announcementsCard || widgetConfig.academicCalendarCard) && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-5 items-stretch">
-          {widgetConfig.announcementsCard && (
-            <div className={`${widgetConfig.academicCalendarCard ? "lg:col-span-7 xl:col-span-8" : "lg:col-span-12"} flex flex-col min-w-0`}>
-              <SMSAnnouncementsCard />
+          {(widgetConfig.announcementsCard || widgetConfig.academicCalendarCard) && (
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-5 items-stretch">
+              {widgetConfig.announcementsCard && (
+                <div className={`${widgetConfig.academicCalendarCard ? "lg:col-span-7 xl:col-span-8" : "lg:col-span-12"} flex flex-col min-w-0`}>
+                  <SMSAnnouncementsCard />
+                </div>
+              )}
+              {widgetConfig.academicCalendarCard && (
+                <div className={`${widgetConfig.announcementsCard ? "lg:col-span-5 xl:col-span-4" : "lg:col-span-12"} flex flex-col min-w-0`}>
+                  <SMSAcademicCalendarCard />
+                </div>
+              )}
             </div>
           )}
-          {widgetConfig.academicCalendarCard && (
-            <div className={`${widgetConfig.announcementsCard ? "lg:col-span-5 xl:col-span-4" : "lg:col-span-12"} flex flex-col min-w-0`}>
-              <SMSAcademicCalendarCard />
+        </>
+      )}
+
+      {/* VIEW: ALL (Comprehensive Overview with all widgets) */}
+      {dashboardFocusTab === "all" && (
+        <>
+          {/* Row 3: Academic & Student Learning Analytics Grid */}
+          {(widgetConfig.learningOutcomeChart || widgetConfig.attendanceDonutCard) && (
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-5 items-stretch">
+              {widgetConfig.learningOutcomeChart && (
+                <div className={`${widgetConfig.attendanceDonutCard ? "lg:col-span-7 xl:col-span-8" : "lg:col-span-12"} flex flex-col min-w-0`}>
+                  <SMSLearningOutcomeChart />
+                </div>
+              )}
+              {widgetConfig.attendanceDonutCard && (
+                <div className={`${widgetConfig.learningOutcomeChart ? "lg:col-span-5 xl:col-span-4" : "lg:col-span-12"} flex flex-col min-w-0`}>
+                  <SMSAttendanceDonutCard
+                    presentRate={attendanceRate}
+                    lateRate={2.1}
+                    absentRate={1.3}
+                    leaveRate={0.9}
+                  />
+                </div>
+              )}
             </div>
           )}
-        </div>
-      )}
 
-      {/* Row 7: Approval Queue Widget (Primary Leave & Staff Workflow) */}
-      {widgetConfig.approvalQueue && (
-        <div id="approval-queue-section" className="pt-2">
-          <ExecutiveApprovalQueue
-            leaves={queueLeaves}
-            onApprove={handleApprove}
-            onReject={handleReject}
-            onViewDetails={(leave) => setSelectedLeaveForModal(leave)}
-            actionLoadingId={actionLoadingId}
-          />
-        </div>
-      )}
+          {/* Row 4: Operational Strips (งบประมาณ, สารบรรณ, แจ้งซ่อม, ทรัพยากร) */}
+          {widgetConfig.operationsStrip && (
+            <div className="pt-1">
+              <SMSOperationsStrip />
+            </div>
+          )}
 
-      {/* Row 8: Monthly Trend Chart Widget */}
-      {widgetConfig.monthlyTrendChart && statsData?.monthlyData && (
-        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-[0_2px_12px_rgba(0,0,0,0.03)] p-5">
-          <MonthlyTrendChart
-            monthlyData={statsData.monthlyData}
-            leaveConfigs={leaveConfigs}
-          />
-        </div>
+          {/* Row 5: Leave Distribution & Student Overview Analytics */}
+          {(widgetConfig.distributionCharts || widgetConfig.studentAffairsOverview) && (
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-5 items-stretch">
+              {widgetConfig.distributionCharts && typeData.length > 0 && (
+                <div className={`${widgetConfig.studentAffairsOverview ? "lg:col-span-6" : "lg:col-span-12"} flex flex-col min-w-0`}>
+                  <ExecutiveLeaveCharts typeData={typeData} deptData={deptData} />
+                </div>
+              )}
+              {widgetConfig.studentAffairsOverview && (
+                <div className={`${widgetConfig.distributionCharts && typeData.length > 0 ? "lg:col-span-6" : "lg:col-span-12"} flex flex-col min-w-0`}>
+                  <ExecutiveStudentLeaveOverview studentStats={schoolStats?.student} />
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Row 6: Announcements & Academic Calendar */}
+          {(widgetConfig.announcementsCard || widgetConfig.academicCalendarCard) && (
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-5 items-stretch">
+              {widgetConfig.announcementsCard && (
+                <div className={`${widgetConfig.academicCalendarCard ? "lg:col-span-7 xl:col-span-8" : "lg:col-span-12"} flex flex-col min-w-0`}>
+                  <SMSAnnouncementsCard />
+                </div>
+              )}
+              {widgetConfig.academicCalendarCard && (
+                <div className={`${widgetConfig.announcementsCard ? "lg:col-span-5 xl:col-span-4" : "lg:col-span-12"} flex flex-col min-w-0`}>
+                  <SMSAcademicCalendarCard />
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Row 7: Approval Queue Widget (Primary Leave & Staff Workflow) */}
+          {widgetConfig.approvalQueue && (
+            <div id="approval-queue-section" className="pt-2">
+              <ExecutiveApprovalQueue
+                leaves={queueLeaves}
+                onApprove={handleApprove}
+                onReject={handleReject}
+                onViewDetails={(leave) => setSelectedLeaveForModal(leave)}
+                actionLoadingId={actionLoadingId}
+              />
+            </div>
+          )}
+
+          {/* Row 8: Monthly Trend Chart Widget */}
+          {widgetConfig.monthlyTrendChart && statsData?.monthlyData && (
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-[0_2px_12px_rgba(0,0,0,0.03)] p-5">
+              <MonthlyTrendChart
+                monthlyData={statsData.monthlyData}
+                leaveConfigs={leaveConfigs}
+              />
+            </div>
+          )}
+        </>
       )}
 
       {/* Drill-down Leave Details Modal */}

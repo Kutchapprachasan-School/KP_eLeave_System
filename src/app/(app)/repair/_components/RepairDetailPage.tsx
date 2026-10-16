@@ -162,7 +162,7 @@ function WorkflowPanel({ repair, user, onRefresh }: { repair: any; user: any; on
         <button
           disabled={busy}
           onClick={() => wrap(async () => { await startRepairAction(repair.id, repair.version); })}
-          className="w-full py-3 rounded-2xl text-sm font-bold text-white bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700 disabled:opacity-50 shadow-lg shadow-violet-500/20 transition-all flex items-center justify-center gap-2"
+          className="w-full py-3 rounded-2xl text-sm font-bold text-white bg-[#163A66] hover:bg-[#112d50] disabled:opacity-50 shadow-md shadow-[#163A66]/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
         >
           {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wrench className="w-4 h-4" />}
           เริ่มดำเนินการซ่อม

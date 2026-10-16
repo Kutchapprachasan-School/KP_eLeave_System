@@ -386,7 +386,7 @@ export default function ExecutiveLeaveStatCards({
                 <div className="flex items-start justify-between gap-2">
                   <div className="space-y-1">
                     <span
-                      className={`inline-block px-2 py-0.5 rounded-md text-[10px] font-bold ${colors.badge}`}
+                      className={`inline-block px-2.5 py-0.5 rounded-md text-xs font-bold ${colors.badge}`}
                     >
                       {card.subsystemLabel}
                     </span>
@@ -413,7 +413,7 @@ export default function ExecutiveLeaveStatCards({
                     </span>
                   )}
                   {card.urgentText && (
-                    <span className="ml-auto px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 animate-pulse">
+                    <span className="ml-auto px-2 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 animate-pulse">
                       {card.urgentText}
                     </span>
                   )}
@@ -422,7 +422,7 @@ export default function ExecutiveLeaveStatCards({
 
               {/* Footer: Status Text & Drill-down Link */}
               <div className="mt-3.5 pt-2.5 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-xs">
-                <span className="text-slate-500 dark:text-slate-400 text-[11px] truncate max-w-[130px]">
+                <span className="text-slate-500 dark:text-slate-400 text-xs truncate max-w-[140px]">
                   {card.statusText}
                 </span>
 

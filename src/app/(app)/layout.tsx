@@ -519,6 +519,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
   };
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
   const isCollapsed = sidebarCollapsed && !sidebarOpen;
 
   const toggleSidebar = () => {
@@ -534,6 +535,11 @@ function AppContent({ children }: { children: React.ReactNode }) {
       });
     }
   };
+
+  useEffect(() => {
+    setSidebarOpen(false);
+    setMobileMoreOpen(false);
+  }, [pathname]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -1143,20 +1149,95 @@ function AppContent({ children }: { children: React.ReactNode }) {
     return true;
   };
 
-  const mobileNavItems: Array<{ href: string; label: string; icon: any }> = [
+  // Primary 3 items for mobile bottom bar (plus Profile and More button to make 5 standard tabs)
+  const primaryMobileNavItems: Array<{ href: string; label: string; icon: any }> = [
     { href: "/dashboard", label: t("dashboard"), icon: LayoutDashboard },
     { href: "/request", label: t("requestLeave"), icon: FileText },
-    { href: "/history", label: t("history"), icon: History },
+    showAttendance
+      ? { href: "/attendance", label: lang === "en" ? "Attendance" : "ลงเวลา", icon: Clock }
+      : { href: "/history", label: t("history"), icon: History },
   ];
-  if (showAttendance) {
-    mobileNavItems.push({ href: "/attendance", label: lang === "en" ? "Attendance" : "ลงเวลาปฏิบัติราชการ", icon: Clock });
-  }
-  if (showDocument) {
-    mobileNavItems.push({ href: "/document", label: lang === "en" ? "Documents" : "เอกสาร", icon: ClipboardList });
-  }
-  if (enableFacility) {
-    mobileNavItems.push({ href: "/general/facility?view=request", label: lang === "en" ? "Facilities" : "จองทรัพยากร", icon: Building2 });
-  }
+
+  // All secondary modules accessible via the mobile "More" (เพิ่มเติม) action sheet
+  const moreNavModules: Array<{ href: string; label: string; desc: string; icon: any; color: string; badge?: number }> = [
+    {
+      href: "/history",
+      label: t("history"),
+      desc: lang === "en" ? "Leave history & balance" : "ประวัติการลาและสถิติสะสม",
+      icon: History,
+      color: "bg-blue-50 text-[#163A66] dark:bg-blue-950/50 dark:text-sky-300"
+    },
+    ...(showAttendance ? [{
+      href: "/attendance",
+      label: lang === "en" ? "Attendance" : "ลงเวลาปฏิบัติราชการ",
+      desc: lang === "en" ? "Daily check-in & check-out" : "บันทึกเวลาเข้า-ออกงานประจำวัน",
+      icon: Clock,
+      color: "bg-indigo-50 text-indigo-600 dark:bg-indigo-950/50 dark:text-indigo-400"
+    }] : []),
+    ...(showDocument ? [{
+      href: "/document",
+      label: lang === "en" ? "Documents (E-Saraban)" : "งานสารบรรณ",
+      desc: lang === "en" ? "Official memos & doc routing" : "หนังสือราชการและเกษียณหนังสือ",
+      icon: ClipboardList,
+      color: "bg-amber-50 text-amber-600 dark:bg-amber-950/50 dark:text-amber-400",
+      badge: pendingDocsCount
+    }] : []),
+    ...(enableFacility ? [{
+      href: "/general/facility?view=request",
+      label: lang === "en" ? "Facilities & Vehicles" : "จองห้องและยานพาหนะ",
+      desc: lang === "en" ? "Meeting rooms & school vans" : "ขอใช้ห้องประชุมและรถส่วนกลาง",
+      icon: Building2,
+      color: "bg-teal-50 text-teal-600 dark:bg-teal-950/50 dark:text-teal-400"
+    }] : []),
+    ...(isApprover ? [{
+      href: "/manage",
+      label: lang === "en" ? "Approve Leaves" : "พิจารณาอนุมัติการลา",
+      desc: lang === "en" ? "Review & sign staff leaves" : "ตรวจสอบและลงความเห็นคำขอลา",
+      icon: CheckSquare,
+      color: "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-400"
+    }] : []),
+    ...(enableRepair ? [{
+      href: "/repair",
+      label: lang === "en" ? "Repair System" : "ระบบแจ้งซ่อมบำรุง",
+      desc: lang === "en" ? "Maintenance & equipment issues" : "แจ้งซ่อมอาคารสถานที่และอุปกรณ์",
+      icon: Wrench,
+      color: "bg-orange-50 text-orange-600 dark:bg-orange-950/50 dark:text-orange-400"
+    }] : []),
+    ...(enableAcademic ? [{
+      href: "/academic",
+      label: lang === "en" ? "Academic Portal" : "งานบริหารวิชาการ",
+      desc: lang === "en" ? "Curriculum, exams & scheduling" : "ตารางสอน สอบ OMR และนิเทศ",
+      icon: GraduationCap,
+      color: "bg-sky-50 text-sky-600 dark:bg-sky-950/50 dark:text-sky-400"
+    }] : []),
+    {
+      href: "/calendar",
+      label: lang === "en" ? "School Calendar" : "ปฏิทินกิจกรรมโรงเรียน",
+      desc: lang === "en" ? "Events & academic terms" : "กำหนดการและกิจกรรมสำคัญ",
+      icon: Calendar,
+      color: "bg-rose-50 text-rose-600 dark:bg-rose-950/50 dark:text-rose-400"
+    },
+    ...(isAdmin ? [{
+      href: "/users",
+      label: lang === "en" ? "User Management" : "จัดการบุคลากร",
+      desc: lang === "en" ? "Staff directory & access roles" : "รายชื่อครูและกำหนดสิทธิ์ผู้ใช้",
+      icon: Users,
+      color: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200"
+    }, {
+      href: "/settings",
+      label: lang === "en" ? "System Settings" : "ตั้งค่าระบบ",
+      desc: lang === "en" ? "Module toggles & quotas" : "เปิด-ปิดโมดูลและโควตาวันลา",
+      icon: Settings,
+      color: "bg-slate-100 text-[#163A66] dark:bg-slate-800 dark:text-sky-300"
+    }] : []),
+    {
+      href: "/manual",
+      label: lang === "en" ? "User Manual" : "คู่มือการใช้งาน",
+      desc: lang === "en" ? "Guides & instructions" : "ขั้นตอนและวิธีการใช้งานระบบ",
+      icon: BookOpen,
+      color: "bg-slate-50 text-slate-600 dark:bg-slate-800 dark:text-slate-400"
+    }
+  ];
 
   const hasAccess = checkPermission(pathname);
 
@@ -1631,27 +1712,154 @@ function AppContent({ children }: { children: React.ReactNode }) {
 
       </div>
 
+      {/* Mobile More Drawer Action Sheet */}
+      <AnimatePresence>
+        {mobileMoreOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              onClick={() => setMobileMoreOpen(false)}
+              className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs lg:hidden"
+            />
+            <motion.div
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 26, stiffness: 320 }}
+              className="fixed bottom-0 inset-x-0 z-50 bg-white dark:bg-slate-900 rounded-t-3xl border-t border-slate-200 dark:border-slate-800 p-5 shadow-2xl max-h-[82vh] overflow-y-auto lg:hidden"
+            >
+              <div className="w-10 h-1 bg-slate-300 dark:bg-slate-700 rounded-full mx-auto mb-4" />
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-[#163A66] dark:text-sky-400 flex items-center justify-center">
+                    <Layers className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                      {lang === "en" ? "System Modules" : "เมนูระบบทั้งหมด"}
+                    </h3>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                      {lang === "en" ? "Access school services & tools" : "เข้าสู่ระบบงานและบริการภายในโรงเรียน"}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setMobileMoreOpen(false)}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Module Grid */}
+              <div className="grid grid-cols-2 gap-2.5 pt-3">
+                {moreNavModules.map((mod) => {
+                  const Icon = mod.icon;
+                  const isCurrentActive = pathname === mod.href || (mod.href.includes("?") && pathname === mod.href.split("?")[0]);
+                  return (
+                    <Link
+                      key={mod.href}
+                      href={mod.href}
+                      prefetch={false}
+                      onClick={() => setMobileMoreOpen(false)}
+                      className={`flex flex-col p-3 rounded-2xl border transition-all text-left relative group ${
+                        isCurrentActive
+                          ? "bg-blue-50/70 dark:bg-blue-950/40 border-[#163A66]/30 dark:border-sky-500/30 shadow-xs"
+                          : "bg-slate-50/60 dark:bg-slate-800/40 border-slate-200/80 dark:border-slate-700/80 hover:bg-slate-100/80 dark:hover:bg-slate-800/80"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${mod.color}`}>
+                          <Icon className="w-4 h-4" />
+                        </div>
+                        {mod.badge !== undefined && mod.badge > 0 && (
+                          <span className="min-w-4 h-4 px-1 rounded-full bg-rose-500 text-white text-[9px] font-bold flex items-center justify-center shadow-2xs">
+                            {mod.badge > 99 ? "99+" : mod.badge}
+                          </span>
+                        )}
+                      </div>
+                      <span className={`text-xs font-bold truncate ${isCurrentActive ? "text-[#163A66] dark:text-sky-300" : "text-slate-800 dark:text-slate-100"}`}>
+                        {mod.label}
+                      </span>
+                      <span className="text-[10px] text-slate-400 dark:text-slate-500 truncate mt-0.5">
+                        {mod.desc}
+                      </span>
+                    </Link>
+                  );
+                })}
+              </div>
+
+              {/* User Signout quick row */}
+              <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-full overflow-hidden border border-slate-200 dark:border-slate-700 bg-slate-100">
+                    <img
+                      src={user.image || "/images/teacher/teacher_avatar.png"}
+                      alt={user.name}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 max-w-[150px] truncate">
+                    {user.name}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileMoreOpen(false);
+                    clearAllClientCaches();
+                    signOut({ fetchOptions: { onSuccess: () => router.push("/login") }});
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                  <span>ออกจากระบบ</span>
+                </button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
       {/* Mobile Bottom Navbar */}
-      <div className="fixed bottom-0 left-0 right-0 z-40 bg-white/80 dark:bg-slate-900/80 backdrop-blur-lg border-t border-slate-200/50 dark:border-slate-800/50 shadow-[0_-8px_30px_rgba(0,0,0,0.06)] px-2 py-1.5 flex justify-around items-center lg:hidden print:hidden">
-        {mobileNavItems.slice(0, 4).map((item) => {
+      <div className="fixed bottom-0 left-0 right-0 z-40 bg-white/90 dark:bg-slate-900/90 backdrop-blur-lg border-t border-slate-200/80 dark:border-slate-800/80 shadow-[0_-8px_30px_rgba(0,0,0,0.06)] px-2 py-1.5 flex justify-around items-center lg:hidden print:hidden">
+        {primaryMobileNavItems.map((item) => {
           const isActive = pathname === item.href;
           const Icon = item.icon;
           return (
             <Link key={item.href} href={item.href} prefetch={false} className="flex-1 flex flex-col items-center justify-center py-1 group transition-all">
-              <div className={`flex flex-col items-center gap-1 ${isActive ? "text-purple-600 dark:text-purple-400" : "text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:hover:text-white"}`}>
+              <div className={`flex flex-col items-center gap-1 ${isActive ? "text-[#163A66] dark:text-sky-400 font-bold" : "text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:hover:text-white"}`}>
                 <Icon className={`w-5 h-5 transition-transform duration-200 ${isActive ? "scale-110 stroke-[2.5]" : "group-hover:scale-110"}`} />
-                <span className="text-[10px] font-semibold tracking-tight">{item.label}</span>
+                <span className="text-[10px] tracking-tight">{item.label}</span>
               </div>
             </Link>
           );
         })}
-        {/* Profile Item (always 5th or 4th item) */}
+        {/* Profile Item */}
         <Link href="/profile" prefetch={false} className="flex-1 flex flex-col items-center justify-center py-1 group transition-all">
-          <div className={`flex flex-col items-center gap-1 ${pathname === "/profile" ? "text-purple-600 dark:text-purple-400" : "text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:hover:text-white"}`}>
+          <div className={`flex flex-col items-center gap-1 ${pathname === "/profile" ? "text-[#163A66] dark:text-sky-400 font-bold" : "text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:hover:text-white"}`}>
             <UserCircle className={`w-5 h-5 transition-transform duration-200 ${pathname === "/profile" ? "scale-110 stroke-[2.5]" : "group-hover:scale-110"}`} />
-            <span className="text-[10px] font-semibold tracking-tight">{t("profile")}</span>
+            <span className="text-[10px] tracking-tight">{t("profile")}</span>
           </div>
         </Link>
+        {/* More (เพิ่มเติม) Trigger */}
+        <button
+          type="button"
+          onClick={() => setMobileMoreOpen(true)}
+          className="flex-1 flex flex-col items-center justify-center py-1 group transition-all cursor-pointer"
+        >
+          <div className={`flex flex-col items-center gap-1 relative ${mobileMoreOpen || (!["/dashboard", "/request", "/attendance", "/history", "/profile"].includes(pathname)) ? "text-[#163A66] dark:text-sky-400 font-bold" : "text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:hover:text-white"}`}>
+            <Layers className={`w-5 h-5 transition-transform duration-200 ${mobileMoreOpen ? "scale-110 stroke-[2.5]" : "group-hover:scale-110"}`} />
+            <span className="text-[10px] tracking-tight">{lang === "en" ? "More" : "เพิ่มเติม"}</span>
+            {!["/dashboard", "/request", "/attendance", "/history", "/profile"].includes(pathname) && (
+              <span className="absolute top-0 right-3 w-1.5 h-1.5 rounded-full bg-[#163A66] dark:bg-sky-400" />
+            )}
+          </div>
+        </button>
       </div>
 
       {/* Non-coercive Policy Update Notification Banner */}
@@ -1665,7 +1873,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     <ToastProvider>
       <Suspense fallback={
         <div className="flex min-h-screen items-center justify-center bg-[#F4F7FB] dark:bg-slate-900">
-          <div className="w-10 h-10 border-3 border-purple-200 border-t-purple-600 rounded-full animate-spin" />
+          <div className="w-10 h-10 border-3 border-slate-200 border-t-[#163A66] rounded-full animate-spin" />
         </div>
       }>
         <AppContent>{children}</AppContent>
