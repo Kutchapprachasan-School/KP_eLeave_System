@@ -578,7 +578,24 @@ export async function getDashboardStats(
   try {
     const session = await getSession();
     if (!session?.user) {
-      throw new Error("Unauthorized");
+      return {
+        isOverview: false,
+        canViewOverview: false,
+        usedDaysMap: {},
+        leaveConfigs: [],
+        pendingCount: 0,
+        totalStaff: 0,
+        approvalRate: 100,
+        monthlyData: [],
+        deptStats: [],
+        currentCycle: "",
+        recentRequests: [],
+        leaveLeaderboard: [],
+        userWatchlistStats: { totalDays: 0, totalTimes: 0, isWarning: false },
+        limitTimes: 6,
+        limitDays: 15,
+        error: "Unauthorized",
+      };
     }
     const user = session.user as any;
     
@@ -614,9 +631,24 @@ export async function getDashboardStats(
     // We only show school overview if they are allowed AND they chose "school" mode
     const showSchoolOverview = canViewOverview && viewMode === "school";
 
-    // Fetch Leave Configs dynamically
-    const { getLeaveConfigs } = await import("./settings");
-    const leaveConfigs = await getLeaveConfigs();
+    // Fetch Leave Configs directly
+    let leaveConfigs = await prisma.leaveConfig.findMany({
+      orderBy: { maxDaysPerYear: "desc" }
+    });
+    if (!leaveConfigs || leaveConfigs.length === 0) {
+      leaveConfigs = [
+        { id: "cfg-sick", type: "SICK", name: "ลาป่วย", maxDaysPerYear: 60, warningThreshold: 5, isActive: true },
+        { id: "cfg-mat", type: "MATERNITY", name: "ลาคลอดบุตร", maxDaysPerYear: 90, warningThreshold: 0, isActive: true },
+        { id: "cfg-pat", type: "PATERNITY", name: "ลาช่วยเหลือภริยาคลอดบุตร", maxDaysPerYear: 15, warningThreshold: 0, isActive: true },
+        { id: "cfg-per", type: "PERSONAL", name: "ลากิจส่วนตัว", maxDaysPerYear: 45, warningThreshold: 5, isActive: true },
+        { id: "cfg-rest", type: "REST", name: "ลาพักผ่อน", maxDaysPerYear: 10, warningThreshold: 2, isActive: true },
+        { id: "cfg-ord", type: "ORDINATION", name: "ลาอุปสมบท/พิธีฮัจย์", maxDaysPerYear: 120, warningThreshold: 0, isActive: true },
+        { id: "cfg-mil", type: "MILITARY", name: "ลาเข้ารับการตรวจเลือก/เตรียมพล", maxDaysPerYear: 60, warningThreshold: 0, isActive: true },
+        { id: "cfg-std", type: "STUDY", name: "ลาไปศึกษา ฝึกอบรม", maxDaysPerYear: 365, warningThreshold: 0, isActive: true },
+        { id: "cfg-ste", type: "STERILIZATION", name: "ลาไปทำหมัน", maxDaysPerYear: 3, warningThreshold: 0, isActive: true },
+        { id: "cfg-rel", type: "RELIGIOUS", name: "ลาไปประกอบพิธีทางศาสนา", maxDaysPerYear: 15, warningThreshold: 0, isActive: true },
+      ] as any;
+    }
 
     const now = new Date();
     const currentFY = (now.getMonth() >= 9 ? now.getFullYear() + 1 : now.getFullYear()) + 543;
@@ -777,7 +809,7 @@ export async function getDashboardStats(
 
     const recentOrder: any[] = [
       { fiscalYear: "desc" },
-      { approvedSeq: { sort: "desc", nulls: "first" } },
+      { approvedSeq: "desc" },
       { pendingSeq: "desc" },
       { createdAt: "desc" },
       { id: "desc" }
@@ -889,9 +921,6 @@ export async function getDashboardStats(
     };
   } catch (error: any) {
     console.error("Error in getDashboardStats:", error);
-    if (error?.message === "Unauthorized") {
-      throw error;
-    }
     return {
       isOverview: false,
       canViewOverview: false,

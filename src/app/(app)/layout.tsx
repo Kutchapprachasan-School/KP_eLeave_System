@@ -58,6 +58,28 @@ import { getSystemSettings, getMyDutyAssignments } from "@/app/actions/settings"
 import { PolicyUpdateNotifier } from "@/components/privacy/PolicyUpdateNotifier";
 import { FontSizeSwitcher } from "@/components/layout/FontSizeSwitcher";
 
+function SidebarToggleIcon({ isCollapsed, className = "w-4 h-4" }: { isCollapsed: boolean; className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+    >
+      <rect width="18" height="18" x="3" y="3" rx="3" />
+      <path d="M9 3v18" />
+      {isCollapsed ? (
+        <path d="m14 9 3 3-3 3" />
+      ) : (
+        <path d="m16 15-3-3 3-3" />
+      )}
+    </svg>
+  );
+}
+
 function NotificationBell({ isAdmin, isApprover }: { isAdmin: boolean; isApprover: boolean }) {
   const { t } = useI18n();
   const pathname = usePathname();
@@ -422,7 +444,7 @@ function CollapsibleGroup({
             setIsOpen(true);
             if (onExpand) onExpand();
           }}
-          className={`relative flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-200 mx-auto cursor-pointer ${
+          className={`relative flex items-center justify-center w-9 h-9 rounded-xl transition-all duration-200 mx-auto cursor-pointer ${
             isAnyChildActive
               ? "text-white bg-blue-600 shadow-sm shadow-blue-500/25 font-bold"
               : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white"
@@ -444,13 +466,13 @@ function CollapsibleGroup({
       <button
         type="button"
         onClick={() => setIsOpen((prev) => !prev)}
-        className={`w-full flex items-center justify-between gap-3 px-3.5 py-2.5 rounded-xl text-xs sm:text-[13px] font-medium transition-all duration-200 cursor-pointer select-none group ${
+        className={`w-full flex items-center justify-between gap-2.5 px-2.5 py-1.5 rounded-xl text-xs sm:text-[12.5px] font-medium transition-all duration-200 cursor-pointer select-none group ${
           isAnyChildActive
             ? "text-blue-600 dark:text-blue-400 bg-blue-50/80 dark:bg-blue-950/40 font-bold"
             : "text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white"
         }`}
       >
-        <div className="flex items-center gap-3 min-w-0">
+        <div className="flex items-center gap-2.5 min-w-0">
           <GroupIcon className={`w-4 h-4 shrink-0 transition-transform ${
             isAnyChildActive ? "text-blue-600 dark:text-blue-400" : "text-slate-500 dark:text-slate-400 group-hover:text-blue-600 dark:group-hover:text-blue-400"
           }`} />
@@ -458,7 +480,7 @@ function CollapsibleGroup({
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
           {badge !== undefined && badge > 0 && (
-            <span className="min-w-4 h-4 px-1 rounded-full bg-rose-500 text-white text-[10px] font-bold flex items-center justify-center">
+            <span className="min-w-4 h-4 px-1 rounded-full bg-rose-500 text-white text-[9px] font-bold flex items-center justify-center">
               {badge}
             </span>
           )}
@@ -477,7 +499,7 @@ function CollapsibleGroup({
             animate={{ opacity: 1, height: "auto" }}
             exit={{ opacity: 0, height: 0 }}
             transition={{ duration: 0.2, ease: "easeInOut" }}
-            className="pl-2 overflow-hidden space-y-1 border-l-2 border-slate-100 dark:border-slate-800 ml-4.5 my-1"
+            className="pl-1.5 overflow-hidden space-y-0.5 border-l-2 border-slate-100 dark:border-slate-800 ml-3.5 my-0.5"
           >
             {items.map((item) => renderNavItem(item, true))}
           </motion.div>
@@ -1083,7 +1105,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
     if (itemCollapsed) {
       return (
         <Link key={item.href} href={item.href} prefetch={false} title={item.label}>
-          <div className={`relative flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-200 mx-auto ${
+          <div className={`relative flex items-center justify-center w-9 h-9 rounded-xl transition-all duration-200 mx-auto ${
             isActive
               ? "text-white bg-blue-600 shadow-sm shadow-blue-500/25 font-bold"
               : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white"
@@ -1104,13 +1126,13 @@ function AppContent({ children }: { children: React.ReactNode }) {
     return (
       <Link key={item.href} href={item.href} prefetch={false}>
         <div
-          className={`w-full flex items-center justify-between px-3.5 ${isSubItem ? "py-2 pl-9 text-xs" : "py-2.5 text-xs sm:text-[13px]"} rounded-xl transition-all duration-200 group cursor-pointer ${
+          className={`w-full flex items-center justify-between px-2.5 ${isSubItem ? "py-1.5 pl-6 text-[11.5px]" : "py-1.5 text-xs sm:text-[12.5px]"} rounded-xl transition-all duration-200 group cursor-pointer ${
             isActive
               ? "bg-blue-600 text-white font-bold shadow-xs"
               : "text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white font-medium"
           }`}
         >
-          <div className="flex items-center gap-3 min-w-0">
+          <div className="flex items-center gap-2.5 min-w-0">
             <Icon className={`${isSubItem ? "w-3.5 h-3.5" : "w-4 h-4"} shrink-0 transition-transform ${
               isActive ? "text-white" : "text-slate-500 dark:text-slate-400 group-hover:text-blue-600 dark:group-hover:text-blue-400"
             }`} />
@@ -1119,14 +1141,14 @@ function AppContent({ children }: { children: React.ReactNode }) {
 
           <div className="flex items-center gap-1.5 shrink-0">
             {isAdminItem && (
-              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+              <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
                 isActive ? "bg-white text-indigo-600" : "bg-indigo-600 text-white"
               }`}>
                 Admin
               </span>
             )}
             {item.badge !== undefined && item.badge > 0 && (
-              <span className={`flex items-center justify-center min-w-4 h-4 px-1 rounded-full text-[10px] font-bold ${
+              <span className={`flex items-center justify-center min-w-4 h-4 px-1 rounded-full text-[9px] font-bold ${
                 isActive ? "bg-white text-blue-600" : "bg-rose-500 text-white"
               }`}>
                 {item.badge}
@@ -1231,12 +1253,12 @@ function AppContent({ children }: { children: React.ReactNode }) {
       {/* Sidebar Navigation */}
       <aside className={`fixed top-0 bottom-0 left-0 z-50 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border-r border-slate-100 dark:border-slate-800 flex flex-col shadow-[4px_0_24px_rgba(0,0,0,0.02)] print:hidden transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] select-none ${
         sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
-      } ${isCollapsed ? "lg:w-[72px]" : "lg:w-[256px]"} w-[256px]`}>
+      } ${isCollapsed ? "lg:w-[64px]" : "lg:w-[228px]"} w-[228px]`}>
         
-        {/* Brand Header matching Image 2 */}
-        <div className="p-3.5 border-b border-slate-100 dark:border-slate-800/80 flex items-center justify-between gap-2.5 shrink-0">
-          <div className={`flex items-center gap-2.5 min-w-0 ${isCollapsed ? "justify-center w-full" : ""}`}>
-            <div className="w-10 h-10 rounded-xl overflow-hidden shrink-0 flex items-center justify-center shadow-2xs bg-white border border-slate-100 p-0.5">
+        {/* Brand Header */}
+        <div className="p-2.5 sm:p-3 border-b border-slate-100 dark:border-slate-800/80 flex items-center justify-between gap-2 shrink-0">
+          <div className={`flex items-center gap-2 min-w-0 ${isCollapsed ? "justify-center w-full" : ""}`}>
+            <div className="w-9 h-9 rounded-xl overflow-hidden shrink-0 flex items-center justify-center shadow-2xs bg-white border border-slate-100 p-0.5">
               <img
                 src={brandLogo || "/images/teacher/school_logo.png"}
                 alt="Logo"
@@ -1246,16 +1268,24 @@ function AppContent({ children }: { children: React.ReactNode }) {
                 }}
               />
             </div>
-            {!isCollapsed && (
-              <div className="min-w-0">
-                <div className="font-extrabold text-slate-900 dark:text-white text-xs sm:text-sm leading-tight truncate">
-                  {brandName || "โรงเรียนกุดจับประชาสรรค์"}
-                </div>
-                <div className="text-[10px] sm:text-[11px] text-slate-400 dark:text-slate-500 font-medium truncate mt-0.5">
-                  {brandSubheader || "อ.กุดจับ จ.อุดรธานี"}
-                </div>
-              </div>
-            )}
+            <AnimatePresence initial={false}>
+              {!isCollapsed && (
+                <motion.div
+                  initial={{ opacity: 0, width: 0 }}
+                  animate={{ opacity: 1, width: "auto" }}
+                  exit={{ opacity: 0, width: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="min-w-0 overflow-hidden whitespace-nowrap"
+                >
+                  <div className="font-extrabold text-slate-900 dark:text-white text-xs leading-tight truncate">
+                    {brandName || "โรงเรียนกุดจับประชาสรรค์"}
+                  </div>
+                  <div className="text-[10px] text-slate-400 dark:text-slate-500 font-medium truncate mt-0.5">
+                    {brandSubheader || "อ.กุดจับ จ.อุดรธานี"}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
 
           {!isCollapsed && (
@@ -1271,23 +1301,23 @@ function AppContent({ children }: { children: React.ReactNode }) {
               className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shrink-0 flex items-center justify-center cursor-pointer"
               title="ปิดเมนูด้านข้าง"
             >
-              <X className="w-4 h-4" />
+              <SidebarToggleIcon isCollapsed={false} className="w-4 h-4" />
             </button>
           )}
         </div>
 
         {/* Navigation */}
-        <nav className={`flex-1 py-3.5 space-y-1.5 overflow-y-auto custom-scrollbar ${isCollapsed ? "px-1.5" : "px-3"}`}>
+        <nav className={`flex-1 py-2.5 space-y-1 overflow-y-auto custom-scrollbar ${isCollapsed ? "px-1.5" : "px-2.5"}`}>
           {/* Top Dashboard Link ("หน้าหลัก") */}
           <Link href="/dashboard" prefetch={false} title={isCollapsed ? "หน้าหลัก" : undefined}>
-            <div className={`relative flex items-center rounded-xl text-xs sm:text-[13px] transition-all duration-200 group cursor-pointer ${
-              isCollapsed ? "justify-center w-10 h-10 mx-auto" : "justify-between px-3.5 py-2.5"
+            <div className={`relative flex items-center rounded-xl text-xs sm:text-[12.5px] transition-all duration-200 group cursor-pointer ${
+              isCollapsed ? "justify-center w-9 h-9 mx-auto" : "justify-between px-2.5 py-1.5"
             } ${
               pathname === "/dashboard" 
                 ? "bg-blue-600 text-white font-bold shadow-xs" 
                 : "text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white font-medium"
             }`}>
-              <div className="flex items-center gap-3 min-w-0">
+              <div className="flex items-center gap-2.5 min-w-0">
                 <Home className={`w-4 h-4 shrink-0 transition-transform ${
                   pathname === "/dashboard" ? "text-white" : "text-slate-500 dark:text-slate-400 group-hover:text-blue-600 dark:group-hover:text-blue-400"
                 }`} />
@@ -1302,11 +1332,11 @@ function AppContent({ children }: { children: React.ReactNode }) {
             target="_blank"
             rel="noopener noreferrer"
             title={lang === "en" ? "Classroom Portal" : "ระบบจัดการชั้นเรียน"}
-            className={`w-full flex items-center rounded-xl text-xs sm:text-[13px] transition-all duration-200 group cursor-pointer ${
-              isCollapsed ? "justify-center w-10 h-10 mx-auto" : "justify-between px-3.5 py-2.5"
+            className={`w-full flex items-center rounded-xl text-xs sm:text-[12.5px] transition-all duration-200 group cursor-pointer ${
+              isCollapsed ? "justify-center w-9 h-9 mx-auto" : "justify-between px-2.5 py-1.5"
             } text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white font-medium`}
           >
-            <div className="flex items-center gap-3 min-w-0">
+            <div className="flex items-center gap-2.5 min-w-0">
               <GraduationCap className="w-4 h-4 shrink-0 transition-transform text-slate-500 dark:text-slate-400 group-hover:text-blue-600 dark:group-hover:text-blue-400" />
               {!isCollapsed && (
                 <span className="truncate">
@@ -1317,7 +1347,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
 
             {!isCollapsed && (
               <div className="flex items-center gap-1.5 shrink-0">
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-600 text-white">
+                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-600 text-white">
                   TEACH
                 </span>
                 <ExternalLink className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300 transition-colors" />
@@ -1592,7 +1622,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
         </nav>
 
         {/* Standalone Logout Button matching Image 2 */}
-        <div className={`p-3 border-t border-slate-100 dark:border-slate-800 shrink-0 ${isCollapsed ? "px-1.5 py-2" : ""}`}>
+        <div className={`p-2.5 border-t border-slate-100 dark:border-slate-800 shrink-0 ${isCollapsed ? "px-1.5 py-2" : ""}`}>
           <button
             type="button"
             onClick={async () => {
@@ -1601,8 +1631,8 @@ function AppContent({ children }: { children: React.ReactNode }) {
               router.push("/login");
             }}
             title={t("logout")}
-            className={`w-full flex items-center justify-center gap-2 py-2.5 px-3 rounded-2xl border border-blue-500/80 bg-white dark:bg-slate-900 hover:bg-blue-50 dark:hover:bg-blue-950/30 text-blue-600 dark:text-blue-400 text-xs sm:text-sm font-bold transition-all cursor-pointer shadow-2xs ${
-              isCollapsed ? "w-10 h-10 p-0 mx-auto" : ""
+            className={`w-full flex items-center justify-center gap-2 py-2 px-2.5 rounded-xl border border-blue-500/80 bg-white dark:bg-slate-900 hover:bg-blue-50 dark:hover:bg-blue-950/30 text-blue-600 dark:text-blue-400 text-xs font-bold transition-all cursor-pointer shadow-2xs ${
+              isCollapsed ? "w-9 h-9 p-0 mx-auto" : ""
             }`}
           >
             <LogOut className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
@@ -1612,19 +1642,19 @@ function AppContent({ children }: { children: React.ReactNode }) {
       </aside>
 
       {/* Main Container */}
-      <main className={`flex-1 flex flex-col min-w-0 min-h-screen transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${isCollapsed ? "lg:pl-[72px]" : "lg:pl-[256px]"}`}>
+      <main className={`flex-1 flex flex-col min-w-0 min-h-screen transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${isCollapsed ? "lg:pl-[64px]" : "lg:pl-[228px]"}`}>
         
         {/* Top Header matching media_1791955677504_61745d04.jpg */}
         <header className="h-16 px-4 sm:px-6 lg:px-8 border-b border-slate-100/90 dark:border-slate-800/80 bg-white/70 dark:bg-slate-900/70 backdrop-blur-md flex items-center justify-between gap-3 z-30 print:hidden select-none">
-          {/* Left: Menu Toggle Button */}
+          {/* Left: Menu Toggle Button matching media_1792121506119_7ae5e27b.png */}
           <div className="flex items-center gap-3 shrink-0">
             <button
               type="button"
               onClick={toggleSidebar}
               title={isCollapsed ? "ขยายแถบเมนูด้านข้าง" : "พับเก็บแถบเมนูด้านข้าง"}
-              className="p-2 rounded-xl bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-slate-700 shadow-2xs border border-slate-200/60 dark:border-slate-700/60 transition-all cursor-pointer"
+              className="p-2 sm:p-2.5 rounded-xl bg-slate-100/80 hover:bg-slate-200/80 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 shadow-2xs border border-slate-200/60 dark:border-slate-700/60 transition-all cursor-pointer flex items-center justify-center"
             >
-              <Menu className="w-4 h-4" />
+              <SidebarToggleIcon isCollapsed={isCollapsed} className="w-4 h-4" />
             </button>
           </div>
 

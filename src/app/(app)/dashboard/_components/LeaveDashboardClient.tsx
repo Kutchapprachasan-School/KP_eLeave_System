@@ -211,6 +211,10 @@ export default function LeaveDashboardClient() {
     setStatsError(null);
     getDashboardStats(cycleFilter, lang, dashboardYear, viewMode)
       .then((data: any) => {
+        if (data?.error === "Unauthorized") {
+          router.push("/login");
+          return;
+        }
         if (data?.error) {
           console.error("Dashboard server warning:", data.error);
         }
@@ -221,10 +225,10 @@ export default function LeaveDashboardClient() {
       })
       .catch((err: any) => {
         console.error("Dashboard error:", err);
-        if (err?.message === "Unauthorized") {
+        if (err?.message === "Unauthorized" || String(err).includes("Unauthorized")) {
           router.push("/login");
         } else {
-          setStatsError("ไม่สามารถเชื่อมต่อข้อมูลแดชบอร์ดได้ในขณะนี้ กรุณากดลองใหม่อีกครั้ง");
+          setStatsError(lang === "en" ? "Unable to load dashboard data. Please try again." : "ไม่สามารถเชื่อมต่อข้อมูลแดชบอร์ดได้ในขณะนี้ กรุณากดลองใหม่อีกครั้ง");
         }
       });
   }, [cycleFilter, lang, dashboardYear, viewMode, router]);
@@ -508,8 +512,21 @@ export default function LeaveDashboardClient() {
           onClick={() => {
             setStatsError(null);
             getDashboardStats(cycleFilter, lang, dashboardYear, viewMode)
-              .then(setStats)
-              .catch((err) => setStatsError(err?.message || "เกิดข้อผิดพลาดในการโหลดข้อมูล"));
+              .then((data: any) => {
+                if (data?.error === "Unauthorized") {
+                  router.push("/login");
+                  return;
+                }
+                setStats(data);
+              })
+              .catch((err) => {
+                console.error("Retry dashboard error:", err);
+                if (err?.message === "Unauthorized" || String(err).includes("Unauthorized")) {
+                  router.push("/login");
+                } else {
+                  setStatsError(lang === "en" ? "Unable to load dashboard data. Please try again." : "ไม่สามารถเชื่อมต่อข้อมูลแดชบอร์ดได้ในขณะนี้ กรุณากดลองใหม่อีกครั้ง");
+                }
+              });
           }}
           className="px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold transition shadow-sm cursor-pointer"
         >

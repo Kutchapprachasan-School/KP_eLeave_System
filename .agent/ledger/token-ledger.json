@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "version": "2.0.0",
   "summary": {
-    "totalTasksCompleted": 10,
+    "totalTasksCompleted": 11,
     "totalFilesReadTargeted": 20,
     "totalFullFilesAvoided": 17,
     "averageToolCallsPerTask": 5.5,
@@ -234,6 +234,29 @@
       "testResult": "passed (tsc clean on settings/page.tsx, scoped design system tests 8/8 passed)",
       "status": "completed",
       "commit": "f8e06b9"
+    },
+    {
+      "taskId": "TASK-20261016-02",
+      "timestamp": "2026-10-16T11:30:00+07:00",
+      "taskName": "Fix Leave Dashboard Error #441, Subsystem Hooks Error #310, and Redesign Compact Sidebar with Motion and Custom Toggle Icon",
+      "category": "fullstack",
+      "filesRead": [
+        "src/app/(app)/settings/page.tsx",
+        "src/app/actions/leave.ts",
+        "src/app/(app)/dashboard/_components/LeaveDashboardClient.tsx",
+        "src/app/(app)/layout.tsx"
+      ],
+      "filesChanged": [
+        "src/app/(app)/settings/page.tsx",
+        "src/app/actions/leave.ts",
+        "src/app/(app)/dashboard/_components/LeaveDashboardClient.tsx",
+        "src/app/(app)/layout.tsx"
+      ],
+      "toolCallsCount": 8,
+      "repeatFixCycles": 0,
+      "testResult": "passed (scoped unit test passed, design system tests 8/8 passed, zero orphaned accounts)",
+      "status": "completed",
+      "commit": "pending"
     }
   ]
 }

@@ -405,6 +405,7 @@ export default function SettingsPage() {
   const [academicPlanningAllowedUserIds, setAcademicPlanningAllowedUserIds] = useState<string[]>([]);
   const [apSearchQuery, setApSearchQuery] = useState("");
   const [showApDropdown, setShowApDropdown] = useState(false);
+  const [isSavingSubsystems, setIsSavingSubsystems] = useState(false);
 
   // Document admin user delegation & management mode states
   const [docAdminUserIds, setDocAdminUserIds] = useState<string[]>([]);
@@ -7737,8 +7738,6 @@ function doPost(e) {
         showToast("error", e?.message ?? "เกิดข้อผิดพลาดในการบันทึก");
       }
     };
-
-    const [isSavingSubsystems, setIsSavingSubsystems] = useState(false);
 
     // Save all subsystem configs
     const handleSaveAllSubsystems = async () => {
