@@ -256,7 +256,7 @@
       "repeatFixCycles": 0,
       "testResult": "passed (scoped unit test passed, design system tests 8/8 passed, zero orphaned accounts)",
       "status": "completed",
-      "commit": "pending"
+      "commit": "c0da960"
     }
   ]
 }
