@@ -21,8 +21,10 @@ import {
 } from "lucide-react";
 import {
   type DashboardWidgetConfig,
-  type SchoolManagementExecutiveStats,
   DEFAULT_WIDGET_CONFIG,
+} from "@/types/dashboard-widgets";
+import {
+  type SchoolManagementExecutiveStats,
   getDashboardWidgetConfig,
   getSchoolManagementExecutiveStats,
 } from "@/app/actions/dashboard-widgets";

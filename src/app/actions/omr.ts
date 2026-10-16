@@ -1676,7 +1676,9 @@ export async function calculateExamItemAnalysisAction(examPaperId: string) {
   };
 }
 
-export const getExamItemAnalysisAction = calculateExamItemAnalysisAction;
+export async function getExamItemAnalysisAction(examPaperId: string) {
+  return calculateExamItemAnalysisAction(examPaperId);
+}
 
 /**
  * Delete a scanned exam submission and clean its leaf items & overrides

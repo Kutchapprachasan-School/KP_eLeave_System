@@ -34,6 +34,8 @@ import {
 import {
   type DashboardWidgetConfig,
   DEFAULT_WIDGET_CONFIG,
+} from "@/types/dashboard-widgets";
+import {
   saveDashboardWidgetConfig,
   resetUserWidgetConfigToDefault,
 } from "@/app/actions/dashboard-widgets";
