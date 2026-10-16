@@ -519,6 +519,32 @@ function AppContent({ children }: { children: React.ReactNode }) {
   };
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
+  const isCollapsed = sidebarCollapsed && !sidebarOpen;
+
+  const toggleSidebar = () => {
+    if (typeof window !== "undefined" && window.innerWidth < 1024) {
+      setSidebarOpen((prev) => !prev);
+    } else {
+      setSidebarCollapsed((prev) => {
+        const next = !prev;
+        try {
+          localStorage.setItem("kp_sidebar_collapsed", String(next));
+        } catch {}
+        return next;
+      });
+    }
+  };
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && (e.key === "b" || e.key === "B")) {
+        e.preventDefault();
+        toggleSidebar();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
   const [brandName, setBrandName] = useState("ระบบการลา");
   const [brandLogo, setBrandLogo] = useState<string | null>(null);
   const [isFinalApprover, setIsFinalApprover] = useState(false);
@@ -1031,33 +1057,6 @@ function AppContent({ children }: { children: React.ReactNode }) {
   if (isAdmin) {
     settingsNavItems.push({ href: "/admin/recycle-bin", label: "ถังขยะระบบกลาง (Recycle Bin)", icon: Trash2 });
   }
-
-  const isCollapsed = sidebarCollapsed && !sidebarOpen;
-
-  const toggleSidebar = () => {
-    if (typeof window !== "undefined" && window.innerWidth < 1024) {
-      setSidebarOpen((prev) => !prev);
-    } else {
-      setSidebarCollapsed((prev) => {
-        const next = !prev;
-        try {
-          localStorage.setItem("kp_sidebar_collapsed", String(next));
-        } catch {}
-        return next;
-      });
-    }
-  };
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && (e.key === "b" || e.key === "B")) {
-        e.preventDefault();
-        toggleSidebar();
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
 
   const renderNavItem = (item: any, isSubItem: boolean = false) => {
     const isExactMatch = item.href.includes("?")

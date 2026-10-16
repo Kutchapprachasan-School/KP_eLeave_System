@@ -33,6 +33,11 @@ export default function SMSLearningOutcomeChart({
   const [selectedClass, setSelectedClass] = useState("ทุกห้องเรียน");
   const [loading, setLoading] = useState(false);
   const [outcomeData, setOutcomeData] = useState<LearningOutcomeData | null>(null);
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   useEffect(() => {
     let isCancelled = false;
@@ -155,64 +160,70 @@ export default function SMSLearningOutcomeChart({
 
       {/* Line Chart */}
       <div className="w-full h-56 pt-1 relative">
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart
-            data={chartData}
-            margin={{ top: 10, right: 15, left: -20, bottom: 5 }}
-          >
-            <CartesianGrid
-              strokeDasharray="3 3"
-              vertical={false}
-              stroke="#E2E8F0"
-              className="dark:stroke-slate-800"
-            />
-            <XAxis
-              dataKey="month"
-              axisLine={false}
-              tickLine={false}
-              tick={{ fontSize: 11, fill: "#94A3B8" }}
-            />
-            <YAxis
-              domain={[0, 100]}
-              ticks={[0, 25, 50, 75, 100]}
-              axisLine={false}
-              tickLine={false}
-              tick={{ fontSize: 11, fill: "#94A3B8" }}
-            />
-            <Tooltip
-              content={({ active, payload, label }) => {
-                if (active && payload && payload.length) {
-                  return (
-                    <div className="bg-slate-900 text-white text-xs p-2.5 rounded-xl shadow-xl space-y-1">
-                      <p className="font-bold border-b border-slate-800 pb-1">{label}</p>
-                      {payload.map((entry, index) => (
-                        <p key={`item-${index}`} className="flex items-center justify-between gap-3 text-[11px]">
-                          <span style={{ color: entry.color }}>
-                            {entry.name}:
-                          </span>
-                          <span className="font-bold">{entry.value}%</span>
-                        </p>
-                      ))}
-                    </div>
-                  );
-                }
-                return null;
-              }}
-            />
-            {series.map((s) => (
-              <Line
-                key={s.key}
-                type="monotone"
-                dataKey={s.key}
-                name={s.name}
-                stroke={s.color}
-                strokeWidth={2.5}
-                dot={{ r: 4, fill: s.color, strokeWidth: 2, stroke: "#EFF6FF" }}
-                activeDot={{ r: 6 }}
+        {isMounted ? (
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart
+              data={chartData}
+              margin={{ top: 10, right: 15, left: -20, bottom: 5 }}
+            >
+              <CartesianGrid
+                strokeDasharray="3 3"
+                vertical={false}
+                stroke="#E2E8F0"
+                className="dark:stroke-slate-800"
               />
-            ))}
-          </LineChart>
-        </ResponsiveContainer>
+              <XAxis
+                dataKey="month"
+                axisLine={false}
+                tickLine={false}
+                tick={{ fontSize: 11, fill: "#94A3B8" }}
+              />
+              <YAxis
+                domain={[0, 100]}
+                ticks={[0, 25, 50, 75, 100]}
+                axisLine={false}
+                tickLine={false}
+                tick={{ fontSize: 11, fill: "#94A3B8" }}
+              />
+              <Tooltip
+                content={({ active, payload, label }) => {
+                  if (active && payload && payload.length) {
+                    return (
+                      <div className="bg-slate-900 text-white text-xs p-2.5 rounded-xl shadow-xl space-y-1">
+                        <p className="font-bold border-b border-slate-800 pb-1">{label}</p>
+                        {payload.map((entry, index) => (
+                          <p key={`item-${index}`} className="flex items-center justify-between gap-3 text-[11px]">
+                            <span style={{ color: entry.color }}>
+                              {entry.name}:
+                            </span>
+                            <span className="font-bold">{entry.value}%</span>
+                          </p>
+                        ))}
+                      </div>
+                    );
+                  }
+                  return null;
+                }}
+              />
+              {series.map((s) => (
+                <Line
+                  key={s.key}
+                  type="monotone"
+                  dataKey={s.key}
+                  name={s.name}
+                  stroke={s.color}
+                  strokeWidth={2.5}
+                  dot={{ r: 4, fill: s.color, strokeWidth: 2, stroke: "#EFF6FF" }}
+                  activeDot={{ r: 6 }}
+                />
+              ))}
+            </LineChart>
+          </ResponsiveContainer>
+        ) : (
+          <div className="w-full h-full rounded-xl bg-slate-50/50 dark:bg-slate-800/20 animate-pulse flex items-center justify-center text-xs text-slate-400">
+            กำลังโหลดข้อมูลกราฟ...
+          </div>
+        )}
       </div>
     </div>
   );

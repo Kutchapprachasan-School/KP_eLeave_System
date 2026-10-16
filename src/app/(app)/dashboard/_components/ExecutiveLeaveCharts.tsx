@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 
 interface TypeDataPoint {
@@ -25,6 +25,11 @@ export default function ExecutiveLeaveCharts({
   typeData,
   deptData,
 }: ExecutiveLeaveChartsProps) {
+  const [isMounted, setIsMounted] = useState(false);
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
   const totalCount = typeData.reduce((acc, curr) => acc + curr.count, 0) || 1;
 
   return (
@@ -49,36 +54,41 @@ export default function ExecutiveLeaveCharts({
         <div className="grid grid-cols-1 sm:grid-cols-2 items-center gap-3 my-2">
           {/* Donut */}
           <div className="h-40 w-full relative flex items-center justify-center">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={typeData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={38}
-                  outerRadius={58}
-                  paddingAngle={3}
-                  dataKey="count"
-                >
-                  {typeData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip
-                  formatter={(val, _name, item) => [
-                    `${val} ครั้ง`,
-                    (item as any)?.payload?.label,
-                  ]}
-                  contentStyle={{
-                    backgroundColor: "#0F172A",
-                    color: "#FFFFFF",
-                    borderRadius: "8px",
-                    fontSize: "11px",
-                    border: "none",
-                  }}
-                />
-              </PieChart>
-            </ResponsiveContainer>
+            {isMounted ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={typeData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={38}
+                    outerRadius={58}
+                    paddingAngle={3}
+                    dataKey="count"
+                  >
+                    {typeData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    formatter={(val, _name, item) => [
+                      `${val} ครั้ง`,
+                      (item as any)?.payload?.label,
+                    ]}
+                    contentStyle={{
+                      backgroundColor: "#0F172A",
+                      color: "#FFFFFF",
+                      borderRadius: "8px",
+                      fontSize: "11px",
+                      border: "none",
+                    }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="w-28 h-28 rounded-full border-4 border-slate-100 animate-pulse" />
+            )}
+
             <div className="absolute text-center pointer-events-none">
               <span className="text-xs text-slate-400 font-medium block">
                 คำขอรวม

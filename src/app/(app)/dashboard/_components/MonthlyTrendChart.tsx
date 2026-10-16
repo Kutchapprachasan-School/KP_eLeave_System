@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { 
   XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, 
   LineChart, Line, Legend, LabelList 
@@ -24,6 +24,11 @@ interface MonthlyTrendChartProps {
 }
 
 export default function MonthlyTrendChart({ monthlyData, leaveConfigs }: MonthlyTrendChartProps) {
+  const [isMounted, setIsMounted] = useState(false);
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
   const [trendViewMode, setTrendViewMode] = useState<"types" | "total">("types");
   const { t, lang, tLeaveType } = useI18n();
 
@@ -58,8 +63,9 @@ export default function MonthlyTrendChart({ monthlyData, leaveConfigs }: Monthly
       </div>
 
       <div className="min-h-[250px] h-[250px] w-full flex-1">
-        <ResponsiveContainer width="99%" height="100%">
-          <LineChart data={monthlyData} margin={{ top: 20, right: 15, left: -20, bottom: 5 }}>
+        {isMounted ? (
+          <ResponsiveContainer width="99%" height="100%">
+            <LineChart data={monthlyData} margin={{ top: 20, right: 15, left: -20, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(148, 163, 184, 0.1)" />
             <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: "#94A3B8" }} dy={10} />
             <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: "#94A3B8" }} />
@@ -180,7 +186,12 @@ export default function MonthlyTrendChart({ monthlyData, leaveConfigs }: Monthly
             )}
           </LineChart>
         </ResponsiveContainer>
-      </div>
+      ) : (
+        <div className="w-full h-full rounded-2xl bg-slate-50/50 dark:bg-slate-800/20 animate-pulse flex items-center justify-center text-xs text-slate-400">
+          กำลังโหลดกราฟ...
+        </div>
+      )}
+    </div>
     </div>
   );
 }

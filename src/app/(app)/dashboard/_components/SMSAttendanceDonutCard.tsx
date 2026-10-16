@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { Calendar, ArrowRight } from "lucide-react";
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip } from "recharts";
 
@@ -19,6 +19,11 @@ export default function SMSAttendanceDonutCard({
   leaveRate = 0.9,
   onViewAll,
 }: SMSAttendanceDonutCardProps) {
+  const [isMounted, setIsMounted] = useState(false);
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
   const data = [
     { name: "มาเรียน", value: presentRate, color: "#10B981" },
     { name: "สาย", value: lateRate, color: "#F59E0B" },
@@ -53,34 +58,38 @@ export default function SMSAttendanceDonutCard({
       <div className="flex flex-col sm:flex-row items-center justify-between gap-4 py-3">
         {/* Donut Chart Container */}
         <div className="relative w-44 h-44 shrink-0 flex items-center justify-center">
-          <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
-              <Tooltip
-                formatter={(value: any, name: any) => [`${value}%`, name]}
-                contentStyle={{
-                  backgroundColor: "#0F172A",
-                  borderColor: "#334155",
-                  borderRadius: "0.75rem",
-                  color: "#FFFFFF",
-                  fontSize: "12px",
-                }}
-              />
-              <Pie
-                data={data}
-                innerRadius={52}
-                outerRadius={70}
-                paddingAngle={3}
-                dataKey="value"
-                startAngle={90}
-                endAngle={-270}
-                stroke="none"
-              >
-                {data.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.color} />
-                ))}
-              </Pie>
-            </PieChart>
-          </ResponsiveContainer>
+          {isMounted ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Tooltip
+                  formatter={(value: any, name: any) => [`${value}%`, name]}
+                  contentStyle={{
+                    backgroundColor: "#0F172A",
+                    borderColor: "#334155",
+                    borderRadius: "0.75rem",
+                    color: "#FFFFFF",
+                    fontSize: "12px",
+                  }}
+                />
+                <Pie
+                  data={data}
+                  innerRadius={52}
+                  outerRadius={70}
+                  paddingAngle={3}
+                  dataKey="value"
+                  startAngle={90}
+                  endAngle={-270}
+                  stroke="none"
+                >
+                  {data.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Pie>
+              </PieChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="w-36 h-36 rounded-full border-4 border-slate-100 dark:border-slate-800 animate-pulse" />
+          )}
 
           {/* Center text inside Donut */}
           <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-center">
