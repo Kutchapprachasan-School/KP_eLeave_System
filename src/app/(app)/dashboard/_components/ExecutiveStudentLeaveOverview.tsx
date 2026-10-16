@@ -167,7 +167,7 @@ export default function ExecutiveStudentLeaveOverview({
             <Clock className="w-4 h-4 text-slate-400 shrink-0" />
             <span className="text-[11px]">
               {totalStudents > 0
-                ? `นักเรียนลงทะเบียน ${totalStudents} คน — รอการสรุปยอดเช็กแถวหน้าเสาธง`
+                ? `นักเรียนลงทะเบียน ${totalStudents.toLocaleString("th-TH")} คน — รอการสรุปยอดเช็กแถวหน้าเสาธง`
                 : "ยังไม่มีข้อมูลนักเรียนที่ลงทะเบียนในระบบ"}
             </span>
           </div>

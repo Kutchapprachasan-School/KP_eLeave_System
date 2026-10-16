@@ -197,7 +197,7 @@ function AIAssistantWidget() {
             <span>
               นักเรียนขาดเรียน{" "}
               <strong className="text-slate-800 dark:text-white">42 คน</strong>{" "}
-              <span className="text-slate-400">(0.4%)</span>
+              <span className="text-slate-400">(3.7%)</span>
             </span>
           </li>
           <li className="flex items-start gap-1.5">
@@ -205,7 +205,7 @@ function AIAssistantWidget() {
             <span>
               นักเรียนมาสาย{" "}
               <strong className="text-slate-800 dark:text-white">13 คน</strong>{" "}
-              <span className="text-slate-400">(1.4%)</span>
+              <span className="text-slate-400">(1.1%)</span>
             </span>
           </li>
           <li className="flex items-start gap-1.5">

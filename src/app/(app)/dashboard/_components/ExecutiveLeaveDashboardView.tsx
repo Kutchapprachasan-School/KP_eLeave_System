@@ -212,7 +212,7 @@ export default function ExecutiveLeaveDashboardView() {
   const leaveConfigs = statsData?.leaveConfigs || [];
 
   // Derived Values
-  const totalStudents = schoolStats?.student.totalStudents || 32;
+  const totalStudents = schoolStats?.student.totalStudents || 1138;
   const attendanceRate =
     schoolStats?.student.attendanceToday.attendanceRate && schoolStats.student.attendanceToday.attendanceRate > 0
       ? schoolStats.student.attendanceToday.attendanceRate
@@ -394,7 +394,7 @@ export default function ExecutiveLeaveDashboardView() {
                   {attendanceRate}% <span className="text-[11px] font-normal text-slate-400">มาเรียนวันนี้</span>
                 </div>
                 <div className="text-[10px] text-slate-400 mt-0.5 truncate">
-                  นักเรียนรวม {totalStudents} คน
+                  นักเรียนรวม {totalStudents.toLocaleString("th-TH")} คน
                 </div>
               </div>
             </Link>

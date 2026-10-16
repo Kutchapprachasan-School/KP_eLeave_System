@@ -69,11 +69,11 @@ export default function SMSPerformanceRow() {
     { name: "การงานอาชีพ", pct: 87.5, color: "bg-indigo-600" },
   ];
 
-  // Student Status Donut Data
+  // Student Status Donut Data (1,138 students baseline)
   const studentStatusData = [
-    { name: "ปกติ", count: 1176, pct: 94.2, color: "#2563EB" },
-    { name: "เสี่ยง", count: 48, pct: 3.8, color: "#FBBF24" },
-    { name: "ต้องติดตาม", count: 24, pct: 1.9, color: "#F43F5E" },
+    { name: "ปกติ", count: 1078, pct: 94.7, color: "#2563EB" },
+    { name: "เสี่ยง", count: 42, pct: 3.7, color: "#FBBF24" },
+    { name: "ต้องติดตาม", count: 18, pct: 1.6, color: "#F43F5E" },
   ];
 
   return (
@@ -212,7 +212,7 @@ export default function SMSPerformanceRow() {
           </ResponsiveContainer>
           <div className="absolute text-center pointer-events-none">
             <span className="text-lg font-black text-slate-900 dark:text-white block leading-tight">
-              1,248
+              {studentStatusData.reduce((acc, curr) => acc + curr.count, 0).toLocaleString("th-TH")}
             </span>
             <span className="text-[10px] text-slate-400 font-medium block">คน</span>
           </div>

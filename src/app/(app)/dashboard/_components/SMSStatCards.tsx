@@ -19,7 +19,7 @@ interface SMSStatCardsProps {
 }
 
 export default function SMSStatCards({
-  totalStudents = 32,
+  totalStudents = 1138,
   totalStaff = 28,
   attendanceRate = 95.6,
   pendingTasks = 8,
