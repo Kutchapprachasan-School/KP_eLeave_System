@@ -57,6 +57,7 @@ import { getMyPendingRoutingCount } from "@/app/actions/incoming";
 import { getSystemSettings, getMyDutyAssignments } from "@/app/actions/settings";
 import { PolicyUpdateNotifier } from "@/components/privacy/PolicyUpdateNotifier";
 import { FontSizeSwitcher } from "@/components/layout/FontSizeSwitcher";
+import { BrandLoadingScreen } from "@/components/layout/BrandLoadingScreen";
 
 function SidebarToggleIcon({ isCollapsed, className = "w-4 h-4" }: { isCollapsed: boolean; className?: string }) {
   return (
@@ -551,8 +552,9 @@ function AppContent({ children }: { children: React.ReactNode }) {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
-  const [brandName, setBrandName] = useState("ระบบการลา");
-  const [brandLogo, setBrandLogo] = useState<string | null>(null);
+  const [brandName, setBrandName] = useState("โรงเรียนกุดจับประชาสรรค์");
+  const [brandLogo, setBrandLogo] = useState<string>("/images/teacher/school_logo.png");
+  const [brandSubheader, setBrandSubheader] = useState("ระบบบริหารจัดการสถานศึกษา");
   const [isFinalApprover, setIsFinalApprover] = useState(false);
   const [rolePermissions, setRolePermissions] = useState<any>(null);
   const [pendingDocsCount, setPendingDocsCount] = useState(0);
@@ -793,82 +795,11 @@ function AppContent({ children }: { children: React.ReactNode }) {
 
   if (isPending || isLoadingSettings) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-br from-slate-50 via-slate-100 to-indigo-50/50 dark:from-slate-950 dark:via-slate-900 dark:to-indigo-950/20 p-6 overflow-hidden">
-        {/* Decorative background lights */}
-        <div className="absolute top-1/4 left-1/4 w-72 h-72 bg-purple-400/10 dark:bg-purple-500/5 rounded-full blur-[100px] pointer-events-none animate-pulse" />
-        <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-indigo-400/10 dark:bg-indigo-500/5 rounded-full blur-[100px] pointer-events-none animate-pulse" style={{ animationDelay: '1s' }} />
-
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, ease: "easeOut" }}
-          className="relative z-10 flex flex-col items-center max-w-sm w-full text-center space-y-6"
-        >
-          {/* Logo container with pulse rings */}
-          <div className="relative flex items-center justify-center">
-            <div className="absolute inset-0 rounded-full bg-orange-500/20 dark:bg-amber-400/10 animate-ping opacity-75" />
-            <div className="absolute -inset-4 rounded-full bg-gradient-to-tr from-orange-500/10 to-amber-500/10 blur-md animate-pulse" />
-            
-            <div className="relative w-24 h-24 rounded-3xl bg-white dark:bg-slate-800 p-1.5 shadow-[0_8px_30px_rgb(0,0,0,0.08)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.4)] border border-slate-100 dark:border-slate-700/50 flex items-center justify-center overflow-hidden">
-              {brandLogo ? (
-                <motion.img 
-                  initial={{ scale: 0.8 }}
-                  animate={{ scale: 1 }}
-                  transition={{ delay: 0.15, duration: 0.5, type: "spring" }}
-                  src={brandLogo} 
-                  alt="School Logo" 
-                  className="w-full h-full object-cover rounded-2xl"
-                />
-              ) : (
-                <div className="w-full h-full rounded-2xl bg-gradient-to-br from-[#163A66] to-[#0f2744] flex items-center justify-center text-white">
-                  <svg className="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-                  </svg>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Texts */}
-          <div className="space-y-2">
-            <motion.h2 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.3 }}
-              className="text-lg font-bold text-gray-900 dark:text-white leading-snug px-4 line-clamp-2"
-            >
-              {brandName || "โรงเรียนของเรา"}
-            </motion.h2>
-            
-            <motion.p 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.4 }}
-              className="text-xs font-semibold tracking-wider text-amber-600 dark:text-amber-400 uppercase"
-            >
-              {brandSubheader || "ระบบจัดการการลาออนไลน์"}
-            </motion.p>
-          </div>
-
-          {/* Load indicator */}
-          <div className="w-40 pt-4 mx-auto">
-            <div className="h-1 w-full bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden relative">
-              <motion.div 
-                className="h-full bg-gradient-to-r from-orange-500 to-amber-500 rounded-full absolute top-0 bottom-0"
-                animate={{ 
-                  left: ["-100%", "100%"],
-                  width: ["30%", "60%", "30%"]
-                }}
-                transition={{ 
-                  duration: 1.5, 
-                  repeat: Infinity, 
-                  ease: "easeInOut" 
-                }}
-              />
-            </div>
-          </div>
-        </motion.div>
-      </div>
+      <BrandLoadingScreen
+        schoolName={brandName}
+        subheader={brandSubheader}
+        logoUrl={brandLogo}
+      />
     );
   }
 

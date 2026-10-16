@@ -55,6 +55,7 @@ export default function RootLayout({
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700;800&family=Noto+Sans+Thai:wght@300;400;500;600;700;800&family=Prompt:wght@300;400;500;600;700;800&family=Sarabun:wght@300;400;500;600;700;800&family=Taviraj:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" crossOrigin="anonymous" />
+        <link rel="preload" as="image" href="/images/teacher/school_logo.png" fetchPriority="high" />
       </head>
       <body className="min-h-full flex flex-col">
         <I18nProvider>
