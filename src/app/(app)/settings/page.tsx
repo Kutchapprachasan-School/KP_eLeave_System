@@ -29,7 +29,7 @@ import { getHolidays, createHoliday, updateHoliday, deleteHoliday, searchInterne
 
 import { useSession } from "@/lib/auth-client";
 
-import { Save, Image as ImageIcon, ShieldAlert, DownloadCloud, Lock, Code, Settings2, Archive, UploadCloud, Database, FileJson, AlertTriangle, CheckCircle2, ChevronRight, ChevronDown, ArrowLeft, Bell, Type, Users, BookOpen, HardDrive, UserCog, FileSpreadsheet, X, CalendarDays, CalendarDays as Calendar, ArrowRightLeft, CheckSquare, FileX, Plus, Clock, ClipboardList, MapPin, FolderOpen, Hash, UserCheck, Pencil, Trash2, ToggleLeft, ToggleRight, Sparkles, AlertCircle, Check, Eye, LayoutGrid, Wrench, Loader2, XCircle, MessageSquare, Building2, Award, FileText, Settings, Wallet, Vote, Layers, Search, Folder, ShieldCheck } from "lucide-react";
+import { Save, Image as ImageIcon, ShieldAlert, DownloadCloud, Lock, Code, Settings2, Archive, UploadCloud, Database, FileJson, AlertTriangle, CheckCircle2, ChevronRight, ChevronDown, ArrowLeft, Bell, Type, Users, BookOpen, HardDrive, UserCog, FileSpreadsheet, X, CalendarDays, CalendarDays as Calendar, ArrowRightLeft, CheckSquare, FileX, Plus, Clock, ClipboardList, MapPin, FolderOpen, Hash, UserCheck, Pencil, Trash2, ToggleLeft, ToggleRight, Sparkles, AlertCircle, Check, Eye, LayoutGrid, Wrench, Loader2, XCircle, MessageSquare, Building2, Award, FileText, Settings, Wallet, Vote, Layers, Search, Folder, ShieldCheck, GraduationCap, Map, Receipt, Boxes, FileEdit, Megaphone, SlidersHorizontal, Presentation } from "lucide-react";
 
 import { useToast } from "@/components/toast-provider";
 
@@ -7738,401 +7738,516 @@ function doPost(e) {
       }
     };
 
-    // Each subsystem: auto-save toggle + optional "ตั้งค่า" navigation
-    type SubDef = {
-      id: string;
-      icon: React.ReactNode;
-      activeColor: string;
-      activeBg: string;
-      activeBorder: string;
-      toggleColor: string;
-      title: string;
-      desc: string;
-      core?: boolean;
-      enabled: boolean;
-      saveKey?: "enableLeave" | "enableAttendance" | "enableDocument" | "enableRepair" | "enableTimetable" | "enableSubstitute" | "enableSupervision" | "enableExam" | "enableCompetency" | "enableFacility" | "enableAcademicSettings" | "enableBudget" | "enableStudentAffairs" | "enableStudentCouncil" | "enableAcademicPlanning";
-      settingsId?: string;
-      customPath?: string;
+    const [isSavingSubsystems, setIsSavingSubsystems] = useState(false);
+
+    // Save all subsystem configs
+    const handleSaveAllSubsystems = async () => {
+      setIsSavingSubsystems(true);
+      try {
+        await updateSystemSettings({
+          enableLeave,
+          enableAttendance,
+          enableDocument,
+          enableRepair,
+          enableTimetable,
+          enableSubstitute,
+          enableSupervision,
+          enableExam,
+          enableCompetency,
+          enableFacility,
+          enableAcademicSettings,
+          enableBudget,
+          enableStudentAffairs,
+          enableStudentCouncil,
+          enableAcademicPlanning,
+          enableAmssSync,
+          enableCertificate,
+        } as any);
+        showToast("success", lang === "en" ? "System settings saved successfully" : "บันทึกการตั้งค่าระบบเรียบร้อยแล้ว");
+      } catch (e: any) {
+        showToast("error", e?.message ?? "เกิดข้อผิดพลาดในการบันทึก");
+      } finally {
+        setIsSavingSubsystems(false);
+      }
     };
 
-    const SUBS: SubDef[] = [
-      {
-        id: "leave",
-        icon: <CalendarDays className="w-5 h-5" />,
-        activeColor: "text-emerald-600 dark:text-emerald-400",
-        activeBg: "bg-emerald-100 dark:bg-emerald-950/30",
-        activeBorder: "bg-emerald-50/40 dark:bg-emerald-950/10 border-emerald-200 dark:border-emerald-800",
-        toggleColor: "bg-emerald-600",
-        title: lang === "en" ? "Online Leave System (Core)" : "ระบบการลาออนไลน์ (ระบบหลัก Core)",
-        desc: lang === "en" ? "Core leave management module" : "ระบบบริหารจัดการการลาหลัก สิทธิ์วันลา และการอนุมัติใบลา",
-        enabled: enableLeave,
-        saveKey: "enableLeave",
-        settingsId: "leave-rules",
-        core: true,
-      },
-      {
-        id: "attendance",
-        icon: <Clock className="w-5 h-5" />,
-        activeColor: "text-indigo-600 dark:text-indigo-400",
-        activeBg: "bg-indigo-100 dark:bg-indigo-950/40",
-        activeBorder: "bg-indigo-50/40 dark:bg-indigo-950/10 border-indigo-200 dark:border-indigo-800",
-        toggleColor: "bg-indigo-600",
-        title: lang === "en" ? "Attendance Clocking System" : "ระบบลงเวลาปฏิบัติราชการ",
-        desc: lang === "en" ? "Shift times, geofence, face scan" : "บันทึกเวลาปฏิบัติงานด้วย GPS, Geofence, Face Scan",
-        enabled: enableAttendance,
-        saveKey: "enableAttendance",
-        settingsId: "attendance-settings",
-      },
-      {
-        id: "competency",
-        icon: <Award className="w-5 h-5" />,
-        activeColor: "text-rose-600 dark:text-rose-400",
-        activeBg: "bg-rose-100 dark:bg-rose-950/40",
-        activeBorder: "bg-rose-50/40 dark:bg-rose-950/10 border-rose-200 dark:border-rose-800",
-        toggleColor: "bg-rose-600",
-        title: lang === "en" ? "PA Competency Portfolio" : "แฟ้มสะสมงาน & สมรรถนะครู",
-        desc: lang === "en" ? "Teacher PA agreement tracker, PD hours & 5-dimension evaluation" : "บันทึกข้อตกลง PA รายชั่วโมงพัฒนาตนเอง ประเมินสมรรถนะ 5 ด้าน",
-        enabled: enableCompetency,
-        saveKey: "enableCompetency",
-        customPath: "/personnel/settings",
-      },
-      {
-        id: "document",
-        icon: <ClipboardList className="w-5 h-5" />,
-        activeColor: "text-orange-600 dark:text-orange-400",
-        activeBg: "bg-orange-100 dark:bg-orange-950/40",
-        activeBorder: "bg-orange-50/40 dark:bg-orange-950/10 border-orange-200 dark:border-orange-800",
-        toggleColor: "bg-orange-500",
-        title: lang === "en" ? "AMSS++ Document System" : "ระบบสารบรรณหนังสือรับ-ส่ง AMSS++",
-        desc: lang === "en" ? "Incoming/outgoing documents tracking & sub-toggles" : "บันทึกและส่งต่อหนังสือราชการรับ-ส่ง พร้อมระบบเชื่อมย่อย AMSS & เกียรติบัตร",
-        enabled: enableDocument,
-        saveKey: "enableDocument",
-        settingsId: "document-settings",
-      },
-      {
-        id: "facility",
-        icon: <Building2 className="w-5 h-5" />,
-        activeColor: "text-teal-600 dark:text-teal-400",
-        activeBg: "bg-teal-100 dark:bg-teal-950/40",
-        activeBorder: "bg-teal-50/40 dark:bg-teal-950/10 border-teal-200 dark:border-teal-800",
-        toggleColor: "bg-teal-600",
-        title: lang === "en" ? "Central Facility Booking" : "ระบบจองทรัพยากรกลาง & ห้องปฏิบัติการ",
-        desc: lang === "en" ? "Central facility booking catalog, conflict engine & A4 slips" : "จองห้องประชุม รถโรงเรียน อุปกรณ์ส่วนกลาง ป้องกันเวลาชนกัน",
-        enabled: enableFacility,
-        saveKey: "enableFacility",
-        customPath: "/facility/settings",
-      },
-      {
-        id: "repair",
-        icon: <Wrench className="w-5 h-5" />,
-        activeColor: "text-amber-600 dark:text-amber-400",
-        activeBg: "bg-amber-100 dark:bg-amber-950/40",
-        activeBorder: "bg-amber-50/40 dark:bg-amber-950/10 border-amber-200 dark:border-amber-800",
-        toggleColor: "bg-amber-500",
-        title: lang === "en" ? "Building & Equipment Repair" : "ระบบแจ้งซ่อมแซมอาคารสถานที่",
-        desc: lang === "en" ? "Equipment/building repair requests" : "แจ้งปัญหาวัสดุครุภัณฑ์และติดตามสถานะงานซ่อม",
-        enabled: enableRepair,
-        saveKey: "enableRepair",
-        settingsId: "repair-settings",
-      },
-      {
-        id: "academic_planning",
-        icon: <Layers className="w-5 h-5" />,
-        activeColor: "text-purple-600 dark:text-purple-400",
-        activeBg: "bg-purple-100 dark:bg-purple-950/40",
-        activeBorder: "bg-purple-50/40 dark:bg-purple-950/10 border-purple-200 dark:border-purple-800",
-        toggleColor: "bg-purple-600",
-        title: lang === "en" ? "Academic Planning Center" : "ศูนย์วางแผนวิชาการ",
-        desc: lang === "en" ? "Academic planning control plane, curriculum sandbox & readiness gate" : "ศูนย์ควบคุมการวางแผนวิชาการ โครงสร้างหลักสูตร ฉากทัศน์จำลอง และเกณฑ์ความพร้อม",
-        enabled: enableAcademicPlanning,
-        saveKey: "enableAcademicPlanning",
-        customPath: "/academic/planning",
-      },
-      {
-        id: "timetable",
-        icon: <CalendarDays className="w-5 h-5" />,
-        activeColor: "text-purple-600 dark:text-purple-400",
-        activeBg: "bg-purple-100 dark:bg-purple-950/40",
-        activeBorder: "bg-purple-50/40 dark:bg-purple-950/10 border-purple-200 dark:border-purple-800",
-        toggleColor: "bg-purple-600",
-        title: lang === "en" ? "Online Timetable System" : "ระบบจัดตารางสอนออนไลน์",
-        desc: lang === "en" ? "School master timetable builder & collision checks" : "จัดตารางสอนแม่บท ป้องกันคาบชน 4 มิติ สลับคาบด้วย AI",
-        enabled: enableTimetable,
-        saveKey: "enableTimetable",
-        settingsId: "timetable-settings",
-      },
-      {
-        id: "substitute",
-        icon: <ArrowRightLeft className="w-5 h-5" />,
-        activeColor: "text-emerald-600 dark:text-emerald-400",
-        activeBg: "bg-emerald-100 dark:bg-emerald-950/40",
-        activeBorder: "bg-emerald-50/40 dark:bg-emerald-950/10 border-emerald-200 dark:border-emerald-800",
-        toggleColor: "bg-emerald-600",
-        title: lang === "en" ? "Online Substitute System" : "ระบบจัดครูสอนแทนออนไลน์",
-        desc: lang === "en" ? "Smart substitute teacher assignment & LINE alerts" : "จัดครูสอนแทนอัตโนมัติ ซิงค์ข้อมูลการลา แนะนำครูว่างด้วย AI",
-        enabled: enableSubstitute,
-        saveKey: "enableSubstitute",
-        settingsId: "substitute-settings",
-      },
-      {
-        id: "supervision",
-        icon: <CheckSquare className="w-5 h-5" />,
-        activeColor: "text-cyan-600 dark:text-cyan-400",
-        activeBg: "bg-cyan-100 dark:bg-cyan-950/40",
-        activeBorder: "bg-cyan-50/40 dark:bg-cyan-950/10 border-cyan-200 dark:border-cyan-800",
-        toggleColor: "bg-cyan-600",
-        title: lang === "en" ? "Instructional Supervision" : "ระบบนิเทศการสอนออนไลน์",
-        desc: lang === "en" ? "Classroom observation, video submission & scoring" : "นิเทศแผนการสอน แปะคลิปวีดีโอ ประเมินผล 4 ขั้นตอน",
-        enabled: enableSupervision,
-        saveKey: "enableSupervision",
-        settingsId: "supervision-settings",
-      },
-      {
-        id: "exam",
-        icon: <FileText className="w-5 h-5" />,
-        activeColor: "text-blue-600 dark:text-blue-400",
-        activeBg: "bg-blue-100 dark:bg-blue-950/40",
-        activeBorder: "bg-blue-50/40 dark:bg-blue-950/10 border-blue-200 dark:border-blue-800",
-        toggleColor: "bg-blue-600",
-        title: lang === "en" ? "Exam Timetable & Seating" : "ระบบจัดตารางสอบ & ผังที่นั่ง",
-        desc: lang === "en" ? "Exam timetable matrix, seating algorithm & supervisor rosters" : "จัดตารางสอบ สลับผังที่นั่งสอบป้องกันทุจริต ใบเซ็นชื่อกรรมการสอบ",
-        enabled: enableExam,
-        saveKey: "enableExam",
-        customPath: "/academic/exam",
-      },
-      {
-        id: "academic_settings",
-        icon: <Settings className="w-5 h-5" />,
-        activeColor: "text-violet-600 dark:text-violet-400",
-        activeBg: "bg-violet-100 dark:bg-violet-950/40",
-        activeBorder: "bg-violet-50/40 dark:bg-violet-950/10 border-violet-200 dark:border-violet-800",
-        toggleColor: "bg-violet-600",
-        title: lang === "en" ? "Academic Structure Settings" : "ระบบตั้งค่าโครงสร้างวิชาการ",
-        desc: lang === "en" ? "Configure academic years, terms, classrooms, and load limits" : "ตั้งค่าปีการศึกษา ภาคเรียน กลุ่มสาระการเรียนรู้ และห้องเรียน",
-        enabled: enableAcademicSettings,
-        saveKey: "enableAcademicSettings",
-        customPath: "/academic/settings",
-      },
-      {
-        id: "budget",
-        icon: <Wallet className="w-5 h-5" />,
-        activeColor: "text-emerald-600 dark:text-emerald-400",
-        activeBg: "bg-emerald-100 dark:bg-emerald-950/40",
-        activeBorder: "bg-emerald-50/40 dark:bg-emerald-950/10 border-emerald-200 dark:border-emerald-800",
-        toggleColor: "bg-emerald-600",
-        title: lang === "en" ? "Budget & Financial System" : "ระบบบริหารงานงบประมาณ & เบิกจ่าย",
-        desc: lang === "en" ? "Budget allocation, procurement, expense tracking & financial reports" : "ตั้งงบประมาณโครงการ ควบคุมการเบิกจ่าย พัสดุ และรายงานทางการเงิน",
-        enabled: enableBudget,
-        saveKey: "enableBudget",
-        customPath: "/budget",
-      },
-    ];
+    type SubsystemItem = {
+      id: string;
+      title: string;
+      icon: React.ReactNode;
+      iconBg: string;
+      iconColor: string;
+      enabled: boolean;
+      saveKey: string;
+      settingsId?: string;
+      customPath?: string;
+      core?: boolean;
+    };
 
-    const SUB_CATEGORIES = [
-      {
-        id: "personnel",
-        title: lang === "en" ? "Personnel Affairs Subsystems" : "👔 หมวดงานฝ่ายบุคคล (Personnel Affairs)",
-        desc: lang === "en" ? "Leave management, daily attendance clocking, and PA competency portfolio" : "ระบบการลา ลงเวลาปฏิบัติราชการ และแฟ้มสะสมงานสมรรถนะครู (PA)",
-        badgeColor: "bg-indigo-100 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800",
-        items: SUBS.filter((s) => ["leave", "attendance", "competency"].includes(s.id)),
-      },
-      {
-        id: "general",
-        title: lang === "en" ? "General Affairs & Facilities" : "🏢 หมวดงานฝ่ายทั่วไป & อาคารสถานที่ (General Affairs)",
-        desc: lang === "en" ? "Document tracking AMSS++, facility reservations, and building repair tracking" : "ระบบสารบรรณหนังสือรับ-ส่ง จองทรัพยากรกลาง และแจ้งซ่อมแซมอาคารสถานที่",
-        badgeColor: "bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 border-amber-200 dark:border-amber-800",
-        items: SUBS.filter((s) => ["document", "facility", "repair"].includes(s.id)),
-      },
+    type SubsystemGroup = {
+      id: string;
+      title: string;
+      icon: React.ReactNode;
+      iconBg: string;
+      iconColor: string;
+      toggleColor: string;
+      items: SubsystemItem[];
+    };
+
+    const GROUPS: SubsystemGroup[] = [
+      // 1. กลุ่มบริหารงานวิชาการ (7 ระบบย่อย)
       {
         id: "academic",
-        title: lang === "en" ? "Academic Affairs Subsystems" : "🎓 หมวดงานฝ่ายวิชาการ (Academic Affairs)",
-        desc: lang === "en" ? "Planning control plane, master timetable, substitute assignment, supervision, exams, & settings" : "ศูนย์วางแผนวิชาการ ตารางสอน สอนแทน นิเทศการสอน ตารางสอบ และโครงสร้างวิชาการ",
-        badgeColor: "bg-purple-100 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300 border-purple-200 dark:border-purple-800",
-        items: SUBS.filter((s) => ["academic_planning", "timetable", "substitute", "supervision", "exam", "academic_settings"].includes(s.id)),
+        title: "กลุ่มบริหารงานวิชาการ",
+        icon: <GraduationCap className="w-5 h-5" />,
+        iconBg: "bg-blue-100 dark:bg-blue-950/60",
+        iconColor: "text-blue-600 dark:text-blue-400",
+        toggleColor: "bg-blue-600",
+        items: [
+          {
+            id: "assignment",
+            title: "ระบบส่งงาน",
+            icon: <CheckSquare className="w-4 h-4" />,
+            iconBg: "bg-sky-100 dark:bg-sky-950/50",
+            iconColor: "text-sky-600 dark:text-sky-400",
+            enabled: enableAcademicSettings,
+            saveKey: "enableAcademicSettings",
+            customPath: "/academic/settings",
+          },
+          {
+            id: "timetable",
+            title: "จัดตารางสอน",
+            icon: <Calendar className="w-4 h-4" />,
+            iconBg: "bg-emerald-100 dark:bg-emerald-950/50",
+            iconColor: "text-emerald-600 dark:text-emerald-400",
+            enabled: enableTimetable,
+            saveKey: "enableTimetable",
+            settingsId: "timetable-settings",
+          },
+          {
+            id: "student_checkin",
+            title: "เช็คชื่อนักเรียน",
+            icon: <UserCheck className="w-4 h-4" />,
+            iconBg: "bg-rose-100 dark:bg-rose-950/50",
+            iconColor: "text-rose-500 dark:text-rose-400",
+            enabled: enableStudentAffairs,
+            saveKey: "enableStudentAffairs",
+            customPath: "/student-affairs",
+          },
+          {
+            id: "registrar",
+            title: "งานทะเบียนวัดผล",
+            icon: <GraduationCap className="w-4 h-4" />,
+            iconBg: "bg-indigo-100 dark:bg-indigo-950/50",
+            iconColor: "text-indigo-600 dark:text-indigo-400",
+            enabled: enableAcademicSettings,
+            saveKey: "enableAcademicSettings",
+            customPath: "/academic/settings",
+          },
+          {
+            id: "exam",
+            title: "ระบบสอบ",
+            icon: <FileEdit className="w-4 h-4" />,
+            iconBg: "bg-fuchsia-100 dark:bg-fuchsia-950/50",
+            iconColor: "text-fuchsia-600 dark:text-fuchsia-400",
+            enabled: enableExam,
+            saveKey: "enableExam",
+            customPath: "/academic/exam",
+          },
+          {
+            id: "curriculum",
+            title: "หลักสูตรสถานศึกษา",
+            icon: <Layers className="w-4 h-4" />,
+            iconBg: "bg-amber-100 dark:bg-amber-950/50",
+            iconColor: "text-amber-600 dark:text-amber-400",
+            enabled: enableAcademicPlanning,
+            saveKey: "enableAcademicPlanning",
+            customPath: "/academic/planning",
+          },
+          {
+            id: "supervision",
+            title: "นิเทศการสอน",
+            icon: <Presentation className="w-4 h-4" />,
+            iconBg: "bg-teal-100 dark:bg-teal-950/50",
+            iconColor: "text-teal-600 dark:text-teal-400",
+            enabled: enableSupervision,
+            saveKey: "enableSupervision",
+            settingsId: "supervision-settings",
+          },
+        ],
       },
+
+      // 2. กลุ่มบริหารงานงบประมาณ (4 ระบบย่อย)
       {
         id: "budget",
-        title: lang === "en" ? "Budget & Financial Systems" : "💰 หมวดงานฝ่ายงบประมาณ (Budget & Financial)",
-        desc: lang === "en" ? "Project budgeting, procurement, and financial disbursement tracking" : "ตั้งงบประมาณโครงการ ควบคุมการเบิกจ่าย พัสดุ และรายงานทางการเงิน",
-        badgeColor: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800",
-        items: SUBS.filter((s) => ["budget"].includes(s.id)),
+        title: "กลุ่มบริหารงานงบประมาณ",
+        icon: <Wallet className="w-5 h-5" />,
+        iconBg: "bg-amber-100 dark:bg-amber-950/60",
+        iconColor: "text-amber-600 dark:text-amber-400",
+        toggleColor: "bg-amber-500",
+        items: [
+          {
+            id: "planning",
+            title: "งานวางแผนฯ",
+            icon: <Map className="w-4 h-4" />,
+            iconBg: "bg-purple-100 dark:bg-purple-950/50",
+            iconColor: "text-purple-600 dark:text-purple-400",
+            enabled: enableBudget,
+            saveKey: "enableBudget",
+            customPath: "/budget",
+          },
+          {
+            id: "finance",
+            title: "งานการเงินและบัญชี",
+            icon: <Receipt className="w-4 h-4" />,
+            iconBg: "bg-blue-100 dark:bg-blue-950/50",
+            iconColor: "text-blue-600 dark:text-blue-400",
+            enabled: enableBudget,
+            saveKey: "enableBudget",
+            customPath: "/budget",
+          },
+          {
+            id: "procurement",
+            title: "งานพัสดุและสินทรัพย์",
+            icon: <Boxes className="w-4 h-4" />,
+            iconBg: "bg-emerald-100 dark:bg-emerald-950/50",
+            iconColor: "text-emerald-600 dark:text-emerald-400",
+            enabled: enableBudget,
+            saveKey: "enableBudget",
+            customPath: "/budget",
+          },
+          {
+            id: "audit",
+            title: "งานตรวจสอบฯ",
+            icon: <Search className="w-4 h-4" />,
+            iconBg: "bg-rose-100 dark:bg-rose-950/50",
+            iconColor: "text-rose-500 dark:text-rose-400",
+            enabled: enableBudget,
+            saveKey: "enableBudget",
+            customPath: "/budget",
+          },
+        ],
+      },
+
+      // 3. กลุ่มบริหารงานบุคคล (4 ระบบย่อย)
+      {
+        id: "personnel",
+        title: "กลุ่มบริหารงานบุคคล",
+        icon: <UserCheck className="w-5 h-5" />,
+        iconBg: "bg-emerald-100 dark:bg-emerald-950/60",
+        iconColor: "text-emerald-600 dark:text-emerald-400",
+        toggleColor: "bg-emerald-600",
+        items: [
+          {
+            id: "leave",
+            title: "ระบบการลา",
+            icon: <CalendarDays className="w-4 h-4" />,
+            iconBg: "bg-emerald-100 dark:bg-emerald-950/50",
+            iconColor: "text-emerald-600 dark:text-emerald-400",
+            enabled: enableLeave,
+            saveKey: "enableLeave",
+            settingsId: "leave-rules",
+            core: true,
+          },
+          {
+            id: "attendance",
+            title: "ระบบลงเวลาปฏิบัติราชการ",
+            icon: <Clock className="w-4 h-4" />,
+            iconBg: "bg-indigo-100 dark:bg-indigo-950/50",
+            iconColor: "text-indigo-600 dark:text-indigo-400",
+            enabled: enableAttendance,
+            saveKey: "enableAttendance",
+            settingsId: "attendance-settings",
+          },
+          {
+            id: "competency",
+            title: "แฟ้มสะสมงาน & สมรรถนะครู",
+            icon: <Award className="w-4 h-4" />,
+            iconBg: "bg-rose-100 dark:bg-rose-950/50",
+            iconColor: "text-rose-600 dark:text-rose-400",
+            enabled: enableCompetency,
+            saveKey: "enableCompetency",
+            customPath: "/personnel/settings",
+          },
+          {
+            id: "substitute",
+            title: "จัดครูสอนแทน",
+            icon: <ArrowRightLeft className="w-4 h-4" />,
+            iconBg: "bg-cyan-100 dark:bg-cyan-950/50",
+            iconColor: "text-cyan-600 dark:text-cyan-400",
+            enabled: enableSubstitute,
+            saveKey: "enableSubstitute",
+            settingsId: "substitute-settings",
+          },
+        ],
+      },
+
+      // 4. กลุ่มบริหารงานทั่วไป (6 ระบบย่อย)
+      {
+        id: "general",
+        title: "กลุ่มบริหารงานทั่วไป",
+        icon: <Building2 className="w-5 h-5" />,
+        iconBg: "bg-purple-100 dark:bg-purple-950/60",
+        iconColor: "text-purple-600 dark:text-purple-400",
+        toggleColor: "bg-purple-600",
+        items: [
+          {
+            id: "document",
+            title: "ระบบสารบรรณหนังสือรับ-ส่ง",
+            icon: <ClipboardList className="w-4 h-4" />,
+            iconBg: "bg-orange-100 dark:bg-orange-950/50",
+            iconColor: "text-orange-600 dark:text-orange-400",
+            enabled: enableDocument,
+            saveKey: "enableDocument",
+            settingsId: "document-settings",
+          },
+          {
+            id: "facility",
+            title: "ระบบจองทรัพยากรกลาง & ยานพาหนะ",
+            icon: <Building2 className="w-4 h-4" />,
+            iconBg: "bg-teal-100 dark:bg-teal-950/50",
+            iconColor: "text-teal-600 dark:text-teal-400",
+            enabled: enableFacility,
+            saveKey: "enableFacility",
+            customPath: "/facility/settings",
+          },
+          {
+            id: "repair",
+            title: "ระบบแจ้งซ่อมแซมอาคารสถานที่",
+            icon: <Wrench className="w-4 h-4" />,
+            iconBg: "bg-amber-100 dark:bg-amber-950/50",
+            iconColor: "text-amber-600 dark:text-amber-400",
+            enabled: enableRepair,
+            saveKey: "enableRepair",
+            settingsId: "repair-settings",
+          },
+          {
+            id: "certificate",
+            title: "ระบบออกเกียรติบัตรออนไลน์",
+            icon: <Award className="w-4 h-4" />,
+            iconBg: "bg-sky-100 dark:bg-sky-950/50",
+            iconColor: "text-sky-600 dark:text-sky-400",
+            enabled: enableCertificate,
+            saveKey: "enableCertificate",
+            customPath: "/certificates",
+          },
+          {
+            id: "pr",
+            title: "งานประชาสัมพันธ์ & ข่าวสาร",
+            icon: <Megaphone className="w-4 h-4" />,
+            iconBg: "bg-pink-100 dark:bg-pink-950/50",
+            iconColor: "text-pink-600 dark:text-pink-400",
+            enabled: enableAmssSync,
+            saveKey: "enableAmssSync",
+            settingsId: "school",
+          },
+          {
+            id: "student_council",
+            title: "กิจการนักเรียน & สภานักเรียน",
+            icon: <Users className="w-4 h-4" />,
+            iconBg: "bg-violet-100 dark:bg-violet-950/50",
+            iconColor: "text-violet-600 dark:text-violet-400",
+            enabled: enableStudentCouncil,
+            saveKey: "enableStudentCouncil",
+            customPath: "/student-affairs",
+          },
+        ],
       },
     ];
 
+    const handleToggleGroup = async (group: SubsystemGroup) => {
+      const isAnyActive = group.items.some((item) => item.enabled);
+      const targetState = !isAnyActive;
+
+      const updates: Record<string, boolean> = {};
+      group.items.forEach((item) => {
+        if (item.saveKey) {
+          updates[item.saveKey] = targetState;
+          if (item.saveKey === "enableLeave") setEnableLeave(targetState);
+          if (item.saveKey === "enableAttendance") setEnableAttendance(targetState);
+          if (item.saveKey === "enableDocument") setEnableDocument(targetState);
+          if (item.saveKey === "enableRepair") setEnableRepair(targetState);
+          if (item.saveKey === "enableTimetable") setEnableTimetable(targetState);
+          if (item.saveKey === "enableSubstitute") setEnableSubstitute(targetState);
+          if (item.saveKey === "enableSupervision") setEnableSupervision(targetState);
+          if (item.saveKey === "enableExam") setEnableExam(targetState);
+          if (item.saveKey === "enableCompetency") setEnableCompetency(targetState);
+          if (item.saveKey === "enableFacility") setEnableFacility(targetState);
+          if (item.saveKey === "enableAcademicSettings") setEnableAcademicSettings(targetState);
+          if (item.saveKey === "enableBudget") setEnableBudget(targetState);
+          if (item.saveKey === "enableStudentAffairs") setEnableStudentAffairs(targetState);
+          if (item.saveKey === "enableStudentCouncil") setEnableStudentCouncil(targetState);
+          if (item.saveKey === "enableAcademicPlanning") setEnableAcademicPlanning(targetState);
+          if (item.saveKey === "enableAmssSync") setEnableAmssSync(targetState);
+          if (item.saveKey === "enableCertificate") setEnableCertificate(targetState);
+        }
+      });
+
+      try {
+        await updateSystemSettings(updates as any);
+        showToast(
+          "success",
+          targetState
+            ? `เปิดการใช้งานระบบใน${group.title}ทั้งหมดแล้ว`
+            : `ปิดการใช้งานระบบใน${group.title}ทั้งหมดแล้ว`
+        );
+      } catch (err: any) {
+        showToast("error", err?.message ?? "เกิดข้อผิดพลาดในการบันทึก");
+      }
+    };
+
+    const handleNavigateToSettings = (sys: SubsystemItem) => {
+      if (sys.customPath) {
+        router.push(sys.customPath);
+      } else if (sys.settingsId) {
+        setActiveSection(sys.settingsId);
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      } else {
+        showToast("info", `การตั้งค่าของ ${sys.title} อยู่ในหน้าระบบงาน`);
+      }
+    };
+
     return (
-      <div className="bg-white dark:bg-gray-900 rounded-2xl p-6 md:p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-100 dark:border-gray-800">
-        <SectionHeader title={sectionTitles.subsystems} />
-        <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
-          {lang === "en"
-            ? "Toggle subsystems on or off by department categories. Click 'Settings ›' to configure each module."
-            : "เปิด/ปิดการใช้งานระบบย่อยแยกตามหมวดหมู่ฝ่ายงาน กดปุ่ม 'ตั้งค่า ›' เพื่อเข้าตั้งค่าของแต่ละระบบ"}
-        </p>
-
-        <div className="space-y-8">
-          {SUB_CATEGORIES.map((cat) => (
-            <div key={cat.id} className="space-y-3">
-              {/* Category Header */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
-                <div className="flex items-center gap-2">
-                  <h4 className="font-bold text-xs text-slate-900 dark:text-white">
-                    {cat.title}
-                  </h4>
-                  <span className="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-[11px] text-slate-500 dark:text-slate-400 font-semibold">
-                    {cat.items.length} {lang === "en" ? "modules" : "ระบบย่อย"}
-                  </span>
-                </div>
-                <span className="text-[11px] text-slate-400 dark:text-slate-500">
-                  {cat.desc}
-                </span>
+      <div className="bg-white dark:bg-gray-900 rounded-3xl p-6 md:p-8 shadow-[0_4px_24px_rgba(0,0,0,0.03)] border border-slate-100 dark:border-slate-800 space-y-6">
+        {/* Header matching media_1792118774371_4563fe70.png */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-slate-100 dark:border-slate-800">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white shrink-0 shadow-xs">
+                <SlidersHorizontal className="w-4 h-4" />
               </div>
+              <h2 className="text-lg sm:text-xl font-extrabold text-slate-900 dark:text-white tracking-tight">
+                เปิด-ปิดระบบย่อย
+              </h2>
+            </div>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              เลือกเปิดเฉพาะระบบที่โรงเรียนใช้งาน เพื่อให้เมนูดูสะอาดตา
+            </p>
+          </div>
 
-              {/* Subsystems List */}
-              <div className="space-y-3">
-                {cat.items.map((sys) => (
-                  <React.Fragment key={sys.id}>
+          {/* Save Button */}
+          <button
+            type="button"
+            onClick={handleSaveAllSubsystems}
+            disabled={isSavingSubsystems}
+            className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-[0.99] text-white text-xs sm:text-sm font-bold shadow-xs hover:shadow transition-all cursor-pointer disabled:opacity-50"
+          >
+            {isSavingSubsystems ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Save className="w-4 h-4" />
+            )}
+            <span>{isSavingSubsystems ? "กำลังบันทึก..." : "บันทึกการตั้งค่าระบบ"}</span>
+          </button>
+        </div>
+
+        {/* 4 Cards Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          {GROUPS.map((group) => {
+            const isGroupActive = group.items.some((i) => i.enabled);
+
+            return (
+              <div
+                key={group.id}
+                className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-5 shadow-[0_2px_12px_rgba(0,0,0,0.02)] flex flex-col justify-between"
+              >
+                {/* Group Header */}
+                <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
+                  <div className="flex items-center gap-3">
                     <div
-                      className={`flex items-center gap-3.5 p-3.5 rounded-2xl border transition-all ${
-                        sys.enabled
-                          ? "bg-white dark:bg-gray-900 border-slate-200/90 dark:border-slate-700/80 shadow-2xs hover:border-slate-300 dark:hover:border-slate-600"
-                          : "bg-slate-50/50 dark:bg-gray-950/60 border-slate-200/50 dark:border-slate-800/80 opacity-75 hover:opacity-100"
-                      }`}
+                      className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 ${group.iconBg} ${group.iconColor}`}
                     >
-                      {/* Icon */}
-                      <div
-                        className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-colors ${
-                          sys.enabled
-                            ? `${sys.activeBg} ${sys.activeColor}`
-                            : "bg-slate-100 dark:bg-slate-800 text-slate-400"
-                        }`}
-                      >
-                        {sys.icon}
-                      </div>
-
-                      {/* Text */}
-                      <div className="flex-1 min-w-0">
-                        <p className="font-bold text-slate-900 dark:text-white text-xs">{sys.title}</p>
-                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 truncate">{sys.desc}</p>
-                      </div>
-
-                      {/* Right controls */}
-                      <div className="flex items-center gap-2 shrink-0">
-                        {sys.core ? (
-                          <span className="px-3 py-1 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300 text-xs font-bold">
-                            {lang === "en" ? "Core" : "ระบบหลัก"}
-                          </span>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => saveSubsystem(sys.saveKey!, !sys.enabled)}
-                            className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors focus:outline-none ${
-                              sys.enabled ? sys.toggleColor : "bg-gray-200 dark:bg-gray-700"
-                            }`}
-                            title={sys.enabled ? (lang === "en" ? "Disable" : "ปิดใช้งาน") : (lang === "en" ? "Enable" : "เปิดใช้งาน")}
-                          >
-                            <span
-                              className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
-                                sys.enabled ? "translate-x-6" : "translate-x-1"
-                              }`}
-                            />
-                          </button>
-                        )}
-
-                        {(sys.settingsId || sys.customPath) && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (sys.customPath) {
-                                router.push(sys.customPath);
-                              } else if (sys.settingsId) {
-                                setActiveSection(sys.settingsId);
-                              }
-                            }}
-                            className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
-                          >
-                            {lang === "en" ? "Settings" : "ตั้งค่า"}
-                            <ChevronRight className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                      </div>
+                      {group.icon}
                     </div>
+                    <div>
+                      <h3 className="font-bold text-slate-900 dark:text-white text-sm sm:text-[15px]">
+                        {group.title}
+                      </h3>
+                      <p className="text-xs text-slate-400 font-medium">
+                        {group.items.length} ระบบย่อย
+                      </p>
+                    </div>
+                  </div>
 
-                    {sys.id === "document" && (
-                      <div className="p-3 sm:p-3.5 rounded-xl bg-slate-50/80 dark:bg-slate-800/50 border border-slate-200/70 dark:border-slate-700/60 space-y-2.5">
-                        <p className="text-[11px] font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                          <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                          {lang === "en" ? "Document Sub-modules & Sub-systems:" : "ฟังก์ชันและระบบย่อยในระบบจัดการเอกสาร:"}
-                        </p>
+                  {/* Master Toggle */}
+                  <button
+                    type="button"
+                    onClick={() => handleToggleGroup(group)}
+                    className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors focus:outline-none cursor-pointer ${
+                      isGroupActive ? group.toggleColor : "bg-slate-200 dark:bg-slate-700"
+                    }`}
+                    title={
+                      isGroupActive
+                        ? `ปิดระบบย่อยทั้งหมดใน${group.title}`
+                        : `เปิดระบบย่อยทั้งหมดใน${group.title}`
+                    }
+                  >
+                    <span
+                      className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
+                        isGroupActive ? "translate-x-6" : "translate-x-1"
+                      }`}
+                    />
+                  </button>
+                </div>
 
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                          {/* AMSS Sync Subsystem */}
-                          <div className="flex items-center justify-between p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-700/80">
-                            <div className="flex items-center gap-2.5 min-w-0">
-                              <div className="w-7 h-7 rounded-lg bg-sky-50 dark:bg-sky-950 text-sky-600 dark:text-sky-400 flex items-center justify-center shrink-0">
-                                <ArrowRightLeft className="w-3.5 h-3.5" />
-                              </div>
-                              <div className="min-w-0">
-                                <p className="font-bold text-xs text-slate-800 dark:text-slate-200">
-                                  {lang === "en" ? "AMSS Sync System" : "ระบบเชื่อมโยง AMSS"}
-                                </p>
-                                <p className="text-[10.5px] text-slate-400 truncate">
-                                  {lang === "en" ? "Auto sync from AMSS" : "ดึงหนังสือรับ-ส่งจาก AMSS"}
-                                </p>
-                              </div>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => saveSubsystem("enableAmssSync", !enableAmssSync)}
-                              className={`relative inline-flex h-5.5 w-10 items-center rounded-full transition-colors focus:outline-none shrink-0 ml-2 cursor-pointer ${
-                                enableAmssSync ? "bg-sky-500" : "bg-slate-200 dark:bg-slate-700"
-                              }`}
-                              title={enableAmssSync ? (lang === "en" ? "Disable" : "ปิดใช้งาน") : (lang === "en" ? "Enable" : "เปิดใช้งาน")}
-                            >
-                              <span
-                                className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-xs transition-transform ${
-                                  enableAmssSync ? "translate-x-4.5" : "translate-x-0.5"
-                                }`}
-                              />
-                            </button>
+                {/* Subsystems List */}
+                <div className="divide-y divide-slate-50 dark:divide-slate-800/60 pt-1">
+                  {group.items.map((sys) => (
+                    <div
+                      key={sys.id}
+                      onClick={() => handleNavigateToSettings(sys)}
+                      className="flex items-center justify-between py-3 px-2 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer group"
+                      title="กดเพื่อไปที่การตั้งค่าระบบนี้"
+                    >
+                      {/* Left: Icon + Title + Status */}
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div
+                          className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-transform group-hover:scale-105 ${sys.iconBg} ${sys.iconColor}`}
+                        >
+                          {sys.icon}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-bold text-slate-800 dark:text-slate-100 text-xs sm:text-sm group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                              {sys.title}
+                            </span>
+                            <ChevronRight className="w-3 h-3 text-slate-300 opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all" />
                           </div>
-
-                          {/* Certificate Subsystem */}
-                          <div className="flex items-center justify-between p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-700/80">
-                            <div className="flex items-center gap-2.5 min-w-0">
-                              <div className="w-7 h-7 rounded-lg bg-amber-50 dark:bg-amber-950 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
-                                <Award className="w-3.5 h-3.5" />
-                              </div>
-                              <div className="min-w-0">
-                                <p className="font-bold text-xs text-slate-800 dark:text-slate-200">
-                                  {lang === "en" ? "Certificates System" : "ระบบออกเกียรติบัตร"}
-                                </p>
-                                <p className="text-[10.5px] text-slate-400 truncate">
-                                  {lang === "en" ? "Cert numbering & print" : "ขอเลขเกียรติบัตร & พิมพ์ A4"}
-                                </p>
-                              </div>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => saveSubsystem("enableCertificate", !enableCertificate)}
-                              className={`relative inline-flex h-5.5 w-10 items-center rounded-full transition-colors focus:outline-none shrink-0 ml-2 cursor-pointer ${
-                                enableCertificate ? "bg-amber-500" : "bg-slate-200 dark:bg-slate-700"
-                              }`}
-                              title={enableCertificate ? (lang === "en" ? "Disable" : "ปิดใช้งาน") : (lang === "en" ? "Enable" : "เปิดใช้งาน")}
-                            >
-                              <span
-                                className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-xs transition-transform ${
-                                  enableCertificate ? "translate-x-4.5" : "translate-x-0.5"
-                                }`}
-                              />
-                            </button>
-                          </div>
+                          <p
+                            className={`text-[11px] font-medium ${
+                              sys.enabled
+                                ? "text-slate-400 dark:text-slate-500"
+                                : "text-slate-300 dark:text-slate-600"
+                            }`}
+                          >
+                            {sys.enabled ? "เปิดใช้งาน" : "ปิดใช้งาน"}
+                          </p>
                         </div>
                       </div>
-                    )}
-                  </React.Fragment>
-                ))}
+
+                      {/* Right: Toggle Switch */}
+                      <div onClick={(e) => e.stopPropagation()}>
+                        <button
+                          type="button"
+                          onClick={() => saveSubsystem(sys.saveKey, !sys.enabled)}
+                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none cursor-pointer ${
+                            sys.enabled ? "bg-blue-600" : "bg-slate-200 dark:bg-slate-700"
+                          }`}
+                          title={sys.enabled ? "ปิดใช้งาน" : "เปิดใช้งาน"}
+                        >
+                          <span
+                            className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                              sys.enabled ? "translate-x-6" : "translate-x-1"
+                            }`}
+                          />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         {/* ─── Canonical Appointed Duties Notice ─── */}
