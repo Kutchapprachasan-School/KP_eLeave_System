@@ -518,7 +518,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
     }
   };
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const isCollapsed = sidebarCollapsed && !sidebarOpen;
 
   const toggleSidebar = () => {
@@ -1556,16 +1556,6 @@ function AppContent({ children }: { children: React.ReactNode }) {
               </div>
             </div>
 
-            {/* Search Box Pill */}
-            <div className="relative hidden md:flex items-center">
-              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 pointer-events-none" />
-              <input
-                type="text"
-                readOnly
-                placeholder="ค้นหานักเรียน..."
-                className="w-32 md:w-44 pl-8 pr-3 py-1.5 rounded-full border border-slate-200/80 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-800/60 text-xs text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-none"
-              />
-            </div>
 
             {/* [T] Font Size Switcher */}
             <FontSizeSwitcher compact={true} />
