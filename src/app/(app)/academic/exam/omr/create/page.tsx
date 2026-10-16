@@ -339,7 +339,7 @@ function CreateExamPaperForm() {
   if (loadingInitial) {
     return (
       <div className="py-24 text-center text-slate-500">
-        <Loader2 className="w-8 h-8 animate-spin mx-auto text-purple-600 mb-2" />
+        <Loader2 className="w-8 h-8 animate-spin mx-auto text-amber-500 mb-2" />
         <div className="text-sm font-semibold">กำลังโหลดข้อมูลชุดข้อสอบ...</div>
       </div>
     );
@@ -394,7 +394,7 @@ function CreateExamPaperForm() {
       {regrading && regradeProgress && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 max-w-sm w-full shadow-2xl text-center space-y-4">
-            <RefreshCw className="w-8 h-8 animate-spin text-purple-600 mx-auto" />
+            <RefreshCw className="w-8 h-8 animate-spin text-amber-500 mx-auto" />
             <div>
               <h3 className="text-sm font-bold text-slate-900 dark:text-white">กำลังคำนวณคะแนนนักเรียนใหม่...</h3>
               <p className="text-xs text-slate-500 mt-1">
@@ -874,7 +874,7 @@ export default function CreateExamPaperPage() {
     <Suspense
       fallback={
         <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950">
-          <Loader2 className="w-8 h-8 animate-spin text-purple-600" />
+          <Loader2 className="w-8 h-8 animate-spin text-amber-500" />
         </div>
       }
     >

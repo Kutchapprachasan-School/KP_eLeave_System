@@ -383,7 +383,7 @@ export function ExamPapersManagementView({ showHeader = true }: ExamPapersManage
       {/* 4. CRUD Table & Management View */}
       {loading ? (
         <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white/60 dark:border-slate-800 rounded-3xl p-16 text-center text-slate-500">
-          <Loader2 className="w-8 h-8 animate-spin mx-auto text-purple-600 mb-2" />
+          <Loader2 className="w-8 h-8 animate-spin mx-auto text-amber-500 mb-2" />
           <div className="text-sm font-semibold">กำลังโหลดชุดข้อสอบ...</div>
         </div>
       ) : filteredPapers.length === 0 ? (

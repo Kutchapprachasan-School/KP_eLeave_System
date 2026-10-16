@@ -139,7 +139,10 @@ function FacilityPortalContent() {
       {/* Sub-Views Routing */}
       {loading && resources.length === 0 ? (
         <div className="py-24 text-center space-y-4">
-          <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto" />
+          <div className="relative w-10 h-10 mx-auto flex items-center justify-center">
+            <div className="w-10 h-10 rounded-full border-[2.5px] border-amber-100 dark:border-amber-950/60" />
+            <div className="absolute inset-0 w-10 h-10 rounded-full border-[2.5px] border-transparent border-t-amber-500 border-r-amber-500 animate-spin" />
+          </div>
           <p className="text-xs font-semibold text-slate-400">กำลังโหลดข้อมูลระบบทรัพยากรส่วนกลาง...</p>
         </div>
       ) : (
@@ -259,7 +262,10 @@ export default function UnifiedFacilityPortalPage() {
     <Suspense
       fallback={
         <div className="py-24 text-center">
-          <div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto" />
+          <div className="relative w-8 h-8 mx-auto flex items-center justify-center">
+            <div className="w-8 h-8 rounded-full border-[2.5px] border-amber-100 dark:border-amber-950/60" />
+            <div className="absolute inset-0 w-8 h-8 rounded-full border-[2.5px] border-transparent border-t-amber-500 border-r-amber-500 animate-spin" />
+          </div>
         </div>
       }
     >

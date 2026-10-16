@@ -268,7 +268,7 @@ export default function LoginPage() {
               <input
                 type="text"
                 required
-                className="w-full h-[50px] pl-[44px] pr-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500/30 focus:border-purple-500 transition-all"
+                className="w-full h-[50px] pl-[44px] pr-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all"
                 placeholder={t("usernameOrEmailPlaceholder")}
                 value={resetEmail}
                 onChange={(e) => setResetEmail(e.target.value)}
@@ -277,7 +277,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full h-[50px] rounded-xl bg-gradient-to-r from-purple-500 to-indigo-600 text-white text-[15px] font-semibold hover:opacity-95 focus:outline-none focus:ring-2 focus:ring-purple-500/50 disabled:opacity-50 shadow-lg shadow-purple-500/20 transition-all duration-200 mt-2"
+              className="w-full h-[50px] rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[15px] font-semibold hover:opacity-95 focus:outline-none focus:ring-2 focus:ring-amber-500/50 disabled:opacity-50 shadow-lg shadow-amber-500/20 transition-all duration-200 mt-2"
             >
               {loading ? t("sendingLink") : t("resetPasswordButton")}
             </button>
@@ -298,7 +298,7 @@ export default function LoginPage() {
                   <input
                     type="text"
                     required
-                    className="w-full h-[50px] pl-[44px] pr-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500/30 focus:border-purple-500 transition-all"
+                    className="w-full h-[50px] pl-[44px] pr-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all"
                     placeholder={t("name")}
                     value={name}
                     onChange={(e) => setName(e.target.value)}
@@ -311,7 +311,7 @@ export default function LoginPage() {
                   </div>
                   <select
                     required
-                    className="w-full h-[50px] pl-[44px] pr-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500/30 focus:border-purple-500 transition-all appearance-none"
+                    className="w-full h-[50px] pl-[44px] pr-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all appearance-none"
                     value={position}
                     onChange={(e) => setPosition(e.target.value)}
                   >
@@ -334,7 +334,7 @@ export default function LoginPage() {
                     </div>
                     <select
                       required
-                      className="w-full h-[50px] pl-[44px] pr-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500/30 focus:border-purple-500 transition-all appearance-none"
+                      className="w-full h-[50px] pl-[44px] pr-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all appearance-none"
                       value={subjectGroup}
                       onChange={(e) => setSubjectGroup(e.target.value)}
                     >
@@ -363,7 +363,7 @@ export default function LoginPage() {
               <input
                 type="text"
                 required
-                className="w-full h-[50px] pl-[44px] pr-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500/30 focus:border-purple-500 transition-all"
+                className="w-full h-[50px] pl-[44px] pr-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all"
                 placeholder={t("usernameOrEmailPlaceholder")}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -377,7 +377,7 @@ export default function LoginPage() {
               <input
                 type={showPassword ? "text" : "password"}
                 required
-                className="w-full h-[50px] pl-[44px] pr-12 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500/30 focus:border-purple-500 transition-all"
+                className="w-full h-[50px] pl-[44px] pr-12 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all"
                 placeholder={t("passwordPlaceholder")}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -407,7 +407,7 @@ export default function LoginPage() {
               <div className="space-y-3 pt-2">
                 {!policies && (
                   <div className="flex items-center gap-2 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/60 dark:border-slate-700/60 text-xs text-slate-500 dark:text-slate-400">
-                    <div className="w-3.5 h-3.5 border-2 border-purple-500 border-t-transparent rounded-full animate-spin flex-shrink-0" />
+                    <div className="w-3.5 h-3.5 border-2 border-amber-500 border-t-transparent rounded-full animate-spin flex-shrink-0" />
                     <span>{lang === "en" ? "Loading privacy policies & terms..." : "กำลังโหลดนโยบายความเป็นส่วนตัวและเงื่อนไขการใช้งาน..."}</span>
                   </div>
                 )}
@@ -464,7 +464,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading || (isRegister && (!noticeChecked || !termsChecked || !policies))}
-              className="w-full h-[50px] rounded-xl bg-gradient-to-r from-purple-500 to-indigo-600 text-white text-[15px] font-semibold hover:opacity-95 focus:outline-none focus:ring-2 focus:ring-purple-500/50 disabled:opacity-50 shadow-lg shadow-purple-500/20 transition-all duration-200 mt-2"
+              className="w-full h-[50px] rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[15px] font-semibold hover:opacity-95 focus:outline-none focus:ring-2 focus:ring-amber-500/50 disabled:opacity-50 shadow-lg shadow-amber-500/20 transition-all duration-200 mt-2"
             >
               {loading ? (isRegister ? t("registering") : t("signingIn")) : (isRegister ? t("registerButton") : t("loginButton"))}
             </button>

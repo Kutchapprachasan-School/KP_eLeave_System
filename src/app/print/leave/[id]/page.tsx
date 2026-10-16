@@ -216,7 +216,10 @@ export default function PrintLeavePage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col items-center justify-center p-6">
-        <div className="w-12 h-12 border-4 border-purple-500 border-t-transparent rounded-full animate-spin mb-4" />
+        <div className="relative w-12 h-12 mb-4 flex items-center justify-center">
+          <div className="w-12 h-12 rounded-full border-4 border-amber-100 dark:border-amber-950/60" />
+          <div className="absolute inset-0 w-12 h-12 rounded-full border-4 border-transparent border-t-amber-500 border-r-amber-500 animate-spin" />
+        </div>
         <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">กำลังดาวน์โหลดข้อมูลใบลา...</p>
       </div>
     );

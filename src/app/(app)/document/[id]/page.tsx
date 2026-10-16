@@ -444,9 +444,9 @@ export default function DocumentDetailPage() {
                 onChange={handleFileUpload}
                 disabled={uploading}
               />
-              <div className="w-12 h-12 rounded-2xl bg-purple-50 dark:bg-purple-950/50 text-purple-600 dark:text-purple-400 flex items-center justify-center mb-3">
+              <div className="w-12 h-12 rounded-2xl bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 flex items-center justify-center mb-3">
                 {uploading ? (
-                  <div className="w-5 h-5 border-2 border-purple-600 border-t-transparent rounded-full animate-spin" />
+                  <div className="w-5 h-5 border-2 border-amber-600 border-t-transparent rounded-full animate-spin" />
                 ) : (
                   <Download className="w-6 h-6 rotate-180" />
                 )}

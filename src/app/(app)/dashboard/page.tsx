@@ -15,7 +15,9 @@ import FacilityDashboardView from "./_components/FacilityDashboardView";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "แดชบอร์ด",
+  title: {
+    absolute: "KP School Management System",
+  },
   description: "แดชบอร์ดสรุปสถิติภาพรวมและการทำงานระบบย่อยของโรงเรียน",
 };
 

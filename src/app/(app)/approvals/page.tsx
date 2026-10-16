@@ -461,7 +461,7 @@ export default function ApprovalsPage() {
                       className="w-12 h-12 rounded-2xl object-cover shadow-md border border-slate-200 dark:border-slate-700 cursor-zoom-in hover:opacity-90 transition-opacity" 
                     />
                   ) : (
-                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-lg font-bold shadow-md">
+                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center text-white text-lg font-bold shadow-md">
                       {item.user?.name?.charAt(0) || "U"}
                     </div>
                   )}
@@ -564,7 +564,10 @@ export default function ApprovalsPage() {
         return processingId ? (
           <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4">
             <div className="bg-white dark:bg-slate-900 rounded-3xl p-8 max-w-sm w-full text-center shadow-2xl border border-slate-100 dark:border-slate-800 flex flex-col items-center gap-4 animate-in fade-in zoom-in duration-200">
-              <div className="w-16 h-16 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+              <div className="relative w-16 h-16 flex items-center justify-center">
+                <div className="w-16 h-16 rounded-full border-4 border-amber-100 dark:border-amber-950/60" />
+                <div className="absolute inset-0 w-16 h-16 rounded-full border-4 border-transparent border-t-amber-500 border-r-amber-500 animate-spin" />
+              </div>
               <div className="w-full">
                 <h3 className="font-bold text-lg text-slate-900 dark:text-white">
                   {processingStatus === "updating_db" && t("updatingDb")}
@@ -579,10 +582,10 @@ export default function ApprovalsPage() {
                     initial={{ width: 0 }}
                     animate={{ width: `${progressPercent}%` }}
                     transition={{ duration: 0.4, ease: "easeOut" }}
-                    className="h-full bg-gradient-to-r from-indigo-500 to-purple-600 rounded-full"
+                    className="h-full bg-gradient-to-r from-amber-500 to-orange-500 rounded-full"
                   />
                 </div>
-                <div className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 mt-1">
+                <div className="text-[10px] font-bold text-amber-600 dark:text-amber-400 mt-1">
                   {progressPercent}%
                 </div>
 

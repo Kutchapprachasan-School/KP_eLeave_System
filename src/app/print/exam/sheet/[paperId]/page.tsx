@@ -50,7 +50,7 @@ export default function PrintExamSheetsPage() {
   if (loading) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center p-8 bg-slate-100 text-slate-700">
-        <Loader2 className="w-10 h-10 animate-spin text-purple-600 mb-4" />
+        <Loader2 className="w-10 h-10 animate-spin text-amber-500 mb-4" />
         <div className="text-lg font-bold">กำลังจัดเตรียมกระดาษคำตอบความแม่นยำสูง...</div>
         <div className="text-xs text-slate-500 mt-1">กำลังคำนวณพิกัดมาร์กเกอร์และรหัสอ้างอิงประจำกระดาษคำตอบ</div>
       </div>

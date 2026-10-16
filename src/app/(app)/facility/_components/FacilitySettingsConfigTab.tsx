@@ -219,7 +219,10 @@ export default function FacilitySettingsConfigTab({ onSaved }: FacilitySettingsC
   if (loading) {
     return (
       <div className="py-16 text-center space-y-3">
-        <div className="w-8 h-8 border-3 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto" />
+        <div className="relative w-8 h-8 mx-auto flex items-center justify-center">
+          <div className="w-8 h-8 rounded-full border-[2.5px] border-amber-100 dark:border-amber-950/60" />
+          <div className="absolute inset-0 w-8 h-8 rounded-full border-[2.5px] border-transparent border-t-amber-500 border-r-amber-500 animate-spin" />
+        </div>
         <p className="text-xs text-slate-400">กำลังโหลดข้อมูลการตั้งค่าระบบส่วนกลาง...</p>
       </div>
     );

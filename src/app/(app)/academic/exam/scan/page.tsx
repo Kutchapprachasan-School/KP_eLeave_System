@@ -128,7 +128,7 @@ export default function ExamScanPage() {
 
       {loading ? (
         <div className="py-20 text-center text-slate-500">
-          <Loader2 className="w-8 h-8 animate-spin mx-auto text-purple-600 mb-2" />
+          <Loader2 className="w-8 h-8 animate-spin mx-auto text-amber-500 mb-2" />
           <div className="text-sm font-semibold">กำลังโหลดข้อมูลชุดข้อสอบ...</div>
         </div>
       ) : !selectedPaperId ? (
