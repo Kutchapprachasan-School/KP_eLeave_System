@@ -24,6 +24,9 @@ export async function getOfficialSchoolCalendarEvents(yearBE?: number) {
       day: number;
       month: number;
       year: number;
+      endDay?: number;
+      endMonth?: number;
+      endYear?: number;
       fullDateLabel: string;
       title: string;
       category: "MEETING" | "SUBMISSION" | "ACADEMIC" | "STUDENT" | "OTHER" | "EXAM";
@@ -38,6 +41,12 @@ export async function getOfficialSchoolCalendarEvents(yearBE?: number) {
       for (const h of rawHolidays) {
         const start = new Date(h.startDate);
         const end = new Date(h.endDate);
+        const sDay = start.getUTCDate();
+        const sMonth = start.getUTCMonth() + 1;
+        const eDay = end.getUTCDate();
+        const eMonth = end.getUTCMonth() + 1;
+        const eYear = end.getUTCFullYear() + 543;
+
         const curr = new Date(start);
 
         while (curr <= end) {
@@ -50,10 +59,15 @@ export async function getOfficialSchoolCalendarEvents(yearBE?: number) {
             day: d,
             month: m,
             year: y,
-            fullDateLabel: `วันที่ ${d} ${THAI_MONTH_NAMES[m - 1]} ${y}`,
+            endDay: eDay,
+            endMonth: eMonth,
+            endYear: eYear,
+            fullDateLabel: sDay === eDay && sMonth === eMonth
+              ? `วันที่ ${d} ${THAI_MONTH_NAMES[m - 1]} ${y}`
+              : `วันที่ ${sDay} ${THAI_MONTH_NAMES[sMonth - 1]} - ${eDay} ${THAI_MONTH_NAMES[eMonth - 1]} ${eYear}`,
             title: h.name,
             category: h.isWorkday ? "ACADEMIC" : "OTHER",
-            colorType: h.isWorkday ? "GREEN" : "PURPLE",
+            colorType: h.isWorkday ? "GREEN" : "RED",
             targetRole: "ALL",
             isAllDay: true,
             location: h.isWorkday ? "โรงเรียนกุดจับประชาสรรค์" : "วันหยุดราชการ / สถานศึกษา",

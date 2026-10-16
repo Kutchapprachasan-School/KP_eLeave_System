@@ -215,10 +215,15 @@ export default function ExecutiveLeaveDashboardView() {
 
   // Derived Values
   const totalStudents = schoolStats?.student.totalStudents || 1138;
+  const studentAtt = schoolStats?.student.attendanceToday;
+  const recCount = studentAtt?.recordedCount || 0;
   const attendanceRate =
-    schoolStats?.student.attendanceToday.attendanceRate && schoolStats.student.attendanceToday.attendanceRate > 0
-      ? schoolStats.student.attendanceToday.attendanceRate
+    studentAtt?.attendanceRate && studentAtt.attendanceRate > 0
+      ? studentAtt.attendanceRate
       : 95.6;
+  const liveLateRate = recCount > 0 ? Math.round(((studentAtt?.late || 0) / recCount) * 1000) / 10 : 2.1;
+  const liveAbsentRate = recCount > 0 ? Math.round(((studentAtt?.absent || 0) / recCount) * 1000) / 10 : 1.3;
+  const liveLeaveRate = recCount > 0 ? Math.round((((studentAtt?.sick || 0) + (studentAtt?.personal || 0)) / recCount) * 1000) / 10 : 1.0;
   const sickAndPersonal =
     (schoolStats?.student.attendanceToday.sick || 0) +
     (schoolStats?.student.attendanceToday.personal || 0);
@@ -226,30 +231,27 @@ export default function ExecutiveLeaveDashboardView() {
   // Type & Department Chart Data
   const typeData = useMemo(() => {
     if (!leaveConfigs || !Array.isArray(leaveConfigs)) return [];
-    const mapped = leaveConfigs.map((cfg: any) => ({
-      type: cfg.type,
-      label: cfg.nameTh || cfg.type,
-      count: statsData?.usedDaysMap?.[cfg.type]?.days || 0,
-      color: cfg.color || "#3B82F6",
-    })).filter((t: any) => t.count > 0);
+    const mapped = leaveConfigs.map((cfg: any) => {
+      const count = typeof statsData?.usedDaysMap?.[cfg.type] === "number"
+        ? statsData.usedDaysMap[cfg.type]
+        : (statsData?.usedDaysMap?.[cfg.type]?.days ?? 0);
+      return {
+        type: cfg.type,
+        label: cfg.name || cfg.nameTh || cfg.type,
+        count,
+        color: cfg.color || "#3B82F6",
+      };
+    }).filter((t: any) => t.count > 0);
 
-    // Fallback baseline if no leaves registered yet
-    if (mapped.length === 0) {
-      return [
-        { type: "SICK", label: "ลาป่วย", count: 3, color: "#3B82F6" },
-        { type: "PERSONAL", label: "ลากิจ", count: 2, color: "#10B981" },
-        { type: "OFFICIAL", label: "ไปราชการ", count: 4, color: "#8B5CF6" },
-      ];
-    }
     return mapped;
   }, [leaveConfigs, statsData]);
 
   const deptData = useMemo(() => {
     if (!statsData?.deptStats || !Array.isArray(statsData.deptStats)) return [];
     return statsData.deptStats.map((d: any) => ({
-      department: d.department,
-      count: d.totalDays || d.count || 0,
-      percentage: d.percentage || 0,
+      department: d.department || d.name || "ทั่วไป",
+      count: d.totalDays ?? d.count ?? d.value ?? 0,
+      percentage: d.percentage ?? 0,
     }));
   }, [statsData]);
 
@@ -490,12 +492,12 @@ export default function ExecutiveLeaveDashboardView() {
           {/* Priority 2: Operational Strips (งบประมาณ, สารบรรณ, แจ้งซ่อม, ทรัพยากร) */}
           {widgetConfig.operationsStrip && (
             <div className="pt-1">
-              <SMSOperationsStrip />
+              <SMSOperationsStrip stats={schoolStats} />
             </div>
           )}
 
           {/* Priority 3: Leave Distribution Charts */}
-          {widgetConfig.distributionCharts && typeData.length > 0 && (
+          {widgetConfig.distributionCharts && (
             <div className="w-full min-w-0">
               <ExecutiveLeaveCharts typeData={typeData} deptData={deptData} />
             </div>
@@ -543,9 +545,9 @@ export default function ExecutiveLeaveDashboardView() {
                 <div className={`${widgetConfig.learningOutcomeChart ? "lg:col-span-5 xl:col-span-4" : "lg:col-span-12"} flex flex-col min-w-0`}>
                   <SMSAttendanceDonutCard
                     presentRate={attendanceRate}
-                    lateRate={2.1}
-                    absentRate={1.3}
-                    leaveRate={0.9}
+                    lateRate={liveLateRate}
+                    absentRate={liveAbsentRate}
+                    leaveRate={liveLeaveRate}
                   />
                 </div>
               )}
@@ -590,9 +592,9 @@ export default function ExecutiveLeaveDashboardView() {
                 <div className={`${widgetConfig.learningOutcomeChart ? "lg:col-span-5 xl:col-span-4" : "lg:col-span-12"} flex flex-col min-w-0`}>
                   <SMSAttendanceDonutCard
                     presentRate={attendanceRate}
-                    lateRate={2.1}
-                    absentRate={1.3}
-                    leaveRate={0.9}
+                    lateRate={liveLateRate}
+                    absentRate={liveAbsentRate}
+                    leaveRate={liveLeaveRate}
                   />
                 </div>
               )}
@@ -602,20 +604,20 @@ export default function ExecutiveLeaveDashboardView() {
           {/* Row 4: Operational Strips (งบประมาณ, สารบรรณ, แจ้งซ่อม, ทรัพยากร) */}
           {widgetConfig.operationsStrip && (
             <div className="pt-1">
-              <SMSOperationsStrip />
+              <SMSOperationsStrip stats={schoolStats} />
             </div>
           )}
 
           {/* Row 5: Leave Distribution & Student Overview Analytics */}
           {(widgetConfig.distributionCharts || widgetConfig.studentAffairsOverview) && (
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-5 items-stretch">
-              {widgetConfig.distributionCharts && typeData.length > 0 && (
+              {widgetConfig.distributionCharts && (
                 <div className={`${widgetConfig.studentAffairsOverview ? "lg:col-span-6" : "lg:col-span-12"} flex flex-col min-w-0`}>
                   <ExecutiveLeaveCharts typeData={typeData} deptData={deptData} />
                 </div>
               )}
               {widgetConfig.studentAffairsOverview && (
-                <div className={`${widgetConfig.distributionCharts && typeData.length > 0 ? "lg:col-span-6" : "lg:col-span-12"} flex flex-col min-w-0`}>
+                <div className={`${widgetConfig.distributionCharts ? "lg:col-span-6" : "lg:col-span-12"} flex flex-col min-w-0`}>
                   <ExecutiveStudentLeaveOverview studentStats={schoolStats?.student} />
                 </div>
               )}

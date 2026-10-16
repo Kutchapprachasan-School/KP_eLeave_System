@@ -677,7 +677,7 @@ export async function getDashboardStats(
           status: "APPROVED",
           ...(filter ? { startDate: { gte: filter.start, lte: filter.end } } : {})
         },
-        include: { user: { select: { name: true, position: true } } }
+        include: { user: { select: { name: true, position: true, subjectGroup: true } } }
       });
     } else {
       requests = await prisma.leaveRequest.findMany({
@@ -686,7 +686,7 @@ export async function getDashboardStats(
           status: "APPROVED",
           ...(filter ? { startDate: { gte: filter.start, lte: filter.end } } : {})
         },
-        include: { user: { select: { name: true, position: true } } }
+        include: { user: { select: { name: true, position: true, subjectGroup: true } } }
       });
     }
 
@@ -788,14 +788,35 @@ export async function getDashboardStats(
       }
     }
 
-    // Generate department stats for overview
-    const deptStats = [
-      { name: "Science", value: 35, fill: "#38BDF8" },
-      { name: "Math", value: 25, fill: "#8B5CF6" },
-      { name: "Language", value: 20, fill: "#34D399" },
-      { name: "PE", value: 10, fill: "#FBBF24" },
-      { name: "Arts", value: 10, fill: "#FB7185" },
-    ];
+    // Generate department stats for overview from live database requests
+    const deptMap: Record<string, { count: number; totalDays: number }> = {};
+    let totalDeptLeaveDays = 0;
+
+    for (const r of requests) {
+      const days = await calculateLeaveDays(r.startDate, r.endDate, r.type);
+      const rawDept = (r as any).user?.subjectGroup?.trim() || (r as any).user?.position?.trim() || "สายสนับสนุน/บริหาร";
+      // Clean up common prefix if exists
+      const cleanDept = rawDept.replace(/^กลุ่มสาระการเรียนรู้/, "").trim();
+      if (!deptMap[cleanDept]) {
+        deptMap[cleanDept] = { count: 0, totalDays: 0 };
+      }
+      deptMap[cleanDept].count += 1;
+      deptMap[cleanDept].totalDays += days;
+      totalDeptLeaveDays += days;
+    }
+
+    const deptPalette = ["#38BDF8", "#F59E0B", "#10B981", "#6366F1", "#EC4899", "#14B8A6", "#F97316", "#8B5CF6"];
+    const deptStats = Object.entries(deptMap)
+      .map(([name, data], idx) => ({
+        department: name,
+        name,
+        count: data.count,
+        totalDays: data.totalDays,
+        value: data.totalDays,
+        percentage: totalDeptLeaveDays > 0 ? Math.round((data.totalDays / totalDeptLeaveDays) * 100) : 0,
+        fill: deptPalette[idx % deptPalette.length],
+      }))
+      .sort((a, b) => b.totalDays - a.totalDays);
 
     // Get recent requests (all active statuses, prioritizing selected cycle/year, then fallback)
     const baseRecentWhere: any = {

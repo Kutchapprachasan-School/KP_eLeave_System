@@ -93,7 +93,7 @@ export default function ExecutiveLeaveStatCards({
       value: totalStudents > 0 ? totalStudents.toLocaleString("th-TH") : "1,138",
       unit: "คน",
       subsystemLabel: "ทะเบียนนักเรียน",
-      subsystemColor: "purple",
+      subsystemColor: "blue",
       icon: <GraduationCap className="w-5 h-5" />,
       statusText: "สถานะปกติ (Active)",
       drillDownHref: "/academic",

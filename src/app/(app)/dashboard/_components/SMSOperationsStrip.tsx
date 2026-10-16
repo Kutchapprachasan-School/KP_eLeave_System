@@ -17,7 +17,13 @@ import {
   Mail,
 } from "lucide-react";
 
-export default function SMSOperationsStrip() {
+import type { SchoolManagementExecutiveStats } from "@/app/actions/dashboard-widgets";
+
+interface SMSOperationsStripProps {
+  stats?: SchoolManagementExecutiveStats | null;
+}
+
+export default function SMSOperationsStrip({ stats }: SMSOperationsStripProps) {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 select-none">
       {/* ── Card 1: การเงิน & พัสดุ ── */}
@@ -89,7 +95,7 @@ export default function SMSOperationsStrip() {
             </h3>
           </div>
           <Link
-            href="/dashboard?system=document"
+            href="/document?view=history&tab=inbound"
             className="text-[10px] font-semibold text-blue-600 hover:underline"
           >
             ดูทั้งหมด
@@ -99,30 +105,30 @@ export default function SMSOperationsStrip() {
         <div className="mt-2.5 space-y-1.5 text-[11px]">
           <div className="flex items-center justify-between">
             <span className="text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
-              <FileCheck className="w-3 h-3 text-blue-500" /> หนังสือรับ
+              <FileCheck className="w-3 h-3 text-blue-500" /> รอเกษียณ/พิจารณา
             </span>
-            <span className="font-bold text-slate-800 dark:text-white">12 ฉบับ/สัปดาห์</span>
+            <span className="font-bold text-slate-800 dark:text-white">
+              {stats?.document.pendingRoutingCount ?? 0} เรื่อง
+            </span>
           </div>
           <div className="flex items-center justify-between">
             <span className="text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
-              <Send className="w-3 h-3 text-indigo-500" /> หนังสือส่ง
+              <Send className="w-3 h-3 text-indigo-500" /> ออกเลขหนังสือปีนี้
             </span>
-            <span className="font-bold text-slate-800 dark:text-white">8 ฉบับ/สัปดาห์</span>
+            <span className="font-bold text-slate-800 dark:text-white">
+              {stats?.document.totalIssuedThisYear ?? 0} เรื่อง
+            </span>
           </div>
 
           <div className="pt-1.5 mt-1 border-t border-slate-100 dark:border-slate-800 space-y-1">
             <div className="flex items-center justify-between text-[10.5px]">
-              <span className="text-slate-400">สลิป</span>
-              <span className="font-bold text-slate-700 dark:text-white">1 ฉบับ</span>
-            </div>
-            <div className="flex items-center justify-between text-[10.5px]">
-              <span className="text-slate-400">เอกสารภายใน</span>
-              <span className="font-bold text-slate-700 dark:text-white">5 ฉบับ</span>
+              <span className="text-slate-400">ระบบสารบรรณอิเล็กทรอนิกส์</span>
+              <span className="font-bold text-emerald-600">เชื่อมต่อแล้ว</span>
             </div>
           </div>
 
           <Link
-            href="/dashboard?system=document"
+            href="/document?view=history&tab=inbound"
             className="inline-flex items-center gap-1 px-3 py-1.5 mt-1.5 rounded-lg bg-blue-50 dark:bg-blue-950/40 text-blue-600 text-[10px] font-bold hover:bg-blue-100 transition w-full justify-center"
           >
             ดูรายละเอียด <ArrowRight className="w-3 h-3" />
@@ -142,7 +148,7 @@ export default function SMSOperationsStrip() {
             </h3>
           </div>
           <Link
-            href="/dashboard?system=facility"
+            href="/general/facility"
             className="text-[10px] font-semibold text-blue-600 hover:underline"
           >
             ดูทั้งหมด
@@ -152,25 +158,31 @@ export default function SMSOperationsStrip() {
         <div className="mt-2.5 space-y-1.5 text-[11px]">
           <div className="flex items-center justify-between">
             <span className="text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
-              <Wrench className="w-3 h-3 text-amber-500" /> เรื่องดำเนินการ
+              <Wrench className="w-3 h-3 text-amber-500" /> งานแจ้งซ่อมค้างอยู่
             </span>
-            <span className="font-bold text-slate-800 dark:text-white">5 รายการ</span>
+            <span className="font-bold text-slate-800 dark:text-white">
+              {stats?.repair.activeCount ?? 0} รายการ
+            </span>
           </div>
           <div className="flex items-center justify-between">
-            <span className="text-slate-500 dark:text-slate-400">คำร้อง</span>
-            <span className="font-bold text-slate-800 dark:text-white">3 รายการ</span>
+            <span className="text-slate-500 dark:text-slate-400">จองสถานที่/รถวันนี้</span>
+            <span className="font-bold text-slate-800 dark:text-white">
+              {stats?.facility.reservationsTodayCount ?? 0} รายการ
+            </span>
           </div>
           <div className="flex items-center justify-between">
-            <span className="text-slate-500 dark:text-slate-400">จองสถานที่</span>
-            <span className="font-bold text-slate-800 dark:text-white">2 รายการ</span>
+            <span className="text-slate-500 dark:text-slate-400">คำขอจองรออนุมัติ</span>
+            <span className="font-bold text-slate-800 dark:text-white">
+              {stats?.facility.pendingReservationCount ?? 0} รายการ
+            </span>
           </div>
 
           <div className="pt-1.5 mt-1 border-t border-slate-100 dark:border-slate-800">
             <div className="flex items-center justify-between text-[10.5px]">
-              <span className="text-emerald-600 font-semibold flex items-center gap-1">
-                ✅ เสร็จแล้ว
+              <span className={stats?.repair.overdueSlaCount && stats.repair.overdueSlaCount > 0 ? "text-rose-600 font-semibold flex items-center gap-1" : "text-emerald-600 font-semibold flex items-center gap-1"}>
+                {stats?.repair.overdueSlaCount && stats.repair.overdueSlaCount > 0 ? `⚠️ เกิน SLA ${stats.repair.overdueSlaCount} รายการ` : "✅ ดำเนินการตาม SLA"}
               </span>
-              <span className="font-bold text-slate-700 dark:text-white">3 รายการ</span>
+              <span className="font-bold text-slate-700 dark:text-white">{stats?.repair.activeCount ?? 0} เรื่อง</span>
             </div>
           </div>
         </div>

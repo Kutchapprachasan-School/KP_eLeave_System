@@ -181,7 +181,7 @@ export default function SMSAcademicCalendarCard({
           {WEEKDAYS.map((wd, idx) => (
             <div
               key={wd}
-              className={idx === 0 ? "text-rose-400" : idx === 6 ? "text-purple-400" : ""}
+              className={idx === 0 || idx === 6 ? "text-rose-400 font-bold" : ""}
             >
               {wd}
             </div>
@@ -200,12 +200,24 @@ export default function SMSAcademicCalendarCard({
               currentMonth === (now.getMonth() + 1) &&
               currentYear === (now.getFullYear() + 543);
 
+            const colIndex = idx % 7;
+            const isWeekend = colIndex === 0 || colIndex === 6;
+            const isHoliday = item.events.some(
+              (e) =>
+                e.colorType === "RED" ||
+                e.category === "OTHER" ||
+                e.location === "วันหยุดราชการ" ||
+                e.title.includes("วันหยุด") ||
+                e.title.includes("ปิดเทอม")
+            );
+            const isDayOff = (isWeekend || isHoliday) && item.isCurrentMonth;
+
             let dotColor = "bg-blue-500";
             if (hasEvent) {
               const firstEv = item.events[0];
               if (firstEv.colorType === "GREEN") dotColor = "bg-emerald-500";
-              else if (firstEv.colorType === "RED") dotColor = "bg-rose-500";
-              else if (firstEv.colorType === "PURPLE") dotColor = "bg-purple-500";
+              else if (firstEv.colorType === "RED" || firstEv.category === "OTHER") dotColor = "bg-rose-500";
+              else if (firstEv.colorType === "PURPLE") dotColor = "bg-rose-500";
               else if (firstEv.colorType === "ORANGE") dotColor = "bg-amber-500";
             }
 
@@ -222,7 +234,11 @@ export default function SMSAcademicCalendarCard({
                     : isSelected
                     ? "bg-blue-600 text-white font-bold shadow-xs cursor-pointer"
                     : isToday
-                    ? "border border-blue-500 text-blue-600 font-bold hover:bg-blue-50 dark:hover:bg-blue-950/40 cursor-pointer"
+                    ? isDayOff
+                      ? "border border-rose-500 bg-rose-50 text-rose-600 font-bold cursor-pointer"
+                      : "border border-blue-500 text-blue-600 font-bold hover:bg-blue-50 dark:hover:bg-blue-950/40 cursor-pointer"
+                    : isDayOff
+                    ? "bg-rose-50/70 text-rose-600 dark:bg-rose-950/20 dark:text-rose-400 font-bold hover:bg-rose-100/60 cursor-pointer"
                     : "text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
                 }`}
               >

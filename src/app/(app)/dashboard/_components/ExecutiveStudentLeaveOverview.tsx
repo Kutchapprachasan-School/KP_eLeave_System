@@ -64,7 +64,7 @@ export default function ExecutiveStudentLeaveOverview({
         {/* Header */}
         <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400 flex items-center justify-center font-bold shadow-xs">
+            <div className="w-9 h-9 rounded-xl bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold shadow-xs">
               <GraduationCap className="w-5 h-5" />
             </div>
             <div>
@@ -176,7 +176,7 @@ export default function ExecutiveStudentLeaveOverview({
 
       <div className="mt-3.5 pt-2.5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs text-slate-400">
         <span>ฝ่ายกิจการนักเรียน & แนะแนว</span>
-        <span className="text-purple-600 dark:text-purple-400 font-semibold">ซิงค์อัตโนมัติ</span>
+        <span className="text-blue-600 dark:text-blue-400 font-semibold">ซิงค์อัตโนมัติ</span>
       </div>
     </div>
   );

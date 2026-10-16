@@ -148,6 +148,71 @@ export default function SchoolCalendarView() {
     return cells;
   }, [currentMonth, currentYear, filteredEvents]);
 
+  // จัดกลุ่มกิจกรรมต่อเนื่องหลายวันให้แสดงผลเป็น 1 รายการในมุมมองรายการ (List View)
+  const groupedListEvents = useMemo(() => {
+    const sorted = [...filteredEvents].sort((a, b) => a.day - b.day);
+    const groups: Array<{
+      id: string;
+      title: string;
+      category: CalendarCategory;
+      colorType: CalendarColor;
+      targetRole: TargetRole;
+      location?: string;
+      description?: string;
+      time?: string;
+      isAllDay?: boolean;
+      startDay: number;
+      endDay: number;
+      month: number;
+      year: number;
+      isMultiDay: boolean;
+      daysCount: number;
+      rawEvents: SchoolCalendarEvent[];
+    }> = [];
+
+    for (const ev of sorted) {
+      const existing = groups.find(
+        (g) =>
+          g.title === ev.title &&
+          g.category === ev.category &&
+          g.month === ev.month &&
+          g.year === ev.year &&
+          (ev.day === g.endDay + 1 || (ev.day >= g.startDay && ev.day <= g.endDay))
+      );
+
+      if (existing) {
+        existing.endDay = Math.max(existing.endDay, ev.endDay || ev.day);
+        existing.daysCount = existing.endDay - existing.startDay + 1;
+        existing.isMultiDay = existing.daysCount > 1;
+        existing.rawEvents.push(ev);
+        if (!existing.description && ev.description) existing.description = ev.description;
+        if (!existing.location && ev.location) existing.location = ev.location;
+      } else {
+        const endDay = ev.endDay && ev.endDay >= ev.day ? ev.endDay : ev.day;
+        groups.push({
+          id: ev.id,
+          title: ev.title,
+          category: ev.category,
+          colorType: ev.colorType,
+          targetRole: ev.targetRole,
+          location: ev.location,
+          description: ev.description,
+          time: ev.time,
+          isAllDay: ev.isAllDay,
+          startDay: ev.day,
+          endDay: endDay,
+          month: ev.month,
+          year: ev.year,
+          isMultiDay: endDay > ev.day,
+          daysCount: endDay - ev.day + 1,
+          rawEvents: [ev],
+        });
+      }
+    }
+
+    return groups;
+  }, [filteredEvents]);
+
   // ตัวเปลี่ยนเดือน
   const handlePrevMonth = () => {
     if (currentMonth === 1) {
@@ -393,7 +458,7 @@ export default function SchoolCalendarView() {
             {WEEKDAYS.map((wd, idx) => (
               <div
                 key={wd}
-                className={idx === 0 ? "text-rose-500" : idx === 6 ? "text-purple-500" : "text-slate-700 dark:text-slate-300"}
+                className={idx === 0 || idx === 6 ? "text-rose-500 font-bold" : "text-slate-700 dark:text-slate-300"}
               >
                 <span className="hidden sm:inline">{wd}</span>
                 <span className="sm:hidden">{SHORT_WEEKDAYS[idx]}</span>
@@ -411,23 +476,43 @@ export default function SchoolCalendarView() {
                 currentMonth === (now.getMonth() + 1) &&
                 currentYear === (now.getFullYear() + 543);
 
+              const colIndex = idx % 7;
+              const isWeekend = colIndex === 0 || colIndex === 6;
+              const isHoliday = cell.events.some(
+                (e) =>
+                  e.colorType === "RED" ||
+                  e.category === "OTHER" ||
+                  e.location === "วันหยุดราชการ" ||
+                  e.location?.includes("วันหยุด") ||
+                  e.title.includes("วันหยุด") ||
+                  e.title.includes("ปิดเทอม") ||
+                  e.title.includes("ปิดภาคเรียน")
+              );
+              const isDayOff = (isWeekend || isHoliday) && cell.isCurrentMonth;
+
               return (
                 <div
                   key={`${cell.day}-${idx}`}
                   onClick={() => cell.isCurrentMonth && handleOpenAddModal(cell.day)}
-                  className={`min-h-[110px] sm:min-h-[130px] p-2 flex flex-col justify-between transition-colors ${
+                  className={`min-h-[110px] sm:min-h-[130px] p-2 flex flex-col justify-between transition-colors relative ${
                     !cell.isCurrentMonth
                       ? "bg-slate-50/40 dark:bg-slate-950/20 text-slate-300 dark:text-slate-700 cursor-default"
-                      : "hover:bg-blue-50/30 dark:hover:bg-slate-800/40 cursor-pointer group"
+                      : isDayOff
+                      ? "bg-rose-50/70 dark:bg-rose-950/25 border-rose-100/70 dark:border-rose-900/40 hover:bg-rose-100/60 dark:hover:bg-rose-950/40 cursor-pointer group"
+                      : "bg-white dark:bg-slate-900 hover:bg-blue-50/30 dark:hover:bg-slate-800/40 cursor-pointer group"
                   }`}
                 >
                   <div className="flex items-center justify-between">
                     <span
                       className={`text-xs sm:text-sm font-bold flex items-center justify-center w-6 h-6 rounded-full ${
                         isToday
-                          ? "bg-blue-600 text-white shadow-xs"
+                          ? isDayOff
+                            ? "bg-rose-600 text-white shadow-xs font-black"
+                            : "bg-blue-600 text-white shadow-xs font-black"
                           : cell.isCurrentMonth
-                          ? "text-slate-800 dark:text-slate-200"
+                          ? isDayOff
+                            ? "text-rose-600 dark:text-rose-400 font-extrabold"
+                            : "text-slate-800 dark:text-slate-200"
                           : "text-slate-300 dark:text-slate-600"
                       }`}
                     >
@@ -435,20 +520,49 @@ export default function SchoolCalendarView() {
                     </span>
 
                     {cell.isCurrentMonth && (
-                      <span className="opacity-0 group-hover:opacity-100 text-blue-600 text-[10px] font-bold transition">
+                      <span className="opacity-0 group-hover:opacity-100 text-blue-600 dark:text-blue-400 text-[10px] font-bold transition">
                         + เพิ่ม
                       </span>
                     )}
                   </div>
 
                   {/* Event Badges inside Day Cell */}
-                  <div className="space-y-1 mt-1 flex-1 overflow-y-auto max-h-[85px] custom-scrollbar">
+                  <div className="space-y-1 mt-1 flex-1 overflow-visible">
                     {cell.events.map((ev) => {
-                      let bg = "bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border-emerald-200";
-                      if (ev.colorType === "BLUE") bg = "bg-blue-100 dark:bg-blue-950/60 text-blue-800 dark:text-blue-300 border-blue-200";
-                      if (ev.colorType === "ORANGE") bg = "bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border-amber-200";
-                      if (ev.colorType === "RED") bg = "bg-rose-100 dark:bg-rose-950/60 text-rose-800 dark:text-rose-300 border-rose-200";
-                      if (ev.colorType === "PURPLE") bg = "bg-purple-100 dark:bg-purple-950/60 text-purple-800 dark:text-purple-300 border-purple-200";
+                      const prevCell = idx > 0 ? calendarCells[idx - 1] : null;
+                      const nextCell = idx < calendarCells.length - 1 ? calendarCells[idx + 1] : null;
+
+                      const hasPrev = Boolean(
+                        prevCell &&
+                        prevCell.isCurrentMonth &&
+                        colIndex !== 0 &&
+                        prevCell.events.some((e) => e.title === ev.title && e.category === ev.category)
+                      );
+
+                      const hasNext = Boolean(
+                        nextCell &&
+                        nextCell.isCurrentMonth &&
+                        colIndex !== 6 &&
+                        nextCell.events.some((e) => e.title === ev.title && e.category === ev.category)
+                      );
+
+                      const isStart = !hasPrev && hasNext;
+                      const isMiddle = hasPrev && hasNext;
+                      const isEnd = hasPrev && !hasNext;
+
+                      let shapeClass = "rounded-lg mx-0";
+                      if (isStart) {
+                        shapeClass = "rounded-l-lg rounded-r-none -mr-2.5 pr-2.5 z-10 border-r-0";
+                      } else if (isMiddle) {
+                        shapeClass = "rounded-none -mx-2.5 px-2.5 z-10 border-x-0";
+                      } else if (isEnd) {
+                        shapeClass = "rounded-r-lg rounded-l-none -ml-2.5 pl-2.5 z-10 border-l-0";
+                      }
+
+                      let bg = "bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800";
+                      if (ev.colorType === "BLUE") bg = "bg-blue-100 dark:bg-blue-950/60 text-blue-800 dark:text-blue-300 border-blue-300 dark:border-blue-800";
+                      if (ev.colorType === "ORANGE") bg = "bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-800";
+                      if (ev.colorType === "RED" || ev.category === "OTHER" || ev.colorType === "PURPLE") bg = "bg-rose-100 dark:bg-rose-950/60 text-rose-800 dark:text-rose-200 border-rose-300 dark:border-rose-800";
 
                       return (
                         <div
@@ -457,12 +571,19 @@ export default function SchoolCalendarView() {
                             e.stopPropagation();
                             setSelectedEvent(ev);
                           }}
-                          className={`text-[10.5px] p-1.5 rounded-lg font-medium border truncate transition hover:shadow-xs hover:scale-[1.02] cursor-pointer ${bg}`}
+                          className={`text-[10px] sm:text-[10.5px] p-1 sm:p-1.5 font-medium border truncate transition hover:shadow-xs hover:brightness-95 cursor-pointer flex items-center ${shapeClass} ${bg}`}
                           title={`${ev.title} (${ev.time || "ตลอดวัน"})`}
                         >
-                          <div className="flex items-center gap-1 truncate">
-                            {ev.time && <span className="font-bold shrink-0">{ev.time}</span>}
-                            <span className="truncate">{ev.title}</span>
+                          <div className="flex items-center gap-1 truncate w-full">
+                            {isMiddle && <span className="text-[9px] font-bold opacity-60 shrink-0">••</span>}
+                            {isEnd && <span className="text-[9px] font-bold opacity-60 shrink-0">◀</span>}
+                            {(!isMiddle || colIndex === 0) && ev.time && (
+                              <span className="font-bold shrink-0">{ev.time}</span>
+                            )}
+                            <span className="truncate">
+                              {(!isMiddle || colIndex === 0) ? ev.title : ev.title}
+                            </span>
+                            {isStart && <span className="text-[9px] font-bold opacity-60 shrink-0 ml-auto">▶</span>}
                           </div>
                         </div>
                       );
@@ -474,89 +595,134 @@ export default function SchoolCalendarView() {
           </div>
         </div>
       ) : (
-        /* List Mode */
+        /* List Mode - Grouped Multi-day Events */
         <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl shadow-xs divide-y divide-slate-100 dark:divide-slate-800 overflow-hidden">
-          {filteredEvents.length === 0 ? (
+          {groupedListEvents.length === 0 ? (
             <div className="p-12 text-center text-slate-400 space-y-2">
               <CalendarIcon className="w-10 h-10 mx-auto text-slate-300 stroke-[1.5]" />
               <p className="text-sm">ไม่มีกิจกรรมในเดือนนี้</p>
             </div>
           ) : (
-            filteredEvents.map((ev) => (
-              <div
-                key={ev.id}
-                className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition"
-              >
-                <div className="flex items-start gap-4">
-                  {/* Date badge */}
-                  <div className="w-13 h-13 rounded-2xl bg-blue-50 dark:bg-blue-950/50 border border-blue-100 dark:border-blue-900 text-blue-700 dark:text-blue-300 flex flex-col items-center justify-center shrink-0">
-                    <span className="text-lg font-extrabold leading-none">{ev.day}</span>
-                    <span className="text-[10px] font-bold">{THAI_MONTHS[ev.month - 1].slice(0, 3)}</span>
-                  </div>
+            groupedListEvents.map((ev) => {
+              const isMulti = ev.isMultiDay && ev.startDay !== ev.endDay;
+              const isHoliday =
+                ev.colorType === "RED" ||
+                ev.category === "OTHER" ||
+                ev.location?.includes("วันหยุด") ||
+                ev.title.includes("วันหยุด") ||
+                ev.title.includes("ปิดเทอม") ||
+                ev.title.includes("ปิดภาคเรียน");
 
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      {getCategoryBadge(ev.category, ev.colorType)}
-                      <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
-                        {ev.targetRole === "TEACHER" ? "เฉพาะครู" : ev.targetRole === "STUDENT" ? "เฉพาะนักเรียน" : "ทุกคน"}
-                      </span>
-                    </div>
+              const badgeColor = isHoliday
+                ? "bg-rose-50 dark:bg-rose-950/50 border-rose-200 dark:border-rose-900 text-rose-700 dark:text-rose-300"
+                : "bg-blue-50 dark:bg-blue-950/50 border-blue-100 dark:border-blue-900 text-blue-700 dark:text-blue-300";
 
-                    <h3 className="font-bold text-slate-900 dark:text-white text-sm sm:text-base">
-                      {ev.title}
-                    </h3>
-
-                    {ev.description && (
-                      <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2">
-                        {ev.description}
-                      </p>
-                    )}
-
-                    <div className="flex items-center gap-4 text-xs text-slate-400 pt-1 flex-wrap">
-                      {ev.time && (
-                        <div className="flex items-center gap-1">
-                          <Clock className="w-3.5 h-3.5" />
-                          <span>{ev.time} น.</span>
-                        </div>
-                      )}
-                      {ev.location && (
-                        <div className="flex items-center gap-1">
-                          <MapPin className="w-3.5 h-3.5" />
-                          <span>{ev.location}</span>
-                        </div>
+              return (
+                <div
+                  key={ev.id}
+                  className={`p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition ${
+                    isHoliday
+                      ? "hover:bg-rose-50/40 dark:hover:bg-rose-950/20"
+                      : "hover:bg-slate-50/70 dark:hover:bg-slate-800/40"
+                  }`}
+                >
+                  <div className="flex items-start gap-4">
+                    {/* Date badge */}
+                    <div className={`w-16 h-14 rounded-2xl border flex flex-col items-center justify-center shrink-0 px-1 shadow-2xs ${badgeColor}`}>
+                      {isMulti ? (
+                        <>
+                          <span className="text-xs sm:text-sm font-extrabold leading-tight text-center">
+                            {ev.startDay} - {ev.endDay}
+                          </span>
+                          <span className="text-[10px] font-bold">{THAI_MONTHS[ev.month - 1].slice(0, 3)}</span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="text-lg font-extrabold leading-none">{ev.startDay}</span>
+                          <span className="text-[10px] font-bold mt-0.5">{THAI_MONTHS[ev.month - 1].slice(0, 3)}</span>
+                        </>
                       )}
                     </div>
+
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {getCategoryBadge(ev.category, isHoliday ? "RED" : ev.colorType)}
+                        {isMulti && (
+                          <span className="text-xs font-bold px-2 py-0.5 rounded-md bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200">
+                            กิจกรรมต่อเนื่อง {ev.daysCount} วัน
+                          </span>
+                        )}
+                        <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                          {ev.targetRole === "TEACHER" ? "เฉพาะครู" : ev.targetRole === "STUDENT" ? "เฉพาะนักเรียน" : "ทุกคน"}
+                        </span>
+                      </div>
+
+                      <h3 className="font-bold text-slate-900 dark:text-white text-sm sm:text-base">
+                        {ev.title}
+                      </h3>
+
+                      {ev.description && (
+                        <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2">
+                          {ev.description}
+                        </p>
+                      )}
+
+                      <div className="flex items-center gap-4 text-xs text-slate-400 pt-1 flex-wrap">
+                        <div className="flex items-center gap-1 font-medium">
+                          <CalendarDays className="w-3.5 h-3.5 text-slate-400" />
+                          <span>
+                            {isMulti
+                              ? `วันที่ ${ev.startDay} - ${ev.endDay} ${THAI_MONTHS[ev.month - 1]} ${ev.year}`
+                              : `วันที่ ${ev.startDay} ${THAI_MONTHS[ev.month - 1]} ${ev.year}`}
+                          </span>
+                        </div>
+                        {ev.time && (
+                          <div className="flex items-center gap-1">
+                            <Clock className="w-3.5 h-3.5" />
+                            <span>{ev.time} น.</span>
+                          </div>
+                        )}
+                        {ev.location && (
+                          <div className="flex items-center gap-1">
+                            <MapPin className="w-3.5 h-3.5" />
+                            <span>{ev.location}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedEvent(ev.rawEvents[0] || (ev as any))}
+                      className="p-2 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-bold flex items-center gap-1 cursor-pointer"
+                    >
+                      <Eye className="w-3.5 h-3.5" />
+                      <span>รายละเอียด</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleOpenEditModal(ev.rawEvents[0] || (ev as any))}
+                      className="p-2 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-blue-600 dark:text-blue-400 text-xs font-bold cursor-pointer"
+                      title="แก้ไข"
+                    >
+                      <Edit2 className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        ev.rawEvents.forEach((r) => handleDeleteEvent(r.id));
+                      }}
+                      className="p-2 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-rose-50 hover:border-rose-200 text-rose-600 hover:text-rose-700 dark:hover:bg-rose-950/40 text-xs font-bold cursor-pointer transition"
+                      title="ลบ"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
                   </div>
                 </div>
-
-                <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => setSelectedEvent(ev)}
-                    className="p-2 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-bold flex items-center gap-1 cursor-pointer"
-                  >
-                    <Eye className="w-3.5 h-3.5" />
-                    <span>รายละเอียด</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleOpenEditModal(ev)}
-                    className="p-2 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-blue-600 dark:text-blue-400 text-xs font-bold cursor-pointer"
-                    title="แก้ไข"
-                  >
-                    <Edit2 className="w-3.5 h-3.5" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleDeleteEvent(ev.id)}
-                    className="p-2 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-rose-50 hover:text-rose-600 text-slate-400 text-xs font-bold cursor-pointer"
-                    title="ลบ"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       )}
