@@ -800,8 +800,8 @@ function AppContent({ children }: { children: React.ReactNode }) {
         >
           {/* Logo container with pulse rings */}
           <div className="relative flex items-center justify-center">
-            <div className="absolute inset-0 rounded-full bg-purple-500/20 dark:bg-purple-400/10 animate-ping opacity-75" />
-            <div className="absolute -inset-4 rounded-full bg-gradient-to-tr from-purple-500/10 to-indigo-500/10 blur-md animate-pulse" />
+            <div className="absolute inset-0 rounded-full bg-orange-500/20 dark:bg-amber-400/10 animate-ping opacity-75" />
+            <div className="absolute -inset-4 rounded-full bg-gradient-to-tr from-orange-500/10 to-amber-500/10 blur-md animate-pulse" />
             
             <div className="relative w-24 h-24 rounded-3xl bg-white dark:bg-slate-800 p-1.5 shadow-[0_8px_30px_rgb(0,0,0,0.08)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.4)] border border-slate-100 dark:border-slate-700/50 flex items-center justify-center overflow-hidden">
               {brandLogo ? (
@@ -814,7 +814,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
                   className="w-full h-full object-cover rounded-2xl"
                 />
               ) : (
-                <div className="w-full h-full rounded-2xl bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center text-white">
+                <div className="w-full h-full rounded-2xl bg-gradient-to-br from-[#163A66] to-[#0f2744] flex items-center justify-center text-white">
                   <svg className="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
                   </svg>
@@ -838,7 +838,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.4 }}
-              className="text-xs font-semibold tracking-wider text-purple-600 dark:text-purple-400 uppercase"
+              className="text-xs font-semibold tracking-wider text-amber-600 dark:text-amber-400 uppercase"
             >
               {brandSubheader || "ระบบจัดการการลาออนไลน์"}
             </motion.p>
@@ -848,7 +848,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
           <div className="w-40 pt-4 mx-auto">
             <div className="h-1 w-full bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden relative">
               <motion.div 
-                className="h-full bg-gradient-to-r from-purple-500 to-indigo-600 rounded-full absolute top-0 bottom-0"
+                className="h-full bg-gradient-to-r from-orange-500 to-amber-500 rounded-full absolute top-0 bottom-0"
                 animate={{ 
                   left: ["-100%", "100%"],
                   width: ["30%", "60%", "30%"]
@@ -1631,7 +1631,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
               <p className="text-sm text-slate-500 dark:text-slate-400 mb-6 leading-relaxed max-w-xs">
                 บัญชีผู้ใช้ของคุณไม่ได้รับอนุญาตให้เข้าถึงเนื้อหาในส่วนนี้ หากเป็นข้อผิดพลาด กรุณาติดต่อแอดมินหรือหัวหน้างานบุคคล
               </p>
-              <Link href="/dashboard" className="px-5 py-2.5 bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white font-semibold text-xs rounded-xl shadow-md transition-all active:scale-95">
+              <Link href="/dashboard" className="px-5 py-2.5 bg-[#163A66] hover:bg-[#112d50] text-white font-semibold text-xs rounded-xl shadow-md transition-all active:scale-95">
                 กลับสู่แดชบอร์ด
               </Link>
             </div>

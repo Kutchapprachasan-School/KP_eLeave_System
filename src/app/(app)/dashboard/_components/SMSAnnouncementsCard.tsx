@@ -101,8 +101,16 @@ export default function SMSAnnouncementsCard({ onViewAll }: SMSAnnouncementsCard
           {announcements.slice(0, 4).map((item) => (
             <div
               key={item.id}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  setSelectedItem(item);
+                }
+              }}
               onClick={() => setSelectedItem(item)}
-              className="flex items-center justify-between gap-3 py-3 hover:bg-slate-50/60 dark:hover:bg-slate-800/30 px-1 rounded-xl transition-colors cursor-pointer group"
+              className="flex items-center justify-between gap-3 py-3 hover:bg-slate-50/60 dark:hover:bg-slate-800/30 px-2 rounded-xl transition-colors cursor-pointer group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
             >
               <div className="flex items-center gap-3 min-w-0">
                 {renderIcon(item.category)}

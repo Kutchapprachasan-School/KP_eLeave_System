@@ -73,7 +73,7 @@ export default function AttendanceErrorBoundary({ error, reset }: ErrorProps) {
         <div className="flex justify-center">
           <button
             onClick={() => reset()}
-            className="w-full flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white font-bold text-sm shadow-lg shadow-purple-500/25 hover:shadow-xl hover:shadow-purple-500/35 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 cursor-pointer border-none"
+            className="w-full flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-[#163A66] hover:bg-[#112d50] text-white font-bold text-sm shadow-md shadow-[#163A66]/20 hover:shadow-lg hover:scale-[1.01] active:scale-[0.98] transition-all duration-200 cursor-pointer border-none"
           >
             <RefreshCw className="w-4 h-4" />
             <span>{isTh ? "ลองใหม่อีกครั้ง" : "Try Again"}</span>

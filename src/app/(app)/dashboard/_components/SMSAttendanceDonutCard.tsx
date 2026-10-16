@@ -93,7 +93,7 @@ export default function SMSAttendanceDonutCard({
 
           {/* Center text inside Donut */}
           <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-center">
-            <span className="text-xl font-extrabold text-slate-800 dark:text-white leading-tight">
+            <span className="text-xl font-extrabold text-slate-800 dark:text-white leading-tight tabular-nums">
               {presentRate}%
             </span>
             <span className="text-[10.5px] font-medium text-slate-400 dark:text-slate-500">

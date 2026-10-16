@@ -368,8 +368,16 @@ export default function ExecutiveLeaveStatCards({
           return (
             <div
               key={card.id}
+              role={card.actionOnClick ? "button" : undefined}
+              tabIndex={card.actionOnClick ? 0 : undefined}
+              onKeyDown={(e) => {
+                if (card.actionOnClick && (e.key === "Enter" || e.key === " ")) {
+                  e.preventDefault();
+                  card.actionOnClick();
+                }
+              }}
               onClick={card.actionOnClick}
-              className={`stat-card bg-white dark:bg-slate-900 rounded-2xl border p-4 sm:p-5 flex flex-col justify-between shadow-[0_4px_16px_rgba(40,90,140,0.06)] dark:shadow-none transition-all duration-200 ${
+              className={`stat-card bg-white dark:bg-slate-900 rounded-2xl border p-4 sm:p-5 flex flex-col justify-between shadow-[0_4px_16px_rgba(40,90,140,0.06)] dark:shadow-none transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
                 isUrgent ? colors.border : "border-[#E6EEF7] dark:border-slate-800"
               } ${card.actionOnClick ? "cursor-pointer" : ""}`}
             >
@@ -396,7 +404,7 @@ export default function ExecutiveLeaveStatCards({
 
                 {/* Big Stat Value */}
                 <div className="flex items-baseline gap-1.5 mt-3">
-                  <span className="text-2xl sm:text-3xl font-extrabold text-[#163A66] dark:text-white tracking-tight">
+                  <span className="text-2xl sm:text-3xl font-extrabold text-[#163A66] dark:text-white tracking-tight tabular-nums">
                     {card.value}
                   </span>
                   {card.unit && (

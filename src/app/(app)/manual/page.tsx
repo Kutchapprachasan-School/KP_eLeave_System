@@ -109,7 +109,7 @@ export default function ManualPage() {
       {/* Page Title */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center text-white shadow-lg shadow-purple-500/20 shrink-0">
+          <div className="w-12 h-12 rounded-2xl bg-[#163A66] flex items-center justify-center text-white shadow-md shadow-[#163A66]/20 shrink-0">
             <BookOpen className="w-6 h-6" />
           </div>
           <div>
@@ -126,7 +126,7 @@ export default function ManualPage() {
         <a
           href="/manual/e-Leave_User_Guide.pdf"
           download
-          className="flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white text-sm font-bold shadow-lg shadow-purple-500/20 hover:shadow-xl hover:shadow-purple-500/30 hover:scale-[1.02] active:scale-[0.98] transition-all duration-300 shrink-0 cursor-pointer font-sans"
+          className="flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-[#163A66] hover:bg-[#112d50] text-white text-sm font-bold shadow-md shadow-[#163A66]/20 hover:shadow-lg hover:scale-[1.01] active:scale-[0.98] transition-all duration-200 shrink-0 cursor-pointer font-sans"
         >
           <Download className="w-4 h-4" />
           {lang === "en" ? "Download Full PDF Guide" : "ดาวน์โหลดคู่มือไฟล์ PDF"}

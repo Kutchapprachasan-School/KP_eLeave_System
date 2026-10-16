@@ -73,8 +73,16 @@ export default function SMSStatCards({
       {cards.map((c) => (
         <div
           key={c.type}
+          role={onClickCard ? "button" : undefined}
+          tabIndex={onClickCard ? 0 : undefined}
+          onKeyDown={(e) => {
+            if (onClickCard && (e.key === "Enter" || e.key === " ")) {
+              e.preventDefault();
+              onClickCard(c.type);
+            }
+          }}
           onClick={() => onClickCard?.(c.type)}
-          className="stat-card group relative bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl p-4 sm:p-5 shadow-[0_2px_12px_rgba(0,0,0,0.03)] hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-pointer flex items-center justify-between"
+          className="stat-card group relative bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl p-4 sm:p-5 shadow-[0_2px_12px_rgba(0,0,0,0.03)] hover:shadow-md hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 transition-all duration-200 cursor-pointer flex items-center justify-between"
         >
           {/* Left Icon Container */}
           <div
@@ -90,7 +98,7 @@ export default function SMSStatCards({
             </span>
 
             <div className="flex items-baseline gap-1 mt-0.5">
-              <span className="text-2xl font-extrabold text-slate-800 dark:text-white tracking-tight">
+              <span className="text-2xl font-extrabold text-slate-800 dark:text-white tracking-tight tabular-nums">
                 {c.value}
               </span>
               {c.unit && (
