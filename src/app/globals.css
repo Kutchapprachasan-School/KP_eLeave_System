@@ -144,12 +144,9 @@ body, .font-sans, input, select, textarea, button {
   border: 1px solid rgba(99, 102, 241, 0.15);
 }
 
-/* Gradient text */
+/* Solid brand text */
 .gradient-text {
-  background: linear-gradient(135deg, #4f46e5, #7c3aed, #ec4899);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: var(--color-primary);
 }
 
 /* Stat card hover effect */
@@ -213,3 +210,22 @@ body, .font-sans, input, select, textarea, button {
   color: var(--color-danger-text);
   border: 1px solid var(--color-danger-border);
 }
+
+@keyframes brandLoadingProgress {
+  0% {
+    left: -40%;
+    width: 30%;
+  }
+  50% {
+    width: 55%;
+  }
+  100% {
+    left: 110%;
+    width: 30%;
+  }
+}
+
+.animate-brand-progress {
+  animation: brandLoadingProgress 1.4s ease-in-out infinite;
+}
+

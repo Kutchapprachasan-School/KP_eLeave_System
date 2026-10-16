@@ -554,7 +554,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
   }, []);
   const [brandName, setBrandName] = useState("โรงเรียนกุดจับประชาสรรค์");
   const [brandLogo, setBrandLogo] = useState<string>("/images/teacher/school_logo.png");
-  const [brandSubheader, setBrandSubheader] = useState("ระบบบริหารจัดการสถานศึกษา");
+  const [brandSubheader, setBrandSubheader] = useState("KP School Management System");
   const [isFinalApprover, setIsFinalApprover] = useState(false);
   const [rolePermissions, setRolePermissions] = useState<any>(null);
   const [pendingDocsCount, setPendingDocsCount] = useState(0);

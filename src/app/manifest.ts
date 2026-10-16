@@ -2,8 +2,8 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "KP e-Leave | โรงเรียนกุดจับประชาสรรค์",
-    short_name: "KP e-Leave",
+    name: "KP School Management System",
+    short_name: "KP School",
     description: "ระบบบริหารสถานศึกษาและระบบการลาออนไลน์ โรงเรียนกุดจับประชาสรรค์",
     start_url: "/dashboard",
     display: "standalone",

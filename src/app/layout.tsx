@@ -11,7 +11,7 @@ export const fetchCache = "force-no-store";
 
 export async function generateMetadata(): Promise<Metadata> {
   let iconUrl: string = "/images/teacher/school_logo.png";
-  let appTitleSuffix: string = "e-Leave System";
+  let appTitleSuffix: string = "KP School Management System";
 
   try {
     const settings = await prisma.systemSettings.findUnique({
@@ -35,7 +35,8 @@ export async function generateMetadata(): Promise<Metadata> {
       default: `${appTitleSuffix}`,
       template: `%s | ${appTitleSuffix}`,
     },
-    description: "ระบบการลาและงานสารบรรณออนไลน์ - Online School Management System",
+    description: "ระบบบริหารสถานศึกษาและระบบการลาออนไลน์ โรงเรียนกุดจับประชาสรรค์ - KP School Management System",
+    manifest: "/manifest.json",
     icons: {
       icon: iconUrl,
       apple: iconUrl,
@@ -55,7 +56,7 @@ export default function RootLayout({
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700;800&family=Noto+Sans+Thai:wght@300;400;500;600;700;800&family=Prompt:wght@300;400;500;600;700;800&family=Sarabun:wght@300;400;500;600;700;800&family=Taviraj:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" crossOrigin="anonymous" />
-        <link rel="preload" as="image" href="/images/teacher/school_logo.png" fetchPriority="high" />
+        <link rel="preload" as="image" href="/images/teacher/school_logo.png" />
       </head>
       <body className="min-h-full flex flex-col">
         <I18nProvider>

@@ -31,7 +31,7 @@ export default function GlobalError({ error, reset }: GlobalErrorProps) {
                 โรงเรียนกุดจับประชาสรรค์
               </div>
               <div className="text-[10px] text-slate-400 font-medium">
-                ระบบบริหารจัดการสถานศึกษา
+                KP School Management System
               </div>
             </div>
           </div>

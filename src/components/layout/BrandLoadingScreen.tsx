@@ -10,7 +10,7 @@ interface BrandLoadingScreenProps {
 
 export function BrandLoadingScreen({
   schoolName = "โรงเรียนกุดจับประชาสรรค์",
-  subheader = "ระบบบริหารจัดการสถานศึกษา",
+  subheader = "KP School Management System",
   logoUrl = "/images/teacher/school_logo.png",
 }: BrandLoadingScreenProps) {
   const [currentLogo, setCurrentLogo] = useState(logoUrl || "/images/teacher/school_logo.png");
@@ -72,32 +72,10 @@ export function BrandLoadingScreen({
         {/* High-fidelity Progress Bar */}
         <div className="w-40 pt-2 mx-auto">
           <div className="h-1.5 w-full bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden relative">
-            <div
-              className="h-full bg-gradient-to-r from-orange-500 via-amber-500 to-orange-500 rounded-full absolute top-0 bottom-0"
-              style={{
-                width: "45%",
-                animation: "brandLoadingProgress 1.4s ease-in-out infinite",
-              }}
-            />
+            <div className="h-full bg-gradient-to-r from-orange-500 via-amber-500 to-orange-500 rounded-full absolute top-0 bottom-0 animate-brand-progress" />
           </div>
         </div>
       </div>
-
-      <style jsx>{`
-        @keyframes brandLoadingProgress {
-          0% {
-            left: -40%;
-            width: 30%;
-          }
-          50% {
-            width: 55%;
-          }
-          100% {
-            left: 110%;
-            width: 30%;
-          }
-        }
-      `}</style>
     </div>
   );
 }

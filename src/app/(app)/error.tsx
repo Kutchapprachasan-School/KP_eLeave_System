@@ -40,7 +40,7 @@ export default function GlobalAppErrorBoundary({ error, reset }: ErrorProps) {
               โรงเรียนกุดจับประชาสรรค์
             </div>
             <div className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
-              ระบบบริหารจัดการสถานศึกษา
+              KP School Management System
             </div>
           </div>
         </div>
