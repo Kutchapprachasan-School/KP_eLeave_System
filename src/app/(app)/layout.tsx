@@ -391,8 +391,6 @@ function CollapsibleGroup({
   pathname,
   searchParams,
   renderNavItem,
-  collapsed = false,
-  onExpand,
 }: {
   title: string;
   icon: any;
@@ -402,8 +400,6 @@ function CollapsibleGroup({
   pathname: string;
   searchParams: any;
   renderNavItem: (item: any, isSubItem?: boolean) => React.ReactNode;
-  collapsed?: boolean;
-  onExpand?: () => void;
 }) {
   const isAnyChildActive = items.some((item) => {
     if (item.href.includes("?")) {
@@ -432,34 +428,6 @@ function CollapsibleGroup({
   }, [isAnyChildActive]);
 
   if (items.length === 0) return null;
-
-  // When sidebar is collapsed: show just the group icon with tooltip; clicking expands sidebar and opens group
-  if (collapsed) {
-    return (
-      <div className="space-y-0.5">
-        <button
-          type="button"
-          title={title}
-          onClick={() => {
-            setIsOpen(true);
-            if (onExpand) onExpand();
-          }}
-          className={`relative flex items-center justify-center w-9 h-9 rounded-xl transition-all duration-200 mx-auto cursor-pointer ${
-            isAnyChildActive
-              ? "text-white bg-blue-600 shadow-sm shadow-blue-500/25 font-bold"
-              : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white"
-          }`}
-        >
-          <GroupIcon className="w-4 h-4" />
-          {badge !== undefined && badge > 0 && (
-            <span className="absolute top-1 right-1 flex items-center justify-center min-w-[14px] h-[14px] px-0.5 rounded-full bg-rose-500 text-white text-[9px] font-bold">
-              {badge > 9 ? "9+" : badge}
-            </span>
-          )}
-        </button>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-0.5">
@@ -1080,7 +1048,18 @@ function AppContent({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const renderNavItem = (item: any, isSubItem: boolean = false, forceCollapsed?: boolean) => {
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && (e.key === "b" || e.key === "B")) {
+        e.preventDefault();
+        toggleSidebar();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  const renderNavItem = (item: any, isSubItem: boolean = false) => {
     const isExactMatch = item.href.includes("?")
       ? (pathname === item.href.split("?")[0] ||
          (item.href.startsWith("/general/facility") && (pathname === "/facility" || pathname === "/academic/facility"))) &&
@@ -1099,27 +1078,6 @@ function AppContent({ children }: { children: React.ReactNode }) {
 
     const isActive = isExactMatch || (item.href.startsWith("/settings") && !item.href.includes("?") && pathname.startsWith("/settings") && !searchParams?.get("section"));
     const Icon = item.icon;
-    const itemCollapsed = forceCollapsed ?? isCollapsed;
-
-    // Icon-only mode when sidebar collapsed
-    if (itemCollapsed) {
-      return (
-        <Link key={item.href} href={item.href} prefetch={false} title={item.label}>
-          <div className={`relative flex items-center justify-center w-9 h-9 rounded-xl transition-all duration-200 mx-auto ${
-            isActive
-              ? "text-white bg-blue-600 shadow-sm shadow-blue-500/25 font-bold"
-              : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white"
-          }`}>
-            <Icon className="w-4 h-4" />
-            {item.badge !== undefined && item.badge > 0 && (
-              <span className="absolute top-1 right-1 flex items-center justify-center min-w-[14px] h-[14px] px-0.5 rounded-full bg-rose-500 text-white text-[9px] font-bold">
-                {item.badge > 9 ? "9+" : item.badge}
-              </span>
-            )}
-          </div>
-        </Link>
-      );
-    }
 
     const isAdminItem = item.isAdminBadge || (isAdmin && (item.href === "/settings" || item.href === "/users" || item.href === "/logs" || item.href.startsWith("/admin/") || item.href === "/academic/settings"));
 
@@ -1250,45 +1208,41 @@ function AppContent({ children }: { children: React.ReactNode }) {
         )}
       </AnimatePresence>
 
-      {/* Sidebar Navigation */}
-      <aside className={`fixed top-0 bottom-0 left-0 z-50 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border-r border-slate-100 dark:border-slate-800 flex flex-col shadow-[4px_0_24px_rgba(0,0,0,0.02)] print:hidden transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] select-none ${
-        sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
-      } ${isCollapsed ? "lg:w-[64px]" : "lg:w-[228px]"} w-[228px]`}>
-        
-        {/* Brand Header */}
-        <div className="p-2.5 sm:p-3 border-b border-slate-100 dark:border-slate-800/80 flex items-center justify-between gap-2 shrink-0">
-          <div className={`flex items-center gap-2 min-w-0 ${isCollapsed ? "justify-center w-full" : ""}`}>
-            <div className="w-9 h-9 rounded-xl overflow-hidden shrink-0 flex items-center justify-center shadow-2xs bg-white border border-slate-100 p-0.5">
-              <img
-                src={brandLogo || "/images/teacher/school_logo.png"}
-                alt="Logo"
-                className="w-full h-full object-contain"
-                onError={(e) => {
-                  (e.currentTarget as HTMLImageElement).src = "/images/teacher/school_logo.png";
-                }}
-              />
+      {/* Sidebar Navigation matching Classroom Management System */}
+      <aside
+        className={`fixed top-0 bottom-0 left-0 z-50 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border-r border-slate-100 dark:border-slate-800 flex flex-col shadow-[4px_0_24px_rgba(0,0,0,0.02)] print:hidden transition-all duration-300 ease-in-out select-none ${
+          sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+        } ${
+          isCollapsed
+            ? "lg:w-0 lg:opacity-0 lg:-translate-x-full lg:overflow-hidden lg:border-r-0 lg:pointer-events-none"
+            : "w-[240px] lg:w-[240px] opacity-100 translate-x-0"
+        }`}
+        aria-hidden={isCollapsed}
+      >
+        <div className="w-[240px] h-full flex flex-col shrink-0">
+          {/* Brand Header */}
+          <div className="p-3 sm:p-3.5 border-b border-slate-100 dark:border-slate-800/80 flex items-center justify-between gap-2.5 shrink-0">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-10 h-10 rounded-xl overflow-hidden shrink-0 flex items-center justify-center shadow-2xs bg-white border border-slate-100 p-0.5">
+                <img
+                  src={brandLogo || "/images/teacher/school_logo.png"}
+                  alt="Logo"
+                  className="w-full h-full object-contain"
+                  onError={(e) => {
+                    (e.currentTarget as HTMLImageElement).src = "/images/teacher/school_logo.png";
+                  }}
+                />
+              </div>
+              <div className="min-w-0">
+                <div className="font-extrabold text-slate-900 dark:text-white text-xs sm:text-sm leading-tight truncate">
+                  {brandName || "โรงเรียนกุดจับประชาสรรค์"}
+                </div>
+                <div className="text-[10px] sm:text-[11px] text-slate-400 dark:text-slate-500 font-medium truncate mt-0.5">
+                  {brandSubheader || "อ.กุดจับ จ.อุดรธานี"}
+                </div>
+              </div>
             </div>
-            <AnimatePresence initial={false}>
-              {!isCollapsed && (
-                <motion.div
-                  initial={{ opacity: 0, width: 0 }}
-                  animate={{ opacity: 1, width: "auto" }}
-                  exit={{ opacity: 0, width: 0 }}
-                  transition={{ duration: 0.2 }}
-                  className="min-w-0 overflow-hidden whitespace-nowrap"
-                >
-                  <div className="font-extrabold text-slate-900 dark:text-white text-xs leading-tight truncate">
-                    {brandName || "โรงเรียนกุดจับประชาสรรค์"}
-                  </div>
-                  <div className="text-[10px] text-slate-400 dark:text-slate-500 font-medium truncate mt-0.5">
-                    {brandSubheader || "อ.กุดจับ จ.อุดรธานี"}
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
 
-          {!isCollapsed && (
             <button
               type="button"
               onClick={() => {
@@ -1299,71 +1253,60 @@ function AppContent({ children }: { children: React.ReactNode }) {
                 }
               }}
               className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shrink-0 flex items-center justify-center cursor-pointer"
-              title="ปิดเมนูด้านข้าง"
+              title="พับเก็บเมนูข้าง (Ctrl+B)"
+              aria-label="พับเก็บเมนูข้าง"
             >
-              <SidebarToggleIcon isCollapsed={false} className="w-4 h-4" />
+              <SidebarToggleIcon isCollapsed={false} className="w-4 h-4 hidden lg:block" />
+              <X className="w-4 h-4 lg:hidden" />
             </button>
-          )}
-        </div>
+          </div>
 
-        {/* Navigation */}
-        <nav className={`flex-1 py-2.5 space-y-1 overflow-y-auto custom-scrollbar ${isCollapsed ? "px-1.5" : "px-2.5"}`}>
-          {/* Top Dashboard Link ("หน้าหลัก") */}
-          <Link href="/dashboard" prefetch={false} title={isCollapsed ? "หน้าหลัก" : undefined}>
-            <div className={`relative flex items-center rounded-xl text-xs sm:text-[12.5px] transition-all duration-200 group cursor-pointer ${
-              isCollapsed ? "justify-center w-9 h-9 mx-auto" : "justify-between px-2.5 py-1.5"
-            } ${
-              pathname === "/dashboard" 
-                ? "bg-blue-600 text-white font-bold shadow-xs" 
-                : "text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white font-medium"
-            }`}>
-              <div className="flex items-center gap-2.5 min-w-0">
-                <Home className={`w-4 h-4 shrink-0 transition-transform ${
-                  pathname === "/dashboard" ? "text-white" : "text-slate-500 dark:text-slate-400 group-hover:text-blue-600 dark:group-hover:text-blue-400"
-                }`} />
-                {!isCollapsed && <span className="truncate">หน้าหลัก</span>}
+          {/* Navigation */}
+          <nav className="flex-1 py-3 px-2.5 space-y-1 overflow-y-auto custom-scrollbar">
+            {/* Top Dashboard Link ("หน้าหลัก") */}
+            <Link href="/dashboard" prefetch={false} title="หน้าหลัก">
+              <div className={`relative flex items-center justify-between px-3 py-2 rounded-xl text-xs sm:text-[12.5px] transition-all duration-200 group cursor-pointer ${
+                pathname === "/dashboard" 
+                  ? "bg-blue-600 text-white font-bold shadow-xs" 
+                  : "text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white font-medium"
+              }`}>
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <Home className={`w-4 h-4 shrink-0 transition-transform ${
+                    pathname === "/dashboard" ? "text-white" : "text-slate-500 dark:text-slate-400 group-hover:text-blue-600 dark:group-hover:text-blue-400"
+                  }`} />
+                  <span className="truncate">หน้าหลัก</span>
+                </div>
               </div>
-            </div>
-          </Link>
+            </Link>
 
-          {/* Classroom Portal Shortcut Link */}
-          <a
-            href={classroomPortalUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            title={lang === "en" ? "Classroom Portal" : "ระบบจัดการชั้นเรียน"}
-            className={`w-full flex items-center rounded-xl text-xs sm:text-[12.5px] transition-all duration-200 group cursor-pointer ${
-              isCollapsed ? "justify-center w-9 h-9 mx-auto" : "justify-between px-2.5 py-1.5"
-            } text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white font-medium`}
-          >
-            <div className="flex items-center gap-2.5 min-w-0">
-              <GraduationCap className="w-4 h-4 shrink-0 transition-transform text-slate-500 dark:text-slate-400 group-hover:text-blue-600 dark:group-hover:text-blue-400" />
-              {!isCollapsed && (
+            {/* Classroom Portal Shortcut Link */}
+            <a
+              href={classroomPortalUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              title={lang === "en" ? "Classroom Portal" : "ระบบจัดการชั้นเรียน"}
+              className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs sm:text-[12.5px] transition-all duration-200 group cursor-pointer text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white font-medium"
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <GraduationCap className="w-4 h-4 shrink-0 transition-transform text-slate-500 dark:text-slate-400 group-hover:text-blue-600 dark:group-hover:text-blue-400" />
                 <span className="truncate">
                   {lang === "en" ? "Classroom Portal" : "ระบบจัดการชั้นเรียน"}
                 </span>
-              )}
-            </div>
+              </div>
 
-            {!isCollapsed && (
               <div className="flex items-center gap-1.5 shrink-0">
                 <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-600 text-white">
                   TEACH
                 </span>
                 <ExternalLink className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300 transition-colors" />
               </div>
-            )}
-          </a>
+            </a>
 
           {/* Section 1: บุคคล */}
           <div className="space-y-1">
-            {isCollapsed ? (
-              <div className="h-px bg-slate-100 dark:bg-slate-800/80 mx-2 my-2" />
-            ) : (
-              <div className="px-3 pb-1 pt-2.5 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-                บุคคล
-              </div>
-            )}
+            <div className="px-3 pb-1 pt-2.5 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+              บุคคล
+            </div>
 
             {/* ลงเวลาปฏิบัติราชการ */}
             {showAttendance && renderNavItem({ href: "/hr/attendance", label: "ลงเวลาปฏิบัติราชการ", icon: Clock })}
@@ -1379,23 +1322,14 @@ function AppContent({ children }: { children: React.ReactNode }) {
               pathname={pathname}
               searchParams={searchParams}
               renderNavItem={renderNavItem}
-              collapsed={isCollapsed}
-              onExpand={() => {
-                setSidebarCollapsed(false);
-                try { localStorage.setItem("kp_sidebar_collapsed", "false"); } catch {}
-              }}
             />
           </div>
 
           {/* Section 2: ทั่วไป */}
           <div className="space-y-1">
-            {isCollapsed ? (
-              <div className="h-px bg-slate-100 dark:bg-slate-800/80 mx-2 my-2" />
-            ) : (
-              <div className="px-3 pb-1 pt-2.5 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-                ทั่วไป
-              </div>
-            )}
+            <div className="px-3 pb-1 pt-2.5 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+              ทั่วไป
+            </div>
 
             {/* ระบบจองทรัพยากรกลาง (Collapsible Group) */}
             {facilitySubItems.length > 0 && (
@@ -1406,11 +1340,6 @@ function AppContent({ children }: { children: React.ReactNode }) {
                 pathname={pathname}
                 searchParams={searchParams}
                 renderNavItem={renderNavItem}
-                collapsed={isCollapsed}
-                onExpand={() => {
-                  setSidebarCollapsed(false);
-                  try { localStorage.setItem("kp_sidebar_collapsed", "false"); } catch {}
-                }}
               />
             )}
 
@@ -1424,11 +1353,6 @@ function AppContent({ children }: { children: React.ReactNode }) {
                 pathname={pathname}
                 searchParams={searchParams}
                 renderNavItem={renderNavItem}
-                collapsed={isCollapsed}
-                onExpand={() => {
-                  setSidebarCollapsed(false);
-                  try { localStorage.setItem("kp_sidebar_collapsed", "false"); } catch {}
-                }}
               />
             )}
 
@@ -1441,11 +1365,6 @@ function AppContent({ children }: { children: React.ReactNode }) {
                 pathname={pathname}
                 searchParams={searchParams}
                 renderNavItem={renderNavItem}
-                collapsed={isCollapsed}
-                onExpand={() => {
-                  setSidebarCollapsed(false);
-                  try { localStorage.setItem("kp_sidebar_collapsed", "false"); } catch {}
-                }}
               />
             )}
           </div>
@@ -1453,13 +1372,9 @@ function AppContent({ children }: { children: React.ReactNode }) {
           {/* Section 3: วิชาการ */}
           {(academicPlanningSubItems.length > 0 || timetableSubItems.length > 0 || substituteSubItems.length > 0 || supervisionSubItems.length > 0 || examSubItems.length > 0 || omrSubItems.length > 0 || showExam || showTimetable || showSubstitute || showSupervision || isAdmin) && (
             <div className="space-y-1">
-              {isCollapsed ? (
-                <div className="h-px bg-slate-100 dark:bg-slate-800/80 mx-2 my-2" />
-              ) : (
-                <div className="px-3 pb-1 pt-2.5 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-                  วิชาการ
-                </div>
-              )}
+              <div className="px-3 pb-1 pt-2.5 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                วิชาการ
+              </div>
 
               {/* ศูนย์งานวิชาการ */}
               {renderNavItem({ href: "/academic", label: "ศูนย์งานวิชาการ", icon: GraduationCap })}
@@ -1476,11 +1391,6 @@ function AppContent({ children }: { children: React.ReactNode }) {
                   pathname={pathname}
                   searchParams={searchParams}
                   renderNavItem={renderNavItem}
-                  collapsed={isCollapsed}
-                  onExpand={() => {
-                    setSidebarCollapsed(false);
-                    try { localStorage.setItem("kp_sidebar_collapsed", "false"); } catch {}
-                  }}
                 />
               )}
 
@@ -1493,11 +1403,6 @@ function AppContent({ children }: { children: React.ReactNode }) {
                   pathname={pathname}
                   searchParams={searchParams}
                   renderNavItem={renderNavItem}
-                  collapsed={isCollapsed}
-                  onExpand={() => {
-                    setSidebarCollapsed(false);
-                    try { localStorage.setItem("kp_sidebar_collapsed", "false"); } catch {}
-                  }}
                 />
               )}
 
@@ -1510,11 +1415,6 @@ function AppContent({ children }: { children: React.ReactNode }) {
                   pathname={pathname}
                   searchParams={searchParams}
                   renderNavItem={renderNavItem}
-                  collapsed={isCollapsed}
-                  onExpand={() => {
-                    setSidebarCollapsed(false);
-                    try { localStorage.setItem("kp_sidebar_collapsed", "false"); } catch {}
-                  }}
                 />
               )}
 
@@ -1527,11 +1427,6 @@ function AppContent({ children }: { children: React.ReactNode }) {
                   pathname={pathname}
                   searchParams={searchParams}
                   renderNavItem={renderNavItem}
-                  collapsed={isCollapsed}
-                  onExpand={() => {
-                    setSidebarCollapsed(false);
-                    try { localStorage.setItem("kp_sidebar_collapsed", "false"); } catch {}
-                  }}
                 />
               )}
 
@@ -1544,11 +1439,6 @@ function AppContent({ children }: { children: React.ReactNode }) {
                   pathname={pathname}
                   searchParams={searchParams}
                   renderNavItem={renderNavItem}
-                  collapsed={isCollapsed}
-                  onExpand={() => {
-                    setSidebarCollapsed(false);
-                    try { localStorage.setItem("kp_sidebar_collapsed", "false"); } catch {}
-                  }}
                 />
               )}
 
@@ -1561,11 +1451,6 @@ function AppContent({ children }: { children: React.ReactNode }) {
                   pathname={pathname}
                   searchParams={searchParams}
                   renderNavItem={renderNavItem}
-                  collapsed={isCollapsed}
-                  onExpand={() => {
-                    setSidebarCollapsed(false);
-                    try { localStorage.setItem("kp_sidebar_collapsed", "false"); } catch {}
-                  }}
                 />
               )}
 
@@ -1577,13 +1462,9 @@ function AppContent({ children }: { children: React.ReactNode }) {
           {/* Section 4: งบประมาณ */}
           {budgetSubItems.length > 0 && (
             <div className="space-y-1">
-              {isCollapsed ? (
-                <div className="h-px bg-slate-100 dark:bg-slate-800/80 mx-2 my-2" />
-              ) : (
-                <div className="px-3 pb-1 pt-2.5 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-                  งบประมาณ
-                </div>
-              )}
+              <div className="px-3 pb-1 pt-2.5 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                งบประมาณ
+              </div>
               <CollapsibleGroup
                 title="ระบบบริหารงานงบประมาณ"
                 icon={Wallet}
@@ -1591,11 +1472,6 @@ function AppContent({ children }: { children: React.ReactNode }) {
                 pathname={pathname}
                 searchParams={searchParams}
                 renderNavItem={renderNavItem}
-                collapsed={isCollapsed}
-                onExpand={() => {
-                  setSidebarCollapsed(false);
-                  try { localStorage.setItem("kp_sidebar_collapsed", "false"); } catch {}
-                }}
               />
             </div>
           )}
@@ -1603,13 +1479,9 @@ function AppContent({ children }: { children: React.ReactNode }) {
           {/* Section 5: ตั้งค่าระบบ */}
           {settingsNavItems.length > 0 && (
             <div className="space-y-1">
-              {isCollapsed ? (
-                <div className="h-px bg-slate-100 dark:bg-slate-800/80 mx-2 my-2" />
-              ) : (
-                <div className="px-3 pb-1 pt-2.5 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-                  ตั้งค่าระบบ
-                </div>
-              )}
+              <div className="px-3 pb-1 pt-2.5 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                ตั้งค่าระบบ
+              </div>
 
               {settingsNavItems.map(item => renderNavItem(item))}
             </div>
@@ -1621,8 +1493,8 @@ function AppContent({ children }: { children: React.ReactNode }) {
           </div>
         </nav>
 
-        {/* Standalone Logout Button matching Image 2 */}
-        <div className={`p-2.5 border-t border-slate-100 dark:border-slate-800 shrink-0 ${isCollapsed ? "px-1.5 py-2" : ""}`}>
+        {/* Standalone Logout Button */}
+        <div className="p-2.5 border-t border-slate-100 dark:border-slate-800 shrink-0">
           <button
             type="button"
             onClick={async () => {
@@ -1631,30 +1503,42 @@ function AppContent({ children }: { children: React.ReactNode }) {
               router.push("/login");
             }}
             title={t("logout")}
-            className={`w-full flex items-center justify-center gap-2 py-2 px-2.5 rounded-xl border border-blue-500/80 bg-white dark:bg-slate-900 hover:bg-blue-50 dark:hover:bg-blue-950/30 text-blue-600 dark:text-blue-400 text-xs font-bold transition-all cursor-pointer shadow-2xs ${
-              isCollapsed ? "w-9 h-9 p-0 mx-auto" : ""
-            }`}
+            className="w-full flex items-center justify-center gap-2 py-2 px-2.5 rounded-xl border border-blue-500/80 bg-white dark:bg-slate-900 hover:bg-blue-50 dark:hover:bg-blue-950/30 text-blue-600 dark:text-blue-400 text-xs font-bold transition-all cursor-pointer shadow-2xs"
           >
             <LogOut className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
-            {!isCollapsed && <span>ออกจากระบบ</span>}
+            <span>ออกจากระบบ</span>
           </button>
+        </div>
         </div>
       </aside>
 
       {/* Main Container */}
-      <main className={`flex-1 flex flex-col min-w-0 min-h-screen transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${isCollapsed ? "lg:pl-[64px]" : "lg:pl-[228px]"}`}>
+      <main className={`flex-1 flex flex-col min-w-0 min-h-screen transition-all duration-300 ease-in-out ${isCollapsed ? "lg:pl-0" : "lg:pl-[240px]"}`}>
         
-        {/* Top Header matching media_1791955677504_61745d04.jpg */}
+        {/* Top Header matching Classroom Management System */}
         <header className="h-16 px-4 sm:px-6 lg:px-8 border-b border-slate-100/90 dark:border-slate-800/80 bg-white/70 dark:bg-slate-900/70 backdrop-blur-md flex items-center justify-between gap-3 z-30 print:hidden select-none">
-          {/* Left: Menu Toggle Button matching media_1792121506119_7ae5e27b.png */}
-          <div className="flex items-center gap-3 shrink-0">
+          {/* Left: Menu Toggle Button matching Classroom Management System */}
+          <div className="flex items-center gap-2.5 shrink-0">
+            {/* Desktop: ONLY rendered when sidebar is collapsed */}
+            {isCollapsed && (
+              <button
+                type="button"
+                onClick={toggleSidebar}
+                title="เปิดเมนูข้าง (Ctrl+B)"
+                className="hidden lg:flex p-2 rounded-xl bg-slate-100/80 hover:bg-slate-200/80 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 shadow-2xs border border-slate-200/60 dark:border-slate-700/60 transition-all cursor-pointer items-center justify-center mr-1"
+              >
+                <SidebarToggleIcon isCollapsed={true} className="w-4 h-4" />
+              </button>
+            )}
+
+            {/* Mobile: Drawer open button */}
             <button
               type="button"
-              onClick={toggleSidebar}
-              title={isCollapsed ? "ขยายแถบเมนูด้านข้าง" : "พับเก็บแถบเมนูด้านข้าง"}
-              className="p-2 sm:p-2.5 rounded-xl bg-slate-100/80 hover:bg-slate-200/80 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 shadow-2xs border border-slate-200/60 dark:border-slate-700/60 transition-all cursor-pointer flex items-center justify-center"
+              onClick={() => setSidebarOpen(true)}
+              title="เปิดเมนูข้าง"
+              className="lg:hidden p-2 rounded-xl bg-slate-100/80 hover:bg-slate-200/80 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 shadow-2xs border border-slate-200/60 dark:border-slate-700/60 transition-all cursor-pointer flex items-center justify-center"
             >
-              <SidebarToggleIcon isCollapsed={isCollapsed} className="w-4 h-4" />
+              <Menu className="w-4 h-4" />
             </button>
           </div>
 
