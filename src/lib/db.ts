@@ -4,7 +4,7 @@ import { Pool } from "pg"
 
 const connectionString =
   process.env.DATABASE_URL ||
-  "postgresql://postgres.ngzflajpifmsvhldhviu:YQSmSuCwZ9_iR_!@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres?pgbouncer=true"
+  "postgresql://neondb_owner:npg_mHKSdpe5IM7i@ep-fancy-pine-aom5dqmg-pooler.c-2.ap-southeast-1.aws.neon.tech/neondb?sslmode=require"
 
 export const pool = new Pool({
   connectionString,

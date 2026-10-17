@@ -190,7 +190,10 @@ export default function HistoryPage() {
     if (!confirm(t("confirmCancelLeave"))) return;
     try {
       await cancelLeaveRequest(id);
-      setHistory((prev) => prev.map((h) => h.id === id ? { ...h, status: "CANCELLED" } : h));
+      setHistoryResponse((prev: any) => ({
+        ...prev,
+        data: (prev.data || []).map((h: any) => h.id === id ? { ...h, status: "CANCELLED" } : h),
+      }));
     } catch (err) {
       alert(t("cancelLeaveError"));
     }
@@ -212,7 +215,14 @@ export default function HistoryPage() {
     }
     try {
       await adminDeleteLeaveRequest(id);
-      setHistory((prev) => prev.filter((h) => h.id !== id));
+      setHistoryResponse((prev: any) => ({
+        ...prev,
+        data: (prev.data || []).filter((h: any) => h.id !== id),
+        stats: {
+          ...prev.stats,
+          total: Math.max(0, (prev.stats?.total || 1) - 1),
+        },
+      }));
       alert(t("deleteSuccessAlert"));
     } catch (err: any) {
       alert(t("deleteErrorAlert") + (err.message || ""));
@@ -357,16 +367,19 @@ export default function HistoryPage() {
     }
 
     return (
-      <div className="flex flex-col gap-1 sm:flex-row sm:gap-2">
+      <div className="flex flex-col gap-1 sm:flex-row sm:gap-2 max-w-full">
         {files.map((file, idx) => (
           <button
             key={idx}
             type="button"
             onClick={() => handleViewAttachment(file.url, file.name)}
-            className="inline-flex items-center gap-1 text-[11px] font-bold text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300 bg-purple-50 hover:bg-purple-100 dark:bg-purple-950/30 px-2 py-0.5 rounded border border-purple-200/40 dark:border-purple-800/40 transition-colors cursor-pointer"
+            title={file.name || `${t("attachmentIndex")} ${idx + 1}`}
+            className="inline-flex items-center gap-1 text-[11px] font-bold text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300 bg-purple-50 hover:bg-purple-100 dark:bg-purple-950/30 px-2 py-0.5 rounded border border-purple-200/40 dark:border-purple-800/40 transition-colors cursor-pointer max-w-full"
           >
-            <Paperclip className="w-3 h-3" />
-            {file.name || `${t("attachmentIndex")} ${idx + 1}`}
+            <Paperclip className="w-3 h-3 shrink-0" />
+            <span className="truncate max-w-[130px] sm:max-w-[200px]">
+              {file.name || `${t("attachmentIndex")} ${idx + 1}`}
+            </span>
           </button>
         ))}
       </div>
@@ -709,10 +722,10 @@ export default function HistoryPage() {
                       </div>
                     )}
 
-                    <div className="flex justify-between items-center pt-2.5 border-t border-slate-100 dark:border-slate-800" onClick={(e) => e.stopPropagation()}>
-                      <div>{renderDocumentLinks(item.documentUrl)}</div>
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 pt-2.5 border-t border-slate-100 dark:border-slate-800" onClick={(e) => e.stopPropagation()}>
+                      <div className="min-w-0 max-w-full">{renderDocumentLinks(item.documentUrl)}</div>
                       
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center justify-end gap-1.5 shrink-0 flex-wrap">
                         <a
                           href={`/print/leave/${item.id}`}
                           target="_blank"
@@ -725,7 +738,7 @@ export default function HistoryPage() {
                         {selectedUserId === "me" && (item.status === "PENDING_HEAD" || item.status === "PENDING_EXEC") && (
                           <button
                             onClick={() => handleCancel(item.id)}
-                            className="text-xs font-medium text-slate-500 hover:text-rose-600 transition-colors px-2.5 py-1 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-850"
+                            className="text-xs font-medium text-slate-500 hover:text-rose-600 transition-colors px-2.5 py-1 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-850 cursor-pointer"
                           >
                             {t("cancelLeave")}
                           </button>
@@ -733,7 +746,7 @@ export default function HistoryPage() {
                         {(isAdmin || isHR) && (
                           <button
                             onClick={() => handleDelete(item.id, getLeaveTypeName(item.type), item.userName || "ผู้ยื่นคำขอ")}
-                            className="text-xs font-medium text-rose-600 hover:text-rose-700 transition-colors px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 dark:bg-rose-500/10 dark:hover:bg-rose-500/20"
+                            className="text-xs font-medium text-rose-600 hover:text-rose-700 transition-colors px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 dark:bg-rose-500/10 dark:hover:bg-rose-500/20 cursor-pointer"
                           >
                             {t("deleteRecord")}
                           </button>

@@ -124,6 +124,15 @@ export async function GET(
               const arr = await r2PngRes.arrayBuffer();
               buffer = Buffer.from(arr);
               mimeType = "image/png";
+            } else {
+              // Check JPG / JPEG
+              const r2JpgUrl = `${r2Domain}/signatures/${userId}/signature.jpg`;
+              const r2JpgRes = await fetch(r2JpgUrl);
+              if (r2JpgRes.ok) {
+                const arr = await r2JpgRes.arrayBuffer();
+                buffer = Buffer.from(arr);
+                mimeType = "image/jpeg";
+              }
             }
           }
         }
