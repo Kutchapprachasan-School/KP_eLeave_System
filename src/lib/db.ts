@@ -2,9 +2,11 @@ import { PrismaClient } from "@prisma/client"
 import { PrismaPg } from "@prisma/adapter-pg"
 import { Pool } from "pg"
 
-const connectionString =
+const rawConnectionString =
   process.env.DATABASE_URL ||
   "postgresql://neondb_owner:npg_mHKSdpe5IM7i@ep-fancy-pine-aom5dqmg-pooler.c-2.ap-southeast-1.aws.neon.tech/neondb?sslmode=require"
+
+const connectionString = rawConnectionString.trim().replace(/^["']|["']$/g, "")
 
 export const pool = new Pool({
   connectionString,

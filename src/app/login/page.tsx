@@ -128,7 +128,7 @@ export default function LoginPage() {
           },
           onError: (ctx: any) => {
             clearTimeout(safetyTimer);
-            alert(ctx.error.message);
+            alert(ctx?.error?.message || ctx?.error?.statusText || (lang === "en" ? "Registration failed. Please try again." : "เกิดข้อผิดพลาดในการลงทะเบียน กรุณาลองใหม่อีกครั้ง"));
             setLoading(false);
           },
         },
@@ -156,7 +156,7 @@ export default function LoginPage() {
             },
             onError: (ctx: any) => {
               clearTimeout(safetyTimer);
-              alert(ctx.error.message);
+              alert(ctx?.error?.message || ctx?.error?.statusText || (lang === "en" ? "Login failed. Please check your username/password." : "เกิดข้อผิดพลาดในการเข้าสู่ระบบ กรุณาตรวจสอบชื่อผู้ใช้หรือรหัสผ่าน"));
               setLoading(false);
             },
           },
