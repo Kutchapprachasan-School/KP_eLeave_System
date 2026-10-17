@@ -2,12 +2,12 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "version": "2.0.0",
   "summary": {
-    "totalTasksCompleted": 18,
-    "totalFilesReadTargeted": 35,
-    "totalFullFilesAvoided": 30,
-    "averageToolCallsPerTask": 5.4,
+    "totalTasksCompleted": 19,
+    "totalFilesReadTargeted": 42,
+    "totalFullFilesAvoided": 36,
+    "averageToolCallsPerTask": 5.5,
     "averageRepeatFixCycles": 0.0,
-    "testPassSummary": "19/19 scoped unit tests passed, zero orphaned test accounts",
+    "testPassSummary": "82/82 scoped unit tests passed, zero orphaned test accounts",
     "zeroOrphanedAccountsVerified": true
   },
   "records": [
@@ -425,6 +425,35 @@
       "testResult": "passed (19/19 scoped tests passing, 0 mechanical detector defects across all 7 targets)",
       "status": "completed",
       "commit": "a67e67c"
+    },
+    {
+      "taskId": "TASK-20261018-01",
+      "timestamp": "2026-10-18T01:05:00+07:00",
+      "taskName": "Fix Reappearing Deleted Leave Requests via Global Soft-Delete Exclusion (isDeleted: false) and Lifecycle Verification",
+      "category": "fullstack",
+      "filesRead": [
+        "src/app/(app)/history/page.tsx",
+        "src/app/actions/leave.ts",
+        "src/app/actions/dashboard-widgets.ts",
+        "src/app/actions/admin.ts",
+        "src/services/recycle-bin/recycle-bin.service.ts"
+      ],
+      "filesChanged": [
+        "src/app/actions/leave.ts",
+        "src/app/actions/dashboard-widgets.ts",
+        "src/app/actions/admin.ts",
+        "src/app/actions/attendance-leave-sync.ts",
+        "src/app/actions/archive.ts",
+        "src/app/api/print-legacy/[id]/route.ts",
+        "src/app/api/cron/archive/route.ts",
+        "eLeave/tests/unit/leaveSoftDeleteHygiene.test.js",
+        "package.json"
+      ],
+      "toolCallsCount": 16,
+      "repeatFixCycles": 0,
+      "testResult": "passed (4/4 leaveSoftDeleteHygiene, 78/78 key invariant tests pass)",
+      "status": "completed",
+      "commit": "5e82b4c"
     }
   ]
 }
