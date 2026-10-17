@@ -866,7 +866,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
         { href: "/history", label: "ประวัติการลา", icon: History },
       ]
     : [];
-  if (showLeave && hasRolePerm(activePermissions.approvals)) {
+  if (showLeave && (isAdmin || hasRolePerm(activePermissions.approvals))) {
     leaveSubItems.push({ href: "/approvals", label: "พิจารณาอนุมัติลา", icon: CheckSquare });
   }
   if (showLeave && hasRolePerm(activePermissions.reports)) {
@@ -1065,8 +1065,8 @@ function AppContent({ children }: { children: React.ReactNode }) {
     if (path.startsWith("/student-affairs") && !enableStudentAffairs && !isAdmin) return false;
     if (path.startsWith("/student-council") && !enableStudentCouncil && !isAdmin) return false;
     if (path.startsWith("/academic/planning") && !isAcademicPlanningAllowed) return false;
-    if ((path.startsWith("/reports") || path.startsWith("/hr/leave/reports")) && !hasRolePerm(activePerms.reports)) return false;
-    if ((path.startsWith("/approvals") || path.startsWith("/hr/leave/approvals")) && !hasRolePerm(activePerms.approvals)) return false;
+    if ((path.startsWith("/reports") || path.startsWith("/hr/leave/reports")) && !isAdmin && !hasRolePerm(activePerms.reports)) return false;
+    if ((path.startsWith("/approvals") || path.startsWith("/hr/leave/approvals")) && !isAdmin && !hasRolePerm(activePerms.approvals)) return false;
     if (path.startsWith("/logs") && !hasRolePerm(activePerms.logs)) return false;
     if (path.startsWith("/users") && !hasRolePerm(activePerms.users)) return false;
     if (path.startsWith("/settings")) {

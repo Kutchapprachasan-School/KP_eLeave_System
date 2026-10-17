@@ -37,6 +37,7 @@ interface ExecutiveApprovalQueueProps {
   onReject: (id: string, reason?: string) => void;
   onViewDetails: (leave: LeaveQueueItem) => void;
   actionLoadingId?: string | null;
+  canApprove?: boolean;
 }
 
 export default function ExecutiveApprovalQueue({
@@ -45,6 +46,7 @@ export default function ExecutiveApprovalQueue({
   onReject,
   onViewDetails,
   actionLoadingId,
+  canApprove = true,
 }: ExecutiveApprovalQueueProps) {
   const [activeTab, setActiveTab] = useState<"PENDING" | "ALL">("PENDING");
 
@@ -287,7 +289,7 @@ export default function ExecutiveApprovalQueue({
                               <span>รายละเอียด</span>
                             </button>
 
-                            {isPending && (
+                            {isPending && canApprove && (
                               <>
                                 <button
                                   type="button"
@@ -395,7 +397,7 @@ export default function ExecutiveApprovalQueue({
                         <span>ดูใบลา</span>
                       </button>
 
-                      {isPending && (
+                      {isPending && canApprove && (
                         <>
                           <button
                             type="button"

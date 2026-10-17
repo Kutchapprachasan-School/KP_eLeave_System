@@ -6,7 +6,7 @@ import { getPendingApprovals, approveLeaveRequest, rejectLeaveRequest, uploadLea
 import { getSystemSettings } from "@/app/actions/settings";
 import { format } from "date-fns";
 import { formatLeaveDate } from "@/lib/date-format";
-import { UserCircle, Calendar, FileText, Check, X, AlertCircle, Printer, Paperclip } from "lucide-react";
+import { UserCircle, Calendar, FileText, Check, X, AlertCircle, Printer, Paperclip, ShieldCheck, Clock } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "@/components/toast-provider";
@@ -403,6 +403,24 @@ export default function ApprovalsPage() {
         <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">{t("pendingApprovalsSubtitle")}</p>
       </div>
 
+      {isAdmin && (
+        <div className="bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-amber-500/5 border border-amber-200/80 dark:border-amber-900/50 rounded-2xl p-4 flex items-start gap-3 shadow-xs">
+          <div className="p-2 bg-amber-500/20 text-amber-700 dark:text-amber-400 rounded-xl shrink-0">
+            <ShieldCheck className="w-5 h-5" />
+          </div>
+          <div className="space-y-0.5">
+            <h3 className="text-sm font-bold text-amber-900 dark:text-amber-200">
+              {lang === "en" ? "Administrator Audit & Tracking Mode" : "โหมดผู้ดูแลระบบ: ตรวจสอบและติดตามขั้นตอนการลา"}
+            </h3>
+            <p className="text-xs text-amber-800/80 dark:text-amber-300/80 leading-relaxed">
+              {lang === "en"
+                ? "You are viewing this queue to audit leave workflow progress across the school. The administrator role does not possess approval authority."
+                : "ท่านกำลังเข้าดูในฐานะผู้ดูแลระบบเพื่อติดตามขั้นตอนการดำเนินงานคำขอลาของบุคลากร (ไม่มีอำนาจในการลงนามอนุมัติหรือปฏิเสธคำขอลา)"}
+            </p>
+          </div>
+        </div>
+      )}
+
       <div className="grid gap-6">
         {pendingRequests.length === 0 ? (
           <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white/60 dark:border-slate-800 rounded-3xl p-12 shadow-[0_8px_30px_rgb(0,0,0,0.04)] text-center flex flex-col items-center">
@@ -443,7 +461,8 @@ export default function ApprovalsPage() {
               }
             }
 
-            const canApproveThisItem = Boolean(
+            // CRITICAL: Administrator role has strictly NO approval authority (audit/tracking only)
+            const canApproveThisItem = !isUserAdmin && Boolean(
               (item.status === "PENDING_HEAD" && canApproveHead) ||
               (item.status === "PENDING_EXEC" && canApproveFinal)
             );
@@ -518,12 +537,54 @@ export default function ApprovalsPage() {
                     <p className="text-sm text-slate-700 dark:text-slate-300 line-clamp-2">
                       {item.reason}
                     </p>
+
+                    {/* Visual Workflow Stage Tracker for Tracking Progress */}
+                    <div className="mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800/80 flex flex-col gap-1">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                          {lang === "en" ? "Stage:" : "ขั้นตอน:"}
+                        </span>
+                        {item.status === "PENDING_HEAD" ? (
+                          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg text-[11px] font-bold bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200/60 dark:border-amber-800/60">
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                            {lang === "en" ? "Step 1/2: Pending Dept / HR Head" : "ขั้นตอนที่ 1/2: รอหัวหน้ากลุ่มสาระฯ/บุคคลพิจารณา"}
+                          </span>
+                        ) : item.status === "PENDING_EXEC" ? (
+                          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg text-[11px] font-bold bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 border border-blue-200/60 dark:border-blue-800/60">
+                            <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+                            {lang === "en"
+                              ? `Step 2/2: Head Verified (${item.headApproverSnapshot?.name || "Verified"}) • Pending Director`
+                              : `ขั้นตอนที่ 2/2: ผ่านหัวหน้าแล้ว (${item.headApproverSnapshot?.name || "ผ่านการตรวจ"}) • รอผู้บริหารลงนาม`}
+                          </span>
+                        ) : (
+                          <span className="text-[11px] text-slate-500 font-medium">{item.status}</span>
+                        )}
+                      </div>
+                      {item.headApprovedAt && (
+                        <p className="text-[10px] text-slate-400">
+                          {lang === "en" ? "Head verified at: " : "หัวหน้าตรวจสอบเมื่อ: "}
+                          {formatLeaveDate(item.headApprovedAt, lang)}
+                        </p>
+                      )}
+                    </div>
                   </div>
                 </div>
 
                 {/* Actions */}
-                <div className="flex gap-2 w-full md:w-auto md:min-w-[200px] justify-end items-center">
-                  {!canApproveThisItem ? (
+                <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto md:min-w-[210px] justify-end items-center">
+                  {isUserAdmin ? (
+                    <div className="flex flex-col items-center md:items-end gap-1 w-full md:w-auto">
+                      <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 px-3 py-1.5 rounded-xl border border-amber-200/60 dark:border-amber-800/60 shadow-xs text-center">
+                        <ShieldCheck className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+                        {item.status === "PENDING_HEAD"
+                          ? (lang === "en" ? "Pending Head Review" : "รอหัวหน้าพิจารณา")
+                          : (lang === "en" ? "Pending Director Signing" : "รอผู้บริหารลงนาม")}
+                      </span>
+                      <span className="text-[10px] font-medium text-slate-400 text-center md:text-right">
+                        {lang === "en" ? "Admin Audit Mode (No Signing Authority)" : "โหมดแอดมิน (ไม่มีอำนาจอนุมัติ)"}
+                      </span>
+                    </div>
+                  ) : !canApproveThisItem ? (
                     <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm text-center">
                       {item.status === "PENDING_HEAD"
                         ? (lang === "en" ? "Pending HR Head (View Only)" : "รอหัวหน้าบุคคลพิจารณา (ดูได้อย่างเดียว)")

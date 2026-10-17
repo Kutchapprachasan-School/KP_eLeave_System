@@ -986,10 +986,12 @@ export async function getPendingApprovals() {
 
   const caps = getUserCapabilities(dbUser || user, activeAssignments, sysSettings || {});
   const isFinalApprover = caps.isDirector || (await canGiveFinalApproval(session.user.id, user.position, user.role));
+  const hasApprovalAuthority = caps.isDirector || caps.isDeputyDirector || caps.isHRHead || caps.isDeptHead || isFinalApprover;
 
-  let whereClause: any = {
-    userId: { not: session.user.id }, // Anti-Self-Approval: Exclude requester's own requests
-  };
+  let whereClause: any = {};
+  if (hasApprovalAuthority) {
+    whereClause.userId = { not: session.user.id }; // Anti-Self-Approval: Exclude requester's own requests for actual approvers
+  }
 
   if (caps.isAdmin || caps.isDirector || caps.isDeputyDirector || caps.isHRHead || caps.isInspector || isFinalApprover) {
     // Authorized global / executive roles can view all pending requests
@@ -1068,6 +1070,12 @@ export async function approveLeaveRequest(id: string, pdfBase64?: string, skipDr
 
     const caps = getUserCapabilities(dbUser || user, activeAssignments, sysSettings || {});
     const isFinalApprover = caps.isDirector || (await canGiveFinalApproval(session.user.id, user.position, user.role));
+
+    // Admin Governance Invariant: Admin role has strictly NO approval authority (audit/tracking only)
+    const isPureAdmin = (caps.isAdmin || user.position === "แอดมิน" || user.role === "ADMIN") && !caps.isDirector && !isFinalApprover && !caps.isHRHead && !caps.isDeptHead;
+    if (isPureAdmin) {
+      return { success: false, error: "ผู้ดูแลระบบ (Admin) ไม่มีอำนาจในการอนุมัติคำขอลา มีสิทธิ์ตรวจสอบขั้นตอนเท่านั้น" };
+    }
 
     let newStatus = "";
     let updateData: any = {};
@@ -1339,6 +1347,12 @@ export async function rejectLeaveRequest(id: string, rejectReason?: string, pdfB
 
     const caps = getUserCapabilities(dbUser || user, activeAssignments, sysSettings || {});
     const isFinalApprover = caps.isDirector || (await canGiveFinalApproval(session.user.id, user.position, user.role));
+
+    // Admin Governance Invariant: Admin role has strictly NO rejection authority (audit/tracking only)
+    const isPureAdmin = (caps.isAdmin || user.position === "แอดมิน" || user.role === "ADMIN") && !caps.isDirector && !isFinalApprover && !caps.isHRHead && !caps.isDeptHead;
+    if (isPureAdmin) {
+      return { success: false, error: "ผู้ดูแลระบบ (Admin) ไม่มีอำนาจในการปฏิเสธคำขอลา มีสิทธิ์ตรวจสอบขั้นตอนเท่านั้น" };
+    }
 
     let canReject = false;
     if ((caps.isHRHead || caps.isDeptHead) && request.status === "PENDING_HEAD" && !isFinalApprover) {

@@ -62,6 +62,11 @@ export default function ExecutiveLeaveDashboardView() {
     currentUser?.position === "ผู้อำนวยการ" ||
     currentUser?.role === "HR" ||
     currentUser?.role === "DEPT_HEAD";
+  const isPureAdmin =
+    (currentUser?.role === "ADMIN" || currentUser?.position === "แอดมิน") &&
+    currentUser?.position !== "ผู้อำนวยการ" &&
+    currentUser?.role !== "DIRECTOR";
+  const canApproveQueue = !isPureAdmin;
 
   // Widget Settings with instant localStorage cache fallback
   const [widgetConfig, setWidgetConfig] = useState<DashboardWidgetConfig>(() => {
@@ -485,6 +490,7 @@ export default function ExecutiveLeaveDashboardView() {
                 onReject={handleReject}
                 onViewDetails={(leave) => setSelectedLeaveForModal(leave)}
                 actionLoadingId={actionLoadingId}
+                canApprove={canApproveQueue}
               />
             </div>
           )}
