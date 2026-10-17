@@ -70,9 +70,10 @@ export default function ExecutiveLeaveStatCards({
   const proxyTeaching = stats?.staff.proxyTeachingCount ?? fallbackProxyTeaching ?? 0;
   const staffClockedIn = stats?.staff.attendanceToday.totalClockIn ?? 0;
 
-  const totalStudents = stats?.student.totalStudents || 1138;
-  const studentRate = stats?.student.attendanceToday.attendanceRate ?? 100;
-  const studentPresent = stats?.student.attendanceToday.present ?? Math.round(totalStudents * (studentRate / 100));
+  const totalStudents = stats?.student.totalStudents ?? 0;
+  const isMorningDone = stats?.student.attendanceToday.isMorningCheckCompleted ?? false;
+  const studentRate = stats?.student.attendanceToday.attendanceRate ?? 0;
+  const studentPresent = stats?.student.attendanceToday.present ?? 0;
   const studentSickAndPersonal =
     (stats?.student.attendanceToday.sick ?? 0) +
     (stats?.student.attendanceToday.personal ?? 0) ||
@@ -90,12 +91,12 @@ export default function ExecutiveLeaveStatCards({
       id: "kpiStudentTotal",
       category: "student",
       title: "นักเรียนทั้งหมดในระบบ",
-      value: totalStudents > 0 ? totalStudents.toLocaleString("th-TH") : "1,138",
+      value: totalStudents > 0 ? totalStudents.toLocaleString("th-TH") : "0",
       unit: "คน",
       subsystemLabel: "ทะเบียนนักเรียน",
       subsystemColor: "blue",
       icon: <GraduationCap className="w-5 h-5" />,
-      statusText: "สถานะปกติ (Active)",
+      statusText: totalStudents > 0 ? "สถานะปกติ (Active)" : "ยังไม่มีข้อมูลนักเรียน",
       drillDownHref: "/academic",
       drillDownText: "ดูข้อมูลนักเรียน",
     },
@@ -103,14 +104,14 @@ export default function ExecutiveLeaveStatCards({
       id: "kpiStudentPresentToday",
       category: "student",
       title: "อัตราการมาเรียนวันนี้",
-      value: `${studentRate}%`,
-      unit: `(${studentPresent.toLocaleString("th-TH")} คน)`,
+      value: isMorningDone ? `${studentRate}%` : "-",
+      unit: isMorningDone ? `(${studentPresent.toLocaleString("th-TH")} คน)` : "(รอสรุปยอด)",
       subsystemLabel: "เช็กแถวหน้าเสาธง",
       subsystemColor: "emerald",
       icon: <TrendingUp className="w-5 h-5" />,
-      statusText: stats?.student.attendanceToday.isMorningCheckCompleted
+      statusText: isMorningDone
         ? "เช็กชื่อเสร็จสมบูรณ์"
-        : "สถิติภาพรวมประจำวัน",
+        : "รอสรุปยอดเช็กแถว",
       drillDownHref: "/attendance",
       drillDownText: "ดูสถิติเช็กชื่อ",
     },

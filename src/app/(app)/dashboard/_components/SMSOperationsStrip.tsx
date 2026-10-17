@@ -6,15 +6,13 @@ import {
   Banknote,
   FileText,
   Building2,
-  MessageSquare,
+  Users,
+  UserCheck,
   TrendingUp,
-  TrendingDown,
   ArrowRight,
   FileCheck,
   Wrench,
   Send,
-  Phone,
-  Mail,
 } from "lucide-react";
 
 import type { SchoolManagementExecutiveStats } from "@/app/actions/dashboard-widgets";
@@ -24,9 +22,15 @@ interface SMSOperationsStripProps {
 }
 
 export default function SMSOperationsStrip({ stats }: SMSOperationsStripProps) {
+  const currentFiscalYear = stats?.budget?.fiscalYear ?? new Date().getFullYear() + 543;
+  const totalBudget = stats?.budget?.totalBudget ?? 0;
+  const totalSpent = stats?.budget?.totalSpent ?? 0;
+  const projectCount = stats?.budget?.projectCount ?? 0;
+  const activeProjectCount = stats?.budget?.activeProjectCount ?? 0;
+
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 select-none">
-      {/* ── Card 1: การเงิน & พัสดุ ── */}
+      {/* ── Card 1: การเงิน & งบประมาณ ── */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 shadow-[0_2px_12px_rgba(0,0,0,0.03)] flex flex-col justify-between">
         <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
           <div className="flex items-center gap-2">
@@ -34,12 +38,12 @@ export default function SMSOperationsStrip({ stats }: SMSOperationsStripProps) {
               <Banknote className="w-3.5 h-3.5" />
             </div>
             <h3 className="text-xs font-bold text-slate-800 dark:text-white">
-              การเงิน & พัสดุ
+              การเงิน & งบประมาณ
             </h3>
           </div>
           <Link
-            href="/finance"
-            className="text-[10px] font-semibold text-blue-600 hover:underline"
+            href="/budget"
+            className="text-[10px] font-semibold text-blue-600 dark:text-blue-400 hover:underline"
           >
             ดูทั้งหมด
           </Link>
@@ -50,36 +54,38 @@ export default function SMSOperationsStrip({ stats }: SMSOperationsStripProps) {
           <div className="flex items-center justify-between text-[11px]">
             <span className="text-slate-500 dark:text-slate-400 flex items-center gap-1">
               <Banknote className="w-3 h-3 text-emerald-500" />
-              งบประมาณ (ปีงบ 2568)
+              งบประมาณ (ปีงบ {currentFiscalYear})
             </span>
           </div>
           <div className="flex items-center gap-2">
             <span className="text-base font-extrabold text-slate-900 dark:text-white">
-              8,450,000
+              {totalBudget.toLocaleString("th-TH")}
             </span>
             <span className="text-[10px] text-slate-400">บาท</span>
           </div>
 
           <div className="flex items-center justify-between text-[11px]">
-            <span className="text-slate-500 dark:text-slate-400">รายจ่ายสะสม</span>
-            <span className="font-bold text-slate-800 dark:text-white">5,320,000 บาท</span>
-          </div>
-
-          <div className="flex items-center gap-3 text-[10px]">
-            <span className="text-emerald-600 flex items-center gap-0.5 font-semibold">
-              <TrendingUp className="w-3 h-3" /> +12% จากปีก่อน
-            </span>
-            <span className="text-emerald-600 flex items-center gap-0.5 font-semibold">
-              +8% จากเป้าหมาย
+            <span className="text-slate-500 dark:text-slate-400">จัดสรรโครงการแล้ว</span>
+            <span className="font-bold text-slate-800 dark:text-white">
+              {totalSpent.toLocaleString("th-TH")} บาท
             </span>
           </div>
 
-          {/* Sub-stats */}
-          <div className="flex items-center gap-3 text-[10px] text-slate-400 pt-1 border-t border-slate-100 dark:border-slate-800">
-            <span>ใบสั่งซื้อ <strong className="text-slate-700 dark:text-white">126</strong> รายการ</span>
-            <span><strong className="text-slate-700 dark:text-white">8</strong> สัญญา</span>
-            <span><strong className="text-slate-700 dark:text-white">5</strong> รายการ</span>
+          <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1 border-t border-slate-100 dark:border-slate-800">
+            <span>
+              โครงการทั้งหมด <strong className="text-slate-700 dark:text-white">{projectCount}</strong> โครงการ
+            </span>
+            <span>
+              ดำเนินการ <strong className="text-emerald-600 dark:text-emerald-400">{activeProjectCount}</strong>
+            </span>
           </div>
+
+          <Link
+            href="/budget"
+            className="inline-flex items-center gap-1 px-3 py-1.5 mt-0.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold hover:bg-emerald-100 transition w-full justify-center"
+          >
+            จัดการงบประมาณและโครงการ <ArrowRight className="w-3 h-3" />
+          </Link>
         </div>
       </div>
 
@@ -96,7 +102,7 @@ export default function SMSOperationsStrip({ stats }: SMSOperationsStripProps) {
           </div>
           <Link
             href="/document?view=history&tab=inbound"
-            className="text-[10px] font-semibold text-blue-600 hover:underline"
+            className="text-[10px] font-semibold text-blue-600 dark:text-blue-400 hover:underline"
           >
             ดูทั้งหมด
           </Link>
@@ -149,7 +155,7 @@ export default function SMSOperationsStrip({ stats }: SMSOperationsStripProps) {
           </div>
           <Link
             href="/general/facility"
-            className="text-[10px] font-semibold text-blue-600 hover:underline"
+            className="text-[10px] font-semibold text-blue-600 dark:text-blue-400 hover:underline"
           >
             ดูทั้งหมด
           </Link>
@@ -188,20 +194,20 @@ export default function SMSOperationsStrip({ stats }: SMSOperationsStripProps) {
         </div>
       </div>
 
-      {/* ── Card 4: สื่อสารโรงเรียน ── */}
+      {/* ── Card 4: บริหารงานบุคคล & สอนแทน ── */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 shadow-[0_2px_12px_rgba(0,0,0,0.03)] flex flex-col justify-between">
         <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
           <div className="flex items-center gap-2">
             <div className="w-7 h-7 rounded-lg bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 flex items-center justify-center">
-              <MessageSquare className="w-3.5 h-3.5" />
+              <Users className="w-3.5 h-3.5" />
             </div>
             <h3 className="text-xs font-bold text-slate-800 dark:text-white">
-              สื่อสารโรงเรียน
+              บริหารงานบุคคล & สอนแทน
             </h3>
           </div>
           <Link
-            href="/communication"
-            className="text-[10px] font-semibold text-blue-600 hover:underline"
+            href="/approvals"
+            className="text-[10px] font-semibold text-blue-600 dark:text-blue-400 hover:underline"
           >
             ดูทั้งหมด
           </Link>
@@ -209,39 +215,39 @@ export default function SMSOperationsStrip({ stats }: SMSOperationsStripProps) {
 
         <div className="mt-2.5 space-y-1.5 text-[11px]">
           <div className="flex items-center justify-between">
-            <span className="text-slate-500 dark:text-slate-400">ประกาศ / ข่าวสาร</span>
-            <span className="font-bold text-slate-800 dark:text-white">12 เรื่อง</span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-slate-500 dark:text-slate-400 flex items-center gap-1">
-              <Phone className="w-3 h-3 text-green-500" /> LINE OA
+            <span className="text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+              <UserCheck className="w-3 h-3 text-emerald-500" /> ปฏิบัติราชการวันนี้
             </span>
-            <span className="font-bold text-slate-800 dark:text-white">8,420 คน</span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-slate-500 dark:text-slate-400">แจ้งเตือนผู้ปกครอง</span>
-            <span className="font-bold text-slate-800 dark:text-white">342 คน</span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-slate-500 dark:text-slate-400 flex items-center gap-1">
-              <Mail className="w-3 h-3 text-blue-500" /> อีเมล/SMS
+            <span className="font-bold text-slate-800 dark:text-white">
+              {stats?.staff.attendanceToday.totalClockIn ?? 0} คน
             </span>
-            <span className="font-bold text-slate-800 dark:text-white">1,256 ข้อความ</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-slate-500 dark:text-slate-400">บุคลากรลาวันนี้</span>
+            <span className="font-bold text-slate-800 dark:text-white">
+              {stats?.staff.staffOnLeaveTodayCount ?? 0} คน
+            </span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-slate-500 dark:text-slate-400">มีการจัดสอนแทน</span>
+            <span className="font-bold text-slate-800 dark:text-white">
+              {stats?.staff.proxyTeachingCount ?? 0} รายการ
+            </span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-slate-500 dark:text-slate-400">คำขอรอพิจารณา</span>
+            <span className="font-bold text-amber-600 dark:text-amber-400">
+              {stats?.staff.pendingLeaveCount ?? 0} รายการ
+            </span>
           </div>
 
-          {/* Quick message input */}
-          <div className="flex items-center gap-1.5 pt-1.5 mt-1 border-t border-slate-100 dark:border-slate-800">
-            <input
-              type="text"
-              placeholder="แถบส่งข้อความด่วน..."
-              className="flex-1 px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[10px] text-slate-600 dark:text-slate-300 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
-            />
-            <button
-              type="button"
-              className="w-7 h-7 rounded-lg bg-blue-600 text-white flex items-center justify-center hover:bg-blue-700 transition shrink-0"
+          <div className="pt-1 mt-1 border-t border-slate-100 dark:border-slate-800">
+            <Link
+              href="/approvals"
+              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 text-[10px] font-bold hover:bg-indigo-100 transition w-full justify-center"
             >
-              <ArrowRight className="w-3 h-3" />
-            </button>
+              ติดตามคิวพิจารณาการลา <ArrowRight className="w-3 h-3" />
+            </Link>
           </div>
         </div>
       </div>

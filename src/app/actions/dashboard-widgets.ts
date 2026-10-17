@@ -245,6 +245,13 @@ export interface SchoolManagementExecutiveStats {
     reservationsTodayCount: number;
     pendingReservationCount: number;
   };
+  budget: {
+    fiscalYear: number;
+    totalBudget: number;
+    totalSpent: number;
+    projectCount: number;
+    activeProjectCount: number;
+  };
 }
 
 /**
@@ -279,7 +286,7 @@ export async function getSchoolManagementExecutiveStats(): Promise<SchoolManagem
         sick: 0,
         personal: 0,
         recordedCount: 0,
-        attendanceRate: 100,
+        attendanceRate: 0,
         isMorningCheckCompleted: false,
       },
       riskEwsCount: 0,
@@ -296,6 +303,13 @@ export async function getSchoolManagementExecutiveStats(): Promise<SchoolManagem
     facility: {
       reservationsTodayCount: 0,
       pendingReservationCount: 0,
+    },
+    budget: {
+      fiscalYear: now.getFullYear() + 543,
+      totalBudget: 0,
+      totalSpent: 0,
+      projectCount: 0,
+      activeProjectCount: 0,
     },
   };
 
@@ -387,13 +401,8 @@ export async function getSchoolManagementExecutiveStats(): Promise<SchoolManagem
             : Promise.resolve(0),
         ]);
 
-        // Authoritative school student population baseline for โรงเรียนกุดจับประชาสรรค์:
-        // Secondary school with 34-41 classrooms (ม.1 - ม.6) has 1,138 students.
-        // If live database has bulk student records (>= 50), use live count; otherwise use authoritative school baseline.
-        const OFFICIAL_SCHOOL_STUDENTS = 1138;
-        const totalStudents = totalActiveStudents >= 50 ? totalActiveStudents : OFFICIAL_SCHOOL_STUDENTS;
-
-        stats.student.totalStudents = totalStudents;
+        // Real student population directly from database
+        stats.student.totalStudents = totalActiveStudents;
         stats.student.riskEwsCount = riskCount;
         stats.student.medicalCertPendingCount = medicalCerts;
 
@@ -420,15 +429,14 @@ export async function getSchoolManagementExecutiveStats(): Promise<SchoolManagem
             ((present + late) / recCount) * 100
           );
         } else {
-          // If morning check not yet recorded today, display school baseline
-          // Typical morning attendance rate: 95.6%
-          const defaultRate = 95.6;
-          const presentCount = Math.round(totalStudents * (defaultRate / 100));
-          const absentCount = totalStudents - presentCount;
+          // If morning check not yet recorded today, report genuine 0 and mark uncompleted
           stats.student.attendanceToday.isMorningCheckCompleted = false;
-          stats.student.attendanceToday.present = presentCount;
-          stats.student.attendanceToday.absent = absentCount;
-          stats.student.attendanceToday.attendanceRate = defaultRate;
+          stats.student.attendanceToday.present = 0;
+          stats.student.attendanceToday.absent = 0;
+          stats.student.attendanceToday.late = 0;
+          stats.student.attendanceToday.sick = 0;
+          stats.student.attendanceToday.personal = 0;
+          stats.student.attendanceToday.attendanceRate = 0;
         }
       } catch (err) {
         console.error("Error querying student stats:", err);
@@ -508,6 +516,48 @@ export async function getSchoolManagementExecutiveStats(): Promise<SchoolManagem
         stats.facility.pendingReservationCount = pendingBookings;
       } catch (err) {
         console.error("Error querying facility stats:", err);
+      }
+    })(),
+
+    // 7. Budget & Fiscal Year Stats
+    (async () => {
+      try {
+        const activeFy = await prisma.fiscalYear.findFirst({
+          where: { status: "ACTIVE", isArchived: false },
+          orderBy: { year: "desc" },
+          include: {
+            budgetSources: {
+              select: { totalPlannedAmount: true },
+            },
+            projects: {
+              select: {
+                id: true,
+                status: true,
+                allocatedAmount: true,
+              },
+            },
+          },
+        });
+
+        if (activeFy) {
+          const totalBudget = activeFy.budgetSources.reduce(
+            (acc, curr) => acc + Number(curr.totalPlannedAmount || 0),
+            0
+          );
+          const totalAllocated = activeFy.projects.reduce(
+            (acc, curr) => acc + Number(curr.allocatedAmount || 0),
+            0
+          );
+          stats.budget.fiscalYear = activeFy.year;
+          stats.budget.totalBudget = totalBudget;
+          stats.budget.totalSpent = totalAllocated;
+          stats.budget.projectCount = activeFy.projects.length;
+          stats.budget.activeProjectCount = activeFy.projects.filter(
+            (p) => p.status === "APPROVED" || p.status === "IN_PROGRESS"
+          ).length;
+        }
+      } catch (err) {
+        console.error("Error querying budget stats:", err);
       }
     })(),
   ]);

@@ -41,7 +41,7 @@ export default function ExecutiveStudentLeaveOverview({
 }: ExecutiveStudentLeaveOverviewProps) {
   // Use live stats from database, fallback safely to props
   const totalStudents = studentStats?.totalStudents ?? 0;
-  const attendanceRate = studentStats?.attendanceToday.attendanceRate ?? 100;
+  const attendanceRate = studentStats?.attendanceToday.attendanceRate ?? 0;
   const isMorningCheckDone = studentStats?.attendanceToday.isMorningCheckCompleted ?? false;
 
   const todaySick =
@@ -96,10 +96,10 @@ export default function ExecutiveStudentLeaveOverview({
           </div>
           <div className="flex items-baseline gap-1.5">
             <span className="text-lg font-extrabold text-emerald-600 dark:text-emerald-400">
-              {attendanceRate}%
+              {isMorningCheckDone ? `${attendanceRate}%` : "-"}
             </span>
             <span className="text-[10px] text-slate-400">
-              {isMorningCheckDone ? "(จากแถวเช้า)" : "(ประเมินเบื้องต้น)"}
+              {isMorningCheckDone ? "(จากแถวเช้า)" : "(รอสรุปยอดเช็กแถว)"}
             </span>
           </div>
         </div>

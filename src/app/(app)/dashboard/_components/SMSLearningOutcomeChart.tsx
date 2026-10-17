@@ -161,64 +161,85 @@ export default function SMSLearningOutcomeChart({
       {/* Line Chart */}
       <div className="w-full h-56 pt-1 relative">
         {isMounted ? (
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart
-              data={chartData}
-              margin={{ top: 10, right: 15, left: -20, bottom: 5 }}
-            >
-              <CartesianGrid
-                strokeDasharray="3 3"
-                vertical={false}
-                stroke="#E2E8F0"
-                className="dark:stroke-slate-800"
-              />
-              <XAxis
-                dataKey="month"
-                axisLine={false}
-                tickLine={false}
-                tick={{ fontSize: 11, fill: "#94A3B8" }}
-              />
-              <YAxis
-                domain={[0, 100]}
-                ticks={[0, 25, 50, 75, 100]}
-                axisLine={false}
-                tickLine={false}
-                tick={{ fontSize: 11, fill: "#94A3B8" }}
-              />
-              <Tooltip
-                content={({ active, payload, label }) => {
-                  if (active && payload && payload.length) {
-                    return (
-                      <div className="bg-slate-900 text-white text-xs p-2.5 rounded-xl shadow-xl space-y-1">
-                        <p className="font-bold border-b border-slate-800 pb-1">{label}</p>
-                        {payload.map((entry, index) => (
-                          <p key={`item-${index}`} className="flex items-center justify-between gap-3 text-[11px]">
-                            <span style={{ color: entry.color }}>
-                              {entry.name}:
-                            </span>
-                            <span className="font-bold">{entry.value}%</span>
-                          </p>
-                        ))}
-                      </div>
-                    );
-                  }
-                  return null;
-                }}
-              />
-              {series.map((s) => (
-                <Line
-                  key={s.key}
-                  type="monotone"
-                  dataKey={s.key}
-                  name={s.name}
-                  stroke={s.color}
-                  strokeWidth={2.5}
-                  dot={{ r: 4, fill: s.color, strokeWidth: 2, stroke: "#EFF6FF" }}
-                  activeDot={{ r: 6 }}
+          <>
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart
+                data={chartData}
+                margin={{ top: 10, right: 15, left: -20, bottom: 5 }}
+              >
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  vertical={false}
+                  stroke="#E2E8F0"
+                  className="dark:stroke-slate-800"
                 />
-              ))}
-            </LineChart>
-          </ResponsiveContainer>
+                <XAxis
+                  dataKey="month"
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fontSize: 11, fill: "#94A3B8" }}
+                />
+                <YAxis
+                  domain={[0, 100]}
+                  ticks={[0, 25, 50, 75, 100]}
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fontSize: 11, fill: "#94A3B8" }}
+                />
+                <Tooltip
+                  content={({ active, payload, label }) => {
+                    if (active && payload && payload.length) {
+                      return (
+                        <div className="bg-slate-900 text-white text-xs p-2.5 rounded-xl shadow-xl space-y-1">
+                          <p className="font-bold border-b border-slate-800 pb-1">{label}</p>
+                          {payload.map((entry, index) => (
+                            <p key={`item-${index}`} className="flex items-center justify-between gap-3 text-[11px]">
+                              <span style={{ color: entry.color }}>
+                                {entry.name}:
+                              </span>
+                              <span className="font-bold">{entry.value}%</span>
+                            </p>
+                          ))}
+                        </div>
+                      );
+                    }
+                    return null;
+                  }}
+                />
+                {series.map((s) => (
+                  <Line
+                    key={s.key}
+                    type="monotone"
+                    dataKey={s.key}
+                    name={s.name}
+                    stroke={s.color}
+                    strokeWidth={2.5}
+                    dot={{ r: 4, fill: s.color, strokeWidth: 2, stroke: "#EFF6FF" }}
+                    activeDot={{ r: 6 }}
+                  />
+                ))}
+              </LineChart>
+            </ResponsiveContainer>
+
+            {outcomeData && outcomeData.totalExamsCount === 0 && !loading && (
+              <div className="absolute inset-0 bg-white/70 dark:bg-slate-900/70 backdrop-blur-[1px] flex flex-col items-center justify-center p-4 text-center rounded-xl z-10">
+                <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">
+                  ยังไม่มีข้อมูลการประเมินหรือคะแนนสอบในภาคเรียนนี้
+                </p>
+                <p className="text-[10.5px] text-slate-400 mt-1 max-w-xs">
+                  เมื่อมีการบันทึกการประเมินผลสัมฤทธิ์ทางการเรียนในระบบวิชาการ กราฟจะประมวลผลแนวโน้มรายเดือนให้โดยอัตโนมัติ
+                </p>
+                <button
+                  type="button"
+                  onClick={handleDetailsClick}
+                  className="mt-2.5 px-3 py-1.5 rounded-lg bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 text-[11px] font-bold hover:bg-blue-100 transition inline-flex items-center gap-1 cursor-pointer"
+                >
+                  <span>จัดการข้อมูลวิชาการ</span>
+                  <ArrowRight className="w-3 h-3" />
+                </button>
+              </div>
+            )}
+          </>
         ) : (
           <div className="w-full h-full rounded-xl bg-slate-50/50 dark:bg-slate-800/20 animate-pulse flex items-center justify-center text-xs text-slate-400">
             กำลังโหลดข้อมูลกราฟ...

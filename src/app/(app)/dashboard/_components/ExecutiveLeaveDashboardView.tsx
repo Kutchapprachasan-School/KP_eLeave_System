@@ -221,16 +221,13 @@ export default function ExecutiveLeaveDashboardView() {
   const leaveConfigs = statsData?.leaveConfigs || [];
 
   // Derived Values
-  const totalStudents = schoolStats?.student.totalStudents || 1138;
+  const totalStudents = schoolStats?.student.totalStudents ?? 0;
   const studentAtt = schoolStats?.student.attendanceToday;
   const recCount = studentAtt?.recordedCount || 0;
-  const attendanceRate =
-    studentAtt?.attendanceRate && studentAtt.attendanceRate > 0
-      ? studentAtt.attendanceRate
-      : 95.6;
-  const liveLateRate = recCount > 0 ? Math.round(((studentAtt?.late || 0) / recCount) * 1000) / 10 : 2.1;
-  const liveAbsentRate = recCount > 0 ? Math.round(((studentAtt?.absent || 0) / recCount) * 1000) / 10 : 1.3;
-  const liveLeaveRate = recCount > 0 ? Math.round((((studentAtt?.sick || 0) + (studentAtt?.personal || 0)) / recCount) * 1000) / 10 : 1.0;
+  const attendanceRate = recCount > 0 ? (studentAtt?.attendanceRate ?? 0) : 0;
+  const liveLateRate = recCount > 0 ? Math.round(((studentAtt?.late || 0) / recCount) * 1000) / 10 : 0;
+  const liveAbsentRate = recCount > 0 ? Math.round(((studentAtt?.absent || 0) / recCount) * 1000) / 10 : 0;
+  const liveLeaveRate = recCount > 0 ? Math.round((((studentAtt?.sick || 0) + (studentAtt?.personal || 0)) / recCount) * 1000) / 10 : 0;
   const sickAndPersonal =
     (schoolStats?.student.attendanceToday.sick || 0) +
     (schoolStats?.student.attendanceToday.personal || 0);
@@ -556,6 +553,7 @@ export default function ExecutiveLeaveDashboardView() {
                     lateRate={liveLateRate}
                     absentRate={liveAbsentRate}
                     leaveRate={liveLeaveRate}
+                    recordedCount={recCount}
                   />
                 </div>
               )}
@@ -603,6 +601,7 @@ export default function ExecutiveLeaveDashboardView() {
                     lateRate={liveLateRate}
                     absentRate={liveAbsentRate}
                     leaveRate={liveLeaveRate}
+                    recordedCount={recCount}
                   />
                 </div>
               )}
