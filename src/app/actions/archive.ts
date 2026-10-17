@@ -60,6 +60,7 @@ export async function archiveCurrentCycle() {
       where: {
         userId: u.id,
         status: "APPROVED",
+        isDeleted: false,
         startDate: { gte: cycle.start, lte: cycle.end }
       }
     });
@@ -277,7 +278,7 @@ export async function exportLeaveBackup(
   const cycle = getLeaveCycleFilter(refDate, cycleFilter);
 
   // Fetch leave requests within the selected cycle/time-range
-  const whereClause: any = {};
+  const whereClause: any = { isDeleted: false };
   if (cycle) {
     whereClause.startDate = { gte: cycle.start, lte: cycle.end };
   }

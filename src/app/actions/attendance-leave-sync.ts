@@ -26,6 +26,7 @@ export async function getApprovedLeavesForPeriod(
     where: {
       userId: { in: userIds },
       status: "APPROVED",
+      isDeleted: false,
       startDate: { lte: end },
       endDate: { gte: start },
     },

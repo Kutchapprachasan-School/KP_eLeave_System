@@ -142,7 +142,7 @@ export async function getNotifications() {
 
   if (statusFilter.length > 0) {
     const leaves = await prisma.leaveRequest.findMany({
-      where: { status: { in: statusFilter } },
+      where: { status: { in: statusFilter }, isDeleted: false },
       orderBy: { createdAt: "desc" },
       take: 10,
       include: { user: { select: { name: true } } }
@@ -484,6 +484,7 @@ export async function getMonthlyReport(month: number, year: number) {
   const requests = await prisma.leaveRequest.findMany({
     where: {
       createdAt: { gte: startOfMonth, lte: endOfMonth },
+      isDeleted: false,
     },
     include: {
       user: { select: { name: true, position: true, subjectGroup: true } }
@@ -530,9 +531,10 @@ export async function getCycleReport(cycleFilter: "current" | "cycle1" | "cycle2
   const filter = getLeaveCycleFilter(targetDate, cycleFilter);
 
   const requests = await prisma.leaveRequest.findMany({
-    where: filter ? {
-      startDate: { gte: filter.start, lte: filter.end },
-    } : {},
+    where: {
+      isDeleted: false,
+      ...(filter ? { startDate: { gte: filter.start, lte: filter.end } } : {})
+    },
     include: {
       user: { select: { name: true, position: true, subjectGroup: true } }
     },

@@ -54,6 +54,7 @@ export async function GET(req: Request) {
           where: {
             userId: user.id,
             status: "APPROVED",
+            isDeleted: false,
             startDate: { gte: prevCycle.start, lte: prevCycle.end }
           }
         });

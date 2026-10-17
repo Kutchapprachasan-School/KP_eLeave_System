@@ -150,6 +150,7 @@ export async function ensureSequencesPopulated() {
   try {
     const unsequenced = await prisma.leaveRequest.findMany({
       where: {
+        isDeleted: false,
         OR: [
           { fiscalYear: null },
           { pendingSeq: null },
@@ -167,7 +168,7 @@ export async function ensureSequencesPopulated() {
 
       if (req.pendingSeq === null) {
         const maxPending = await prisma.leaveRequest.aggregate({
-          where: { fiscalYear: fy },
+          where: { fiscalYear: fy, isDeleted: false },
           _max: { pendingSeq: true }
         });
         const nextPending = (maxPending._max.pendingSeq || 0) + 1;
@@ -177,7 +178,7 @@ export async function ensureSequencesPopulated() {
 
       if (req.status === "APPROVED" && req.approvedSeq === null) {
         const maxApproved = await prisma.leaveRequest.aggregate({
-          where: { fiscalYear: fy, status: "APPROVED" },
+          where: { fiscalYear: fy, status: "APPROVED", isDeleted: false },
           _max: { approvedSeq: true }
         });
         updateData.approvedSeq = (maxApproved._max.approvedSeq || 0) + 1;
@@ -248,6 +249,7 @@ export async function submitLeaveRequest(data: {
         userId: session.user.id,
         type: { in: ["SICK", "PERSONAL"] },
         status: "APPROVED",
+        isDeleted: false,
         startDate: { gte: cycle.start, lte: cycle.end },
       },
     });
@@ -287,6 +289,7 @@ export async function submitLeaveRequest(data: {
         userId: session.user.id,
         type: data.type,
         status: { in: ["APPROVED", "PENDING_HEAD", "PENDING_EXEC"] },
+        isDeleted: false,
         startDate: { gte: cycle.start, lte: cycle.end },
       },
     });
@@ -324,7 +327,7 @@ export async function submitLeaveRequest(data: {
   const fy = getFiscalYear(startD);
 
   const maxPending = await prisma.leaveRequest.aggregate({
-    where: { fiscalYear: fy },
+    where: { fiscalYear: fy, isDeleted: false },
     _max: { pendingSeq: true }
   });
   const nextPendingSeq = (maxPending._max.pendingSeq || 0) + 1;
@@ -417,7 +420,7 @@ export async function getPaginatedLeaveHistory(rawParams: any) {
   }
 
   // 3. Separate logic: Base Where (Cycle + User + Search)
-  const baseWhere: any = { status: { not: "CANCELLED" } };
+  const baseWhere: any = { status: { not: "CANCELLED" }, isDeleted: false };
   if (queryUserId) {
     baseWhere.userId = queryUserId;
   }
@@ -675,6 +678,7 @@ export async function getDashboardStats(
       requests = await prisma.leaveRequest.findMany({
         where: {
           status: "APPROVED",
+          isDeleted: false,
           ...(filter ? { startDate: { gte: filter.start, lte: filter.end } } : {})
         },
         include: { user: { select: { name: true, position: true, subjectGroup: true } } }
@@ -684,6 +688,7 @@ export async function getDashboardStats(
         where: {
           userId: session.user.id,
           status: "APPROVED",
+          isDeleted: false,
           ...(filter ? { startDate: { gte: filter.start, lte: filter.end } } : {})
         },
         include: { user: { select: { name: true, position: true, subjectGroup: true } } }
@@ -706,9 +711,9 @@ export async function getDashboardStats(
     }
 
     // Get pending count
-    let pendingWhere: any = { status: { in: ["PENDING_HEAD", "PENDING_EXEC"] } };
+    let pendingWhere: any = { status: { in: ["PENDING_HEAD", "PENDING_EXEC"] }, isDeleted: false };
     if (!canViewOverview) {
-      pendingWhere = { userId: session.user.id, status: { in: ["PENDING_HEAD", "PENDING_EXEC"] } };
+      pendingWhere = { userId: session.user.id, status: { in: ["PENDING_HEAD", "PENDING_EXEC"] }, isDeleted: false };
     }
 
     const pendingCount = await prisma.leaveRequest.count({ where: pendingWhere });
@@ -723,13 +728,13 @@ export async function getDashboardStats(
     // Get total requests for approval rate (strictly evaluating Approved vs Rejected, excluding Cancelled)
     const approvedRequestsCount = await prisma.leaveRequest.count({
       where: showSchoolOverview
-        ? { status: "APPROVED" }
-        : { userId: session.user.id, status: "APPROVED" }
+        ? { status: "APPROVED", isDeleted: false }
+        : { userId: session.user.id, status: "APPROVED", isDeleted: false }
     });
     const rejectedRequestsCount = await prisma.leaveRequest.count({
       where: showSchoolOverview
-        ? { status: "REJECTED" }
-        : { userId: session.user.id, status: "REJECTED" }
+        ? { status: "REJECTED", isDeleted: false }
+        : { userId: session.user.id, status: "REJECTED", isDeleted: false }
     });
     const evaluatedTotalCount = approvedRequestsCount + rejectedRequestsCount;
     const approvalRate = evaluatedTotalCount === 0 ? 100 : Math.round((approvedRequestsCount / evaluatedTotalCount) * 100);
@@ -821,6 +826,7 @@ export async function getDashboardStats(
     // Get recent requests (all active statuses, prioritizing selected cycle/year, then fallback)
     const baseRecentWhere: any = {
       status: { not: "CANCELLED" },
+      isDeleted: false,
       ...(showSchoolOverview ? {} : { userId: session.user.id })
     };
     const scopedRecentWhere: any = {
@@ -867,6 +873,7 @@ export async function getDashboardStats(
           where: {
             userId: session.user.id,
             status: "APPROVED",
+            isDeleted: false,
             ...(filter ? { startDate: { gte: filter.start, lte: filter.end } } : {})
           }
         })
@@ -988,7 +995,7 @@ export async function getPendingApprovals() {
   const isFinalApprover = caps.isDirector || (await canGiveFinalApproval(session.user.id, user.position, user.role));
   const hasApprovalAuthority = caps.isDirector || caps.isDeputyDirector || caps.isHRHead || caps.isDeptHead || isFinalApprover;
 
-  let whereClause: any = {};
+  let whereClause: any = { isDeleted: false };
   if (hasApprovalAuthority) {
     whereClause.userId = { not: session.user.id }; // Anti-Self-Approval: Exclude requester's own requests for actual approvers
   }
@@ -1042,7 +1049,7 @@ export async function approveLeaveRequest(id: string, pdfBase64?: string, skipDr
       include: { user: { select: { id: true, name: true, subjectGroup: true } } },
     });
 
-    if (!request) return { success: false, error: "ไม่พบข้อมูลคำขอลา" };
+    if (!request || request.isDeleted) return { success: false, error: "ไม่พบข้อมูลคำขอลา หรือคำขอนี้ถูกลบแล้ว" };
 
     // Anti-self-approval enforcement
     if (request.userId === session.user.id) {
@@ -1161,7 +1168,7 @@ export async function approveLeaveRequest(id: string, pdfBase64?: string, skipDr
       while (retries > 0) {
         try {
           const maxApproved = await prisma.leaveRequest.aggregate({
-            where: { fiscalYear: fy, status: "APPROVED" },
+            where: { fiscalYear: fy, status: "APPROVED", isDeleted: false },
             _max: { approvedSeq: true }
           });
           const nextApprovedSeq = (maxApproved._max.approvedSeq || 0) + 1;
@@ -1315,7 +1322,7 @@ export async function rejectLeaveRequest(id: string, rejectReason?: string, pdfB
       include: { user: { select: { name: true } } },
     });
 
-    if (!request) return { success: false, error: "ไม่พบข้อมูลคำขอลา" };
+    if (!request || request.isDeleted) return { success: false, error: "ไม่พบข้อมูลคำขอลา หรือคำขอนี้ถูกลบแล้ว" };
 
     // Anti-self-rejection enforcement
     if (request.userId === session.user.id) {
@@ -1477,7 +1484,7 @@ export async function cancelLeaveRequest(id: string) {
   const session = await getSession();
 
   const request = await prisma.leaveRequest.findUnique({ where: { id } });
-  if (!request) throw new Error("Request not found");
+  if (!request || request.isDeleted) throw new Error("Request not found");
   if (request.userId !== session.user.id) throw new Error("Unauthorized");
   if (request.status === "APPROVED" || request.status === "REJECTED") {
     throw new Error("Cannot cancel an already processed request");
@@ -1511,7 +1518,7 @@ export async function editLeaveRequest(id: string, data: { type: string; startDa
   const session = await getSession();
 
   const request = await prisma.leaveRequest.findUnique({ where: { id } });
-  if (!request) throw new Error("Request not found");
+  if (!request || request.isDeleted) throw new Error("Request not found");
   if (request.userId !== session.user.id) throw new Error("Unauthorized");
   if (request.status === "APPROVED" || request.status === "REJECTED" || request.status === "CANCELLED") {
     throw new Error("Cannot edit an already processed or cancelled request");
@@ -1729,6 +1736,7 @@ export async function getMyLeaveUsageForCurrentCycle() {
     where: {
       userId: session.user.id,
       status: "APPROVED",
+      isDeleted: false,
       startDate: { gte: cycle.start, lte: cycle.end },
     },
   });
@@ -1805,7 +1813,7 @@ export async function getLeaveRequestForPrint(id: string) {
     }
   });
 
-  if (!request) throw new Error("Request not found");
+  if (!request || request.isDeleted) throw new Error("Request not found");
 
   // Check permissions: Owner or Admin/HR/Exec/Verifier
   const isOwner = request.userId === session.user.id;
@@ -1971,6 +1979,7 @@ export async function getLeaveRequestForPrint(id: string) {
     where: {
       userId: request.userId,
       status: "APPROVED",
+      isDeleted: false,
       startDate: { gte: fyStart, lte: fyEnd }
     }
   });
@@ -2037,6 +2046,7 @@ export async function getLeaveRequestForPrint(id: string) {
   const lastRequestWhere: any = {
     userId: request.userId,
     status: "APPROVED",
+    isDeleted: false,
     startDate: { lt: request.startDate }
   };
   if (lastLeaveMode === "SAME") {
@@ -2113,6 +2123,7 @@ export async function getBatchLeaveRequestsForPrint(
 
   const whereClause: any = {
     status: "APPROVED",
+    isDeleted: false,
   };
 
   if (filterType === "year" || filterType === "cycle1" || filterType === "cycle2") {
@@ -2309,6 +2320,7 @@ export async function getBatchLeaveRequestsForPrint(
       where: {
         userId: request.userId,
         status: "APPROVED",
+        isDeleted: false,
         startDate: { gte: fyStart, lte: fyEnd }
       }
     });
@@ -2355,6 +2367,7 @@ export async function getBatchLeaveRequestsForPrint(
     const lastRequestWhere: any = {
       userId: request.userId,
       status: "APPROVED",
+      isDeleted: false,
       startDate: { lt: request.startDate }
     };
     if (lastLeaveMode === "SAME") {
@@ -2424,7 +2437,7 @@ export async function uploadLeavePdf(id: string, pdfBase64: string, isRejected: 
     where: { id },
     include: { user: { select: { name: true } } }
   });
-  if (!request) return { success: false, error: "Request not found" };
+  if (!request || request.isDeleted) return { success: false, error: "Request not found" };
 
   const fy = request.fiscalYear || getFiscalYear(request.startDate);
   const seq = isRejected ? (request.pendingSeq || 0) : (request.approvedSeq || 0);
@@ -2573,6 +2586,7 @@ export async function getCalendarLeaves(year?: number) {
   const requests = await prisma.leaveRequest.findMany({
     where: {
       status: "APPROVED",
+      isDeleted: false,
       OR: [
         { startDate: { gte: startRange, lte: endRange } },
         { endDate: { gte: startRange, lte: endRange } },

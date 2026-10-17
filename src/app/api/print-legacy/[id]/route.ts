@@ -139,7 +139,7 @@ export async function GET(
     }
   });
 
-  if (!request) {
+  if (!request || request.isDeleted) {
     return new NextResponse("Request not found", { status: 404 });
   }
 
@@ -216,6 +216,7 @@ export async function GET(
     where: {
       userId: request.userId,
       status: "APPROVED",
+      isDeleted: false,
       startDate: { gte: fyStart, lte: fyEnd }
     }
   });
@@ -270,6 +271,7 @@ export async function GET(
   const lastRequestWhere: any = {
     userId: request.userId,
     status: "APPROVED",
+    isDeleted: false,
     startDate: { lt: request.startDate }
   };
   if (lastLeaveMode === "SAME") {

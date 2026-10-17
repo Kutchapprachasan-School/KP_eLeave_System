@@ -322,11 +322,13 @@ export async function getSchoolManagementExecutiveStats(): Promise<SchoolManagem
           prisma.leaveRequest.count({
             where: {
               status: { in: ["PENDING", "PENDING_HEAD", "PENDING_EXEC"] },
+              isDeleted: false,
             },
           }),
           prisma.leaveRequest.findMany({
             where: {
               status: "APPROVED",
+              isDeleted: false,
               startDate: { lte: endOfDay },
               endDate: { gte: startOfDay },
             },
