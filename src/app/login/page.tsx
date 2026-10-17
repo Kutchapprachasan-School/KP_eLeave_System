@@ -128,7 +128,7 @@ export default function LoginPage() {
           },
           onError: (ctx: any) => {
             clearTimeout(safetyTimer);
-            alert(ctx.error.message);
+            alert(ctx?.error?.message || ctx?.error?.statusText || (lang === "en" ? "Registration failed. Please try again." : "เกิดข้อผิดพลาดในการลงทะเบียน กรุณาลองใหม่อีกครั้ง"));
             setLoading(false);
           },
         },
@@ -156,7 +156,7 @@ export default function LoginPage() {
             },
             onError: (ctx: any) => {
               clearTimeout(safetyTimer);
-              alert(ctx.error.message);
+              alert(ctx?.error?.message || ctx?.error?.statusText || (lang === "en" ? "Login failed. Please check your username/password." : "เกิดข้อผิดพลาดในการเข้าสู่ระบบ กรุณาตรวจสอบชื่อผู้ใช้หรือรหัสผ่าน"));
               setLoading(false);
             },
           },
@@ -223,16 +223,19 @@ export default function LoginPage() {
 
         {/* Branding Header */}
         <div className="flex flex-col items-center mb-8">
-          <div className="w-20 h-20 rounded-2xl bg-white border border-slate-100 shadow-md p-1.5 flex items-center justify-center mb-4">
-            <img
-              src={logoUrl || "/images/teacher/school_logo.png"}
-              alt="School Logo"
-              className="w-full h-full object-contain"
-              onError={(e) => {
-                (e.currentTarget as HTMLImageElement).src = "/images/teacher/school_logo.png";
-              }}
-            />
-          </div>
+          <img
+            src={logoUrl || "/school-logo.png"}
+            alt="School Logo"
+            className="w-20 h-20 rounded-2xl object-contain shadow-lg mb-4 bg-white p-1 border border-slate-100 dark:border-slate-800"
+            onError={(e) => {
+              const target = e.currentTarget;
+              if (!target.src.endsWith("/school-logo.png")) {
+                target.src = "/school-logo.png";
+              } else if (!target.src.endsWith("/images/teacher/school_logo.png")) {
+                target.src = "/images/teacher/school_logo.png";
+              }
+            }}
+          />
           <h1 className="text-xl font-bold text-slate-900 dark:text-white text-center">{schoolName}</h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 text-center">{subheader}</p>
         </div>
