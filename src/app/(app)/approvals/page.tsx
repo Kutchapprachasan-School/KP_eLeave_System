@@ -368,16 +368,19 @@ export default function ApprovalsPage() {
     }
 
     return (
-      <div className="flex flex-col gap-1 sm:flex-row sm:gap-2">
+      <div className="flex flex-wrap items-center gap-1.5 min-w-0 max-w-full">
         {files.map((file, idx) => (
           <button
             key={idx}
             type="button"
+            title={file.name || `${t("attachmentIndex")} ${idx + 1}`}
             onClick={() => handleViewAttachment(file.url, file.name)}
-            className="inline-flex items-center gap-1 text-[11px] font-bold text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300 bg-purple-50 hover:bg-purple-100 dark:bg-purple-950/30 px-2 py-0.5 rounded border border-purple-200/40 dark:border-purple-800/40 transition-colors cursor-pointer"
+            className="inline-flex items-center gap-1 text-[11px] font-bold text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300 bg-purple-50 hover:bg-purple-100 dark:bg-purple-950/30 px-2 py-0.5 rounded border border-purple-200/40 dark:border-purple-800/40 transition-colors cursor-pointer max-w-full min-w-0"
           >
-            <Paperclip className="w-3 h-3" />
-            {file.name || `${t("attachmentIndex")} ${idx + 1}`}
+            <Paperclip className="w-3 h-3 shrink-0" />
+            <span className="truncate max-w-[140px] sm:max-w-[200px]">
+              {file.name || `${t("attachmentIndex")} ${idx + 1}`}
+            </span>
           </button>
         ))}
       </div>
@@ -468,31 +471,31 @@ export default function ApprovalsPage() {
             );
 
             return (
-              <div key={item.id} className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white/60 dark:border-slate-800 rounded-3xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] flex flex-col md:flex-row gap-6 items-start md:items-center">
+              <div key={item.id} className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white/60 dark:border-slate-800 rounded-3xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] flex flex-col md:flex-row gap-6 items-start md:items-center max-w-full overflow-hidden">
                 
                 {/* User Info */}
-                <div className="flex items-center gap-4 min-w-[240px]">
+                <div className="flex items-center gap-4 min-w-[240px] max-w-full">
                   {item.user?.image ? (
                     <img 
                       src={item.user.image} 
                       alt={item.user.name} 
                       onClick={() => setZoomedImage({ src: item.user.image, name: item.user.name })}
-                      className="w-12 h-12 rounded-2xl object-cover shadow-md border border-slate-200 dark:border-slate-700 cursor-zoom-in hover:opacity-90 transition-opacity" 
+                      className="w-12 h-12 rounded-2xl object-cover shadow-md border border-slate-200 dark:border-slate-700 cursor-zoom-in hover:opacity-90 transition-opacity shrink-0" 
                     />
                   ) : (
-                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center text-white text-lg font-bold shadow-md">
+                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center text-white text-lg font-bold shadow-md shrink-0">
                       {item.user?.name?.charAt(0) || "U"}
                     </div>
                   )}
-                  <div>
-                    <p className="font-bold text-slate-900 dark:text-white">{item.user?.name}</p>
-                    <p className="text-xs text-slate-500">{tPosition(item.user?.position) || t("staffMember")} • {tSubjectGroup(item.user?.subjectGroup)}</p>
+                  <div className="min-w-0">
+                    <p className="font-bold text-slate-900 dark:text-white truncate">{item.user?.name}</p>
+                    <p className="text-xs text-slate-500 truncate">{tPosition(item.user?.position) || t("staffMember")} • {tSubjectGroup(item.user?.subjectGroup)}</p>
                   </div>
                 </div>
 
                 {/* Leave Info */}
-                <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-4 border-y md:border-y-0 md:border-x border-slate-100 dark:border-slate-800 py-4 md:py-0 md:px-6">
-                  <div>
+                <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-4 border-y md:border-y-0 md:border-x border-slate-100 dark:border-slate-800 py-4 md:py-0 md:px-6 w-full min-w-0">
+                  <div className="min-w-0">
                     <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">
                       {t("typeAndDate")} • {lang === "en" ? `Request No. ${item.pendingSeq}/${item.fiscalYear}` : `คำขอที่ ${item.pendingSeq}/${item.fiscalYear}`}
                       <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200/50 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-800">
@@ -500,11 +503,11 @@ export default function ApprovalsPage() {
                       </span>
                     </p>
                     <p className="text-sm font-medium text-slate-900 dark:text-white flex items-center gap-1.5">
-                      <span className="w-2 h-2 rounded-full bg-purple-500"></span>
+                      <span className="w-2 h-2 rounded-full bg-purple-500 shrink-0"></span>
                       {getLeaveTypeName(item.type)}
                     </p>
                     <p className="text-xs text-slate-500 mt-1 flex items-center gap-1.5 flex-wrap">
-                      <Calendar className="w-3.5 h-3.5" />
+                      <Calendar className="w-3.5 h-3.5 shrink-0" />
                       <span>{formatLeaveDate(item.startDate, lang)} - {formatLeaveDate(item.endDate, lang)}</span>
                       {calculateDays(item.startDate, item.endDate, item.type) === 0 && item.type !== "MATERNITY" ? (
                         <span className="ml-1 px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 font-bold text-[10px]" title="วันที่เลือกตรงกับวันเสาร์-อาทิตย์ทั้งหมด">
@@ -518,16 +521,16 @@ export default function ApprovalsPage() {
                     </p>
                     
                     {/* Attached Document Section */}
-                    <div className="mt-2 flex gap-2">
+                    <div className="mt-2 flex flex-wrap items-center gap-2 max-w-full min-w-0">
                       {renderDocumentLinks(item.documentUrl)}
 
                       <a
                         href={`/print/leave/${item.id}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-[11px] font-bold text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-500/10 dark:text-indigo-400 dark:hover:bg-indigo-500/20 px-2 py-0.5 rounded border border-indigo-200/40 dark:border-indigo-800/40 transition-colors"
+                        className="inline-flex items-center gap-1 text-[11px] font-bold text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-500/10 dark:text-indigo-400 dark:hover:bg-indigo-500/20 px-2 py-0.5 rounded border border-indigo-200/40 dark:border-indigo-800/40 transition-colors shrink-0"
                       >
-                        <Printer className="w-3 h-3" />
+                        <Printer className="w-3 h-3 shrink-0" />
                         {t("print")}
                       </a>
                     </div>

@@ -527,9 +527,12 @@ export default function ReportsPage() {
               ${visibleTypes.map(t => {
                 const times = r.byType[t.type]?.times || 0;
                 const days = r.byType[t.type]?.days || 0;
+                const note = r.byType[t.type]?.note;
                 return `
                   <td style="border:1px solid #888;padding:${sizeStyles.cellPad};text-align:center;">${times > 0 ? times : "-"}</td>
-                  <td style="border:1px solid #888;padding:${sizeStyles.cellPad};text-align:center;">${days > 0 ? days : "-"}</td>
+                  <td style="border:1px solid #888;padding:${sizeStyles.cellPad};text-align:center;${note ? "background:#fffbeb;font-weight:bold;" : ""}" ${note ? `title="${escapeHtml(note)}"` : ""}>
+                    ${days > 0 ? `${days}${note ? `*` : ""}` : "-"}
+                  </td>
                 `;
               }).join("")}
               <td style="border:1px solid #888;padding:${sizeStyles.cellPad};text-align:center;font-weight:bold;background:#fafafa;">${r.totalTimes > 0 ? r.totalTimes : "-"}</td>
@@ -550,9 +553,12 @@ export default function ReportsPage() {
             ${visibleTypes.map(t => {
               const times = r.byType[t.type]?.times || 0;
               const days = r.byType[t.type]?.days || 0;
+              const note = r.byType[t.type]?.note;
               return `
                 <td style="border:1px solid #888;padding:${sizeStyles.cellPad};text-align:center;">${times > 0 ? times : "-"}</td>
-                <td style="border:1px solid #888;padding:${sizeStyles.cellPad};text-align:center;">${days > 0 ? days : "-"}</td>
+                <td style="border:1px solid #888;padding:${sizeStyles.cellPad};text-align:center;${note ? "background:#fffbeb;font-weight:bold;" : ""}" ${note ? `title="${escapeHtml(note)}"` : ""}>
+                  ${days > 0 ? `${days}${note ? `*` : ""}` : "-"}
+                </td>
               `;
             }).join("")}
             <td style="border:1px solid #888;padding:${sizeStyles.cellPad};text-align:center;font-weight:bold;background:#fafafa;">${r.totalTimes > 0 ? r.totalTimes : "-"}</td>
@@ -661,6 +667,10 @@ export default function ReportsPage() {
               </tr>
             </tbody>
           </table>
+
+          <div style="margin-top:8px;font-size:0.75em;color:#555;line-height:1.4;">
+            * หมายเหตุ: ตัวเลขที่มีเครื่องหมายดอกจัน (*) ระบุว่าเป็นการลาต่อเนื่องคาบเกี่ยวข้ามปีงบประมาณ โดยสถิติที่แสดงนับเฉพาะวันลาที่เกิดขึ้นจริงภายในรอบรายงานนี้ตามระเบียบ ก.พ./ก.ค.ศ.
+          </div>
 
           <div class="signatures">
             <div class="sign-box">
@@ -1269,13 +1279,24 @@ export default function ReportsPage() {
                                 {viewModel.visibleTypes.map(t => {
                                   const times = r.byType[t.type]?.times || 0;
                                   const days = r.byType[t.type]?.days || 0;
+                                  const note = r.byType[t.type]?.note;
                                   return (
                                     <Fragment key={`${r.userId}_${t.type}`}>
                                       <td className={`${previewCellPadding} text-center border-r border-slate-100 dark:border-slate-800 text-slate-600 dark:text-slate-300`}>
                                         {times > 0 ? times : <span className="text-slate-300 dark:text-slate-600">-</span>}
                                       </td>
-                                      <td className={`${previewCellPadding} text-center border-r border-slate-100 dark:border-slate-800 text-slate-600 dark:text-slate-300`}>
-                                        {days > 0 ? days : <span className="text-slate-300 dark:text-slate-600">-</span>}
+                                      <td 
+                                        className={`${previewCellPadding} text-center border-r border-slate-100 dark:border-slate-800 text-slate-600 dark:text-slate-300 ${note ? "bg-amber-50/70 dark:bg-amber-950/20" : ""}`}
+                                        title={note}
+                                      >
+                                        {days > 0 ? (
+                                          <span className={note ? "inline-flex items-center justify-center gap-0.5 font-bold text-amber-700 dark:text-amber-400 cursor-help" : ""}>
+                                            {days}
+                                            {note && <span className="text-[11px] text-amber-600 dark:text-amber-400 font-bold leading-none">*</span>}
+                                          </span>
+                                        ) : (
+                                          <span className="text-slate-300 dark:text-slate-600">-</span>
+                                        )}
                                       </td>
                                     </Fragment>
                                   );
@@ -1306,13 +1327,24 @@ export default function ReportsPage() {
                             {viewModel.visibleTypes.map(t => {
                               const times = r.byType[t.type]?.times || 0;
                               const days = r.byType[t.type]?.days || 0;
+                              const note = r.byType[t.type]?.note;
                               return (
                                 <Fragment key={`${r.userId}_${t.type}`}>
                                   <td className={`${previewCellPadding} text-center border-r border-slate-100 dark:border-slate-800 text-slate-600 dark:text-slate-300`}>
                                     {times > 0 ? times : <span className="text-slate-300 dark:text-slate-600">-</span>}
                                   </td>
-                                  <td className={`${previewCellPadding} text-center border-r border-slate-100 dark:border-slate-800 text-slate-600 dark:text-slate-300`}>
-                                    {days > 0 ? days : <span className="text-slate-300 dark:text-slate-600">-</span>}
+                                  <td 
+                                    className={`${previewCellPadding} text-center border-r border-slate-100 dark:border-slate-800 text-slate-600 dark:text-slate-300 ${note ? "bg-amber-50/70 dark:bg-amber-950/20" : ""}`}
+                                    title={note}
+                                  >
+                                    {days > 0 ? (
+                                      <span className={note ? "inline-flex items-center justify-center gap-0.5 font-bold text-amber-700 dark:text-amber-400 cursor-help" : ""}>
+                                        {days}
+                                        {note && <span className="text-[11px] text-amber-600 dark:text-amber-400 font-bold leading-none">*</span>}
+                                      </span>
+                                    ) : (
+                                      <span className="text-slate-300 dark:text-slate-600">-</span>
+                                    )}
                                   </td>
                                 </Fragment>
                               );
@@ -1362,6 +1394,14 @@ export default function ReportsPage() {
                       </tfoot>
                     )}
                   </table>
+                </div>
+
+                {/* Footnote Bar for Cross-Cycle Leaves */}
+                <div className="px-6 py-3 bg-slate-50/80 dark:bg-slate-800/40 border-t border-slate-200/80 dark:border-slate-800 flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                  <span className="text-amber-600 dark:text-amber-400 font-bold text-sm leading-none">*</span>
+                  <span>
+                    หมายเหตุ: เครื่องหมายดอกจัน (*) ระบุว่าเป็นการลาต่อเนื่องคาบเกี่ยวข้ามปีงบประมาณ โดยสถิติที่แสดงนับเฉพาะวันลาที่เกิดขึ้นจริงภายในรอบรายงานนี้ตามระเบียบ ก.พ./ก.ค.ศ. (นำเมาส์ชี้เพื่อดูรายละเอียดวันลารวมทั้งหมด)
+                  </span>
                 </div>
               </div>
             </>

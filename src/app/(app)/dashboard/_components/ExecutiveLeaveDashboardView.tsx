@@ -141,6 +141,8 @@ export default function ExecutiveLeaveDashboardView() {
             proxyTeacherName: item.proxyTeacherName,
             createdAt: new Date(item.createdAt).toLocaleDateString("th-TH"),
             userImage: item.user?.image,
+            headApproverName: item.headApproverSnapshot?.name,
+            headApprovedAt: item.headApprovedAt ? new Date(item.headApprovedAt).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : undefined,
             rawRequest: item,
           }));
           setQueueLeaves(mappedQueue);
@@ -655,6 +657,7 @@ export default function ExecutiveLeaveDashboardView() {
                 onReject={handleReject}
                 onViewDetails={(leave) => setSelectedLeaveForModal(leave)}
                 actionLoadingId={actionLoadingId}
+                canApprove={canApproveQueue}
               />
             </div>
           )}
@@ -678,6 +681,7 @@ export default function ExecutiveLeaveDashboardView() {
         onClose={() => setSelectedLeaveForModal(null)}
         onApprove={handleApprove}
         onReject={handleReject}
+        canApprove={canApproveQueue}
       />
 
       {/* Dashboard Widget Customizer Modal */}

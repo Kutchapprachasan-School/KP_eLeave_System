@@ -750,6 +750,23 @@ export async function getCanonicalLeaveReportDTO(
         summary.byType[req.type] = { times: 0, days: 0 };
       }
 
+      // Detect leave requests that span beyond the reporting cycle window
+      if (reqStartStr < cycleStartStr || reqEndStr > cycleEndStr) {
+        const fullRequestDays = calculateLeaveDaysFast(
+          reqStartStr,
+          reqEndStr,
+          req.type,
+          holidayDates,
+          specialWorkdayDates
+        );
+        if (daysInCycle < fullRequestDays) {
+          const crossCycleNote = `ลาต่อเนื่องข้ามรอบ/ปีงบประมาณ: ในรอบนี้ ${daysInCycle} วัน (จากใบลาทั้งหมด ${fullRequestDays} วัน)`;
+          summary.byType[req.type].note = summary.byType[req.type].note
+            ? `${summary.byType[req.type].note}; ${crossCycleNote}`
+            : crossCycleNote;
+        }
+      }
+
       summary.byType[req.type].times += 1;
       summary.byType[req.type].days += daysInCycle;
       summary.totalTimes += 1;

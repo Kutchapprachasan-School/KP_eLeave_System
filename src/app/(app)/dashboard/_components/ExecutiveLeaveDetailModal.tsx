@@ -19,6 +19,7 @@ interface ExecutiveLeaveDetailModalProps {
   onClose: () => void;
   onApprove: (id: string) => void;
   onReject: (id: string, reason?: string) => void;
+  canApprove?: boolean;
 }
 
 export default function ExecutiveLeaveDetailModal({
@@ -27,6 +28,7 @@ export default function ExecutiveLeaveDetailModal({
   onClose,
   onApprove,
   onReject,
+  canApprove = true,
 }: ExecutiveLeaveDetailModalProps) {
   if (!isOpen || !leave) return null;
 
@@ -150,6 +152,120 @@ export default function ExecutiveLeaveDetailModal({
               </span>
             )}
           </div>
+
+          {/* Workflow Stage Tracker: Head HR & Director Approval Tracking */}
+          <div className="p-3.5 rounded-xl bg-slate-50/80 border border-slate-200/90 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <span className="text-slate-700 font-bold text-xs flex items-center gap-1.5">
+                <FileText className="w-3.5 h-3.5 text-blue-600" />
+                ขั้นตอนการพิจารณาอนุมัติคำขอลา:
+              </span>
+              <span className="text-[10px] font-semibold text-slate-400">
+                {leave.status === "PENDING_HEAD"
+                  ? "ขั้นตอนที่ 1/2"
+                  : leave.status === "PENDING_EXEC"
+                  ? "ขั้นตอนที่ 2/2"
+                  : "เสร็จสิ้นขั้นตอน"}
+              </span>
+            </div>
+
+            {/* Step 1: Head of Dept / HR Head */}
+            <div className={`p-3 rounded-xl border transition-all ${
+              leave.status === "PENDING_EXEC" || leave.status === "APPROVED" || Boolean(leave.rawRequest?.headApprovedAt)
+                ? "bg-emerald-50/70 border-emerald-200 text-emerald-900"
+                : leave.status === "PENDING_HEAD"
+                ? "bg-amber-50/70 border-amber-200 text-amber-900"
+                : "bg-slate-100/60 border-slate-200 text-slate-600"
+            }`}>
+              <div className="flex items-start gap-2.5">
+                <div className="mt-0.5">
+                  {leave.status === "PENDING_EXEC" || leave.status === "APPROVED" || Boolean(leave.rawRequest?.headApprovedAt) ? (
+                    <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+                  ) : leave.status === "PENDING_HEAD" ? (
+                    <Clock className="w-4 h-4 text-amber-600 shrink-0 animate-pulse" />
+                  ) : (
+                    <div className="w-4 h-4 rounded-full border-2 border-slate-300" />
+                  )}
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-xs">
+                      1. การตรวจสอบของหัวหน้ากลุ่มสาระฯ / หัวหน้างานบุคคล
+                    </span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/90 border">
+                      {leave.status === "PENDING_EXEC" || leave.status === "APPROVED" || Boolean(leave.rawRequest?.headApprovedAt)
+                        ? "✓ ผ่านการตรวจสอบแล้ว"
+                        : leave.status === "PENDING_HEAD"
+                        ? "⏳ รอการตรวจสอบ"
+                        : "รอดำเนินการ"}
+                    </span>
+                  </div>
+                  {leave.rawRequest?.headApproverSnapshot?.name ? (
+                    <div className="mt-1 text-[11px] text-slate-700 space-y-0.5">
+                      <p>
+                        ผู้ตรวจสอบ: <strong className="text-slate-900">{leave.rawRequest.headApproverSnapshot.name}</strong>
+                        {leave.rawRequest.headApproverSnapshot.dutyType ? ` (${leave.rawRequest.headApproverSnapshot.dutyType === "HR_HEAD" ? "หัวหน้างานบุคคล" : "หัวหน้ากลุ่มสาระฯ"})` : ""}
+                      </p>
+                      {leave.rawRequest.headApprovedAt && (
+                        <p className="text-slate-500 text-[10px]">
+                          วันที่ตรวจสอบ: {new Date(leave.rawRequest.headApprovedAt).toLocaleString("th-TH")}
+                        </p>
+                      )}
+                    </div>
+                  ) : leave.status === "PENDING_HEAD" ? (
+                    <p className="mt-1 text-[11px] text-amber-700">
+                      อยู่ระหว่างรอหัวหน้ากลุ่มสาระฯ หรือหัวหน้างานบุคคลทำการตรวจสอบความถูกต้องของเอกสาร
+                    </p>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+
+            {/* Step 2: Director Final Signing */}
+            <div className={`p-3 rounded-xl border transition-all ${
+              leave.status === "APPROVED"
+                ? "bg-emerald-50/70 border-emerald-200 text-emerald-900"
+                : leave.status === "PENDING_EXEC"
+                ? "bg-blue-50/70 border-blue-200 text-blue-900"
+                : "bg-slate-100/60 border-slate-200 text-slate-600"
+            }`}>
+              <div className="flex items-start gap-2.5">
+                <div className="mt-0.5">
+                  {leave.status === "APPROVED" ? (
+                    <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+                  ) : leave.status === "PENDING_EXEC" ? (
+                    <Clock className="w-4 h-4 text-blue-600 shrink-0 animate-pulse" />
+                  ) : (
+                    <div className="w-4 h-4 rounded-full border-2 border-slate-300" />
+                  )}
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-xs">
+                      2. การพิจารณาลงนามของผู้อำนวยการสถานศึกษา
+                    </span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/90 border">
+                      {leave.status === "APPROVED"
+                        ? "✓ อนุมัติแล้ว"
+                        : leave.status === "PENDING_EXEC"
+                        ? "⏳ รอ ผอ. ลงนาม"
+                        : "รอดำเนินการ"}
+                    </span>
+                  </div>
+                  {leave.status === "PENDING_EXEC" && (
+                    <p className="mt-1 text-[11px] text-blue-700">
+                      ผ่านการตรวจสอบของหัวหน้างานบุคคลแล้ว กำลังรอผู้อำนวยการสถานศึกษาลงนามอนุมัติ
+                    </p>
+                  )}
+                  {leave.rawRequest?.execApprovedAt && (
+                    <p className="mt-1 text-slate-500 text-[10px]">
+                      ผู้อำนวยการลงนามเมื่อ: {new Date(leave.rawRequest.execApprovedAt).toLocaleString("th-TH")}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Modal Footer */}
@@ -163,29 +279,35 @@ export default function ExecutiveLeaveDetailModal({
           </button>
 
           {isPending && (
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  onReject(leave.id);
-                  onClose();
-                }}
-                className="px-4 py-2 rounded-xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-semibold transition-colors cursor-pointer"
-              >
-                ไม่อนุมัติ
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  onApprove(leave.id);
-                  onClose();
-                }}
-                className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all shadow-md shadow-blue-500/20 flex items-center gap-1.5 cursor-pointer"
-              >
-                <Check className="w-4 h-4" />
-                <span>อนุมัติคำขอ</span>
-              </button>
-            </div>
+            canApprove ? (
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    onReject(leave.id);
+                    onClose();
+                  }}
+                  className="px-4 py-2 rounded-xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-semibold transition-colors cursor-pointer"
+                >
+                  ไม่อนุมัติ
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onApprove(leave.id);
+                    onClose();
+                  }}
+                  className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all shadow-md shadow-blue-500/20 flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>อนุมัติคำขอ</span>
+                </button>
+              </div>
+            ) : (
+              <span className="text-xs font-semibold text-amber-800 bg-amber-50 px-3 py-1.5 rounded-xl border border-amber-200/80">
+                โหมดผู้ดูแลระบบ: ตรวจสอบและติดตามขั้นตอน (ไม่มีอำนาจอนุมัติ)
+              </span>
+            )
           )}
         </div>
       </div>

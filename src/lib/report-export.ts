@@ -6,7 +6,7 @@ export interface UserLeaveSummaryDTO {
   subjectGroup: string;
   totalTimes: number;
   totalDays: number;
-  byType: Record<string, { times: number; days: number }>;
+  byType: Record<string, { times: number; days: number; note?: string }>;
 }
 
 export interface LeaveReportDTO {
