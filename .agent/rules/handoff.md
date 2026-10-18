@@ -1,163 +1,22 @@
----
-trigger: model_decision
-description: "Architecture baseline, session handoff context, completed milestones, and pending enterprise tasks."
----
+# Session Handoff & Architectural Rulebook (v3.1 / Rev. 1)
 
-# Session Handoff & System Architectural Rulebook (v3.0)
+## 1. Strict Deployment Principles (Google Drive Safe)
+- **Active Branch:** พัฒนาและทดสอบบนกิ่ง `dev` เสมอ ห้าม commit ลง `main` โดยตรง
+- **Zero-Switch Deployment:** เพื่อป้องกันปัญหา `.git/index.lock` ค้างจากการ Sync ของ Google Drive และป้องกัน Turbopack Cache พัง **ห้ามสั่ง `git checkout main` เพื่อสลับไฟล์ในเครื่อง** ให้ส่งโค้ดขึ้น Production จากกิ่ง `dev` โดยตรงตามลำดับนี้:
+  1. `npm run index:sync` (อัปเดตสารบัญโค้ดและ commit ให้เรียบร้อย)
+  2. `git push origin dev`
+  3. `git push origin dev:main` (ดันโค้ดจาก `dev` เข้า `main` บน Remote โดยที่เครื่องยังอยู่กิ่ง `dev` เพื่อให้ Vercel Build และให้ GitHub Actions Mirror ไปยัง `school/main`)
 
-**Project:** KP e-Leave & School Enterprise System (โรงเรียนกุดจับประชาสรรค์)  
-**Updated Date:** 2026-09-11  
-**Working Branch:** `dev`  
-**Production Branch:** `main` (ต่อกับ Vercel Auto-Deployment)  
-**Git Remotes:**
-- `origin`: `https://github.com/Kutchapprachasan-School/KP_eLeave_System.git`
-- `school`: `https://github.com/khamyangpittayaschool-code/e-leave.git` (Mirror ผ่าน GitHub Actions)
+## 2. Core Subsystems Map
+1. **ระบบวันลา (`/dashboard`, `/request`):** คำนวณวันลา ตรวจสอบโควตา และลำดับการอนุมัติ
+2. **ระบบจองยานพาหนะและสถานที่ (`/facility`):** ตรวจสอบตารางเวลาซ้ำซ้อนและผู้อนุมัติ
+3. **ระบบงบประมาณและสมุดบัญชีย่อย (`/budget`):** อิงตาม ADR-001 (Simplified Disbursement & Clone Engine)
+4. **ระบบออกเลขและทะเบียนหนังสือราชการ (`/document`):** รันเลขทะเบียนอัตโนมัติป้องกันเลขซ้ำ
 
----
-
-## 1. กฎเหล็กการพัฒนาและ Deploy (Strict Deployment Principles)
-
-### 📌 กฎข้อที่ 1: การทำงานบนกิ่ง `dev` เท่านั้น (Development Branch Rule)
-> *"ต่อไปพัฒนาใน branch dev เท่านั้น ห้าม commit ตรงเข้า main"*
-- **ทุกฟีเจอร์ บั๊กฟิกซ์ และการทดสอบ ต้องทำบนกิ่ง `dev` เท่านั้น**
-- กิ่ง `main` มีไว้สำหรับ Production Deployment เท่านั้น
-- เมื่อผู้ใช้สั่งให้ "เอาขึ้น main" หรือ "Deploy" ให้ทำตาม **ขั้นตอนการ Deploy มาตรฐาน (Standard Deployment Pipeline)**
-
-### 📌 กฎข้อที่ 2: ขั้นตอนการ Deploy มาตรฐาน (Standard Git Pipeline to Production)
-เมื่อการพัฒนาและทดสอบบนกิ่ง `dev` ผ่านเรียบร้อยแล้ว ให้ปฏิบัติตามลำดับคำสั่งนี้เสมอ:
-```bash
-# 1. ตรวจสอบสถานะไฟล์และคอมมิตงานบน dev
-git status
-git add .
-git commit -m "feat(scope): คำอธิบายฟังก์ชันที่เพิ่มหรือแก้ไข"
-
-# 2. ผลักดันกิ่ง dev ขึ้น GitHub
-git push origin dev
-
-# 3. สลับไปกิ่ง main และผสานโค้ด (Merge)
-git checkout main
-git merge dev
-
-# 4. ผลักดันกิ่ง main ขึ้น GitHub (ทริกเกอร์ Vercel Build และ GitHub Actions Mirror)
-git push origin main
-
-# 5. สลับกลับมาที่กิ่ง dev เพื่อทำงานต่อไปทันที
-git checkout dev
-```
-> **หมายเหตุ:** ทันทีที่ `origin/main` ได้รับโค้ดใหม่:
-> 1. **Vercel** จะเริ่ม Build และ Deploy ระบบจริงขึ้น Production อัตโนมัติ
-> 2. **GitHub Actions Workflow** [`.github/workflows/mirror-to-school.yml`](file:///g:/My%20Drive/01%20Web%20app/01%20ระบบการลา/.github/workflows/mirror-to-school.yml) จะทำการ Sync โค้ดไปยัง `school/main` โดยอัตโนมัติ
-
-### 📌 กฎข้อที่ 3: การกำกับ Version และ Revision ของแผนงาน (Plan Versioning & Revision Protocol)
-> *"การปรับแผนแต่ละครั้งให้เอาเป็น Version หรือ Rev ในแต่ละการปรับแผนเสมอ"*
-- **ทุกแผนงานการพัฒนา (`implementation_plan.md`):** ต้องมีเลข Version / Rev กำกับเสมอ เช่น `v1.0 (Rev. 0)` สำหรับแผนตั้งต้น และ `v1.1 (Rev. 1)`, `v1.2 (Rev. 2)` สำหรับการแก้ไข
-- **ต้องมีตาราง Revision History:** สรุปประวัติการแก้ไขไว้บนสุดของเอกสาร (Changelog: เพิ่มอะไร, แก้ไขอะไร, ล็อกอะไร)
-- **ห้ามแก้ไขแผนงานโดยไม่ระบุ Version / Revision อย่างเด็ดขาด** (ดูรายละเอียดใน [`.agent/rules/plan-versioning.md`](file:///g:/My%20Drive/01%20Web%20app/01%20ระบบการลา/.agent/rules/plan-versioning.md))
-
----
-
-## 2. กฎความปลอดภัยของฐานข้อมูล Production (Database & Migration Protocol)
-
-1. **ห้ามใช้คำสั่งทำลายข้อมูลเด็ดขาด (No Destructive Migrations):**
-   - **ห้ามรัน `prisma migrate reset` บน Production เด็ดขาด**
-   - การปรับแก้ตารางต้องเป็นแบบ Additive (เช่น `ADD COLUMN IF NOT EXISTS`, ตั้งค่า Default, หรืออนุญาตให้ Nullable)
-   - ใช้ `prisma db push` หรือรันสคริปต์ SQL แบบมีเงื่อนไข `IF NOT EXISTS`
-2. **Global Row-Locking Hierarchy (ป้องกัน Deadlock 100%):**
-   - ทุกธุรกรรมการเงินและการจองทรัพยากรที่มีการแก้ไขยอดหรือสถานะ ต้องใช้ `SELECT ... FOR UPDATE NOWAIT`
-   - **ต้องเรียงลำดับ Primary Key ตามตัวอักษร (Ascending PK Order)** เสมอก่อนทำการ Acquire Lock เพื่อป้องกัน Deadlock ข้าม Transaction
-3. **ห้าม Hard-Delete ข้อมูลที่มี Foreign Key อ้างอิง:**
-   - ทรัพยากร (เช่น รถ/ห้องประชุมในระบบ `/facility`) ที่มีประวัติการจอง ให้ Fallback เป็น Soft-Delete/`RETIRED` เมื่อเจอ Error รหัส `P2003` หรือ `23503` (Foreign Key Constraint Violation) เท่านั้น Error อื่นให้ Throw ตามปกติ
-4. **กฎความปลอดภัยบัญชีผู้ใช้และข้อมูลทดสอบ (Zero Orphaned Test Accounts):**
-   - ฐานข้อมูลจริงต้องมีเฉพาะบุคลากรจริงของโรงเรียนเท่านั้น ห้ามมีบัญชีทดสอบหลงเหลือ (จำนวนบุคลากรจริงสามารถเพิ่มขึ้นหรือลดลงได้ตามการปฏิบัติงานจริงของโรงเรียน)
-   - ห้ามใส่สคริปต์ทดสอบที่เขียนลง Database จริงไว้ใน `npm test` ปกติ (ให้แยกเป็น `npm run test:<module>`)
-   - หากสคริปต์ทดสอบใดจำเป็นต้องยิง Database จริง ต้องมี `after()` hook ล้างข้อมูลแบบ Cascade พร้อมใช้ `DISABLE TRIGGER USER;` และลบบัญชีทดสอบออก 100% เสมอ
-   - ดูรายละเอียดใน [`.agent/rules/test-data-and-account-safety.md`](file:///g:/My%20Drive/01%20Web%20app/01%20ระบบการลา/.agent/rules/test-data-and-account-safety.md)
-
----
-
-## 3. กฎความปลอดภัย Next.js 16 / Turbopack / Server Actions (Vercel Build Rules)
-
-1. **Server Action Export Safety:**
-   - ทุกฟังก์ชันในไฟล์ที่ขึ้นต้นด้วย `"use server"` หากถูกเรียกใช้จากภายนอก **ต้อง Export ให้ถูกต้อง** ห้ามมี Unexported Action หรือ Dead Import ที่ทำให้ Turbopack บน Vercel Compile ไม่ผ่าน
-2. **Server-to-Client Serialization Boundary:**
-   - React Server Actions ไม่รองรับการส่งผ่านค่า `BigInt`, Raw Prisma Object ที่ซับซ้อน หรือ Decimal Object ออกไปยัง Client โดยตรง
-   - ให้ครอบผลลัพธ์ผ่านฟังก์ชัน `serializeForClient()` หรือ `JSON.parse(JSON.stringify(...))` ก่อนส่งกลับ Client เสมอ
-3. **รักษาความสะอาดของ `.vercelignore`:**
-   - ไฟล์ทดสอบใน `scratch/`, `tests/`, และเอกสาร PDF/Excel ให้คงอยู่ใน `.vercelignore` เพื่อให้เครื่อง Vercel Build ทำงานรวดเร็ว ไม่กิน Memory และไม่ติด Timeout
-
----
-
-## 4. สถาปัตยกรรมและโมดูลสำคัญในระบบ (System Subsystems)
-
-```mermaid
-flowchart TD
-    subgraph Core["แกนหลักของระบบ (Core Services)"]
-        Auth["Better-Auth + RBAC"]
-        DB[(PostgreSQL Neon/Supabase)]
-        Storage["Supabase Storage (Bucket data1)"]
-    end
-
-    subgraph Subsystems["โมดูลระบบงานหลัก (Enterprise Subsystems)"]
-        Leave["1. ระบบวันลาออนไลน์ (/dashboard)"]
-        Facility["2. ระบบจองห้องประชุมและยานพาหนะ (/facility)"]
-        Budget["3. ระบบงบประมาณและสมุดบัญชีย่อย (/budget)"]
-        DocNum["4. ระบบออกเลขหนังสือราชการ"]
-    end
-
-    Leave --> Auth
-    Facility --> Auth
-    Budget --> Auth
-    Leave --> DB
-    Facility --> DB
-    Budget --> DB
-```
-
-| โมดูล / ระบบ | หน้าเว็บหลัก | Service / Server Actions | Architectural Invariants & ADR |
-|---|---|---|---|
-| **ระบบวันลา (e-Leave)** | `/dashboard`, `/print/leave` | `src/app/actions/user.ts`, `upload.ts` | ลายเซ็นต์เป็น Private Authenticated Stream (`/api/signatures/[userId]`), เก็บไฟล์ด้วย Pure ASCII Key |
-| **ระบบจองยานพาหนะ/สถานที่** | `/facility` | `src/services/facility-reservation.service.ts`, `src/app/actions/facility.ts` | Lock Order เรียงตาม PK, Catch `P2003` เพื่อ Fallback เป็น `RETIRED`, Server-side RBAC |
-| **ระบบงบประมาณ & แผนงาน** | `/budget` | `src/services/project-budget.service.ts`, `src/app/actions/project-budget.ts` | [ADR-001](file:///g:/My%20Drive/01%20Web%20app/01%20ระบบการลา/docs/adr/20260909-budget-simplified-disbursement-and-clone-engine.md): 5-Layer Invariants, Cash-gated Approval, FY Closure & Financial Freeze, Batch Project Cloning Engine |
-
----
-
-## 5. เครื่องมือและสกิลที่ติดตั้งในระบบ (Skills Ecosystem)
-
-- **`grill-doc`**: สกิลสัมภาษณ์และ Stress-Test แผนงาน/สถาปัตยกรรมเชิงลึก พร้อมสร้าง **Architecture Decision Record (ADR)** บันทึกไว้ใน `docs/adr/`
-- **`handoff`**: สกิลสรุปและส่งต่องานระหว่างเซสชัน
-- **`ui-ux-pro-max`**: คลังดีไซน์ UI/UX มาตรฐานสถานศึกษา
-- **`html-planner`**: ระบบวางแผนงานแบบ Multi-Agent
-
----
-
-## 6. มาตรฐานขนาดตัวอักษรและ UI/UX ของระบบเอกสาร (Document System Typography Standard)
-
-เพื่อให้ทุกแบบฟอร์มในระบบออกเลขและทะเบียนเอกสารราชการ (ออกเลขหนังสือ, ทะเบียนเกียรติบัตร ฯลฯ) มีความสม่ำเสมอ เป็นระเบียบ สบายตา และอ่านง่าย ให้ยึดมาตรฐานดังนี้:
-
-| องค์ประกอบ UI | Tailwind Classes & Specification | รายละเอียด |
-|---|---|---|
-| **Main Card Container** | `bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 md:p-6 shadow-xs` | การ์ดคอนเทนเนอร์หลักของฟอร์ม |
-| **Section Header (Badge)** | `w-7 h-7 rounded-full bg-indigo-100 dark:bg-indigo-950/80 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-sm font-extrabold` | ตัวเลขลำดับหัวข้อหน้าฟอร์ม |
-| **Section Title Text** | `text-base font-extrabold text-slate-900 dark:text-white` | ชื่อหัวข้อฟอร์ม (ขนาด 16px หนาพิเศษ) |
-| **Field Labels** | `block text-sm font-bold text-slate-800 dark:text-slate-200 mb-1.5` | ป้ายกำกับช่องกรอก (14px หนา) |
-| **Helper / Subtext** | `text-[11px] font-medium text-slate-500 dark:text-slate-400` | คำอธิบายกำกับใต้ช่องกรอก (11px) |
-| **Inputs / Selects / Dates** | `w-full h-11 px-3.5 rounded-xl border border-slate-200 dark:border-slate-750 bg-white dark:bg-slate-950 text-sm font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none` | ความสูงมาตรฐาน 44px (h-11) ตัวหนังสือ 14px |
-| **Textarea** | `w-full p-3.5 rounded-xl border border-slate-200 dark:border-slate-750 bg-white dark:bg-slate-950 text-sm font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none resize-none` | ช่องข้อความหลายบรรทัด 14px |
-| **Primary Action Button** | `w-full h-11 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:scale-[0.99] text-white text-xs font-bold transition-all flex items-center justify-center gap-2 shadow-md shadow-indigo-600/20 disabled:opacity-50 cursor-pointer border border-indigo-500/20` | ปุ่มยืนยันหลัก สูง 44px ตัวหนังสือ 12px หนา |
-| **Secondary Button** | `px-3.5 py-1.5 rounded-xl bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 text-xs font-bold transition cursor-pointer` | ปุ่มรอง/ตัวเลือกเสริม |
-| **Table Header Cells** | `border-b border-slate-100 dark:border-slate-800 text-[11px] font-bold text-slate-400 uppercase tracking-wider py-2 px-2.5` | ส่วนหัวตารางประวัติ 11px ตัวพิมพ์ใหญ่ |
-| **Table Data Cells** | `py-3 px-2.5 text-xs text-slate-700 dark:text-slate-300 font-medium` | ข้อมูลแถวตาราง 12px กลาง |
-| **Document Number Code** | `font-mono font-bold whitespace-nowrap text-slate-900 dark:text-white` | เลขที่เอกสารใช้ฟอนต์ Mono หนา |
-
-*โทนสีมาตรฐาน*: ใช้โทนสีสุภาพ **Indigo / Slate / Emerald** หลีกเลี่ยงการใช้สีจัดจ้านอย่างสีส้มสดสำหรับงานราชการทั่วไป เพื่อความสบายตาในการใช้งานต่อเนื่องของครู
-
----
-
-## 7. สรุปคำสั่งสำหรับ AI ในแชทถัดไป (Quick Prompt for Future Sessions)
-
-หากเริ่มเซสชันใหม่ ให้ AI อ่านไฟล์นี้ทันที:
-1. อ่านกฎเหล็กใน [`.agent/rules/handoff.md`](file:///g:/My%20Drive/01%20Web%20app/01%20ระบบการลา/.agent/rules/handoff.md)
-2. ยึดกิ่ง `dev` ในการทำงานเสมอ
-3. ตรวจสอบ [ADR-001](file:///g:/My%20Drive/01%20Web%20app/01%20ระบบการลา/docs/adr/20260909-budget-simplified-disbursement-and-clone-engine.md) หากต้องแก้ไขหรือขยายระบบงบประมาณ
-4. รักษามาตรฐานฟอนต์และ UI/UX ของระบบเอกสารตามข้อ 6
-5. เมื่อพร้อม Deploy ให้รันขั้นตอนการ Push `dev` $\rightarrow$ Merge `main` $\rightarrow$ Push `main` ตามขั้นตอนในข้อ 1
-
+## 3. Specialized Rule Pointers (Single Source of Truth)
+- **โครงสร้าง 3-Layer & Server Actions:** ดูที่ `.agent/rules/architecture.md`
+- **Database Locking, Transaction & Soft-Delete:** ดูที่ `.agent/rules/database.md`
+- **Next.js 16 Boundary, Serialization & UI:** ดูที่ `.agent/rules/frontend.md` และ `docs/handoff/UI_UX_DESIGN_SYSTEM_GUIDE.md`
+- **Zero Trust Auth, RBAC & PDPA:** ดูที่ `.agent/rules/security.md`
+- **การประหยัด Token & การใช้ `CODEBASE_INDEX.md`:** ดูที่ `.agent/rules/token-efficiency.md`
+- **การกำกับ Version แผนงาน:** ดูที่ `.agent/rules/plan-versioning.md`

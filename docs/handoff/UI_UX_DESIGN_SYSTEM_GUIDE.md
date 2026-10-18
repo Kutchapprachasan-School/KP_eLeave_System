@@ -60,9 +60,9 @@
 ## 🎨 3. Color Tokens & Elevation
 
 ### 3.1 Surface & Containers (Glassmorphic Cards)
-- **Card Background**: `bg-white/80 dark:bg-slate-900/80`
+- **Card Background (Legibility Rule)**: ขั้นต่ำ 90% opacity เช่น `bg-white/90 dark:bg-slate-900/90` (หรือ `bg-white/95 dark:bg-slate-900/95` บนหน้าจอคอมพิวเตอร์ทั่วไปของโรงเรียน) เพื่อให้ตัวหนังสือคมชัด ไม่กลืนกับพื้นหลัง
 - **Backdrop Blur**: `backdrop-blur-xl`
-- **Borders**: `border border-white/60 dark:border-slate-800`
+- **Borders**: `border border-white/80 dark:border-slate-800`
 - **Corner Radius**: `rounded-3xl` (cards), `rounded-xl` (inputs/buttons), `rounded-2xl` (modals/inner cards)
 - **Shadow**: `shadow-[0_8px_30px_rgb(0,0,0,0.04)]`
 
@@ -73,10 +73,12 @@
 - **Form Label**: `block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2`
 - **Helper / Footnote Text**: `text-xs text-slate-400 dark:text-slate-500 leading-relaxed`
 
-### 3.3 Form Inputs
-- **Input / Select**: `w-full h-11 px-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all`
+### 3.3 Form Inputs & Brand Colors
+- **Main Portal Color (School Operations)**: โทนสีน้ำเงิน `blue-600` (Focus: `focus:ring-blue-500/20 focus:border-blue-500`)
+- **Document & Executive Portal**: โทนสีคราม `indigo-600` (Focus: `focus:ring-indigo-500/20 focus:border-indigo-500`)
+- **Input / Select**: `w-full h-11 px-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all`
 - **Input with Icon**: `pl-10` พร้อม `<div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">`
-- **Textarea**: `w-full p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 resize-none transition-all`
+- **Textarea**: `w-full p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 resize-none transition-all`
 
 ### 3.4 Buttons
 - **Primary Submit Button**:

@@ -8,26 +8,60 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 <!-- END:nextjs-agent-rules -->
 
-# KP e-Leave Production & Agent Orchestration Guide
+# 🤖 AGENTS.md — Master Control & Rule Router (v3.1)
 
-## 1. Core Invariants (กฎเหล็กที่ไม่เปลี่ยนแปลง)
-- **Zero Orphaned Test Accounts:** ห้ามสร้างบัญชีทดสอบตกค้างในฐานข้อมูลเด็ดขาด (`WHERE email LIKE '%test%' OR name LIKE '%ทดสอบ%' = 0`). ห้ามแตะ/ลบบัญชีจริงของโรงเรียนเด็ดขาด รายละเอียด: [.agent/rules/database.md](file:///g:/My%20Drive/01%20Web%20app/01%20ระบบการลา/.agent/rules/database.md)
-- **Git Branch:** ทำงานบนกิ่ง `dev` เท่านั้น ห้าม commit เข้า `main` โดยตรง
-- **Zero Quality Compromise:** การประหยัด Token ต้องไม่ลดทอนคุณภาพโค้ดระดับ Production (Type safety, Error handling, Security, UI fidelity)
+ไฟล์นี้คือศูนย์กลางคำสั่งหลักของระบบบริหารจัดการสถานศึกษา (SODS: ระบบการลา `/request`, จองสถานที่/ยานพาหนะ `/facility`, งบประมาณ `/budget`, และทะเบียนหนังสือราชการ `/document`) AI Agent ทุกตัวต้องปฏิบัติตามขั้นตอนและตารางอ้างอิงนี้โดยไม่มีข้อยกเว้น
 
-## 2. 7-Step Risk-Adjusted Execution Protocol (กระบวนการทำงานตามความเสี่ยง)
-1. **Classify Scope & Risk:** ประเมินขอบเขต ความเสี่ยง และโมดูลที่เกี่ยวข้อง กำหนด Acceptance Criteria ชัดเจนก่อนแตะโค้ด
-2. **Search-First & Callers Check:** ใช้ Single-line search หาจุดนิยามและ Caller เสมอ เลขบรรทัดใน `CODEBASE_INDEX.md` ถือเป็นพิกัดอ้างอิงคร่าวๆ (Hints)
-3. **Read-Minimum with Dependencies:** อ่านโค้ดเป้าหมายพร้อม Import, Type และ Context ที่จำเป็น ไม่ตัดอ่านเฉพาะส่วนจนเสียความเข้าใจ
-4. **Surgical Modification:** แก้ไขด้วย `replace_file_content` เฉพาะบล็อกที่เปลี่ยนจริง อนุรักษ์ comments เดิม 100%
-5. **Risk-Adjusted Verification:** รันชุดทดสอบตาม Test Pyramid (Scoped Unit -> Typecheck -> Full Suite) หากพบ Error เดิมซ้ำ 2 ครั้ง ให้หยุดวิเคราะห์ Root Cause ทันที
-6. **Update Stable Index & Ledger:** อัปเดต `CODEBASE_INDEX.md` หากมีโครงสร้างเปลี่ยน และบันทึกผลงานลง `.agent/ledger/token-ledger.json`
-7. **Trigger-Based Handoff:** พิจารณา Handoff เมื่อบริบทใกล้เต็ม, พฤติกรรมเริ่มวนซ้ำ, หรือจบ Milestone สำคัญ ไม่บังคับตามจำนวนตัวเลขตายตัว
+---
 
-## 3. Modular Rules Index (โหลดเฉพาะเรื่องที่เกี่ยวข้อง)
-- **Database & Prisma:** [.agent/rules/database.md](file:///g:/My%20Drive/01%20Web%20app/01%20ระบบการลา/.agent/rules/database.md)
-- **Architecture & Services:** [.agent/rules/architecture.md](file:///g:/My%20Drive/01%20Web%20app/01%20ระบบการลา/.agent/rules/architecture.md)
-- **Security & RBAC & PDPA:** [.agent/rules/security.md](file:///g:/My%20Drive/01%20Web%20app/01%20ระบบการลา/.agent/rules/security.md)
-- **Frontend & App Router UI:** [.agent/rules/frontend.md](file:///g:/My%20Drive/01%20Web%20app/01%20ระบบการลา/.agent/rules/frontend.md)
-- **Token Efficiency & Budgeting:** [.agent/rules/token-efficiency.md](file:///g:/My%20Drive/01%20Web%20app/01%20ระบบการลา/.agent/rules/token-efficiency.md)
-- **Forensic Teardown Safety:** [.agent/rules/test-data-and-account-safety.md](file:///g:/My%20Drive/01%20Web%20app/01%20ระบบการลา/.agent/rules/test-data-and-account-safety.md)
+## ⚡ 1. The 5-Step Execution Workflow (ลำดับการทำงานบังคับ)
+
+1. **🔍 Locate First (`CODEBASE_INDEX.md`):**
+   - ห้ามเปิดอ่านไฟล์ที่มีขนาดเกิน 100 บรรทัดแบบเต็มไฟล์ รวมถึงห้ามเปิด `prisma/schema.prisma` ทั้งไฟล์
+   - เปิดดูพิกัด `[Lเริ่ม-Lจบ]` ใน `CODEBASE_INDEX.md` ก่อนเสมอ แล้วใช้ `StartLine` และ `EndLine` เจาะอ่านเฉพาะจุด
+2. **📝 Plan & Version:**
+   - ทุกแผนงาน (`implementation_plan.md`) และเอกสาร ADR ต้องระบุเลข Version (`v1.0 / Rev. 0`) และตาราง Revision History ตามกฎ `.agent/rules/plan-versioning.md`
+3. **🛠️ Develop on `dev` (3-Layer Architecture):**
+   - เขียนโค้ดบนกิ่ง `dev` เท่านั้น
+   - แยกชั้น `Presentation (Server/Client)` -> `Domain/Service` -> `Data Access/Repository` อย่างเคร่งครัด ห้ามใช้ `any` หรือ `@ts-ignore`
+4. **🔄 Verify & Auto-Sync Index (`npm run index:sync`):**
+   - คำสั่ง Terminal ที่ให้ผลลัพธ์เกิน 50 บรรทัด (`npm test`, `npm run build`) ต้อง Redirect ลง `scratch/[task-name]-[timestamp].log` แล้วเจาะอ่านเฉพาะบรรทัดที่เกิด Error
+   - **ทันทีที่แก้ไข เพิ่ม หรือลบโค้ด/Schema เสร็จ บังคับรัน `npm run index:sync` ทุกครั้ง** ห้ามนับหรือแก้เลขบรรทัดใน `CODEBASE_INDEX.md` ด้วยตัวเองเด็ดขาด
+5. **🚀 Zero-Switch Deploy & Milestone Handoff:**
+   - **เมื่อครบ 3–5 งานย่อย หรือครบ 15 tool calls:** ให้ตัดจบงานและสรุปส่งต่อด้วยสกิล `.agent/skills/handoff/SKILL.md` ทันที
+   - **เมื่อสั่ง Deploy:** ห้ามสั่ง `git checkout main` (เพื่อป้องกัน Google Drive ล็อกไฟล์ `.git/index.lock` และป้องกัน Turbopack พัง) ให้รันคำสั่งจากกิ่ง `dev` ตามลำดับนี้เท่านั้น:
+     ```bash
+     npm run index:sync
+     git add . && git commit -m "<commit-message>"
+     git push origin dev
+     git push origin dev:main
+     ```
+
+---
+
+## 🧭 2. Specialized Rules Routing Table (Single Source of Truth)
+
+เมื่อต้องทำงานเกี่ยวข้องกับหมวดใด ให้เปิดอ่านไฟล์กฎเฉพาะทางตามตารางนี้ก่อนลงมือเสมอ:
+
+| หมวดงาน / ขอบเขต | ไฟล์กฎที่ต้องอ้างอิง (Path) | กฎเหล็กสำคัญ (Key Invariants) |
+| :--- | :--- | :--- |
+| **ภาพรวมระบบ & Pipeline** | `.agent/rules/handoff.md` | แผนผัง 4 Subsystems, ขั้นตอน Zero-Switch Git Deployment |
+| **การประหยัด Token & Subagent** | `.agent/rules/token-efficiency.md` | Targeted View, Scratchpad Redirect (`scratch/`), Ephemeral Subagent (Flash) |
+| **โครงสร้างโค้ด & Server Action** | `.agent/rules/architecture.md` | 3-Layer Architecture, Lean Server Actions (Auth -> Zod -> Service -> Revalidate) |
+| **ฐานข้อมูล & Prisma** | `.agent/rules/database.md` | `$transaction`, `SELECT ... FOR UPDATE NOWAIT` (เรียง PK น้อยไปมาก), ดัก `P2003` ทำ Soft-Delete (`RETIRED`) |
+| **ความมั่นคงปลอดภัย & PDPA** | `.agent/rules/security.md` | Zero Trust (`auth()` บน Server เท่านั้น), RBAC 5 ระดับ, คุ้มครองข้อมูลใบรับรองแพทย์ |
+| **ข้อมูลทดสอบ & ความปลอดภัย DB** | `.agent/rules/test-data-and-account-safety.md` | ห้ามทิ้ง Test Account ใน DB จริง, ใช้ Transactional Rollback Test, ห้ามสั่ง `DISABLE TRIGGER USER` |
+| **Frontend & Next.js 16** | `.agent/rules/frontend.md` | Server Component Default, Serialize `Decimal`/`BigInt`/`Date` ก่อนข้าม Boundary, Hydration-safe `isMounted` |
+| **มาตรฐาน UI/UX สถานศึกษา** | `docs/handoff/UI_UX_DESIGN_SYSTEM_GUIDE.md` | โทนสี Indigo/Slate/Emerald, ปุ่ม/Input สูง `h-11` (44px), การ์ด Glassmorphism ทึบแสงอย่างน้อย `bg-white/90` |
+| **การกำกับ Version แผนงาน** | `.agent/rules/plan-versioning.md` | กำกับ `vX.Y (Rev. Z)` พร้อมตาราง Added / Changed / Removed |
+| **การเขียนสรุปส่งต่องาน** | `.agent/skills/handoff/SKILL.md` | โครงสร้างบันทึก Handoff มาตรฐาน 5 ส่วนเมื่อจบ Milestone |
+
+---
+
+## 🚫 3. Absolute Red Lines (ข้อห้ามเด็ดขาด)
+
+1. **ห้ามรัน `prisma migrate reset`** หรือคำสั่งทำลายข้อมูลบนฐานข้อมูลทุกกรณี
+2. **ห้ามแก้ไขไฟล์ `CODEBASE_INDEX.md` ด้วยมือ** ต้องอัปเดตผ่านคำสั่ง `npm run index:sync` เท่านั้น
+3. **ห้ามสลับกิ่งไป `main` (`git checkout main`)** ใน Working Tree บน Google Drive ให้ใช้ `git push origin dev:main` เสมอ
+4. **ห้าม Commit โฟลเดอร์ `scratch/`** หรือทิ้งบัญชีทดสอบค้างไว้ในฐานข้อมูลจริง
+5. **ห้ามส่งค่า `Decimal` หรือ `BigInt` ดิบ** ข้ามจาก Server Component/Action ไปยัง Client Component โดยไม่ผ่านการแปลงค่า

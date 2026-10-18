@@ -1,623 +1,585 @@
-# KP e-Leave & School Enterprise System — Codebase Navigation Index
-
-> **อัปเดตล่าสุด:** 2026-10-14  
-> **⚠️ กฎ:** ทุกครั้งที่สร้าง/ลบ/ย้ายไฟล์ หรือเพิ่ม/ลบ/เปลี่ยนชื่อ function สำคัญ → ต้องอัปเดตไฟล์นี้ทันที
-
----
-
-## 📁 โครงสร้าง Root Directory
-
-```
-├── .agent/              # Agent rules & skills
-│   ├── rules/           # Mandatory agent rules
-│   └── skills/          # Agent skills (handoff, grill-doc, ui-ux-pro-max, etc.)
-├── .github/workflows/   # GitHub Actions (mirror-to-school.yml)
-├── docs/                # Documentation (ADRs, handoff, superpowers)
-├── prisma/              # Prisma schema & migrations
-├── public/              # Static assets
-├── scripts/             # Utility scripts
-├── src/                 # Main source code
-│   ├── app/             # Next.js App Router
-│   ├── components/      # Shared UI components
-│   ├── constants/       # Constants (permissions, etc.)
-│   ├── core/            # Core domain (events, modules)
-│   ├── events/          # Event catalog
-│   ├── features/        # Feature modules (Clean Architecture)
-│   ├── lib/             # Shared libraries & utilities
-│   ├── repositories/    # Data repositories
-│   ├── services/        # Business services & engines
-│   ├── styles/          # Global styles
-│   └── workers/         # Web Workers
-├── AGENTS.md            # Root agent rules
-└── CODEBASE_INDEX.md    # ← ไฟล์นี้
-```
-
----
-
-## 🗂️ Agent Rules & Skills (`.agent/`)
-
-| ไฟล์ | หน้าที่ |
-|---|---|
-| `.agent/rules/handoff.md` | Session Handoff & System Architectural Rulebook v3.0 |
-| `.agent/rules/plan-versioning.md` | กฎการกำกับ Version/Revision ทุกแผนงาน |
-| `.agent/rules/test-data-and-account-safety.md` | กฎห้ามทิ้งบัญชีทดสอบค้างใน DB |
-| `.agent/rules/token-efficiency.md` | กฎประหยัด Token & ป้องกัน Quadratic Context Explosion |
-
----
-
-## 🌐 App Routes (`src/app/`)
-
-### Authentication & Public Routes
-
-| Route | ไฟล์ | หน้าที่ |
-|---|---|---|
-| `/login` | `src/app/login/` | หน้า Login |
-| `/reset-password` | `src/app/reset-password/` | รีเซ็ตรหัสผ่าน |
-| `/verify` | `src/app/verify/` | ยืนยันตัวตน |
-| `/v` | `src/app/v/` | Verify shortlink |
-| `/privacy` | `src/app/privacy/` | หน้า Privacy Policy สาธารณะ |
-| `/supervision` | `src/app/supervision/` | ระบบนิเทศ (standalone) |
-| `/print` | `src/app/print/` | หน้าพิมพ์เอกสาร |
-
-### Main App Routes (`src/app/(app)/`)
-
-| Route | ไฟล์ | หน้าที่ |
-|---|---|---|
-| App Layout & Navigation | `(app)/layout.tsx` | โครงสร้างหลัก (Sidebar ดีไซน์ใหม่สไตล์ SMS ตามแบบระบบจัดการชั้นเรียน: โลโก้/ชื่อโรงเรียนกุดจับประชาสรรค์, ปุ่มปิด X, เมนูคลีนเรียบหรูพร้อมแบดจ์ Admin และตัวเลขนับ, ปุ่มออกจากระบบขอบน้ำเงิน, Top Header Bar สไตล์ SMS: วันที่ภาษาไทยไดนามิก/ภาคเรียน, ค้นหานักเรียน, T ขนาดฟอนต์, TH ภาษา, สลับธีม, เต็มจอ, กระดิ่งแจ้งเตือนแม่นยำไม่ขึ้นหลอก 3 รายการพร้อมป็อปอัปตอบสนองมือถือ, แคปซูลโปรไฟล์ผู้ใช้ขวาสุด) |
-| `/dashboard` | `(app)/dashboard/page.tsx` | Dashboard หลัก — ศูนย์รวม All-in-One KPI Hub รวมทุกระบบย่อย (การลา, สารบรรณ, ซ่อมบำรุง, ทรัพยากร, ผู้เรียน) |
-| `(app)/dashboard/_components/` | Sub-components | ExecutiveLeaveDashboardView (All-in-One KPI Hub), SMSHeroBanner, SubsystemQuickHub, ExecutiveLeaveStatCards (11 Modular KPI Cards), SMSLearningOutcomeChart, SMSAttendanceDonutCard, SMSOperationsStrip, ExecutiveLeaveCharts, ExecutiveStudentLeaveOverview, SMSAnnouncementsCard, SMSAcademicCalendarCard, ExecutiveApprovalQueue, MonthlyTrendChart, DashboardWidgetCustomizerModal, DashboardShell, SystemSelector |
-| `/leave` | `(app)/leave/page.tsx` | ระบบการลา (UI หลัก) |
-| `/request` | `(app)/request/page.tsx` | ยื่นคำขอลา |
-| `/approvals` | `(app)/approvals/page.tsx` | อนุมัติคำขอลา |
-| `/history` | `(app)/history/page.tsx` | ประวัติการลา |
-| `/reports` | `(app)/reports/page.tsx` | รายงาน |
-| `/attendance` | `(app)/attendance/page.tsx` | ระบบลงเวลา |
-| `/users` | `(app)/users/page.tsx` | จัดการผู้ใช้ |
-| `/settings` | `(app)/settings/page.tsx` | ตั้งค่าระบบ |
-| `/settings/privacy` | `(app)/settings/privacy/page.tsx` | ตั้งค่า Privacy |
-| `/profile` | `(app)/profile/page.tsx` | โปรไฟล์ผู้ใช้ |
-| `/logs` | `(app)/logs/page.tsx` | System Logs |
-| `/manual` | `(app)/manual/page.tsx` | คู่มือการใช้งาน |
-| `/calendar` | `(app)/calendar/page.tsx` | ปฏิทินกิจกรรมสถานศึกษา (School Activities & Events Calendar) ดีไซน์เดียวกับระบบจัดการชั้นเรียน ซิงค์ข้อมูลผ่าน schoolCalendarSyncService |
-| `/archive` | `(app)/archive/page.tsx` | ข้อมูลย้อนหลัง/สำรอง |
-
-### Document Module (`(app)/document/`)
-
-| Route | หน้าที่ |
-|---|---|
-| `document/page.tsx` | รายการหนังสือราชการ |
-| `document/new/page.tsx` | สร้างหนังสือราชการใหม่ |
-| `document/settings/page.tsx` | ตั้งค่าระบบหนังสือ |
-| `document/incoming/[id]/page.tsx` | รายละเอียดหนังสือเข้า |
-| `document/_components/designer/` | PDF Designer (font, QR, signature) |
-
-### Repair Module (`(app)/repair/`)
-
-| Route | หน้าที่ |
-|---|---|
-| `repair/page.tsx` | รายการแจ้งซ่อม |
-| `repair/[id]/page.tsx` | รายละเอียดแจ้งซ่อม |
-| `repair/new/page.tsx` | แจ้งซ่อมใหม่ |
-| `repair/dashboard/page.tsx` | Dashboard ซ่อมบำรุง |
-| `repair/summary/page.tsx` | รายงานสรุป |
-| `repair/_components/` | RepairDashboardPage, RepairDetailPage, RepairListPage, etc. |
-
-### Academic Module (`(app)/academic/`)
-
-| Route | หน้าที่ |
-|---|---|
-| `academic/page.tsx` | หน้าหลักงานวิชาการ |
-| `academic/supervision/page.tsx` | นิเทศการสอน |
-| `academic/timetable/page.tsx` | ตารางสอน |
-| `academic/substitute/page.tsx` | จัดครูแทน |
-| `academic/settings/page.tsx` | ตั้งค่าวิชาการ |
-| `academic/exam/page.tsx` | ข้อสอบ/สอบ |
-| `academic/exam/omr/` | OMR (กระดาษคำตอบ) — create, scan |
-| `academic/exam/analysis/[id]/page.tsx` | วิเคราะห์ข้อสอบ |
-| `academic/exam/review/[id]/page.tsx` | ตรวจข้อสอบ |
-| `academic/competency/page.tsx` | สมรรถนะ PA/PD |
-| `academic/facility/page.tsx` | ทรัพยากร/สถานที่ (จากวิชาการ) |
-| `academic/planning/` | แผนงาน — curriculum, versions, sandbox, workload, readiness-rules, workflow-config, calendar, resources, reports |
-
-### Facility Module (`(app)/facility/`)
-
-| Route | หน้าที่ |
-|---|---|
-| `facility/page.tsx` | จองสถานที่/ยานพาหนะ |
-| `facility/settings/page.tsx` | ตั้งค่าระบบจอง |
-| `facility/_components/` | FacilityBookingForm, FacilityApprovalView, FacilityUnifiedCalendar, etc. |
-
-### HR Module (`(app)/hr/`)
-
-| Route | หน้าที่ |
-|---|---|
-| `hr/competency/page.tsx` | สมรรถนะ (HR view) |
-| `hr/attendance/page.tsx` | ลงเวลา (HR view) |
-| `hr/leave/page.tsx` | การลา (HR view) |
-| `hr/leave/request/page.tsx` | ยื่นคำขอลา (HR) |
-| `hr/leave/history/page.tsx` | ประวัติ (HR) |
-| `hr/leave/approvals/page.tsx` | อนุมัติ (HR) |
-| `hr/leave/reports/page.tsx` | รายงาน (HR) |
-
-### Other Routes
-
-| Route | หน้าที่ |
-|---|---|
-| `budget/page.tsx` | ระบบงบประมาณ |
-| `personnel/settings/page.tsx` | ตั้งค่าบุคลากร |
-| `admin/recycle-bin/page.tsx` | ถังขยะ (Recycle Bin) |
-| `general/facility/page.tsx` | จองทั่วไป |
-| `general/document/page.tsx` | หนังสือทั่วไป |
-| `general/repair/page.tsx` | แจ้งซ่อมทั่วไป |
-
----
-
-## 📡 API Routes (`src/app/api/`)
-
-| Path | หน้าที่ |
-|---|---|
-| `api/auth/` | Authentication (Better Auth) |
-| `api/cron/` | Cron jobs |
-| `api/repair/` | Repair API |
-| `api/signatures/` | Signature upload/verification |
-| `api/omr/` | OMR processing API |
-| `api/print-legacy/` | Legacy print endpoint |
-| `api/amss-test/` | AMSS integration test |
-
----
-
-## ⚡ Server Actions (`src/app/actions/`)
-
-### leave.ts (~2535 บรรทัด) — ระบบการลา
-| Function | บรรทัด | หน้าที่ |
-|---|---|---|
-| `submitLeaveRequest` | L197 | ยื่นคำขอลา |
-| `getPaginatedLeaveHistory` | L376 | ประวัติการลา (paginated) |
-| `getDashboardStats` | L572 | สถิติ Dashboard |
-| `getPendingApprovals` | L917 | รายการรออนุมัติ |
-| `approveLeaveRequest` | L982 | อนุมัติคำขอลา |
-| `rejectLeaveRequest` | L1250 | ไม่อนุมัติคำขอลา |
-| `cancelLeaveRequest` | L1412 | ยกเลิกคำขอลา |
-| `editLeaveRequest` | L1446 | แก้ไขคำขอ |
-| `getLeaveRequestForPrint` | L1719 | ข้อมูลสำหรับพิมพ์ |
-| `getBatchLeaveRequestsForPrint` | L2017 | พิมพ์แบบ Batch |
-| `uploadLeavePdf` | L2336 | Upload PDF ไป Drive |
-| `getCalendarLeaves` | L2493 | ข้อมูลปฏิทินการลา |
-| `calculateLeaveDays` | L61 | คำนวณวันลา |
-| `getMyLeaveUsageForCurrentCycle` | L1660 | สรุปการใช้วันลาในรอบปัจจุบัน |
-| `adminDeleteLeaveRequest` | L1487 | Admin ลบคำขอ |
-| `getSystemLogs` | L1584 | ดึง System Logs |
-| `pruneSystemLogs` | L1639 | ลบ Logs เก่า |
-| `getStaffList` | L520 | รายชื่อบุคลากร |
-
-### document.ts (~1677 บรรทัด) — หนังสือราชการ
-| Function | บรรทัด | หน้าที่ |
-|---|---|---|
-| `saveDocDraft` | L112 | บันทึกร่างหนังสือ |
-| `quickIssueDoc` | L186 | ออกเลขหนังสือแบบด่วน |
-| `issueDocNumber` | L211 | ออกเลขหนังสือ |
-| `cancelDoc` | L365 | ยกเลิกหนังสือ |
-| `restoreDoc` | L415 | กู้คืนหนังสือ |
-| `softDeleteDoc` | L462 | Soft delete |
-| `updateOutboundDoc` | L500 | แก้ไขหนังสือส่ง |
-| `requestDocAction` | L569 | ขออนุมัติ/ลงนาม |
-| `approveDocRequest` | L627 | อนุมัติคำขอหนังสือ |
-| `rejectDocRequest` | L691 | ไม่อนุมัติคำขอ |
-| `getDocumentsList` | L842 | รายการหนังสือ |
-| `getDocumentDetails` | L826 | รายละเอียดหนังสือ |
-| `issueActivityCertificatesBatch` | L1019 | ออกเกียรติบัตรแบบ Batch |
-| `verifyCertificatePublic` | L1322 | ตรวจสอบเกียรติบัตร (Public) |
-| `saveCertificateTemplateAction` | L1360 | บันทึก Template เกียรติบัตร |
-
-### facility.ts (~1909 บรรทัด) — จองสถานที่/ยานพาหนะ
-| Function | บรรทัด | หน้าที่ |
-|---|---|---|
-| `reserveFacilityAction` | L240 | จองสถานที่/รถ |
-| `reviewFacilityReservationHeadAction` | L589 | หัวหน้าตรวจสอบ |
-| `approveFacilityReservationDirectorAction` | L717 | ผอ.อนุมัติ |
-| `rejectFacilityReservationAction` | L812 | ไม่อนุมัติ |
-| `cancelFacilityReservationAction` | L855 | ยกเลิก |
-| `completeVehicleTripAction` | L951 | ปิดงานรถ |
-| `getFacilityResourcesAction` | L1009 | ดึงรายการทรัพยากร |
-| `getFacilityReservationsAction` | L1046 | ดึงรายการจอง |
-| `createFacilityResourceAction` | L1227 | สร้างทรัพยากรใหม่ |
-| `updateFacilityResourceAction` | L1363 | แก้ไขทรัพยากร |
-| `getFacilitySettingsAction` | L1802 | ดึงการตั้งค่า |
-
-### omr.ts (~1852 บรรทัด) — ระบบข้อสอบ OMR
-| Function | บรรทัด | หน้าที่ |
-|---|---|---|
-| `createExamPaperAction` | L113 | สร้างกระดาษข้อสอบ |
-| `updateExamPaperAction` | L181 | แก้ไขข้อสอบ |
-| `configureAnswerKeyAction` | L275 | ตั้งเฉลย |
-| `ingestExamSubmissionAction` | L1086 | นำเข้ากระดาษคำตอบ |
-| `listExamPapersAction` | L892 | รายการข้อสอบ |
-| `getExamPaperDetailsAction` | L977 | รายละเอียดข้อสอบ |
-| `generatePrintedSheetsAction` | L1523 | พิมพ์กระดาษคำตอบ |
-| `calculateExamItemAnalysisAction` | L1579 | วิเคราะห์ข้อสอบ |
-| `createRegradeJobAction` | L438 | สร้างงาน Regrade |
-
-### incoming.ts (~1317 บรรทัด) — หนังสือเข้า
-| Function | บรรทัด | หน้าที่ |
-|---|---|---|
-| `addRoutingStep` | L494 | เพิ่มขั้นตอนเดินเรื่อง |
-| `resolveRoutingStep` | L541 | ปิดขั้นตอน |
-| `skipRoutingStep` | L624 | ข้ามขั้นตอน |
-| `getMyPendingRouting` | L667 | รายการรอดำเนินการ |
-| `getIncomingDocsList` | L691 | รายการหนังสือเข้า |
-| `getIncomingDocDetails` | L730 | รายละเอียดหนังสือเข้า |
-| `syncAMSSDocumentsFromHtml` | L788 | Sync จาก AMSS |
-
-### attendance.ts (~1077 บรรทัด) — ระบบลงเวลา
-> (ดู function index ด้วย `Select-String` — ไฟล์นี้ export ผ่าน pattern ที่ไม่ใช่ standard)
-
-### settings.ts (~1102 บรรทัด) — ตั้งค่าระบบ
-| Function | บรรทัด | หน้าที่ |
-|---|---|---|
-| `getSystemSettings` | L148 | ดึงการตั้งค่า |
-| `updateSystemSettings` | L395 | อัปเดตการตั้งค่า |
-| `getLeaveConfigs` | L800 | ดึงกฎวันลา |
-| `updateLeaveConfig` | L826 | อัปเดตกฎวันลา |
-| `updateLeaveRules` | L682 | อัปเดตเงื่อนไขลา |
-| `getEligibleInspectors` | L325 | ดึงรายชื่อผู้ตรวจ |
-| `updateDefaultInspector` | L357 | ตั้งผู้ตรวจเริ่มต้น |
-| `setImpersonationCookie` | L850 | Impersonate (dev/debug) |
-| `updateAppointedDuties` | L969 | จัดการมอบหมายงาน |
-| `getSimpleUsersList` | L902 | รายชื่อผู้ใช้ (แบบย่อ) |
-
-### admin.ts (~1007 บรรทัด) — บริหารจัดการ
-| Function | บรรทัด | หน้าที่ |
-|---|---|---|
-| `getNotifications` | L86 | ดึงการแจ้งเตือน |
-| `getAllUsers` | L171 | ดึงรายชื่อผู้ใช้ทั้งหมด |
-| `updateUserProfile` | L310 | แก้ไขโปรไฟล์ผู้ใช้ |
-| `approveUser` | L372 | อนุมัติผู้ใช้ |
-| `suspendUser` | L384 | ระงับผู้ใช้ |
-| `deleteUser` | L400 | ลบผู้ใช้ |
-| `getMonthlyReport` | L477 | รายงานรายเดือน |
-| `getCycleReport` | L512 | รายงานรอบการประเมิน |
-| `getCanonicalLeaveReportDTO` | L587 | รายงานการลา (Canonical) |
-| `resetUserPasswordByAdmin` | L779 | รีเซ็ตรหัสผ่าน |
-| `createUserByAdmin` | L799 | สร้างผู้ใช้ใหม่ |
-| `importUsersByAdmin` | L874 | Import ผู้ใช้จากไฟล์ |
-
-### holiday.ts (~810 บรรทัด) — วันหยุด
-> จัดการวันหยุดราชการ, import/export, ตรวจสอบวันหยุด
-
-### archive.ts (~732 บรรทัด) — สำรอง/กู้คืน
-| Function | บรรทัด | หน้าที่ |
-|---|---|---|
-| `archiveCurrentCycle` | L42 | Archive รอบปัจจุบัน |
-| `backupSettings` | L136 | สำรองการตั้งค่า |
-| `restoreBackup` | L177 | กู้คืนจาก Backup |
-| `exportLeaveBackup` | L270 | Export ข้อมูลการลา |
-| `importLeaveBackup` | L351 | Import ข้อมูลการลา |
-
-### project-budget.ts (~776 บรรทัด) — งบประมาณ
-| Function | บรรทัด | หน้าที่ |
-|---|---|---|
-| `createProjectAction` | L335 | สร้างโครงการ |
-| `createActivityAction` | L335 | สร้างกิจกรรม |
-| `recordExpenseAction` | L431 | บันทึกค่าใช้จ่าย |
-| `approveExpenseAction` | L487 | อนุมัติค่าใช้จ่าย |
-| `transferBudgetAction` | L521 | โอนงบ |
-| `getFiscalYearDashboardAction` | L545 | Dashboard ปีงบ |
-| `simplifiedDisburseBudgetAction` | L752 | เบิกจ่ายงบ |
-
-### privacy_actions.ts (~675 บรรทัด) — PDPA/Privacy
-| Function | บรรทัด | หน้าที่ |
-|---|---|---|
-| `fetchCurrentPolicies` | L127 | ดึงนโยบาย |
-| `recordRegistrationPolicyAcknowledgments` | L153 | บันทึกการยอมรับ |
-| `checkUserPolicyAcknowledgmentStatus` | L256 | ตรวจสอบสถานะ |
-| `acknowledgePolicyForCurrentUser` | L368 | ยอมรับนโยบาย |
-| `getUserPrivacyProfileForUser` | L460 | ดึงโปรไฟล์ Privacy |
-| `withdrawUserConsentForUser` | L524 | ถอนความยินยอม |
-
-### Other Action Files
-| ไฟล์ | บรรทัด | หน้าที่ |
-|---|---|---|
-| `school-calendar.ts` | ~110 | ดึงวันหยุดและวันเรียนพิเศษจากระบบการลา (Holiday Settings ใน DB) ซิงค์เป็นหลักสำหรับปฏิทิน |
-| `dashboard-widgets.ts` | ~478 | Widget data สำหรับ Dashboard |
-| `curriculum-workflow.ts` | ~481 | Workflow หลักสูตร |
-| `recycle-bin.ts` | ~423 | ถังขยะ (soft delete/restore) |
-| `attendance-stats.ts` | ~305 | สถิติการลงเวลา |
-| `academic-planning.ts` | ~288 | แผนวิชาการ |
-| `workload-policy.ts` | ~264 | นโยบายภาระงาน |
-| `user.ts` | ~255 | จัดการผู้ใช้ |
-| `document-settings.ts` | ~231 | ตั้งค่าหนังสือ |
-| `logs.ts` | ~151 | ระบบ Logs |
-| `competency.ts` | ~119 | สมรรถนะ |
-| `exam.ts` | ~110 | ข้อสอบ (ทั่วไป) |
-| `upload.ts` | ~91 | Upload ไฟล์ |
-| `monitoring.ts` | ~91 | Monitoring/Telemetry |
-| `attendance-leave-sync.ts` | ~41 | Sync ลงเวลา-การลา |
-| `auth_actions.ts` | ~39 | Auth helpers |
-| `telemetry.ts` | ~18 | Telemetry |
-
----
-
-## 🧩 Components (`src/components/`)
-
-| Directory | หน้าที่ |
-|---|---|
-| `components/ui/` | Shadcn/UI base components |
-| `components/shared-ui/` | Shared composite components |
-| `components/providers/` | React context providers |
-| `components/omr/` | OMR-specific components |
-| `components/privacy/` | Privacy/consent components |
-| `components/layout/` | Layout components |
-
----
-
-## 🏗️ Feature Modules (`src/features/`) — Clean Architecture
-
-### `features/supervision/` — นิเทศการสอน
-| ไฟล์ | หน้าที่ |
-|---|---|
-| `manifest.ts` | Module manifest |
-| `domain/schemas/supervision-rubric.schema.ts` | Rubric schema |
-| `domain/schemas/outbox-event.schema.ts` | Outbox event schema |
-| `domain/types/supervision.types.ts` | Type definitions |
-| `application/use-cases/director-sign.use-case.ts` | Use case: ผอ.ลงนาม |
-| `ui/actions/supervision-actions.ts` | Server actions |
-| `ui/components/supervision-matrix-grid.tsx` | Matrix grid UI |
-
-### `features/document/` — หนังสือราชการ (Clean Arch)
-| ไฟล์ | หน้าที่ |
-|---|---|
-| `manifest.ts` | Module manifest |
-| `application/use-cases/acknowledge-and-report.use-case.ts` | รับทราบ-รายงาน |
-| `application/use-cases/create-executive-directive.use-case.ts` | สร้างคำสั่ง |
-| `application/use-cases/issue-outbound-doc.use-case.ts` | ออกหนังสือส่ง |
-| `application/services/certificate-upload.service.ts` | Upload เกียรติบัตร |
-| `application/services/certificate-verification.service.ts` | ตรวจสอบเกียรติบัตร |
-| `domain/events/document-action-submitted.event.ts` | Domain event |
-| `domain/types/document.types.ts` | Type definitions |
-| `domain/utils/thai-date.ts` | วันที่ภาษาไทย |
-| `ui/actions/incoming-actions.ts` | Server actions (หนังสือเข้า) |
-| `ui/components/` | cert-qr-code, incoming-directive-modal, print-container, routing-timeline, slide-over-sheet, forms/, settings/ |
-| `ui/hooks/` | use-document-data, use-document-filters |
-| `ui/modals/` | cancel-doc-modal, confirm-action-modal |
-| `ui/views/` | cert-view, inbound-view, outbound-view, outbound-history-view |
-
----
-
-## 📚 Libraries (`src/lib/`)
-
-### Core Utilities
-| ไฟล์ | หน้าที่ |
-|---|---|
-| `auth.ts` | Authentication config (Better Auth) |
-| `auth-session.ts` | Session management |
-| `auth-client.ts` | Auth client-side |
-| `db.ts` | Database connection |
-| `prisma.ts` | Prisma client singleton |
-| `utils.ts` | General utilities |
-| `crypto.ts` | Cryptographic utilities |
-| `permissions.ts` / `permissions.js` | Permission checks |
-| `feature-flags.ts` | Feature flags |
-| `i18n.tsx` | Internationalization |
-
-### Leave & Attendance
-| ไฟล์ | หน้าที่ |
-|---|---|
-| `cycle.ts` | วงรอบการลา (ต.ค.-ก.ย.) |
-| `date-format.ts` | จัดรูปแบบวันที่ |
-| `sla.ts` | SLA calculations |
-| `attendance-utils.ts` | Attendance helpers |
-| `academicYearUtils.ts` | ปีการศึกษา |
-
-### Document & Media
-| ไฟล์ | หน้าที่ |
-|---|---|
-| `document-utils.ts` | Document helpers |
-| `sequence.ts` | Running number sequence |
-| `line-notify.ts` | LINE notification |
-| `notifications.ts` | Notification system |
-| `upload-with-progress.ts` | Upload with progress |
-| `client-image-compression.ts` | Client-side image compression |
-| `vector-signature.ts` | Vector signature handling |
-| `signature-token.ts` / `.js` | Signature token generation |
-| `svg-sanitizer.ts` | SVG sanitization |
-| `report-export.ts` | Report export |
-| `attachment-utils.ts` | Attachment utilities |
-| `storage-resolver.ts` | Storage resolution |
-
-### AMSS Integration
-| ไฟล์ | หน้าที่ |
-|---|---|
-| `amss-parser.ts` | AMSS data parser |
-| `amss-list-parser.ts` | AMSS list parser |
-
-### Sub-libraries
-| Path | หน้าที่ |
-|---|---|
-| `lib/services/timetableService.js` | ตารางสอน |
-| `lib/services/recommendationService.js` | ระบบแนะนำ |
-| `lib/services/substituteWorkflowService.js` | จัดครูแทน |
-| `lib/services/excelImportService.js` | Import Excel |
-| `lib/services/printTemplateService.js` | Template พิมพ์ |
-| `lib/services/sropCoreService.js` | SROP core |
-| `lib/services/academicSettingsService.ts` | ตั้งค่าวิชาการ |
-| `lib/services/examService.ts` | ข้อสอบ |
-| `lib/services/competencyService.ts` | สมรรถนะ |
-| `lib/services/facilityReservationService.ts` | จองสถานที่ |
-| `lib/services/budgetDisbursementEngine.js` | เบิกจ่ายงบ |
-| `lib/services/omrTemplateService.ts` | OMR Template |
-| `lib/timetable/` | Timetable solver (types, constraints, solvers) |
-| `lib/srop/types.ts` | SROP types |
-| `lib/omr/` | OMR engine, template geometry, grid, forensic, marker detector |
-| `lib/privacy/` | consent-service, policy-service, ropa-service, diff-utils |
-| `lib/facility/FacilityKpiContract.ts` | Facility KPI |
-
----
-
-## ⚙️ Services (`src/services/`)
-
-| ไฟล์ | หน้าที่ |
-|---|---|
-| `supervisionService.js` | ระบบนิเทศ |
-| `archive.service.ts` | สำรอง/กู้คืน |
-| `audit.service.ts` | Audit trail |
-| `photo.service.ts` | จัดการรูปภาพ |
-| `repair.service.ts` | แจ้งซ่อม |
-| `report.service.ts` | รายงาน |
-| `readinessEngine.ts` | ตรวจความพร้อม |
-| `workflowEngine.ts` | Workflow engine |
-| `academicCalendarEngine.ts` | ปฏิทินวิชาการ |
-| `resourceCapacityEngine.ts` | วิเคราะห์กำลังทรัพยากร |
-| `planningSandboxEngine.ts` | Sandbox แผนงาน |
-| `curriculumPublishingService.ts` | เผยแพร่หลักสูตร |
-| `etuCalculator.ts` | คำนวณ ETU |
-| `project-budget.service.ts` | งบประมาณโครงการ |
-
----
-
-## 🗃️ Database (Prisma)
-
-- **Schema:** `prisma/schema.prisma`
-- **Models:** ~130 models (User, LeaveRequest, Attendance, DocumentRecord, FacilityReservation, ExamPaper, ExamSubmission, Project, BudgetSource, Student, etc.)
-- **Key models for leave:** User, LeaveRequest, LeaveConfig, LeaveArchive, Holiday
-- **Key models for document:** DocumentRecord, DocumentTemplate, IncomingDocument, DocumentRouting, CertificateIssuedItem
-- **Key models for facility:** FacilityResource, FacilityReservation, ReservationResourceAssignment, FacilityApprovalStep
-- **Key models for academic:** ExamPaper, ExamSubmission, ExamAnswerKey, TimetableSlot, SupervisionSession
-- **Key models for budget:** FiscalYear, BudgetSource, Project, ProjectActivity, ActivityExpense
-
----
-
-## 📦 Other Directories
-
-| Path | หน้าที่ |
-|---|---|
-| `scripts/` | Utility/migration scripts |
-| `eLeave/` | Legacy leave-specific files |
-| `public/` | Static assets (images) |
-| `backups/` | Backup files |
-| `scratch/` | Temporary scratch files |
-| `docs/adr/` | Architecture Decision Records |
-| `docs/handoff/` | Handoff documents (UI/UX Guide) |
-| `src/constants/permissions.ts` | Permission constants |
-| `src/core/` | Core domain (event-publisher, module-manifest, domain-event) |
-| `src/events/eventCatalog.ts` | Event catalog |
-| `src/repositories/` | photo.repository, repair.repository |
-| `src/workers/omrScanner.worker.ts` | OMR scanner Web Worker |
-
----
-
-## 🎯 Structural Line Anchor Hints (พิกัดโครงสร้างคร่าวๆ สำหรับไฟล์แกนหลัก)
-> **แนวทางปฏิบัติ:** เลขบรรทัดในตารางนี้คือ **"พิกัดคร่าวๆ (Structural Hints)"** สำหรับช่วยจัดวางขอบเขต ไม่ใช่ความจริงสัมบูรณ์ (เพราะอาจเลื่อนได้หลังการแก้ไข) หากต้องการหาจุดนิยามหรือ Caller ที่แน่นอน ให้ใช้ Single-line search (`Select-String`) เสมอ ก่อนเปิดอ่านแบบ Read-Minimum with Dependencies
-
-### 1. `src/app/(app)/layout.tsx` (1,783 บรรทัด)
-| ส่วนประกอบ / ฟังก์ชัน | บรรทัด | หน้าที่ |
-|---|---|---|
-| Imports, Types & Permission Consts | L1–L60 | Lucide icons, hooks, DEFAULT_PERMISSIONS |
-| `NotificationBell` Component | L61–L244 | กระดิ่งแจ้งเตือน, Badge นับจริง, Modal แจ้งเตือน Responsive |
-| `UserAvatarDropdown` Component | L245–L351 | แคปซูลโปรไฟล์ผู้ใช้ขวาสุด, เมนูโปรไฟล์, PDPA, ปุ่มออกจากระบบ |
-| `DEFAULT_PERMISSIONS` Object | L352–L362 | สิทธิ์พื้นฐานรายโมดูล |
-| `CollapsibleGroup` Component | L363–L485 | กลุ่มเมนูพับได้ใน Sidebar (สไตล์ SMS ภาพที่ 2) |
-| `AppLayout` Shell & State Hooks | L486–L560 | สถานะ Sidebar, Theme, Language, Fullscreen |
-| Settings & Duty Loaders | L561–L850 | ดึงชื่อ/โลโก้โรงเรียน, สิทธิ์หน้าที่, AMSS |
-| User Role Resolution | L855–L908 | คำนวณ `effectiveUser`, `isAdmin`, `isApprover` |
-| SubItems Nav Configuration | L909–L1060 | เมนูย่อย: การลา, สารบรรณ, แจ้งซ่อม, ทรัพยากร, วิชาการ, งบ |
-| `renderNavItem` Function | L1061–L1140 | เรนเดอร์ปุ่มเมนู Sidebar (สไตล์ SMS มินิมอล, แบดจ์ Admin สีม่วง) |
-| Access Control & Mobile Nav Items | L1141–L1180 | `checkPermission`, แถบเมนูด้านล่างบนมือถือ |
-| Impersonation Mode Banner | L1181–L1215 | แถบสีส้มจำลองสิทธิ์ผู้ใช้ |
-| Sidebar Shell & Overlay | L1216–L1233 | `<aside>` desktop 256/72px & mobile drawer |
-| Sidebar Brand Header | L1234–L1275 | โลโก้, ร.ร.กุดจับประชาสรรค์, ปุ่มปิด `[✕]` |
-| Sidebar Top Home Link | L1276–L1300 | ปุ่ม "หน้าหลัก" แคปซูลสีน้ำเงิน (`Home` icon, ไม่มีลูกศร) |
-| Classroom Portal Shortcut | L1301–L1315 | ลิงก์สู่ระบบจัดการชั้นเรียน |
-| Sidebar Group 1: บุคคล | L1316–L1345 | ลงเวลา, แฟ้ม PA, ระบบการลา |
-| Sidebar Group 2: ทั่วไป | L1346–L1410 | จองทรัพยากร, สารบรรณ, แจ้งซ่อม |
-| Sidebar Group 3: วิชาการ | L1411–L1530 | ศูนย์วิชาการ, OMR, ตารางสอบ, ตารางสอน, นิเทศ, วางแผน |
-| Sidebar Group 4: งบประมาณ | L1531–L1555 | บริหารงบประมาณ & เบิกจ่าย |
-| Sidebar Group 5: ตั้งค่า & โปรไฟล์ | L1556–L1585 | ตั้งค่าระบบ, บุคคล, Logs, Profile, PDPA |
-| Sidebar Bottom Logout Button | L1586–L1615 | ปุ่ม `[→ ออกจากระบบ]` ทรงแคปซูลขอบน้ำเงิน สไตล์ภาพที่ 2 |
-| Top Header Bar (SMS Reference) | L1616–L1725 | เมนูแฮมเบอร์เกอร์, วันที่ภาษาไทย, ค้นหา, [T], [TH], [🌙], [⛶], [🔔], User Capsule |
-| Main Page Content & Bottom Nav | L1726–L1783 | แสดง `{children}` และแถบเมนูด้านล่างมือถือ |
-
-### 2. `prisma/schema.prisma` (3,228 บรรทัด)
-| โมเดลหลัก | บรรทัด | หน้าที่ |
-|---|---|---|
-| Datasource & Generator | L1–L10 | Postgres & prisma-client-js |
-| `User`, `Account`, `Session` | L11–L115 | บุคลากร, การยืนยันตัวตน, Session |
-| `LeaveRequest`, `LeaveType`, `LeaveBalance` | L116–L240 | ระบบการลา, วันลาคงเหลือ, ชนิดการลา |
-| `Attendance`, `WorkShift`, `AttendanceNonce` | L241–L450 | ระบบลงเวลา, กะการทำงาน, สแกนใบหน้า |
-| `DocumentRecord`, `IncomingDocument`, `DocumentRouting` | L451–L750 | ทะเบียนหนังสือราชการ, หนังสือเข้า AMSS, เกษียณ |
-| `RepairRequest`, `RepairPhoto`, `RepairComment` | L751–L920 | แจ้งซ่อม, รูปถ่ายหน้างาน, ความเห็นช่าง |
-| `FacilityResource`, `FacilityReservation` | L921–L1120 | ทรัพยากรส่วนกลาง, ยื่นจองห้อง/รถ |
-| `TimetableSlot`, `TimetableVersion`, `Offering` | L1121–L1800 | ตารางสอน, เวอร์ชันตาราง, รายวิชา |
-| `SupervisionSession`, `SubstituteRecord` | L1801–L2200 | การนิเทศการสอน, บันทึกสอนแทน |
-| `ExamPaper`, `ExamSubmission`, `OmrSheet` | L2201–L2550 | คลังข้อสอบ, ผลสอบ OMR, การตรวจกระดาษคำตอบ |
-| `FiscalYear`, `Project`, `ActivityExpense` | L2551–L3228 | งบประมาณ, แผนงานโครงการ, บันทึกการเบิกจ่าย |
-
-### 3. `src/app/actions/dashboard-widgets.ts` (557 บรรทัด)
-| ฟังก์ชัน / ข้อมูล | บรรทัด | หน้าที่ |
-|---|---|---|
-| `interface DashboardWidgetConfig` | L8–L41 | โครงสร้างคอนฟิกวิดเจ็ต 24 ตัว |
-| `DEFAULT_WIDGET_CONFIG` | L43–L77 | ค่ามาตรฐานระบบเริ่มต้น (เปิดครบ ไม่โล่ง) |
-| `getDashboardWidgetConfig(userId?)` | L80–L120 | ดึงค่าคอนฟิกส่วนตัว หรือค่ามาตรฐานสถานศึกษาที่ Admin กำหนด |
-| `saveDashboardWidgetConfig(newConfig, opts)` | L121–L195 | บันทึกวิดเจ็ต (รองรับ `saveAsDefault` สำหรับ Admin) |
-| `resetUserWidgetConfigToDefault()` | L196–L255 | คืนค่าของครูให้กลับไปใช้ค่ามาตรฐานโรงเรียน |
-| `SchoolManagementExecutiveStats` | L256–L300 | Types สถิติบูรณาการ 5 ระบบย่อย |
-| `getSchoolManagementExecutiveStats()` | L301–L557 | รวบรวมสถิติจริงจาก DB ทุกโมดูล |
-
-### 4. `src/app/(app)/dashboard/_components/ExecutiveLeaveDashboardView.tsx` (566 บรรทัด)
-| ส่วนประกอบ / ฟังก์ชัน | บรรทัด | หน้าที่ |
-|---|---|---|
-| States & Data Loading | L53–L130 | โหลดสถิติ, จัดการ localStorage, Event listener ปรับแต่งวิดเจ็ต |
-| Approval Actions Handler | L131–L220 | อนุมัติ/ปฏิเสธการลาแบบเรียลไทม์ |
-| Top Action Toolbar | L266–L300 | ปุ่ม `[↻ รีเฟรช]` และ `[⚙ ปรับแต่งวิดเจ็ต]` บนสุดของหน้า |
-| Row 1: SMSHeroBanner | L301–L315 | แบนเนอร์ผู้บริหารและปรัชญาโรงเรียน |
-| Row 1.5: SubsystemQuickHub | L316–L360 | แถบสถานะย่อ 5 ระบบย่อย |
-| Row 2: ExecutiveLeaveStatCards | L361–L410 | ตารางการ์ด KPI รวม 11 ตัว |
-| Row 3: SMS Charts (Academic & Attendance) | L411–L440 | กราฟผลสัมฤทธิ์ 8 กลุ่มสาระ & โดนัทเช็คชื่อรายวัน |
-| Row 4: SMSOperationsStrip | L441–L470 | สรุปงบประมาณ, หนังสือ, แจ้งซ่อม, ทรัพยากร |
-| Row 5–8: Detail Analytics & Approval Queue | L471–L530 | คิวตรวจใบลา, แนวโน้มรายเดือน, สถิติกิจการนักเรียน |
-| Floating Controls & Customizer Modal | L531–L566 | ปุ่มลอยยกสูง (`bottom-20`), Drill-down Modal, Widget Customizer |
-
-### 5. `src/app/(app)/dashboard/_components/DashboardWidgetCustomizerModal.tsx` (682 บรรทัด)
-| ส่วนประกอบ / ฟังก์ชัน | บรรทัด | หน้าที่ |
-|---|---|---|
-| `WIDGET_METADATA` Array | L64–L250 | รายการวิดเจ็ตทั้ง 24 ตัวพร้อมไอคอนและหมวดหมู่ |
-| Handlers & Toggles | L251–L310 | เปิดทั้งหมด, ปิดทั้งหมด, สลับรายตัว |
-| `handleResetToAdminDefault` | L311–L340 | คืนค่าเป็นค่ามาตรฐานสถานศึกษาที่ Admin กำหนด |
-| `handleSave(asDefaultOverride)` | L341–L385 | บันทึกค่า (แยกเคสแอดมินบันทึกค่าระบบกลาง vs ครูบันทึกส่วนตัว) |
-| Header & Admin Guidance Banner | L386–L475 | หัวข้อ Modal และแบนเนอร์แจ้งสิทธิ์แอดมินพร้อม Checkbox |
-| Search & Filter Pills | L476–L520 | ค้นหาวิดเจ็ต & แท็บตัวกรอง |
-| Widget Items List | L521–L630 | รายการการ์ดวิดเจ็ต ปุ่มสลับเปิด-ปิด |
-| Modal Footer Action Buttons | L631–L682 | ปุ่ม `[ใช้ค่ามาตรฐานตามที่แอดมินกำหนด]`, `[รีเซ็ตทั้งหมด]`, `[บันทึก]` |
-
----
-
-## 🤖 Antigravity Agent Orchestration & Progressive Disclosure System
-
-### 1. Scoped Rules (`.agent/rules/`)
-| ไฟล์กฎ | Trigger | หน้าที่ & ขอบเขต |
-|---|---|---|
-| `.agent/rules/token-efficiency.md` | `always_on` | กฎประหยัด Token v2.0, Targeted View, Single-line pre-filter search |
-| `.agent/rules/database.md` | `glob` (`prisma/**`, `src/repositories/**`) | Zero Orphaned Accounts, Transaction Integrity, Safe Migration |
-| `.agent/rules/architecture.md` | `glob` (`src/**`, `lib/**`) | Clean Architecture 3 ชั้น, Lean Server Actions, Strict Typing |
-| `.agent/rules/security.md` | `glob` (`src/app/actions/**`, `src/app/api/**`) | Session Validation, RBAC Authorization, Zod Validation, PDPA |
-| `.agent/rules/frontend.md` | `glob` (`src/app/**`, `src/components/**`) | Server vs Client Components, Hydration Safety, KP Design System |
-| `.agent/rules/test-data-and-account-safety.md` | `glob` (`tests/**`, `scripts/**`) | Forensic Teardown Protocol with Trigger Suppression |
-| `.agent/rules/plan-versioning.md` | `glob` (`docs/**`, `*plan*.md`) | แผนงานเวอร์ชันนิ่ง, Revision Changelog, Supersede Rule |
-| `.agent/rules/handoff.md` | `model_decision` | บันทึกสถาปัตยกรรมระดับองค์กร และสรุป Milestone ข้าม Session |
-
-### 2. Progressive Disclosure Skills (`.agent/skills/`)
-| Skill Name | โฟลเดอร์ | หน้าที่ |
-|---|---|---|
-| `inspect-task` | `.agent/skills/inspect-task/SKILL.md` | สำรวจพิกัดบรรทัดและตั้งงบประมาณ Token ก่อนแตะโค้ด |
-| `implement-feature` | `.agent/skills/implement-feature/SKILL.md` | แก้ไขโค้ดแบบ Surgical Diff ด้วย `replace_file_content` |
-| `verify-change` | `.agent/skills/verify-change/SKILL.md` | รัน Scoped Vitest, คุม Loop-Break และตรวจความสะอาด DB |
-| `html-planner` | `.agent/skills/html-planner/SKILL.md` | สร้างแผนงานแบบ Interactive HTML Plan |
-| `grill-doc` | `.agent/skills/grill-doc/SKILL.md` | สัมภาษณ์และเจาะลึกสถาปัตยกรรมก่อนลงมือทำ (ADRs) |
-| `ui-ux-pro-max` | `.agent/skills/ui-ux-pro-max/SKILL.md` | แนวทางออกแบบ UI/UX สวยงาม ทันสมัยตามมาตรฐานสากล |
-| `handoff` | `.agent/skills/handoff/SKILL.md` | ส่งต่องานข้าม Session ก่อนบริบทบวม |
-
-### 3. Usage & Token Ledger (`.agent/ledger/`)
-| ไฟล์ | หน้าที่ |
-|---|---|
-| `.agent/ledger/token-ledger.json` | ฐานข้อมูลสถิติ JSON ติดตาม Token Saved, Tool Calls, ผลลัพธ์ Test |
-| `.agent/ledger/token-ledger.md` | เอกสารรายงานสรุปผลลัพธ์ประสิทธิภาพและวิธีคำนวณ Token แบบโปร่งใส |
-
+# 📑 CODEBASE NAVIGATION INDEX
+> **Auto-generated by `npm run index:sync`** | อัปเดตล่าสุด: `2026-10-18 04:03:02`
+> **คำแนะนำสำหรับ AI Agent:** ใช้พิกัด `[Lเริ่ม-Lจบ]` ด้านล่างคู่กับพารามิเตอร์ `StartLine` และ `EndLine` เสมอ ห้ามเปิดอ่านไฟล์ขนาดใหญ่ทั้งไฟล์
+
+## 🗄️ Database Schema (`prisma/schema.prisma` — 3231 lines)
+| ประเภท | ชื่อ Model / Enum | พิกัดบรรทัด (`StartLine`-`EndLine`) |
+| :--- | :--- | :--- |
+| `model` | **User** | `L11-L96` |
+| `model` | **Session** | `L98-L108` |
+| `model` | **Account** | `L110-L124` |
+| `model` | **LeaveRequest** | `L126-L159` |
+| `enum` | **DutyType** | `L161-L167` |
+| `enum` | **ScopeDivision** | `L169-L174` |
+| `enum` | **ScopeDepartment** | `L176-L186` |
+| `model` | **UserDutyAssignment** | `L188-L203` |
+| `model` | **SystemSettings** | `L205-L282` |
+| `model` | **LeaveConfig** | `L284-L293` |
+| `model` | **SystemLog** | `L295-L303` |
+| `model` | **SystemLogArchive** | `L305-L313` |
+| `model` | **LeaveArchive** | `L315-L325` |
+| `model` | **SystemBackup** | `L327-L333` |
+| `model` | **MemoSection** | `L335-L349` |
+| `model` | **DocumentConfig** | `L351-L363` |
+| `model` | **DocumentRecord** | `L365-L407` |
+| `model` | **CertificateIssuedItem** | `L409-L426` |
+| `model` | **SigneePreset** | `L428-L435` |
+| `model` | **DocumentTemplate** | `L437-L454` |
+| `model` | **DocumentRelation** | `L456-L465` |
+| `model` | **WorkShift** | `L467-L479` |
+| `model` | **Attendance** | `L481-L502` |
+| `model` | **AttendancePhoto** | `L504-L514` |
+| `model` | **AttendanceLog** | `L516-L529` |
+| `model` | **AttendanceNonce** | `L531-L541` |
+| `model` | **IncomingDocument** | `L543-L564` |
+| `model` | **DocumentRouting** | `L566-L593` |
+| `model` | **Holiday** | `L595-L606` |
+| `model` | **AMSSCredentials** | `L608-L620` |
+| `model` | **RunningNumber** | `L622-L626` |
+| `model` | **RepairRequest** | `L628-L667` |
+| `model` | **RepairPhoto** | `L669-L683` |
+| `enum` | **RepairUrgency** | `L685-L690` |
+| `enum` | **RepairCategory** | `L692-L700` |
+| `enum` | **RepairStatus** | `L702-L709` |
+| `enum` | **RepairPhotoType** | `L711-L715` |
+| `enum` | **SLAStatus** | `L717-L720` |
+| `enum` | **AttendanceStatus** | `L722-L729` |
+| `enum` | **SupervisionStatus** | `L735-L740` |
+| `enum` | **SupervisionType** | `L742-L745` |
+| `model` | **SupervisionSession** | `L747-L781` |
+| `model` | **SupervisionAuditLog** | `L783-L793` |
+| `enum` | **TimetableVersionStatus** | `L795-L799` |
+| `enum` | **AssignmentPolicyType** | `L801-L805` |
+| `enum` | **SubstituteWorkflowStatus** | `L807-L811` |
+| `model` | **Department** | `L813-L821` |
+| `model` | **Teacher** | `L823-L835` |
+| `model` | **Subject** | `L837-L847` |
+| `model` | **ClassRoom** | `L849-L860` |
+| `model` | **Room** | `L862-L871` |
+| `model` | **SubjectOffering** | `L873-L890` |
+| `model` | **TimetableVersion** | `L892-L905` |
+| `model` | **TimetableSlot** | `L907-L923` |
+| `model` | **SchoolConfig** | `L925-L931` |
+| `model` | **SubstituteWorkflow** | `L933-L945` |
+| `model` | **RecommendationRun** | `L947-L958` |
+| `enum` | **ResourceType** | `L964-L971` |
+| `enum` | **ResourceStatus** | `L973-L978` |
+| `enum` | **ReservationStatus** | `L980-L987` |
+| `enum` | **AssignmentTargetType** | `L989-L992` |
+| `enum` | **ApprovalStepStatus** | `L994-L999` |
+| `enum` | **RoomLayoutType** | `L1001-L1009` |
+| `enum` | **VehicleMissionType** | `L1011-L1017` |
+| `model` | **FacilityResource** | `L1019-L1036` |
+| `model` | **RoomProfile** | `L1038-L1047` |
+| `model` | **VehicleProfile** | `L1049-L1059` |
+| `model` | **DriverProfile** | `L1061-L1074` |
+| `model` | **FacilityApprovalPolicy** | `L1076-L1089` |
+| `model` | **FacilityReservation** | `L1091-L1127` |
+| `model` | **ReservationResourceAssignment** | `L1129-L1154` |
+| `model` | **FacilityApprovalStep** | `L1156-L1175` |
+| `model` | **RoomReservationDetail** | `L1177-L1186` |
+| `model` | **VehicleReservationDetail** | `L1188-L1203` |
+| `model` | **FacilityReservationRevision** | `L1205-L1218` |
+| `model` | **FacilityPostMissionReport** | `L1220-L1238` |
+| `model` | **FacilitySettings** | `L1240-L1249` |
+| `model` | **SignatureTokenLog** | `L1251-L1262` |
+| `enum` | **ExamTerm** | `L1268-L1272` |
+| `model` | **ExamPeriod** | `L1274-L1287` |
+| `model` | **ExamSubjectSlot** | `L1289-L1303` |
+| `model` | **ExamProctorAssignment** | `L1305-L1317` |
+| `model` | **PaTargetConfig** | `L1323-L1331` |
+| `model` | **PaAgreement** | `L1333-L1346` |
+| `model` | **PdHourLog** | `L1348-L1359` |
+| `model` | **CompetencyEvaluation** | `L1361-L1374` |
+| `enum` | **PlanningStatus** | `L1380-L1387` |
+| `model` | **PlanningSession** | `L1389-L1403` |
+| `model` | **ApprovalStep** | `L1405-L1415` |
+| `model` | **ReadinessIndicator** | `L1417-L1427` |
+| `model` | **ApprovalWorkflow** | `L1429-L1436` |
+| `model` | **ApprovalStage** | `L1438-L1446` |
+| `model` | **AcademicCalendar** | `L1448-L1456` |
+| `model` | **AcademicEvent** | `L1458-L1470` |
+| `model` | **ResourceItem** | `L1472-L1482` |
+| `model` | **ResourceReservation** | `L1484-L1494` |
+| `model` | **PlanningSandboxScenario** | `L1496-L1507` |
+| `model` | **CourseWeightFactor** | `L1509-L1517` |
+| `model` | **FiscalYear** | `L1523-L1536` |
+| `model` | **BudgetSource** | `L1538-L1552` |
+| `model` | **BudgetTranche** | `L1554-L1573` |
+| `model` | **BudgetReceipt** | `L1575-L1593` |
+| `model` | **Project** | `L1595-L1620` |
+| `model` | **ProjectActivity** | `L1622-L1641` |
+| `model` | **ActivityTrancheAllocation** | `L1643-L1659` |
+| `model` | **ActivityExpense** | `L1661-L1688` |
+| `model` | **ExpenseReversal** | `L1690-L1706` |
+| `model` | **BudgetTransfer** | `L1708-L1730` |
+| `model` | **AuditLog** | `L1732-L1747` |
+| `model` | **ProjectAttachment** | `L1749-L1764` |
+| `model` | **ExpenseAttachment** | `L1766-L1781` |
+| `enum` | **AccessLevel** | `L1787-L1790` |
+| `enum` | **StorageProviderType** | `L1792-L1797` |
+| `enum` | **UploadStatus** | `L1799-L1803` |
+| `enum` | **MigrationStatus** | `L1805-L1811` |
+| `model` | **FileAttachment** | `L1813-L1859` |
+| `model` | **StorageUploadLog** | `L1861-L1879` |
+| `model` | **StorageMigrationLog** | `L1881-L1901` |
+| `enum` | **TemplateOrientation** | `L1903-L1906` |
+| `enum` | **TemplateScope** | `L1908-L1912` |
+| `enum` | **AttachmentStatus** | `L1914-L1920` |
+| `model` | **CertificateTemplate** | `L1922-L1940` |
+| `enum` | **PolicyType** | `L1942-L1945` |
+| `enum` | **LegalBasisType** | `L1947-L1954` |
+| `enum` | **Section26ConditionType** | `L1956-L1965` |
+| `enum` | **DataCategoryType** | `L1967-L1976` |
+| `enum` | **ConsentStatus** | `L1978-L1982` |
+| `enum` | **AuditEventType** | `L1984-L1989` |
+| `enum` | **AuditSubjectType** | `L1991-L1994` |
+| `enum` | **AuditActorType** | `L1996-L2001` |
+| `enum` | **WithdrawalReasonCode** | `L2003-L2007` |
+| `enum` | **RevocationReasonCode** | `L2009-L2014` |
+| `enum` | **RetentionRuleType** | `L2016-L2020` |
+| `enum` | **DisposalMethod** | `L2022-L2026` |
+| `model` | **PolicyDocument** | `L2028-L2046` |
+| `model` | **PolicyAcknowledgment** | `L2048-L2064` |
+| `model` | **ProcessingActivity** | `L2066-L2089` |
+| `model` | **ProcessingPurpose** | `L2091-L2106` |
+| `model` | **ProcessingDataCategoryPolicy** | `L2108-L2120` |
+| `model` | **ConsentRecord** | `L2122-L2141` |
+| `model` | **ConsentAuditLog** | `L2143-L2171` |
+| `enum` | **ExamSheetType** | `L2177-L2183` |
+| `enum` | **ExamItemStatus** | `L2185-L2192` |
+| `enum` | **SubmissionSyncStatus** | `L2194-L2199` |
+| `model` | **ExamTemplate** | `L2204-L2222` |
+| `model` | **ExamPaper** | `L2227-L2268` |
+| `model` | **ExamSubjectiveItem** | `L2270-L2283` |
+| `model` | **ExamAnswerKeyVersion** | `L2285-L2303` |
+| `model` | **ExamPrintedSheet** | `L2305-L2323` |
+| `model` | **ExamAnswerKey** | `L2328-L2340` |
+| `model` | **ExamAnswerKeyItem** | `L2342-L2353` |
+| `model` | **ExamSubmission** | `L2358-L2424` |
+| `model` | **ExamItemSubmission** | `L2427-L2451` |
+| `model` | **ExamItemOverride** | `L2453-L2468` |
+| `model` | **AuditEvent** | `L2470-L2490` |
+| `enum` | **OutboxEventStatus** | `L2492-L2496` |
+| `model` | **OutboxEvent** | `L2498-L2511` |
+| `enum` | **StudentIdentityStatus** | `L2513-L2520` |
+| `enum` | **DetectionStatus** | `L2522-L2528` |
+| `model` | **ExamAuditLog** | `L2533-L2547` |
+| `enum` | **RegradeJobStatus** | `L2552-L2558` |
+| `model` | **ExamRegradeJob** | `L2560-L2585` |
+| `enum` | **StudentStatus** | `L2591-L2597` |
+| `enum` | **EnrollmentStatus** | `L2599-L2604` |
+| `enum` | **StudentDecommissionReason** | `L2606-L2611` |
+| `enum` | **StudentGender** | `L2613-L2616` |
+| `enum` | **ScheduledSessionType** | `L2618-L2624` |
+| `enum` | **StudentAttendanceStatus** | `L2626-L2632` |
+| `enum` | **AttendanceExemptionStatus** | `L2634-L2639` |
+| `enum` | **BehaviorLedgerType** | `L2641-L2646` |
+| `enum` | **BehaviorCategory** | `L2648-L2660` |
+| `enum` | **EvaluatorType** | `L2662-L2666` |
+| `enum` | **SdqLevel** | `L2668-L2672` |
+| `enum` | **CctPovertyLevel** | `L2674-L2678` |
+| `enum` | **CasePriority** | `L2680-L2685` |
+| `enum` | **CaseStatus** | `L2687-L2696` |
+| `enum` | **CaseOutcome** | `L2698-L2703` |
+| `enum` | **RiskLevel** | `L2705-L2711` |
+| `enum` | **NominationStatus** | `L2713-L2718` |
+| `enum` | **AttachmentEntityType** | `L2720-L2724` |
+| `enum` | **AttachmentCategory** | `L2726-L2732` |
+| `enum` | **CctManifestStatus** | `L2734-L2738` |
+| `model` | **Student** | `L2744-L2781` |
+| `model` | **StudentStatusHistory** | `L2783-L2796` |
+| `model` | **StudentEnrollment** | `L2798-L2822` |
+| `model` | **BehaviorRecord** | `L2828-L2855` |
+| `model` | **StudentYearlyBehaviorProjection** | `L2857-L2871` |
+| `model` | **ScheduledClassSession** | `L2877-L2894` |
+| `model` | **StudentMorningAttendance** | `L2896-L2911` |
+| `model` | **StudentPeriodAttendance** | `L2913-L2930` |
+| `model` | **StudentMedicalCertificate** | `L2932-L2953` |
+| `model` | **StudentHomeVisit** | `L2959-L2998` |
+| `model` | **SdqNormsRegistry** | `L3000-L3016` |
+| `model` | **StudentSdqEvaluation** | `L3018-L3043` |
+| `model` | **StudentRiskAssessment** | `L3049-L3070` |
+| `model` | **StudentInterventionCase** | `L3072-L3102` |
+| `model` | **InterventionActivity** | `L3104-L3117` |
+| `model` | **StudentAffairsAttachment** | `L3123-L3148` |
+| `model` | **StudentAffairsAuditLog** | `L3150-L3172` |
+| `model` | **CctExportManifest** | `L3174-L3199` |
+| `model` | **StudentMeritNomination** | `L3201-L3223` |
+| `model` | **kps_cloud_store** | `L3225-L3229` |
+
+## 💻 Application Codebase (373 files)
+
+- **`src/app/(app)/academic/competency/page.tsx`** (298 lines): `TeacherCompetencyPage` [L19-L297]
+- **`src/app/(app)/academic/exam/analysis/[id]/page.tsx`** (264 lines): `ExamItemAnalysisPage` [L23-L263]
+- **`src/app/(app)/academic/exam/omr/create/page.tsx`** (885 lines): `getAvailableChoices` [L35-L37], `CreateExamPaperForm` [L39-L870], `CreateExamPaperPage` [L872-L884]
+- **`src/app/(app)/academic/exam/omr/page.tsx`** (13 lines): `OmrExamDashboardPage` [L6-L12]
+- **`src/app/(app)/academic/exam/page.tsx`** (355 lines): `AcademicExamPage` [L40-L354]
+- **`src/app/(app)/academic/exam/review/[id]/page.tsx`** (490 lines): `TeacherReviewStudioPage` [L28-L489]
+- **`src/app/(app)/academic/exam/scan/page.tsx`** (271 lines): `ExamScanPage` [L22-L270]
+- **`src/app/(app)/academic/facility/page.tsx`** (8 lines): `AcademicFacilityPage` [L5-L7]
+- **`src/app/(app)/academic/page.tsx`** (233 lines): `AcademicLandingPage` [L23-L232]
+- **`src/app/(app)/academic/planning/calendar/page.tsx`** (102 lines): `CalendarDomainPage` [L35-L101]
+- **`src/app/(app)/academic/planning/curriculum/page.tsx`** (72 lines): `CurriculumPlanningPage` [L7-L71]
+- **`src/app/(app)/academic/planning/page.tsx`** (1084 lines): `AcademicPlanningControlCenter` [L378-L1083]
+- **`src/app/(app)/academic/planning/readiness-rules/page.tsx`** (155 lines): `ReadinessRulesDomainPage` [L35-L154]
+- **`src/app/(app)/academic/planning/reports/page.tsx`** (88 lines): `ReportsDomainPage` [L17-L87]
+- **`src/app/(app)/academic/planning/resources/page.tsx`** (110 lines): `ResourcesDomainPage` [L36-L109]
+- **`src/app/(app)/academic/planning/sandbox/page.tsx`** (208 lines): `SandboxDomainPage` [L69-L207]
+- **`src/app/(app)/academic/planning/versions/page.tsx`** (199 lines): `VersionsDomainPage` [L66-L198]
+- **`src/app/(app)/academic/planning/workflow-config/page.tsx`** (130 lines): `WorkflowConfigDomainPage` [L24-L129]
+- **`src/app/(app)/academic/planning/workload/page.tsx`** (163 lines): `WorkloadDomainPage` [L78-L162]
+- **`src/app/(app)/academic/settings/page.tsx`** (673 lines): `AcademicSettingsPage` [L24-L672]
+- **`src/app/(app)/academic/substitute/page.tsx`** (280 lines): `dynamic` [L3-L3], `SubstituteTeachingPage` [L33-L279]
+- **`src/app/(app)/academic/supervision/page.tsx`** (13 lines): `metadata` [L5-L8], `AcademicSupervisionPage` [L10-L12]
+- **`src/app/(app)/academic/timetable/page.tsx`** (772 lines): `dynamic` [L3-L3], `TimetableBuilderPage` [L75-L771]
+- **`src/app/(app)/admin/recycle-bin/page.tsx`** (795 lines): `AdminRecycleBinPage` [L43-L794]
+- **`src/app/(app)/approvals/layout.tsx`** (11 lines): `metadata` [L3-L6], `ApprovalsLayout` [L8-L10]
+- **`src/app/(app)/approvals/page.tsx`** (700 lines): `calculateDays` [L14-L31], `ApprovalsPage` [L37-L699]
+- **`src/app/(app)/archive/page.tsx`** (6 lines): `ArchivePage` [L3-L5]
+- **`src/app/(app)/attendance/error.tsx`** (86 lines): `AttendanceErrorBoundary` [L13-L85]
+- **`src/app/(app)/attendance/layout.tsx`** (11 lines): `metadata` [L3-L6], `AttendanceLayout` [L8-L10]
+- **`src/app/(app)/attendance/page.tsx`** (904 lines): `AttendancePage` [L78-L903]
+- **`src/app/(app)/attendance/stats/page.tsx`** (879 lines): `PieChart` [L21-L71], `BarChartSVG` [L73-L121], `LineTrendSVG` [L123-L164], `AttendanceStatsPage` [L184-L878]
+- **`src/app/(app)/budget/error.tsx`** (76 lines): `BudgetErrorBoundary` [L12-L75]
+- **`src/app/(app)/budget/page.tsx`** (2420 lines): `formatBaht` [L81-L87], `BudgetAffairsSkeleton` [L89-L109], `BudgetAffairsContent` [L111-L2411], `BudgetAffairsPage` [L2413-L2419]
+- **`src/app/(app)/calendar/_components/SchoolCalendarView.tsx`** (999 lines): `SchoolCalendarView` [L43-L998]
+- **`src/app/(app)/calendar/page.tsx`** (12 lines): `metadata` [L4-L7], `CalendarPage` [L9-L11]
+- **`src/app/(app)/dashboard/_components/DashboardShell.tsx`** (102 lines): `DashboardShell` [L18-L101]
+- **`src/app/(app)/dashboard/_components/DashboardWidgetCustomizerModal.tsx`** (702 lines): `DashboardWidgetCustomizerModal` [L250-L701]
+- **`src/app/(app)/dashboard/_components/DocumentDashboardView.tsx`** (210 lines): `DocumentDashboardView` [L28-L209]
+- **`src/app/(app)/dashboard/_components/ExecutiveApprovalQueue.tsx`** (491 lines): `LeaveQueueItem` [L16-L34], `ExecutiveApprovalQueue` [L45-L490]
+- **`src/app/(app)/dashboard/_components/ExecutiveLeaveCharts.tsx`** (177 lines): `ExecutiveLeaveCharts` [L24-L176]
+- **`src/app/(app)/dashboard/_components/ExecutiveLeaveDashboardView.tsx`** (700 lines): `ExecutiveLeaveDashboardView` [L55-L699]
+- **`src/app/(app)/dashboard/_components/ExecutiveLeaveDetailModal.tsx`** (317 lines): `ExecutiveLeaveDetailModal` [L25-L316]
+- **`src/app/(app)/dashboard/_components/ExecutiveLeaveStatCards.tsx`** (457 lines): `KpiCategoryFilter` [L26-L26], `ExecutiveLeaveStatCards` [L56-L456]
+- **`src/app/(app)/dashboard/_components/ExecutiveStudentLeaveOverview.tsx`** (184 lines): `StudentLeaveSummaryItem` [L18-L25], `ExecutiveStudentLeaveOverview` [L35-L183]
+- **`src/app/(app)/dashboard/_components/FacilityDashboardView.tsx`** (220 lines): `FacilityDashboardView` [L24-L219]
+- **`src/app/(app)/dashboard/_components/LeaveDashboardClient.tsx`** (2038 lines): `LeaveDashboardClient` [L55-L2037]
+- **`src/app/(app)/dashboard/_components/MonthlyTrendChart.tsx`** (198 lines): `MonthlyTrendChart` [L26-L197]
+- **`src/app/(app)/dashboard/_components/RepairDashboardView.tsx`** (209 lines): `RepairDashStats` [L5-L30], `RepairDashboardView` [L41-L174], `KPICard` [L176-L208]
+- **`src/app/(app)/dashboard/_components/SMSAcademicCalendarCard.tsx`** (303 lines): `SMSAcademicCalendarCard` [L23-L302]
+- **`src/app/(app)/dashboard/_components/SMSAnnouncementsCard.tsx`** (180 lines): `SMSAnnouncementsCard` [L23-L179]
+- **`src/app/(app)/dashboard/_components/SMSAttendanceDonutCard.tsx`** (174 lines): `SMSAttendanceDonutCard` [L17-L173]
+- **`src/app/(app)/dashboard/_components/SMSHeaderBar.tsx`** (165 lines): `SMSHeaderBar` [L20-L164]
+- **`src/app/(app)/dashboard/_components/SMSHeroBanner.tsx`** (53 lines): `SMSHeroBanner` [L11-L52]
+- **`src/app/(app)/dashboard/_components/SMSLearningOutcomeChart.tsx`** (253 lines): `SMSLearningOutcomeChart` [L24-L251]
+- **`src/app/(app)/dashboard/_components/SMSOperationsStrip.tsx`** (257 lines): `SMSOperationsStrip` [L24-L256]
+- **`src/app/(app)/dashboard/_components/SMSStatCards.tsx`** (128 lines): `SMSStatCards` [L21-L127]
+- **`src/app/(app)/dashboard/_components/SystemSelector.tsx`** (72 lines): `SystemOption` [L5-L5], `SystemSelector` [L14-L71]
+- **`src/app/(app)/dashboard/page.tsx`** (115 lines): `dynamic` [L15-L15], `metadata` [L17-L22], `DashboardPage` [L24-L114]
+- **`src/app/(app)/document/[id]/edit/page.tsx`** (521 lines): `fmtThaiDate` [L29-L39], `DocumentEditPage` [L41-L520]
+- **`src/app/(app)/document/[id]/page.tsx`** (747 lines): `DocumentDetailPage` [L58-L746]
+- **`src/app/(app)/document/_components/amss-auto-browser-sync.tsx`** (633 lines): `AmssAutoBrowserSync` [L38-L632]
+- **`src/app/(app)/document/_components/amss-credentials-modal.tsx`** (492 lines): `AmssCredentialsModal` [L22-L491]
+- **`src/app/(app)/document/_components/cert-generator.tsx`** (1478 lines): `CertGenerator` [L63-L1477]
+- **`src/app/(app)/document/_components/designer/cert-designer-studio.tsx`** (3339 lines): `CertDesignerStudio` [L110-L110]
+- **`src/app/(app)/document/_components/designer/cert-pdf-engine.ts`** (614 lines): `A4_DIMS` [L16-L29], `clearImageCache` [L38-L48], `evictImageCache` [L50-L60], `getImageCacheSize` [L62-L64], `setBoundedCache` [L66-L73], `loadCanvasImage` [L88-L158], `isValidDrawableImage` [L216-L237], `CertificateRenderBackground` [L239-L242], `drawCertificatePage` [L247-L426], `drawCleanCertificateBorder` [L431-L453], `BatchExportOptions` [L455-L462], `generateCertificatePdfBatch` [L469-L613]
+- **`src/app/(app)/document/_components/designer/cert-schema.ts`** (647 lines): `ptToCanvasPx` [L9-L11], `sanitizeCellValue` [L18-L25], `sanitizeForExport` [L31-L41], `truncateThaiGrapheme` [L48-L69], `screenToDocumentPercent` [L82-L94], `documentPointToScreen` [L99-L107], `computeSnap` [L112-L123], `PresetMultiplicity` [L125-L125], `SINGLETON_KEYS` [L127-L135], `ROLE_SINGLETON_KEYS` [L137-L144], `CertificateElementSchema` [L149-L179], `CertificateElement` [L181-L181], `CustomFontSchema` [L188-L194], `CustomFont` [L197-L197], `CertificateTemplateV1Schema` [L202-L208], `CertificateTemplateV1` [L236-L236], `extractCustomFontAttachmentIds` [L238-L247], `SIGNEE_LAYOUT_PRESETS` [L252-L263], `ElementPresetItem` [L266-L272], `ELEMENT_PRESETS` [L277-L297], `DEFAULT_CERTIFICATE_ELEMENTS` [L528-L542], `isValidVerificationTokenFormat` [L637-L645]
+- **`src/app/(app)/document/_components/designer/font-loader.ts`** (140 lines): `LoadedFontSet` [L4-L7], `THAI_TEST_GLYPHS` [L9-L9], `computeBufferSha256` [L17-L34], `loadFontWithIntegrity` [L41-L73], `verifyAndLoadCustomFont` [L79-L104], `ensureFontsLoaded` [L110-L138]
+- **`src/app/(app)/document/_components/designer/font-manifest.ts`** (283 lines): `FontLanguage` [L6-L6], `SUPPORTED_FONTS` [L8-L27], `SupportedFont` [L29-L29], `FontManifestItem` [L31-L44], `FONT_MANIFEST` [L46-L243], `detectFontMagicBytes` [L249-L282]
+- **`src/app/(app)/document/_components/designer/font-registry.ts`** (238 lines): `FontLoadStatus` [L4-L4], `FontRegistryEntry` [L6-L12], `isBrowser` [L24-L26], `UNIVERSAL_TEST_GLYPHS` [L31-L31], `FontRegistry` [L33-L237]
+- **`src/app/(app)/document/_components/designer/qr-renderer.ts`** (173 lines): `QrMatrix` [L5-L9], `DrawQrBadgeOptions` [L11-L19], `generateQrMatrix` [L25-L51], `renderQrMatrix` [L56-L81], `drawQRCodeBadge` [L86-L92]
+- **`src/app/(app)/document/_components/designer/signature-processor.ts`** (289 lines): `ProcessSignatureOptions` [L14-L44], `ProcessSignatureResult` [L46-L52], `PixelBuffer` [L54-L58], `CropBoundingBox` [L60-L67], `processSignaturePixels` [L74-L76], `fileToDataUrl` [L164-L171], `loadImageElement` [L176-L185], `removeSignatureBackground` [L192-L194]
+- **`src/app/(app)/document/_components/document-settings-modal.tsx`** (164 lines): `DocumentSettingsModal` [L22-L163]
+- **`src/app/(app)/document/_components/document-stats.tsx`** (119 lines): `DocumentStats` [L15-L118]
+- **`src/app/(app)/document/_components/document-table.tsx`** (1305 lines): `DocumentTable` [L47-L1304]
+- **`src/app/(app)/document/_components/document-trend-chart.tsx`** (192 lines): `DocumentTrendChart` [L27-L191]
+- **`src/app/(app)/document/_components/forms/inbound-form.tsx`** (269 lines): `InboundForm` [L34-L268]
+- **`src/app/(app)/document/_components/forms/outbound-form.tsx`** (668 lines): `OutboundForm` [L48-L667]
+- **`src/app/(app)/document/_components/guarded-action.tsx`** (59 lines): `getPermissionsForRole` [L7-L36], `GuardedAction` [L44-L58]
+- **`src/app/(app)/document/_components/my-trash-modal.tsx`** (373 lines): `MyTrashModal` [L35-L372]
+- **`src/app/(app)/document/_components/recent-activity.tsx`** (149 lines): `RecentActivityTimeline` [L23-L148]
+- **`src/app/(app)/document/_components/widget-container.tsx`** (110 lines): `DashboardWidget` [L6-L13], `WidgetErrorBoundary` [L16-L17], `WidgetSkeletonState` [L46-L68], `WidgetErrorState` [L71-L92], `WidgetContainer` [L95-L109]
+- **`src/app/(app)/document/error.tsx`** (86 lines): `DocumentErrorBoundary` [L13-L85]
+- **`src/app/(app)/document/incoming/[id]/page.tsx`** (718 lines): `IncomingDocDetailPage` [L70-L717]
+- **`src/app/(app)/document/layout.tsx`** (15 lines): `metadata` [L3-L6], `DocumentLayout` [L8-L14]
+- **`src/app/(app)/document/new/page.tsx`** (921 lines): `DocumentNewPageInner` [L81-L885], `SummaryRow` [L888-L899], `DocumentNewPage` [L904-L920]
+- **`src/app/(app)/document/page.tsx`** (359 lines): `DocumentPageContent` [L25-L344], `DocumentPage` [L346-L358]
+- **`src/app/(app)/document/settings/page.tsx`** (19 lines): `DocumentSettingsPage` [L6-L18]
+- **`src/app/(app)/error.tsx`** (100 lines): `GlobalAppErrorBoundary` [L13-L99]
+- **`src/app/(app)/facility/_components/FacilityApprovalView.tsx`** (714 lines): `FacilityApprovalView` [L46-L713]
+- **`src/app/(app)/facility/_components/FacilityBookingForm.tsx`** (1157 lines): `FacilityBookingForm` [L68-L1156]
+- **`src/app/(app)/facility/_components/FacilityGuidelinesBanner.tsx`** (148 lines): `FacilityGuidelinesBanner` [L12-L147]
+- **`src/app/(app)/facility/_components/FacilityHistoryView.tsx`** (540 lines): `FacilityHistoryView` [L45-L539]
+- **`src/app/(app)/facility/_components/FacilityManagementView.tsx`** (1256 lines): `FacilityManagementView` [L63-L1255]
+- **`src/app/(app)/facility/_components/FacilitySettingsConfigTab.tsx`** (294 lines): `FacilitySettingsConfigTab` [L34-L293]
+- **`src/app/(app)/facility/_components/FacilityUnifiedCalendar.tsx`** (845 lines): `FacilityUnifiedCalendar` [L51-L844]
+- **`src/app/(app)/facility/_components/RoomBlueprintCards.tsx`** (321 lines): `BlueprintLayoutType` [L6-L6], `RoomBlueprintCards` [L22-L320]
+- **`src/app/(app)/facility/_components/facility-shared.ts`** (430 lines): `ModuleMode` [L3-L3], `FacilityView` [L4-L4], `toThaiDateString` [L6-L29], `toThaiTimeString` [L31-L38], `formatISODateInput` [L40-L45], `getThaiMonthYear` [L47-L53], `RoomConfigMetadata` [L55-L59], `ROOM_LAYOUT_LABELS` [L61-L69], `parseRoomConfig` [L71-L89], `serializeRoomConfig` [L91-L97], `STANDARD_DEPARTMENT_OPTIONS` [L102-L118], `VehicleRecurringScheduleRule` [L123-L131], `VehicleConfigMetadata` [L133-L138], `parseVehicleConfig` [L140-L183], `serializeVehicleConfig` [L185-L195], `SemesterPeriod` [L197-L203], `FacilitySemesterConfig` [L205-L209], `getDefaultSemesterConfig` [L211-L234], `parseSemesterConfigFromGuidelines` [L239-L282], `injectSemesterConfigIntoGuidelines` [L284-L291], `isDateInActiveSemester` [L293-L296], `THAI_DOW_SHORT` [L352-L360], `formatRecurringDaysLabel` [L362-L372], `EvaluatedVehicleRecurringSlot` [L374-L384], `evaluateVehicleRecurringSlotsForDate` [L386-L390]
+- **`src/app/(app)/facility/page.tsx`** (276 lines): `FacilityPortalContent` [L36-L258], `UnifiedFacilityPortalPage` [L260-L275]
+- **`src/app/(app)/facility/settings/page.tsx`** (353 lines): `FacilitySettingsPage` [L26-L352]
+- **`src/app/(app)/general/document/page.tsx`** (8 lines): `GeneralDocumentPage` [L5-L7]
+- **`src/app/(app)/general/facility/page.tsx`** (8 lines): `GeneralFacilityPage` [L5-L7]
+- **`src/app/(app)/general/facility/reports/page.tsx`** (426 lines): `FacilityReportsPage` [L38-L425]
+- **`src/app/(app)/general/repair/new/page.tsx`** (12 lines): `metadata` [L4-L7], `GeneralNewRepairPage` [L9-L11]
+- **`src/app/(app)/general/repair/page.tsx`** (12 lines): `metadata` [L4-L7], `GeneralRepairPage` [L9-L11]
+- **`src/app/(app)/general/repair/summary/page.tsx`** (12 lines): `metadata` [L4-L7], `GeneralRepairSummaryPage` [L9-L11]
+- **`src/app/(app)/history/layout.tsx`** (11 lines): `metadata` [L3-L6], `HistoryLayout` [L8-L10]
+- **`src/app/(app)/history/page.tsx`** (1060 lines): `HistoryPage` [L22-L1059]
+- **`src/app/(app)/hr/attendance/page.tsx`** (8 lines): `HRAttendancePage` [L5-L7]
+- **`src/app/(app)/hr/competency/page.tsx`** (8 lines): `HRCompetencyPage` [L5-L7]
+- **`src/app/(app)/hr/leave/approvals/page.tsx`** (6 lines): `Page` [L3-L5]
+- **`src/app/(app)/hr/leave/history/page.tsx`** (6 lines): `Page` [L3-L5]
+- **`src/app/(app)/hr/leave/page.tsx`** (6 lines): `Page` [L3-L5]
+- **`src/app/(app)/hr/leave/reports/page.tsx`** (6 lines): `Page` [L3-L5]
+- **`src/app/(app)/hr/leave/request/page.tsx`** (6 lines): `Page` [L3-L5]
+- **`src/app/(app)/layout.tsx`** (1815 lines): `SidebarToggleIcon` [L62-L82], `NotificationBell` [L84-L266], `UserAvatarDropdown` [L268-L373], `CollapsibleGroup` [L386-L479], `AppContent` [L481-L1800], `AppLayout` [L1802-L1814]
+- **`src/app/(app)/leave/page.tsx`** (6 lines): `Page` [L3-L5]
+- **`src/app/(app)/loading.tsx`** (16 lines): `AppLoading` [L1-L15]
+- **`src/app/(app)/logs/layout.tsx`** (11 lines): `metadata` [L3-L6], `LogsLayout` [L8-L10]
+- **`src/app/(app)/logs/page.tsx`** (430 lines): `LogsPage` [L41-L429]
+- **`src/app/(app)/manual/page.tsx`** (253 lines): `ManualPage` [L30-L252]
+- **`src/app/(app)/personnel/settings/page.tsx`** (179 lines): `PersonnelSettingsPage` [L7-L178]
+- **`src/app/(app)/profile/layout.tsx`** (11 lines): `metadata` [L3-L6], `ProfileLayout` [L8-L10]
+- **`src/app/(app)/profile/page.tsx`** (1058 lines): `ProfilePage` [L107-L1057]
+- **`src/app/(app)/repair/[id]/page.tsx`** (12 lines): `metadata` [L4-L6], `RepairDetailRoute` [L8-L11]
+- **`src/app/(app)/repair/_components/RepairDashboardPage.tsx`** (337 lines): `DashboardStat` [L25-L49], `RepairDashboardPage` [L53-L336]
+- **`src/app/(app)/repair/_components/RepairDetailPage.tsx`** (751 lines): `InfoRow` [L51-L63], `WorkflowPanel` [L67-L242], `StatusStepper` [L253-L320], `RepairRatingPanel` [L322-L483], `RepairDetailPage` [L485-L750]
+- **`src/app/(app)/repair/_components/RepairListPage.tsx`** (294 lines): `RepairRow` [L49-L102], `RepairListPage` [L106-L286]
+- **`src/app/(app)/repair/_components/RepairNewPage.tsx`** (415 lines): `RepairNewPage` [L30-L414]
+- **`src/app/(app)/repair/_components/RepairPhotosPanel.tsx`** (427 lines): `Lightbox` [L38-L72], `PhotoCard` [L76-L150], `PhotoGroup` [L157-L346], `RepairPhotosPanel` [L366-L426]
+- **`src/app/(app)/repair/_components/RepairSummaryReportPage.tsx`** (37 lines): `RepairSummaryReportPage` [L10-L36]
+- **`src/app/(app)/repair/_components/RepairSummaryReportView.tsx`** (311 lines): `RepairSummaryReportView` [L34-L310]
+- **`src/app/(app)/repair/dashboard/page.tsx`** (6 lines): `RepairDashboardRoute` [L3-L5]
+- **`src/app/(app)/repair/layout.tsx`** (4 lines): `RepairLayout` [L1-L3]
+- **`src/app/(app)/repair/new/page.tsx`** (12 lines): `metadata` [L4-L7], `NewRepairPage` [L9-L11]
+- **`src/app/(app)/repair/page.tsx`** (12 lines): `metadata` [L4-L7], `RepairPage` [L9-L11]
+- **`src/app/(app)/repair/summary/page.tsx`** (12 lines): `metadata` [L4-L7], `RepairSummaryPage` [L9-L11]
+- **`src/app/(app)/reports/layout.tsx`** (11 lines): `metadata` [L3-L6], `ReportsLayout` [L8-L10]
+- **`src/app/(app)/reports/page.tsx`** (1505 lines): `ReportsPage` [L36-L1504]
+- **`src/app/(app)/request/error.tsx`** (86 lines): `RequestErrorBoundary` [L13-L85]
+- **`src/app/(app)/request/layout.tsx`** (11 lines): `metadata` [L3-L6], `RequestLayout` [L8-L10]
+- **`src/app/(app)/request/page.tsx`** (965 lines): `getTodayStr` [L14-L17], `getWeekdayName` [L19-L24], `RequestLeavePage` [L72-L964]
+- **`src/app/(app)/settings/layout.tsx`** (12 lines): `metadata` [L4-L7], `SettingsLayout` [L9-L11]
+- **`src/app/(app)/settings/page.tsx`** (11068 lines): `SearchableTeacherCombobox` [L90-L301], `SettingsPage` [L303-L9983], `doPost` [L5590-L5635], `renderPatternPreview` [L9988-L10006], `DocMemoSectionsTab` [L10011-L10474], `DocPatternBuilderTab` [L10479-L10834], `DocSigneesTab` [L10839-L11066]
+- **`src/app/(app)/settings/privacy/page.tsx`** (559 lines): `UserPrivacyCenterPage` [L44-L558]
+- **`src/app/(app)/users/layout.tsx`** (11 lines): `metadata` [L3-L6], `UsersLayout` [L8-L10]
+- **`src/app/(app)/users/page.tsx`** (968 lines): `UsersPage` [L9-L967]
+- **`src/app/actions/academic-planning.ts`** (289 lines): `getPlanningControlCenterStatsAction` [L7-L67], `seedDefaultReadinessIndicators` [L69-L115], `getReadinessIndicatorsAction` [L117-L130], `updateReadinessIndicatorAction` [L132-L134], `evaluatePlanningSessionReadinessAction` [L156-L240], `publishPlanningSessionAtomicAction` [L242-L288]
+- **`src/app/actions/admin.ts`** (1027 lines): `requireSuperAdmin` [L24-L30], `requireUserManagementAccess` [L32-L52], `requireHROrAdmin` [L54-L84], `getNotifications` [L86-L168], `getAllUsers` [L171-L259], `migrateLegacyAvatarsAction` [L262-L307], `updateUserProfile` [L310-L370], `approveUser` [L372-L382], `suspendUser` [L384-L397], `deleteUser` [L400-L473], `getMonthlyReport` [L477-L511], `getCycleReport` [L513-L566], `UserLeaveSummaryDTO` [L568-L577], `LeaveReportDTO` [L579-L587], `getCanonicalLeaveReportDTO` [L589-L793], `resetUserPasswordByAdmin` [L798-L815], `createUserByAdmin` [L818-L891], `importUsersByAdmin` [L893-L894]
+- **`src/app/actions/archive.ts`** (734 lines): `requireAdmin` [L10-L21], `requirePrivilegedLeaveBackup` [L23-L35], `archiveCurrentCycle` [L42-L116], `getArchives` [L121-L132], `backupSettings` [L137-L164], `getBackups` [L166-L176], `restoreBackup` [L178-L220], `importBackupFromJson` [L222-L265], `exportLeaveBackup` [L271-L346], `importLeaveBackup` [L352-L467], `getFiscalYear` [L469-L473], `importLeaveSimple` [L475-L662], `undoImportLeave` [L664-L691], `getImportHistory` [L693-L732]
+- **`src/app/actions/attendance-leave-sync.ts`** (43 lines): `ApprovedLeave` [L5-L10], `getApprovedLeavesForPeriod` [L15-L42]
+- **`src/app/actions/attendance-stats.ts`** (306 lines): `getTodayAttendanceStats` [L9-L86], `getIndividualAttendanceStats` [L88-L179], `getSchoolAttendanceAnalytics` [L181-L305]
+- **`src/app/actions/attendance.ts`** (1078 lines): `requireAuth` [L17-L21], `requireAdmin` [L23-L30], `checkHRorAdminPermission` [L32-L40], `haversineDistance` [L46-L58], `computeLogHash` [L64-L74], `checkRateLimit` [L82-L104], `generateAttendanceNonceImpl` [L110-L124], `consumeNonce` [L126-L141], `appendAttendanceLog` [L147-L175], `verifyLocationImpl` [L181-L229], `getAttendanceDate` [L247-L251], `clockInImpl` [L253-L411], `clockOutImpl` [L413-L521], `getMyAttendanceTodayImpl` [L527-L574], `updateFaceConsentImpl` [L580-L605], `registerFaceProfileImpl` [L607-L629], `getWorkShiftsImpl` [L635-L641], `createWorkShiftImpl` [L643-L666], `updateWorkShiftImpl` [L668-L677], `deleteWorkShiftImpl` [L685-L696], `assignUserShiftImpl` [L698-L707], `getAttendanceReportImpl` [L713-L764], `getAttendanceKPIImpl` [L766-L887], `cleanupExpiredNoncesImpl` [L893-L899], `purgeOldPhotosImpl` [L901-L918], `updateAttendanceSettingsImpl` [L924-L946], `verifyLogChainImpl` [L952-L971], `recordOfficialDutyImpl` [L977-L1015], `removeOfficialDutyImpl` [L1017-L1028], `getOfficialDutyRecordsImpl` [L1030-L1051], `generateAttendanceNonce` [L1057-L1057], `verifyLocation` [L1058-L1058], `clockIn` [L1059-L1059], `clockOut` [L1060-L1060], `getMyAttendanceToday` [L1061-L1061], `updateFaceConsent` [L1062-L1062], `registerFaceProfile` [L1063-L1063], `getWorkShifts` [L1064-L1064], `createWorkShift` [L1065-L1065], `updateWorkShift` [L1066-L1066], `deleteWorkShift` [L1067-L1067], `assignUserShift` [L1068-L1068], `getAttendanceReport` [L1069-L1069], `getAttendanceKPI` [L1070-L1070], `cleanupExpiredNonces` [L1071-L1071], `purgeOldPhotos` [L1072-L1072], `updateAttendanceSettings` [L1073-L1073], `verifyLogChain` [L1074-L1074], `recordOfficialDuty` [L1075-L1075], `removeOfficialDuty` [L1076-L1076], `getOfficialDutyRecords` [L1077-L1077]
+- **`src/app/actions/auth_actions.ts`** (40 lines): `resolveEmailForLogin` [L9-L39]
+- **`src/app/actions/competency.ts`** (120 lines): `SetPaTargetConfigInput` [L6-L11], `SubmitPaAgreementInput` [L13-L19], `LogPdHoursInput` [L21-L29], `setPaTargetConfigAction` [L31-L50], `getPaTargetConfigAction` [L52-L56], `submitPaAgreementAction` [L58-L84], `logPdHoursAction` [L86-L102], `getTeacherPdSummaryAction` [L104-L119]
+- **`src/app/actions/curriculum-workflow.ts`** (482 lines): `SaveApprovalStageInput` [L6-L11], `SaveApprovalWorkflowInput` [L13-L18], `getApprovalWorkflowsAction` [L20-L54], `saveApprovalWorkflowAction` [L56-L115], `getPlanningSandboxScenariosAction` [L117-L131], `SavePlanningSandboxScenarioInput` [L133-L142], `savePlanningSandboxScenarioAction` [L144-L187], `compareSandboxScenariosAction` [L189-L226], `getAcademicCalendarEventsAction` [L228-L273], `SaveAcademicEventInput` [L275-L287], `saveAcademicEventAction` [L289-L355], `getResourceItemsAction` [L357-L374], `SaveResourceItemInput` [L376-L383], `saveResourceItemAction` [L385-L428], `ReserveResourceInput` [L430-L437], `reserveResourceAction` [L439-L481]
+- **`src/app/actions/dashboard-widgets.ts`** (737 lines): `getDashboardWidgetConfig` [L22-L64], `saveDashboardWidgetConfig` [L71-L73], `resetUserWidgetConfigToDefault` [L150-L207], `SchoolManagementExecutiveStats` [L209-L255], `getSchoolManagementExecutiveStats` [L261-L568], `LearningOutcomeSeries` [L570-L574], `LearningOutcomeChartItem` [L576-L579], `LearningOutcomeData` [L581-L586], `getLearningOutcomesAction` [L592-L735]
+- **`src/app/actions/document-settings.ts`** (232 lines): `checkAuth` [L7-L26], `safeRevalidatePath` [L28-L34], `getMemoSections` [L37-L45], `upsertMemoSection` [L47-L114], `deleteMemoSection` [L116-L121], `getSigneePresets` [L124-L129], `upsertSigneePreset` [L131-L147], `deleteSigneePreset` [L149-L154], `getDocumentConfigs` [L157-L207], `saveDocumentConfig` [L209-L231]
+- **`src/app/actions/document.ts`** (1678 lines): `getSessionUser` [L26-L50], `safeRevalidatePath` [L52-L58], `handleActionError` [L61-L110], `saveDocDraft` [L112-L184], `quickIssueDoc` [L186-L209], `issueDocNumber` [L211-L325], `verifyDocumentManagePermission` [L327-L328], `cancelDoc` [L365-L413], `restoreDoc` [L415-L460], `softDeleteDoc` [L462-L498], `updateOutboundDoc` [L500-L509], `ensureDocRequestColumnsExist` [L554-L567], `requestDocAction` [L569-L580], `approveDocRequest` [L627-L689], `rejectDocRequest` [L691-L728], `getDocumentSettings` [L730-L749], `getDocumentAdminUserIds` [L751-L764], `updateDocumentAdminUserIds` [L766-L787], `getDocPreviewNumber` [L789-L824], `getDocumentDetails` [L826-L840], `getDocumentsList` [L842-L890], `getDashboardStats` [L892-L911], `saveDocumentAttachment` [L913-L928], `getDocumentActivities` [L930-L971], `getDocumentTrendStats` [L973-L1017], `issueActivityCertificatesBatch` [L1019-L1219], `getCertificateBatchItems` [L1222-L1249], `updateCertificateMetadata` [L1252-L1259], `verifyCertificatePublic` [L1322-L1338], `getCertificateTemplatesAction` [L1345-L1358], `saveCertificateTemplateAction` [L1360-L1380], `forkCertificateTemplateAction` [L1382-L1383], `deleteCertificateTemplateAction` [L1404-L1423], `uploadCertificateBackgroundAction` [L1429-L1454], `uploadCertificateSignatureAction` [L1460-L1489], `fetchImageAsDataUrlAction` [L1498-L1555], `uploadCertificateFontAction` [L1561-L1572], `getAttachmentUrlAction` [L1604-L1675]
+- **`src/app/actions/exam.ts`** (111 lines): `ConfigureExamPeriodInput` [L6-L14], `CreateExamSlotInput` [L16-L25], `configureExamPeriodAction` [L27-L58], `getActiveExamPeriodAction` [L60-L69], `createExamSlotAction` [L71-L87], `assignExamProctorsAction` [L89-L91]
+- **`src/app/actions/facility.ts`** (1910 lines): `CreateFacilityResourceInput` [L15-L38], `ReserveFacilityInput` [L40-L68], `getSessionUser` [L73-L78], `assertResourceDomainPermission` [L86-L105], `transitionReservationStatus` [L111-L119], `executeReservationMutation` [L156-L210], `calculateDynamicSlaExpiry` [L216-L229], `reserveFacilityAction` [L240-L580], `reviewFacilityReservationHeadAction` [L589-L596], `approveFacilityReservationDirectorAction` [L717-L719], `rejectFacilityReservationAction` [L812-L850], `cancelFacilityReservationAction` [L855-L903], `cleanupExpiredPendingReservationsAction` [L908-L946], `completeVehicleTripAction` [L951-L958], `getFacilityResourcesAction` [L1009-L1010], `GetFacilityReservationsFilter` [L1031-L1039], `getFacilityReservationsAction` [L1046-L1140], `getDriverProfilesAction` [L1145-L1194], `updateDriverProfileAction` [L1199-L1201], `createFacilityResourceAction` [L1227-L1358], `updateFacilityResourceAction` [L1363-L1374], `toggleFacilityResourceStatusAction` [L1475-L1519], `deleteFacilityResourceAction` [L1524-L1587], `seedDefaultFacilityResourcesAction` [L1592-L1693], `getCurrentFacilityUserRoleAction` [L1698-L1797], `getFacilitySettingsAction` [L1802-L1842], `updateFacilitySettingsAction` [L1847-L1889], `getFacilityEligibleUsersAction` [L1894-L1907]
+- **`src/app/actions/holiday.ts`** (406 lines): `checkPermission` [L92-L118], `getHolidays` [L122-L168], `createHoliday` [L172-L196], `updateHoliday` [L200-L226], `deleteHoliday` [L230-L248], `searchInternetHolidays` [L252-L332], `importSelectedHolidays` [L334-L404]
+- **`src/app/actions/incoming.ts`** (1318 lines): `getSessionUser` [L14-L36], `safeRevalidatePath` [L38-L44], `scrapeAMSSDocument` [L47-L93], `normalizeAmssUrl` [L95-L106], `saveAMSSCredentials` [L109-L157], `getAMSSCredentials` [L160-L167], `testAMSSConnection` [L170-L206], `syncAMSSDocumentsAutomatically` [L209-L387], `deleteAMSSCredentials` [L390-L397], `createIncomingDoc` [L400-L491], `addRoutingStep` [L494-L538], `resolveRoutingStep` [L541-L621], `skipRoutingStep` [L624-L649], `getMyPendingRoutingCount` [L652-L664], `getMyPendingRouting` [L667-L688], `getIncomingDocsList` [L691-L727], `getIncomingDocDetails` [L730-L745], `sendLineNotifyForRouting` [L748-L785], `syncAMSSDocumentsFromHtml` [L788-L810], `AMSSPreviewItem` [L951-L959], `fetchAmssPreviewDocs` [L961-L1117], `syncLatestAMSSDocuments` [L1120-L1173], `importSelectedAMSSDocuments` [L1175-L1300], `deleteIncomingDoc` [L1303-L1317]
+- **`src/app/actions/leave.ts`** (2614 lines): `logSecurityViolationIsolated` [L19-L35], `getTimezoneMemo` [L57-L59], `calculateLeaveDays` [L61-L120], `getCalculatedLeaveDays` [L122-L126], `getSession` [L129-L133], `writeLog` [L136-L140], `getFiscalYear` [L143-L147], `ensureSequencesPopulated` [L149-L195], `submitLeaveRequest` [L198-L367], `getPaginatedLeaveHistory` [L379-L520], `getStaffList` [L523-L556], `canGiveFinalApproval` [L559-L572], `getDashboardStats` [L575-L971], `getPendingApprovals` [L974-L1038], `approveLeaveRequest` [L1041-L1313], `rejectLeaveRequest` [L1315-L1480], `cancelLeaveRequest` [L1483-L1514], `editLeaveRequest` [L1517-L1555], `adminDeleteLeaveRequest` [L1558-L1619], `adminClearAllLeaveData` [L1622-L1652], `getSystemLogs` [L1655-L1689], `getLeaveTypeName` [L1692-L1707], `pruneSystemLogs` [L1710-L1728], `getMyLeaveUsageForCurrentCycle` [L1731-L1788], `getLeaveRequestForPrint` [L1791-L2088], `getBatchLeaveRequestsForPrint` [L2091-L2411], `uploadLeavePdf` [L2413-L2498], `testGoogleDriveConnectionAction` [L2500-L2568], `getCalendarLeaves` [L2570-L2611]
+- **`src/app/actions/logs.ts`** (152 lines): `getSystemLogsAction` [L6-L49], `archiveSystemLogsAction` [L51-L93], `getSystemLogArchivesAction` [L95-L111], `restoreSystemLogArchiveAction` [L113-L151]
+- **`src/app/actions/monitoring.ts`** (92 lines): `getSupabaseUsageStatsAction` [L8-L44], `saveMonitoringConfigAction` [L46-L91]
+- **`src/app/actions/omr.ts`** (1855 lines): `safeRevalidatePath` [L9-L16], `SubjectiveItemInput` [L18-L23], `CreateExamPaperInput` [L25-L39], `UpdateExamPaperInput` [L41-L53], `AnswerKeyItemInput` [L55-L60], `ConfigureAnswerKeyInput` [L62-L66], `IngestItemInput` [L68-L73], `IngestSubmissionInput` [L75-L88], `UserContext` [L90-L93], `buildStandardTemplateCode` [L95-L108], `createExamPaperAction` [L113-L176], `updateExamPaperAction` [L181-L270], `configureAnswerKeyAction` [L275-L336], `updateAnswerKeyWithVersionAction` [L341-L433], `createRegradeJobAction` [L438-L493], `processRegradeJobChunkAction` [L498-L729], `regradeSubmissionsChunkAction` [L734-L768], `updateSubjectiveScoreAction` [L773-L850], `softDeleteExamPaperAction` [L855-L857], `restoreExamPaperAction` [L874-L876], `listExamPapersAction` [L892-L971], `getExamPaperDetailsAction` [L977-L1027], `getSubmissionDetailsAction` [L1032-L1078], `ingestExamSubmissionAction` [L1086-L1340], `recalculateSubmissionScoreAction` [L1345-L1466], `updateItemManualOverrideAction` [L1471-L1518], `generatePrintedSheetsAction` [L1523-L1574], `calculateExamItemAnalysisAction` [L1579-L1677], `getExamItemAnalysisAction` [L1679-L1681], `deleteExamSubmissionAction` [L1686-L1751], `updateSubmissionStudentIdentityAction` [L1756-L1853]
+- **`src/app/actions/privacy_actions.ts`** (676 lines): `fetchCurrentPolicies` [L127-L151], `recordRegistrationPolicyAcknowledgments` [L153-L254], `checkUserPolicyAcknowledgmentStatus` [L256-L366], `acknowledgePolicyForCurrentUser` [L368-L420], `getSessionUserId` [L422-L437], `getClientContext` [L439-L458], `getUserPrivacyProfileForUser` [L460-L515], `getUserPrivacyProfile` [L517-L520], `withdrawUserConsentForUser` [L522-L551], `withdrawUserConsentAction` [L553-L569], `grantUserConsentForUser` [L571-L600], `grantUserConsentAction` [L602-L614], `getPublicPrivacyData` [L616-L673]
+- **`src/app/actions/project-budget.ts`** (777 lines): `getCurrentUser` [L19-L24], `verifyBudgetPermission` [L32-L113], `handleActionError` [L250-L275], `confirmTrancheDepositAction` [L284-L304], `createProjectAction` [L309-L330], `createActivityAction` [L335-L359], `resolveAllocationDeterministically` [L370-L426], `recordExpenseAction` [L431-L454], `recordAndApproveExpenseAction` [L459-L482], `approveExpenseAction` [L487-L495], `reverseExpenseAction` [L500-L516], `transferBudgetAction` [L521-L540], `getFiscalYearDashboardAction` [L545-L553], `attachProjectFileAction` [L558-L581], `ensureDefaultFiscalYearAction` [L586-L668], `getBudgetUsersAction` [L673-L691], `cloneProjectsFromFiscalYearAction` [L696-L714], `closeFiscalYearAction` [L719-L730], `getFiscalYearsListAction` [L735-L747], `simplifiedDisburseBudgetAction` [L752-L775]
+- **`src/app/actions/recycle-bin.ts`** (424 lines): `getAuthenticatedUser` [L20-L44], `safeRevalidate` [L46-L54], `getRecycleBinItemsAction` [L60-L80], `softDeleteRecycleBinItemAction` [L85-L123], `restoreRecycleBinItemAction` [L129-L174], `purgeRecycleBinItemAction` [L179-L214], `bulkRestoreRecycleBinAction` [L219-L220], `bulkPurgeRecycleBinAction` [L240-L241], `emptyRecycleBinAction` [L265-L307], `getRecycleBinStatsAction` [L312-L370], `getRecycleBinRetentionDaysAction` [L375-L388], `updateRecycleBinRetentionDaysAction` [L393-L423]
+- **`src/app/actions/repair/archive.ts`** (27 lines): `archiveRepairsAction` [L12-L26]
+- **`src/app/actions/repair/create.ts`** (31 lines): `createRepairAction` [L8-L30]
+- **`src/app/actions/repair/delete.ts`** (13 lines): `deleteRepairAction` [L7-L12]
+- **`src/app/actions/repair/photo.ts`** (100 lines): `getActor` [L14-L20], `uploadRepairPhotoAction` [L23-L78], `getRepairPhotosAction` [L81-L86], `deleteRepairPhotoAction` [L89-L99]
+- **`src/app/actions/repair/rating.ts`** (29 lines): `submitRepairRatingAction` [L7-L28]
+- **`src/app/actions/repair/report.ts`** (256 lines): `SummaryReportParams` [L8-L12], `getRepairDashboardStatsAction` [L14-L137], `getRepairSummaryReportAction` [L139-L255]
+- **`src/app/actions/repair/update.ts`** (129 lines): `getActor` [L14-L20], `assignRepairAction` [L23-L40], `startRepairAction` [L43-L56], `completeRepairAction` [L59-L62], `cancelRepairAction` [L79-L96], `getRepairsAction` [L99-L112], `getRepairDetailAction` [L115-L128]
+- **`src/app/actions/repair/user.ts`** (52 lines): `getAssignableTechniciansAction` [L7-L51]
+- **`src/app/actions/school-calendar.ts`** (121 lines): `getOfficialSchoolCalendarEvents` [L17-L120]
+- **`src/app/actions/settings.ts`** (1099 lines): `getActualUser` [L23-L39], `requireSuperAdmin` [L41-L47], `requireAdminOrHR` [L49-L88], `requireHROrAdmin` [L90-L98], `ensureSubsystemColumnsExist` [L100-L148], `getSystemSettings` [L150-L319], `getEligibleInspectors` [L321-L351], `updateDefaultInspector` [L353-L389], `updateSystemSettings` [L391-L676], `updateLeaveRules` [L678-L714], `updateFooter` [L716-L740], `generateBackup` [L742-L766], `getLeaveConfigs` [L796-L820], `updateLeaveConfig` [L822-L844], `setImpersonationCookie` [L846-L880], `clearImpersonation` [L882-L896], `getSimpleUsersList` [L898-L904], `getEligibleAppointees` [L906-L915], `getMyDutyAssignments` [L917-L931], `getActiveDutyAssignments` [L933-L963], `updateAppointedDuties` [L965-L1097]
+- **`src/app/actions/telemetry.ts`** (19 lines): `getTelemetryStatsAction` [L6-L18]
+- **`src/app/actions/upload.ts`** (92 lines): `uploadLogo` [L7-L33], `uploadDocumentFile` [L37-L90]
+- **`src/app/actions/user.ts`** (256 lines): `getMySignature` [L13-L31], `setUserSignature` [L33-L107], `updateProfile` [L110-L254]
+- **`src/app/actions/workload-policy.ts`** (265 lines): `TeachingLoadPolicy` [L6-L15], `getTeachingLoadPoliciesAction` [L47-L54], `saveTeachingLoadPolicyAction` [L56-L91], `getCourseWeightFactorsAction` [L93-L125], `SaveCourseWeightFactorInput` [L127-L133], `saveCourseWeightFactorAction` [L135-L163], `calculateTeacherEtuWorkloadAction` [L165-L264]
+- **`src/app/api/amss-test/route.ts`** (259 lines): `POST` [L6-L258]
+- **`src/app/api/auth/[...all]/route.ts`** (69 lines): `GET` [L9-L66], `POST` [L68-L68]
+- **`src/app/api/cron/archive/route.ts`** (115 lines): `GET` [L6-L114]
+- **`src/app/api/cron/attachment-cleanup/route.ts`** (37 lines): `GET` [L13-L36]
+- **`src/app/api/omr/paper/[paperId]/route.ts`** (102 lines): `GET` [L6-L8], `POST` [L71-L73]
+- **`src/app/api/print-legacy/[id]/route.ts`** (660 lines): `toThaiDateString` [L6-L21], `toThaiDateStringShort` [L24-L39], `getThaiDay` [L41-L46], `getThaiMonth` [L48-L57], `getThaiYear` [L59-L64], `getLeaveLabel` [L66-L81], `getLeaveTypeName` [L83-L100], `GET` [L102-L104]
+- **`src/app/api/repair/upload-photo/route.ts`** (77 lines): `POST` [L8-L76]
+- **`src/app/api/signatures/[userId]/route.ts`** (241 lines): `dynamic` [L9-L9], `invalidateSignatureCache` [L22-L28], `getSupabaseClient` [L29-L34], `GET` [L36-L38]
+- **`src/app/global-error.tsx`** (94 lines): `GlobalError` [L11-L93]
+- **`src/app/layout.tsx`** (78 lines): `dynamic` [L8-L8], `revalidate` [L9-L9], `fetchCache` [L10-L10], `generateMetadata` [L12-L45], `RootLayout` [L48-L77]
+- **`src/app/loading.tsx`** (16 lines): `RootLoading` [L1-L15]
+- **`src/app/login/page.tsx`** (557 lines): `LoginPage` [L14-L556]
+- **`src/app/manifest.ts`** (26 lines): `manifest` [L3-L25]
+- **`src/app/page.tsx`** (6 lines): `Home` [L3-L5]
+- **`src/app/print/exam/sheet/[paperId]/page.tsx`** (233 lines): `PrintExamSheetsPage` [L8-L232]
+- **`src/app/print/facility/room/[id]/page.tsx`** (332 lines): `toThaiDateString` [L10-L25], `toThaiDateTimeString` [L27-L35], `PrintRoomReservationPage` [L37-L331]
+- **`src/app/print/facility/vehicle/[id]/page.tsx`** (306 lines): `toThaiDateString` [L9-L24], `toThaiDateTimeString` [L26-L34], `PrintVehicleReservationPage` [L44-L305]
+- **`src/app/print/leave/[id]/page.tsx`** (856 lines): `toThaiDateString` [L10-L25], `toThaiDateStringShort` [L28-L43], `getThaiDay` [L45-L50], `getThaiMonth` [L52-L61], `getThaiYear` [L63-L68], `PrintLeavePage` [L71-L71]
+- **`src/app/print/leave/batch/page.tsx`** (786 lines): `toThaiDateString` [L10-L25], `toThaiDateStringShort` [L28-L43], `getThaiDay` [L45-L50], `getThaiMonth` [L52-L61], `getThaiYear` [L63-L68], `BatchPrintPageContent` [L70-L769], `BatchPrintPage` [L771-L785]
+- **`src/app/print/repair/[id]/page.tsx`** (367 lines): `toThaiDateString` [L12-L27], `toThaiDateTimeString` [L29-L37], `PrintRepairPage` [L64-L366]
+- **`src/app/privacy/BackButton.tsx`** (28 lines): `BackButton` [L7-L27]
+- **`src/app/privacy/page.tsx`** (444 lines): `dynamic` [L22-L22], `PublicPrivacyPage` [L50-L443]
+- **`src/app/reset-password/page.tsx`** (133 lines): `ResetPasswordForm` [L13-L104], `ResetPasswordPage` [L106-L132]
+- **`src/app/v/[token]/route.ts`** (23 lines): `GET` [L8-L10]
+- **`src/app/verify/cert/page.tsx`** (274 lines): `VerifyContent` [L11-L259], `VerifyCertificatePage` [L261-L273]
+- **`src/components/AmssImportModal.tsx`** (186 lines): `AmssImportModal` [L7-L177], `CheckCircleIcon` [L179-L185]
+- **`src/components/cycle-select.tsx`** (35 lines): `CycleSelect` [L6-L34]
+- **`src/components/export-excel-button.tsx`** (74 lines): `ExportExcelButton` [L10-L73]
+- **`src/components/layout/BrandLoadingScreen.tsx`** (87 lines): `BrandLoadingScreen` [L11-L84]
+- **`src/components/layout/FontSizeSwitcher.tsx`** (313 lines): `clampFontSize` [L55-L59], `applyRootFontSize` [L61-L65], `FontSizeSwitcher` [L67-L312]
+- **`src/components/omr/ExamPapersManagementView.tsx`** (776 lines): `SUBJECT_GROUPS` [L34-L45], `resolveSubjectGroup` [L47-L67], `getSubjectGroupBadgeColor` [L69-L79], `ExamPapersManagementViewProps` [L81-L83], `ExamPapersManagementView` [L85-L775]
+- **`src/components/omr/OmrAnswerSheetPrintLayout.tsx`** (685 lines): `PrintedSheetItem` [L11-L18], `SubjectivePrintItem` [L20-L25], `OmrAnswerSheetProps` [L27-L41], `OmrTwoUpA4SheetProps` [L43-L56], `OmrAnswerSheetPrintLayout` [L74-L661], `OmrAnswerSheet` [L663-L663], `OmrTwoUpA4Sheet` [L669-L684]
+- **`src/components/omr/OmrCameraScanner.tsx`** (1498 lines): `OmrCameraScanner` [L45-L1497]
+- **`src/components/omr/TeacherScoreBubbleGrid.tsx`** (166 lines): `TeacherScoreBubbleGridProps` [L6-L14], `TeacherScoreBubbleGrid` [L16-L165]
+- **`src/components/privacy/PolicyModal.tsx`** (228 lines): `PolicyModal` [L24-L227]
+- **`src/components/privacy/PolicyUpdateNotifier.tsx`** (211 lines): `PolicyUpdateNotifier` [L33-L210]
+- **`src/components/providers/app-providers.tsx`** (21 lines): `AppProviders` [L13-L20]
+- **`src/components/shared-ui/school-ops/ExecutiveStatCard.tsx`** (138 lines): `ExecutiveStatCardProps` [L11-L36], `ExecutiveStatCard` [L59-L135]
+- **`src/components/shared-ui/school-ops/MatrixPrimitives.tsx`** (138 lines): `MatrixShellProps` [L6-L11], `MatrixShell` [L18-L31], `MatrixHeaderCellProps` [L33-L40], `MatrixHeaderCell` [L46-L72], `MatrixSlotCellProps` [L74-L90], `MatrixSlotCell` [L105-L135]
+- **`src/components/shared-ui/school-ops/StatusPillBadge.tsx`** (92 lines): `StatusPillBadgeProps` [L12-L29], `StatusPillBadge` [L54-L89]
+- **`src/components/shared-ui/school-ops/SubsystemHeader.tsx`** (131 lines): `SubsystemHeaderProps` [L11-L36], `SubsystemHeader` [L43-L128]
+- **`src/components/shared-ui/school-ops/UnifiedModal.tsx`** (174 lines): `UnifiedModalProps` [L7-L22], `UnifiedModal` [L38-L90], `UnifiedModalHeaderProps` [L92-L99], `UnifiedModalHeader` [L101-L143], `UnifiedModalBodyProps` [L145-L148], `UnifiedModalBody` [L150-L156], `UnifiedModalFooterProps` [L158-L161], `UnifiedModalFooter` [L163-L171]
+- **`src/components/shared-ui/school-ops/index.ts`** (16 lines) — *No top-level named exports*
+- **`src/components/shared-ui/school-ops/tokens.ts`** (226 lines): `SemanticTone` [L7-L7], `SubsystemKey` [L9-L14], `STATUS_TO_TONE_MAP` [L19-L56], `STATUS_THAI_LABELS` [L61-L94], `_resetWarnedStatuses` [L102-L104], `resolveStatusTone` [L111-L125], `resolveStatusLabel` [L130-L134], `TONE_CLASSES` [L139-L145], `TONE_DOT_CLASSES` [L150-L156], `PRIMARY_ACTION_BUTTON_CLASSES` [L215-L216], `SECONDARY_ACTION_BUTTON_CLASSES` [L218-L219], `CARD_CLASSES` [L221-L222], `INPUT_CLASSES` [L224-L225]
+- **`src/components/theme-provider.tsx`** (12 lines): `ThemeProvider` [L6-L11]
+- **`src/components/toast-provider.tsx`** (111 lines): `useToast` [L23-L27], `ToastProvider` [L30-L53], `ToastItem` [L70-L110]
+- **`src/components/ui/badge.tsx`** (41 lines): `BadgeProps` [L30-L32], `Badge` [L34-L38]
+- **`src/components/ui/button.tsx`** (62 lines): `ButtonProps` [L38-L42]
+- **`src/components/ui/command-dialog.tsx`** (164 lines): `CommandPalette` [L20-L141], `CommandItem` [L143-L163]
+- **`src/components/ui/confirm-dialog.tsx`** (81 lines): `ConfirmDialog` [L20-L80]
+- **`src/components/ui/data-table.tsx`** (99 lines): `DataTable` [L19-L98]
+- **`src/components/ui/dialog.tsx`** (138 lines): `Dialog` [L14-L55], `DialogContent` [L57-L89], `DialogHeader` [L91-L101], `DialogTitle` [L103-L113], `DialogDescription` [L115-L125], `DialogFooter` [L127-L137]
+- **`src/components/ui/empty-state.tsx`** (30 lines): `EmptyStateProps` [L6-L11], `EmptyState` [L13-L29]
+- **`src/components/ui/form.tsx`** (163 lines) — *No top-level named exports*
+- **`src/components/ui/input.tsx`** (31 lines): `InputProps` [L4-L7]
+- **`src/components/ui/page-header.tsx`** (69 lines): `PageHeaderProps` [L7-L16], `PageHeader` [L18-L67]
+- **`src/components/ui/sheet.tsx`** (107 lines): `Sheet` [L17-L106]
+- **`src/components/ui/skeletons.tsx`** (28 lines): `TableSkeleton` [L5-L14], `CardSkeleton` [L16-L27]
+- **`src/components/ui/stat-card.tsx`** (50 lines): `StatCardProps` [L7-L15], `StatCard` [L17-L49]
+- **`src/components/ui/toast.tsx`** (103 lines): `ToastType` [L7-L15], `ToastItem` [L9-L15], `ToastProvider` [L24-L94], `useToastNotification` [L96-L102]
+- **`src/constants/permissions.ts`** (10 lines): `PERMISSIONS` [L1-L7], `Permission` [L9-L9]
+- **`src/core/application/event-publisher.ts`** (6 lines): `EventPublisher` [L3-L5]
+- **`src/core/application/module-manifest.ts`** (22 lines): `ModuleRoute` [L3-L7], `ModuleManifest` [L9-L21]
+- **`src/core/domain/domain-event.ts`** (8 lines): `DomainEvent` [L1-L7]
+- **`src/core/infrastructure/auth/auth-guard.ts`** (36 lines): `VerifiedUserSession` [L4-L7], `getVerifiedServerSession` [L12-L27], `hasPermission` [L29-L35]
+- **`src/core/infrastructure/db/advisory-lock.ts`** (11 lines): `generateAdvisoryLockKey` [L7-L10]
+- **`src/core/infrastructure/event-bus.ts`** (11 lines): `InMemoryEventBus` [L4-L8], `eventPublisher` [L10-L10]
+- **`src/core/utils/error-handler.ts`** (9 lines): `getErrorMessage` [L1-L8]
+- **`src/events/eventCatalog.ts`** (244 lines): `PlatformEventType` [L8-L21], `PlatformEventType` [L23-L23], `CurriculumPublishedPayloadSchema` [L28-L35], `CurriculumPublishedPayload` [L36-L36], `OfferingGeneratedPayloadSchema` [L41-L48], `OfferingGeneratedPayload` [L49-L49], `TeacherAssignedPayloadSchema` [L54-L60], `TeacherAssignedPayload` [L61-L61], `TeacherReassignedPayloadSchema` [L66-L72], `TeacherReassignedPayload` [L73-L73], `PlanningApprovedPayloadSchema` [L78-L84], `PlanningApprovedPayload` [L85-L85], `PlanningRejectedPayloadSchema` [L90-L95], `PlanningRejectedPayload` [L96-L96], `ReadinessIndicatorResultSchema` [L101-L109], `ReadinessPassedPayloadSchema` [L111-L115], `ReadinessPassedPayload` [L116-L116], `ReadinessFailedPayloadSchema` [L121-L126], `ReadinessFailedPayload` [L127-L127], `TimetableRequestedPayloadSchema` [L132-L137], `TimetableRequestedPayload` [L138-L138], `TimetablePublishedPayloadSchema` [L143-L149], `TimetablePublishedPayload` [L150-L150], `ExamGeneratedPayloadSchema` [L155-L162], `ExamGeneratedPayload` [L163-L163], `PAObservationCreatedPayloadSchema` [L168-L180], `PAObservationCreatedPayload` [L181-L181], `PlatformEventEnvelope` [L186-L195], `createPlatformEvent` [L197-L216], `EventSchemaMap` [L218-L231], `validatePlatformEvent` [L233-L243]
+- **`src/features/document/application/services/certificate-upload.service.ts`** (446 lines): `UploadResult` [L5-L10], `uploadCertificateBackground` [L15-L149], `uploadCertificateSignature` [L154-L282], `FontUploadResult` [L287-L295], `uploadCertificateFont` [L302-L445]
+- **`src/features/document/application/services/certificate-verification.service.ts`** (187 lines): `checkRateLimit` [L10-L25], `VerificationResult` [L39-L53], `verifyCertificateByToken` [L60-L186]
+- **`src/features/document/application/use-cases/acknowledge-and-report.use-case.ts`** (66 lines): `AcknowledgeAndReportCommand` [L5-L10], `AcknowledgeAndReportUseCase` [L12-L65]
+- **`src/features/document/application/use-cases/create-executive-directive.use-case.ts`** (76 lines): `CreateExecutiveDirectiveCommand` [L5-L14], `CreateExecutiveDirectiveUseCase` [L16-L75]
+- **`src/features/document/application/use-cases/issue-outbound-doc.use-case.ts`** (148 lines): `issueOutboundDocAtomic` [L11-L147]
+- **`src/features/document/domain/events/document-action-submitted.event.ts`** (19 lines): `DocumentActionPayload` [L3-L9], `DocumentActionSubmittedEvent` [L11-L18]
+- **`src/features/document/domain/types/document.types.ts`** (107 lines): `DocumentStatus` [L1-L1], `DocType` [L2-L2], `IncomingDocStatus` [L3-L3], `MemoSectionDTO` [L5-L13], `OutboundDocument` [L15-L42], `IncomingDoc` [L44-L63], `DocumentFilterState` [L65-L71], `OutboundFormData` [L73-L83], `QuickIssueResult` [L85-L92], `DashboardStats` [L94-L99], `DocumentTrendData` [L101-L106]
+- **`src/features/document/domain/utils/thai-date.ts`** (42 lines): `toBuddhistYear` [L4-L7], `formatThaiDate` [L12-L20], `formatThaiDateShort` [L25-L33], `getAvailableBuddhistYears` [L38-L41]
+- **`src/features/document/manifest.ts`** (28 lines): `DOCUMENT_PERMISSIONS` [L1-L6], `DOCUMENT_NAV_ITEMS` [L8-L14]
+- **`src/features/document/ui/actions/incoming-actions.ts`** (71 lines): `submitDocumentAction` [L10-L37], `submitExecutiveDirectiveAction` [L39-L70]
+- **`src/features/document/ui/components/cert-qr-code.tsx`** (35 lines): `CertQrCode` [L12-L34]
+- **`src/features/document/ui/components/forms/searchable-combobox.tsx`** (141 lines): `ComboboxOption` [L6-L9], `SearchableCombobox` [L19-L140]
+- **`src/features/document/ui/components/incoming-directive-modal.tsx`** (189 lines): `IncomingDirectiveModal` [L25-L188]
+- **`src/features/document/ui/components/print-container.tsx`** (95 lines): `PrintContainer` [L13-L94]
+- **`src/features/document/ui/components/routing-timeline.tsx`** (137 lines): `RoutingTimeline` [L24-L136]
+- **`src/features/document/ui/components/settings/configs-tab.tsx`** (256 lines): `ConfigsTab` [L14-L255]
+- **`src/features/document/ui/components/settings/sections-tab.tsx`** (228 lines): `SectionsTab` [L18-L227]
+- **`src/features/document/ui/components/settings/signees-tab.tsx`** (196 lines): `SigneesTab` [L17-L195]
+- **`src/features/document/ui/components/slide-over-sheet.tsx`** (93 lines): `SlideOverSheet` [L15-L92]
+- **`src/features/document/ui/hooks/use-document-data.ts`** (134 lines): `useDocumentData` [L23-L133]
+- **`src/features/document/ui/hooks/use-document-filters.ts`** (101 lines): `ViewType` [L8-L8], `TabType` [L9-L9], `useDocumentFilters` [L11-L100]
+- **`src/features/document/ui/modals/cancel-doc-modal.tsx`** (97 lines): `CancelDocModal` [L14-L96]
+- **`src/features/document/ui/modals/confirm-action-modal.tsx`** (102 lines): `ConfirmActionModalProps` [L6-L16], `ConfirmActionModal` [L18-L101]
+- **`src/features/document/ui/views/cert-view.tsx`** (12 lines): `CertView` [L9-L11]
+- **`src/features/document/ui/views/inbound-view.tsx`** (167 lines): `InboundView` [L31-L166]
+- **`src/features/document/ui/views/outbound-history-view.tsx`** (97 lines): `OutboundHistoryView` [L39-L96]
+- **`src/features/document/ui/views/outbound-view.tsx`** (43 lines): `OutboundView` [L17-L41]
+- **`src/features/supervision/application/use-cases/director-sign.use-case.ts`** (75 lines): `DirectorSignCommand` [L5-L9], `DirectorSignUseCase` [L11-L74]
+- **`src/features/supervision/domain/schemas/outbox-event.schema.ts`** (33 lines): `SupervisionCompletedEventPayloadSchema` [L4-L10], `SupervisionCompletedEventPayload` [L12-L14], `OutboxEventType` [L16-L16], `parseOutboxPayloadToPrismaJson` [L18-L32]
+- **`src/features/supervision/domain/schemas/supervision-rubric.schema.ts`** (23 lines): `RubricDimensionSchema` [L4-L10], `SupervisionRubricPayloadSchema` [L12-L15], `SupervisionRubricPayload` [L17-L17], `parseRubricToPrismaJson` [L19-L22]
+- **`src/features/supervision/domain/types/supervision.types.ts`** (27 lines): `SupervisionDomainSession` [L3-L26]
+- **`src/features/supervision/manifest.ts`** (14 lines): `SUPERVISION_MANIFEST` [L1-L13]
+- **`src/features/supervision/ui/actions/supervision-actions.ts`** (47 lines): `submitDirectorSignAction` [L10-L46]
+- **`src/features/supervision/ui/components/supervision-matrix-grid.tsx`** (110 lines): `MatrixSessionItem` [L6-L15], `SupervisionMatrixGrid` [L25-L109]
+- **`src/lib/academicYearUtils.ts`** (68 lines): `DateRangeUtc` [L6-L10], `getAcademicYearDateRange` [L17-L29], `getFiscalYearDateRange` [L36-L48], `getCalendarYearDateRange` [L55-L67]
+- **`src/lib/amss-list-parser.ts`** (268 lines): `parseDocRefAndUrgency` [L11-L39], `buildAmssBookDetailUrl` [L41-L48], `parseAMSSListHtml` [L50-L267]
+- **`src/lib/amss-parser.ts`** (463 lines): `AMSS_HEADERS` [L5-L18], `nativeFetch` [L34-L36], `fetchWithTlsFallback` [L151-L186], `parseAMSSUrl` [L188-L310], `cleanHtmlText` [L312-L322], `parseThaiDateStr` [L327-L375], `loginToAMSS` [L380-L462]
+- **`src/lib/attachment-utils.ts`** (132 lines): `NormalizedAttachment` [L1-L9], `normalizeStorageUrl` [L16-L24], `parseDocumentUrls` [L35-L93], `handleViewAttachment` [L99-L131]
+- **`src/lib/attendance-utils.ts`** (108 lines): `ATTENDANCE_STATUS_LABELS` [L6-L14], `ATTENDANCE_STATUS_COLORS` [L17-L25], `formatAttendanceTime` [L28-L32], `formatAttendanceDate` [L35-L42], `browserSHA256` [L45-L51], `getBrowserFingerprint` [L54-L64], `compressPhoto` [L67-L83], `toLocalCustomDateString` [L85-L93], `isDateOnLeave` [L95-L107]
+- **`src/lib/auth-client.ts`** (9 lines): `authClient` [L4-L6]
+- **`src/lib/auth-session.ts`** (52 lines): `getSession` [L5-L51]
+- **`src/lib/auth.ts`** (105 lines): `auth` [L5-L104]
+- **`src/lib/client-cache.ts`** (97 lines): `setClientCache` [L20-L33], `getClientCache` [L39-L65], `removeClientCache` [L70-L77], `clearAllClientCaches` [L82-L96]
+- **`src/lib/client-image-compression.ts`** (94 lines): `CompressionOptions` [L14-L17], `compressImageInBrowser` [L19-L21]
+- **`src/lib/crypto.ts`** (55 lines): `getEncryptionKey` [L6-L10], `encrypt` [L15-L27], `decrypt` [L32-L54]
+- **`src/lib/cycle.ts`** (85 lines): `LeaveCycle` [L1-L5], `getCurrentLeaveCycle` [L7-L39], `getLeaveCycleFilter` [L41-L84]
+- **`src/lib/date-format.ts`** (54 lines): `formatLeaveDate` [L1-L27], `formatDocFullDate` [L29-L53]
+- **`src/lib/db.ts`** (34 lines): `pool` [L11-L20], `prisma` [L26-L30]
+- **`src/lib/document-utils.ts`** (86 lines): `toThaiNumerals` [L4-L12], `formatDocNumber` [L15-L68], `DOC_TYPE_THAI_MAP` [L70-L78], `getDocTypeThaiLabel` [L80-L85]
+- **`src/lib/facility/FacilityKpiContract.ts`** (46 lines): `FacilityUsageRecord` [L6-L12], `calculateApprovedCount` [L14-L16], `calculateActualUsageCount` [L18-L20], `calculateCompletedCount` [L22-L24], `calculateNoShowCount` [L26-L32], `calculateUtilizedHours` [L34-L45]
+- **`src/lib/feature-flags.ts`** (48 lines): `FeatureKey` [L3-L3], `assertFeatureEnabled` [L12-L47]
+- **`src/lib/i18n.tsx`** (1176 lines): `I18nProvider` [L1078-L1172], `useI18n` [L1174-L1174]
+- **`src/lib/line-notify.ts`** (314 lines): `sendLineNotify` [L7-L55], `formatLeaveMessage` [L61-L73], `sendRepairLineNotify` [L161-L175], `sendRepairLineMessage` [L268-L312]
+- **`src/lib/notifications.ts`** (36 lines): `DispatchNotificationInput` [L3-L9], `dispatchNotification` [L15-L35]
+- **`src/lib/omr/omrEngine.ts`** (1164 lines): `BubbleCoordinate` [L7-L12], `QuestionCoordinate` [L14-L17], `StudentIdDigitCoordinate` [L19-L25], `VersionCodeCoordinate` [L27-L32], `SubjectiveScoreCoordinate` [L34-L38], `TimingMark` [L40-L46], `TemplateGridMetadata` [L48-L81], `Point2D` [L83-L86], `QuadPoints` [L88-L95], `RawImageData` [L97-L101], `IQGResult` [L103-L111], `BubbleReadResult` [L113-L120], `QuestionReadResult` [L122-L129], `OmrScanResult` [L131-L156], `OmrProcessOptions` [L158-L163], `computeHomography` [L173-L240], `invertHomography` [L245-L270], `projectPoint` [L275-L283], `warpPerspectiveBilinear` [L291-L429], `evaluateImageQuality` [L435-L568], `ContrastCalibration` [L574-L579], `calibrateContrast` [L585-L651], `readBubbleFill` [L657-L721], `detectTimingMarksAndAlign` [L728-L802], `decodeStudentIdGrid` [L808-L847], `decodeSeatNoGrid` [L849-L896], `decodeVersionCodeGrid` [L898-L924], `decodeSubjectiveScore` [L929-L969], `decodeQuestionBlocks` [L975-L979], `processOmrSheet` [L1058-L1163]
+- **`src/lib/omr/omrForensicPolicy.ts`** (279 lines): `DetectionStatusType` [L14-L14], `OverrideRecord` [L16-L26], `ExamItemState` [L28-L36], `evaluateDetectionStatus` [L41-L44], `resolveEffectiveChoice` [L72-L90], `calculateItemScore` [L96-L110], `computeRawImageHash` [L115-L117], `deriveServerPreviousChoice` [L123-L129], `validateOptimisticLock` [L135-L139], `getNextSequenceNo` [L144-L153], `handleIngestIdempotency` [L159-L160], `validateImageMagicBytes` [L174-L198], `compressToWebpGrayscale` [L203-L252], `createDualTierImageMetadata` [L257-L277]
+- **`src/lib/omr/omrMarkerDetector.ts`** (469 lines): `SixPointMarkers` [L11-L14], `MarkerDetectionResult` [L16-L29], `adaptiveThresholdBradley` [L48-L98], `connectedComponents` [L104-L166], `extractBlobs` [L171-L210], `filterSquareMarkers` [L215-L241], `assignMarkers` [L246-L342], `validateQuad` [L347-L363], `detectFiducialMarkers` [L373-L468]
+- **`src/lib/omr/omrTemplateGeometry.ts`** (613 lines): `ChoiceLabel` [L28-L28], `ChoiceCount` [L29-L29], `ALL_CHOICE_LABELS` [L31-L31], `THAI_CHOICE_LABELS` [L32-L39], `DEFAULT_CALIBRATION_PARAMS` [L41-L46], `NormalizedPoint` [L48-L51], `BubbleCoordinate` [L53-L57], `QuestionRowGeometry` [L59-L65], `ColumnHeaderGeometry` [L67-L71], `DigitColumnGeometry` [L73-L77], `SubjectiveScoreColumn` [L79-L82], `TimingMark` [L84-L92], `OmrTemplateGeometry` [L94-L123], `createFullPageFiducialMarkers` [L135-L146], `createStudentIdMatrix` [L153-L179], `createSeatNoMatrix` [L186-L212], `createVersionMatrix` [L218-L240], `computeQuestionRowV` [L246-L254], `buildAnswerZoneGeometry` [L259-L341], `buildOmrTemplateGeometry` [L347-L458], `OMR_TEMPLATE_20` [L460-L460], `OMR_TEMPLATE_40` [L461-L461], `OMR_TEMPLATE_60` [L462-L462], `OMR_TEMPLATE_80` [L463-L463], `OMR_TEMPLATE_100` [L464-L464], `getTemplateGeometry` [L469-L481], `convertGeometryToGridMetadata` [L486-L567], `generate20ItemGridMetadata` [L569-L571], `generate40ItemGridMetadata` [L573-L575], `generate50ItemGridMetadata` [L577-L581], `generate60ItemGridMetadata` [L583-L585], `generate75ItemGridMetadata` [L587-L591], `generate80ItemGridMetadata` [L593-L595], `generate100ItemGridMetadata` [L597-L599], `getTemplateGridForItems` [L601-L612]
+- **`src/lib/omr/omrTemplateGrid.ts`** (5 lines) — *No top-level named exports*
+- **`src/lib/permissions.ts`** (495 lines): `DutyType` [L16-L16], `ScopeDivision` [L17-L17], `ScopeDepartment` [L18-L27], `VALID_ACADEMIC_STANDINGS` [L30-L35], `AcademicStanding` [L37-L37], `AcademicStandingSchema` [L39-L47], `ELIGIBLE_APPOINTEE_POSITIONS` [L50-L56], `APPOINTEE_ELIGIBILITY_WHERE` [L58-L62], `isUserEligibleForAppointedDuty` [L64-L69], `FORBIDDEN_LEGACY_SUBJECT_GROUPS` [L72-L72], `validateSubjectGroupNotLegacy` [L74-L83], `UserDutyAssignmentDTO` [L85-L90], `UserCapabilities` [L92-L117], `SUBJECT_GROUP_TO_DEPT_SCOPE` [L119-L132], `DEPT_SCOPE_TO_SUBJECT_GROUP` [L134-L144], `mapSubjectGroupToDeptScope` [L146-L150], `getUserRoleKeys` [L156-L163], `getUserRoleKey` [L215-L222], `getUserCapabilities` [L236-L237], `RepairPermission` [L297-L307], `getRepairRole` [L343-L358], `hasRepairPermission` [L361-L362], `assertRepairPermission` [L372-L373], `FacilityPermission` [L387-L398], `FacilityRole` [L400-L406], `getFacilityRole` [L459-L471], `hasFacilityPermission` [L474-L475], `assertFacilityPermission` [L485-L486]
+- **`src/lib/prisma.ts`** (5 lines) — *No top-level named exports*
+- **`src/lib/privacy/consent-service.ts`** (309 lines): `validateConsentApplicability` [L16-L21], `recordUserConsent` [L58-L133], `withdrawUserConsent` [L140-L211], `revokeConsentByAdmin` [L216-L287], `getUserConsents` [L293-L306], `ConsentItem` [L308-L308]
+- **`src/lib/privacy/diff-utils.ts`** (45 lines): `DiffLine` [L1-L4], `computeLineDiff` [L6-L44]
+- **`src/lib/privacy/policy-service.ts`** (97 lines): `computeCanonicalHash` [L5-L13], `publishPolicyDocument` [L15-L41], `getCurrentPolicy` [L43-L47], `acknowledgePolicy` [L49-L82], `hasUserAcknowledgedCurrentPolicy` [L84-L96]
+- **`src/lib/privacy/ropa-service.ts`** (159 lines): `RopaDataCategoryPolicySummary` [L3-L10], `RopaPurposeSummary` [L12-L19], `RopaActivitySummary` [L21-L38], `evaluatePurposeConsentRequirement` [L51-L56], `isConsentApplicableForPurpose` [L89-L105], `getPublicRopaSummary` [L111-L158]
+- **`src/lib/report-export.ts`** (493 lines): `UserLeaveSummaryDTO` [L1-L10], `LeaveReportDTO` [L12-L20], `ExportScope` [L22-L22], `ExportFont` [L23-L23], `ExportFontSize` [L24-L24], `VisibleLeaveType` [L26-L29], `DisplayRow` [L31-L31], `GroupedDisplayRows` [L33-L41], `ReportViewModel` [L43-L53], `CANONICAL_LEAVE_TYPES` [L55-L67], `LEAVE_TYPE_NAME_MAP` [L69-L81], `toLocalCustomDateString` [L83-L91], `toUtcDateString` [L93-L98], `calculateLeaveDaysFast` [L100-L145], `BuildViewModelOptions` [L147-L151], `POSITION_RANK` [L154-L159], `ACADEMIC_LEVEL_SCORES` [L161-L166], `getAcademicLevelScore` [L168-L172], `normalizePosition` [L174-L179], `getPersonnelTier` [L181-L190], `THAI_NAME_PREFIXES` [L192-L195], `normalizeThaiName` [L197-L206], `comparePersonnelDeterministic` [L208-L230], `FONT_MIN` [L232-L232], `sanitizeFontSize` [L234-L241], `escapeHtml` [L243-L251], `buildExportViewModel` [L253-L380], `CanonicalColumn` [L382-L389], `getCanonicalReportColumns` [L391-L426], `generateCanonicalCsv` [L428-L433]
+- **`src/lib/roles-migration.ts`** (89 lines): `SYNTHETIC_POSITIONS_WHITELIST` [L1-L1], `CIVIL_SERVICE_POSITIONS_ALLOWLIST` [L2-L2], `parseAmbiguityResolutions` [L4-L17], `MigrationPlanAction` [L19-L27], `MigrationPlanResult` [L29-L37], `planMigration` [L39-L40]
+- **`src/lib/sequence.ts`** (21 lines): `generateNextRepairNo` [L7-L20]
+- **`src/lib/services/academicSettingsService.ts`** (106 lines): `AcademicSettingsService` [L57-L105]
+- **`src/lib/services/competencyService.ts`** (55 lines): `CompetencyService` [L6-L54]
+- **`src/lib/services/examService.ts`** (94 lines): `ExamService` [L6-L93]
+- **`src/lib/services/facilityReservationService.ts`** (487 lines): `FacilityItem` [L6-L28], `ReservationItem` [L30-L87], `FacilityReservationService` [L89-L486]
+- **`src/lib/services/omrTemplateService.ts`** (167 lines): `resolvePaperChoiceCount` [L16-L38], `ensureStandardTemplatesAction` [L43-L166]
+- **`src/lib/services/schoolCalendarSync.ts`** (675 lines): `CalendarCategory` [L6-L6], `CalendarColor` [L7-L7], `TargetRole` [L8-L8], `SchoolCalendarEvent` [L10-L27], `SchoolAnnouncement` [L29-L37], `CALENDAR_STORAGE_KEY` [L39-L39], `ANNOUNCEMENTS_STORAGE_KEY` [L40-L40], `CALENDAR_UPDATED_EVENT` [L41-L41], `ANNOUNCEMENTS_UPDATED_EVENT` [L42-L42], `REAL_SCHOOL_AND_PUBLIC_EVENTS_2569` [L48-L63], `isMockEvent` [L461-L482], `schoolCalendarSyncService` [L488-L674]
+- **`src/lib/signature-token.ts`** (131 lines): `SignatureTokenPayload` [L6-L12], `createScopedSignatureToken` [L17-L57], `verifySignatureTokenFormat` [L62-L85], `verifyAndConsumeSignatureToken` [L92-L130]
+- **`src/lib/sla.ts`** (46 lines): `SlaStatusType` [L1-L1], `SlaCalculationResult` [L3-L7], `calculateSlaStatus` [L13-L45]
+- **`src/lib/srop/types.ts`** (72 lines): `TeacherEventType` [L6-L13], `TeacherTimelineEvent` [L15-L25], `TeacherCapacityIndex` [L27-L39], `ResourceType` [L41-L41], `SchoolResource` [L43-L50], `ResourceReservation` [L52-L59], `NotificationChannel` [L61-L61], `NotificationPayload` [L63-L71]
+- **`src/lib/storage-resolver.ts`** (71 lines): `isBase64DataUrl` [L3-L6], `isRemoteHttpUrl` [L8-L12], `normalizeStorageUrl` [L14-L22], `resolveFileUrl` [L28-L30], `resolveSignatureSrc` [L62-L69]
+- **`src/lib/svg-sanitizer.ts`** (51 lines): `sanitizeSvg` [L5-L50]
+- **`src/lib/telemetry.ts`** (151 lines): `TelemetryRecord` [L1-L10], `recordTelemetry` [L20-L58], `withTelemetry` [L63-L66], `getTelemetrySummary` [L111-L150]
+- **`src/lib/timetable/constraints/constraintPipeline.ts`** (336 lines): `TeacherOverlapConstraintPlugin` [L14-L50], `RoomOverlapConstraintPlugin` [L55-L89], `ScheduleBlockLockConstraintPlugin` [L94-L138], `SubjectNatureConstraintPlugin` [L144-L190], `NoGapHoleConstraintPlugin` [L196-L245], `WorkloadBalanceConstraintPlugin` [L251-L296], `ConstraintPipelineRegistry` [L301-L335]
+- **`src/lib/timetable/solvers/localSearchEngine.ts`** (224 lines): `LocalSearchSchedulingEngine` [L19-L223]
+- **`src/lib/timetable/solvers/progressiveCascadeSolver.ts`** (162 lines): `ProgressiveCascadeSolver` [L16-L161]
+- **`src/lib/timetable/types.ts`** (243 lines): `TimeSlot` [L6-L13], `ScheduleBlockType` [L15-L23], `LockType` [L25-L31], `ScheduleBlockLock` [L33-L38], `ScheduleBlock` [L40-L66], `ConstraintSeverity` [L68-L68], `ConstraintDefinition` [L70-L79], `ConstraintEvaluationContext` [L81-L85], `ConstraintViolation` [L87-L94], `IConstraintPlugin` [L96-L104], `CancellationToken` [L106-L108], `ProgressCallback` [L110-L110], `OptimizationScopeLevel` [L112-L116], `OptimizationBoundary` [L118-L126], `OptimizationPolicy` [L128-L135], `EnterpriseOptimizationResult` [L137-L164], `SchedulingOptions` [L166-L174], `ObjectiveScore` [L176-L187], `DecisionTrace` [L189-L195], `ExplainabilityReport` [L197-L207], `EnterpriseSchedulingResult` [L209-L216], `ISchedulingEngine` [L218-L227], `JobStatus` [L229-L229], `SchedulingJob` [L231-L242]
+- **`src/lib/upload-with-progress.ts`** (59 lines): `UploadProgressInfo` [L5-L9], `uploadPhotoWithProgress` [L11-L58]
+- **`src/lib/utils.ts`** (63 lines): `cn` [L4-L6], `ErrorCode` [L8-L14], `ActionResponse` [L16-L21], `safeAction` [L29-L62]
+- **`src/lib/vector-signature.ts`** (69 lines): `Point` [L3-L6], `exportStrokesToSvg` [L11-L53], `exportStrokesToDataUrl` [L58-L67]
+- **`src/repositories/photo.repository.ts`** (110 lines): `PHOTO_LIMITS` [L13-L16], `CreatePhotoInput` [L18-L25], `createPhoto` [L28-L70], `findPhotosByRepair` [L73-L87], `deletePhoto` [L90-L109]
+- **`src/repositories/repair.repository.ts`** (238 lines): `CreateRepairInput` [L21-L29], `UpdateRepairStatusInput` [L31-L45], `generateRepairNo` [L53-L71], `findRepairById` [L75-L93], `findRepairsByRequester` [L95-L114], `findAllRepairs` [L116-L136], `createRepairRequest` [L140-L161], `updateRepairStatus` [L167-L205], `softDeleteRepair` [L208-L221], `updateRepairRating` [L224-L237]
+- **`src/services/academicCalendarEngine.ts`** (180 lines): `AcademicEventInput` [L3-L11], `ValidationDateResult` [L13-L25], `AcademicCalendarEngine` [L27-L177], `academicCalendarEngine` [L179-L179]
+- **`src/services/archive.service.ts`** (129 lines): `archiveOldRepairs` [L24-L128]
+- **`src/services/audit.service.ts`** (61 lines): `REPAIR_ACTIONS` [L12-L21], `RepairAction` [L23-L23], `logRepairAction` [L35-L60]
+- **`src/services/certificate/certificate-template.service.ts`** (627 lines): `SaveTemplateInput` [L15-L23], `UserContext` [L25-L29], `CertificateTemplateViewModel` [L31-L51], `isAdmin` [L53-L55], `extractSignatureAttachmentIds` [L57-L66], `hydrateTemplateViewModel` [L73-L176], `saveTemplateService` [L183-L187], `forkTemplateService` [L440-L444], `deleteTemplateService` [L518-L522], `getTemplatesService` [L592-L626]
+- **`src/services/curriculumPublishingService.ts`** (150 lines): `PublishCurriculumInput` [L6-L13], `PublishReceipt` [L15-L26], `CurriculumPublishingService` [L28-L147], `curriculumPublishingService` [L149-L149]
+- **`src/services/etuCalculator.ts`** (225 lines): `CourseETUInput` [L3-L11], `TeacherETUBreakdown` [L13-L33], `DepartmentETUSummary` [L35-L44], `ETUCalculator` [L46-L222], `etuCalculator` [L224-L224]
+- **`src/services/facility/facility-action-boundary.ts`** (137 lines): `FacilityActionResult` [L3-L9], `executeFacilityAction` [L24-L66], `classifyFacilityErrorCode` [L71-L109], `extractCleanErrorMessage` [L114-L136]
+- **`src/services/facility/facility-dto.ts`** (298 lines): `FacilityResourceDTO` [L17-L43], `FacilityApprovalStepDTO` [L45-L56], `ReservationResourceAssignmentDTO` [L58-L68], `FacilityReservationDTO` [L70-L117], `assertPlainSerializableWhitelist` [L123-L167], `mapResourceToDTO` [L172-L209], `mapReservationToDTO` [L214-L297]
+- **`src/services/facility/facility-idempotency.ts`** (237 lines): `IDEMPOTENCY_CONSTRAINT_NAME` [L7-L7], `ReservationPayloadSchema` [L13-L44], `ValidatedReservationPayload` [L46-L46], `canonicalizeValue` [L54-L79], `computeCanonicalPayloadHash` [L91-L133], `isIdempotencyUniqueViolation` [L139-L173], `recoverFromIdempotencyRace` [L184-L236]
+- **`src/services/facility/facility-time.ts`** (126 lines): `toDbUtcDate` [L19-L45], `toIsoUtcString` [L55-L89], `utcNow` [L95-L97], `calculateDynamicSlaExpiry` [L108-L125]
+- **`src/services/monitoring/supabase-usage.service.ts`** (266 lines): `QuotaMetric` [L4-L14], `SupabaseUsageReport` [L16-L45], `formatBytes` [L47-L55], `calculateMetric` [L57-L84], `getSupabaseUsageReport` [L86-L265]
+- **`src/services/photo.service.ts`** (222 lines): `compressToWebp` [L43-L62], `buildStorageKey` [L66-L73], `uploadRepairPhoto` [L86-L159], `getRepairPhotosWithUrls` [L163-L194], `deleteRepairPhoto` [L198-L221]
+- **`src/services/planningSandboxEngine.ts`** (226 lines): `ScenarioMetricsPayload` [L4-L13], `MetricDelta` [L15-L22], `ScenarioComparisonResult` [L24-L34], `OptimizationWeights` [L36-L41], `PlanningSandboxEngine` [L43-L223], `planningSandboxEngine` [L225-L225]
+- **`src/services/project-budget.service.ts`** (1891 lines): `LedgerLockConflictError` [L8-L13], `FinancialInvariantViolationError` [L15-L20], `UnauthorizedServiceError` [L22-L27], `ExpenseStatus` [L33-L33], `VALID_EXPENSE_TRANSITIONS` [L35-L41], `validateExpenseStateTransition` [L43-L50], `acquireRowLocks` [L60-L90], `isFinanceAdmin` [L96-L117], `verifyServiceAuth` [L119-L126], `assertDepositMatch` [L155-L162], `assertExpenseMatch` [L190-L196], `ProjectBudgetService` [L225-L1890]
+- **`src/services/readinessEngine.ts`** (303 lines): `ReadinessCheckResult` [L10-L19], `ReadinessEvaluationReport` [L21-L31], `MetricsContext` [L33-L35], `evaluateExpression` [L42-L85], `ReadinessEngine` [L87-L300], `readinessEngine` [L302-L302]
+- **`src/services/recycle-bin/recycle-bin.service.ts`** (1121 lines): `getPrisma` [L1-L10], `getAttachmentLifecycle` [L12-L19], `RecycleBinItemType` [L21-L21], `UserContext` [L23-L26], `SoftDeleteParams` [L28-L33], `SoftDeleteResult` [L35-L41], `RestoreParams` [L43-L47], `RestoreResult` [L49-L57], `PurgeParams` [L59-L63], `PurgeResult` [L65-L70], `BulkItemParam` [L72-L75], `BulkRestoreParams` [L77-L80], `BulkPurgeParams` [L82-L85], `BulkOperationResultItem` [L87-L93], `BulkOperationResult` [L95-L100], `ChronoDateCheckParams` [L102-L108], `ChronoIssuanceCheckParams` [L110-L114], `RecycleBinItemViewModel` [L116-L131], `calculateStaticPurgeDate` [L136-L138], `calculateDaysRemaining` [L143-L146], `computeRestoreDate` [L152-L155], `evaluateChronoDateBounds` [L161-L190], `evaluateRecycleBinPermission` [L195-L255], `RecycleBinService` [L257-L1120]
+- **`src/services/repair.service.ts`** (444 lines): `getSlaWarningHours` [L36-L49], `computeSlaStatus` [L51-L66], `createRepair` [L73-L82], `getRepairs` [L141-L153], `getRepairDetail` [L155-L176], `assignRepair` [L180-L229], `startRepair` [L233-L272], `completeRepair` [L276-L284], `cancelRepair` [L338-L384], `deleteRepair` [L388-L407], `rateRepairService` [L411-L443]
+- **`src/services/report.service.ts`** (172 lines): `SlaSummary` [L9-L15], `CategorySummary` [L17-L21], `MonthlyTrend` [L23-L27], `TechnicianPerformance` [L29-L35], `DashboardReportData` [L37-L43], `getRepairDashboardStats` [L46-L171]
+- **`src/services/resourceCapacityEngine.ts`** (246 lines): `StandardResourceType` [L3-L11], `StandardResourceType` [L13-L13], `CreateReservationInput` [L15-L21], `CapacityUtilizationReport` [L23-L32], `ConflictCheckResult` [L34-L45], `ResourceCapacityEngine` [L47-L243], `resourceCapacityEngine` [L245-L245]
+- **`src/services/storage/attachment-lifecycle.service.ts`** (380 lines): `DeleteObjectResult` [L5-L6], `deleteObjectSafe` [L15-L47], `lockAttachmentsInOrder` [L53-L67], `countAttachmentReferences` [L76-L127], `acquireAttachmentReference` [L133-L156], `releaseAttachmentReference` [L162-L181], `cleanupOrphanedAttachments` [L189-L289], `cleanupStaleUploads` [L296-L379]
+- **`src/services/storage/failover.provider.ts`** (154 lines): `isQuotaError` [L51-L54], `encodeKey` [L59-L61], `decodeKey` [L64-L71], `FailoverStorageProvider` [L75-L150]
+- **`src/services/storage/index.ts`** (164 lines): `getStorageProvider` [L23-L25], `getStorageProviderByType` [L27-L98], `ResilientUploadResult` [L100-L104], `uploadWithResilientFallback` [L110-L160]
+- **`src/services/storage/local.provider.ts`** (41 lines): `LocalStorageProvider` [L16-L40]
+- **`src/services/storage/neon.provider.ts`** (98 lines): `getClient` [L35-L62], `NeonStorageProvider` [L64-L97]
+- **`src/services/storage/provider.interface.ts`** (53 lines): `UploadOptions` [L14-L20], `StorageUploadResult` [L22-L26], `StorageProvider` [L28-L51]
+- **`src/services/storage/r2.provider.ts`** (122 lines): `getClient` [L37-L65], `R2StorageProvider` [L67-L121]
+- **`src/services/storage/resilient-upload.ts`** (285 lines): `ResilientUploadResult` [L4-L11], `uploadWithResilientFallback` [L19-L74], `uploadSignatureWithFallback` [L81-L180], `uploadLeaveAttachmentWithFallback` [L188-L244], `uploadAvatarWithFallback` [L249-L282]
+- **`src/services/storage/supabase-instance.provider.ts`** (118 lines): `SupabaseInstanceProvider` [L12-L115]
+- **`src/services/storage/supabase.provider.ts`** (132 lines): `SupabaseStorageProvider` [L18-L129]
+- **`src/services/workflowEngine.ts`** (318 lines): `WorkflowStageInput` [L10-L15], `WorkflowStatusSummary` [L17-L34], `WorkflowEngine` [L36-L315], `workflowEngine` [L317-L317]
+- **`src/types/dashboard-widgets.ts`** (70 lines): `DashboardWidgetConfig` [L1-L34], `DEFAULT_WIDGET_CONFIG` [L36-L69]
+- **`src/workers/omrScanner.worker.ts`** (78 lines): `WorkerScanMessage` [L16-L26]
