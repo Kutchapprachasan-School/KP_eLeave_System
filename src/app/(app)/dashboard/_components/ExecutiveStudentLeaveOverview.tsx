@@ -40,7 +40,7 @@ export default function ExecutiveStudentLeaveOverview({
   onOpenAffairsView,
 }: ExecutiveStudentLeaveOverviewProps) {
   // Use live stats from database, fallback safely to authoritative baseline
-  const totalStudents = studentStats?.totalStudents ?? 1138;
+  const totalStudents = studentStats?.totalStudents ?? 525;
   const attendanceRate = studentStats?.attendanceToday.attendanceRate ?? 95.6;
   const isMorningCheckDone = studentStats?.attendanceToday.isMorningCheckCompleted ?? false;
 

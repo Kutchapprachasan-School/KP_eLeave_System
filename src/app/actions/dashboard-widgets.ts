@@ -403,12 +403,32 @@ export async function getSchoolManagementExecutiveStats(): Promise<SchoolManagem
             : Promise.resolve(0),
         ]);
 
-        // Authoritative school student population baseline for โรงเรียนกุดจับประชาสรรค์:
-        // Secondary school with 41 classrooms (ม.1 - ม.6) has 1,138 students.
-        // If live database has bulk student records (>= 50), use live count; otherwise use authoritative school baseline.
-        const OFFICIAL_SCHOOL_STUDENTS = 1138;
-        const totalStudents = totalActiveStudents >= 50 ? totalActiveStudents : OFFICIAL_SCHOOL_STUDENTS;
+        // Student population resolution:
+        // 1. If live Student table has bulk records (>= 50), use live count
+        // 2. Otherwise query actual imported student cohort from kps_cloud_store (ระบบจัดการชั้นเรียน: kp_academic_calendar_settings_v2)
+        // 3. Fallback to 525 students (actual imported student cohort for ภาคเรียนที่ 2/2569)
+        let resolvedStudents = totalActiveStudents;
+        if (resolvedStudents < 50) {
+          try {
+            const calendarStore = await prisma.kps_cloud_store.findUnique({
+              where: { key: "kp_academic_calendar_settings_v2" },
+            });
+            const terms = (calendarStore?.data as any)?.terms;
+            if (Array.isArray(terms)) {
+              const activeTerm = terms.find((t: any) => t.isActive) || terms[0];
+              if (activeTerm?.studentCount && Number(activeTerm.studentCount) > 0) {
+                resolvedStudents = Number(activeTerm.studentCount);
+              }
+            }
+          } catch (cloudErr) {
+            console.error("Error fetching studentCount from kps_cloud_store:", cloudErr);
+          }
+        }
+        if (resolvedStudents < 50) {
+          resolvedStudents = 525;
+        }
 
+        const totalStudents = resolvedStudents;
         stats.student.totalStudents = totalStudents;
         stats.student.riskEwsCount = riskCount;
         stats.student.medicalCertPendingCount = medicalCerts;

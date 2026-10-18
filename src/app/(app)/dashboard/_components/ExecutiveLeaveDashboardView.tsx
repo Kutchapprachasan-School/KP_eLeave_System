@@ -221,7 +221,7 @@ export default function ExecutiveLeaveDashboardView() {
   const leaveConfigs = statsData?.leaveConfigs || [];
 
   // Derived Values
-  const totalStudents = schoolStats?.student.totalStudents ?? 1138;
+  const totalStudents = schoolStats?.student.totalStudents ?? 525;
   const studentAtt = schoolStats?.student.attendanceToday;
   const recCount = studentAtt?.recordedCount || 0;
   const attendanceRate = recCount > 0

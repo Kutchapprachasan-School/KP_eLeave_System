@@ -70,7 +70,7 @@ export default function ExecutiveLeaveStatCards({
   const proxyTeaching = stats?.staff.proxyTeachingCount ?? fallbackProxyTeaching ?? 0;
   const staffClockedIn = stats?.staff.attendanceToday.totalClockIn ?? 0;
 
-  const totalStudents = stats?.student.totalStudents ?? 1138;
+  const totalStudents = stats?.student.totalStudents ?? 525;
   const isMorningDone = stats?.student.attendanceToday.isMorningCheckCompleted ?? false;
   const studentRate = stats?.student.attendanceToday.attendanceRate ?? 95.6;
   const studentPresent = stats?.student.attendanceToday.present ?? 0;
@@ -91,7 +91,7 @@ export default function ExecutiveLeaveStatCards({
       id: "kpiStudentTotal",
       category: "student",
       title: "นักเรียนทั้งหมดในระบบ",
-      value: totalStudents > 0 ? totalStudents.toLocaleString("th-TH") : "1,138",
+      value: totalStudents > 0 ? totalStudents.toLocaleString("th-TH") : "525",
       unit: "คน",
       subsystemLabel: "ทะเบียนนักเรียน",
       subsystemColor: "blue",
