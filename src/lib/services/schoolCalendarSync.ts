@@ -37,9 +37,54 @@ export interface SchoolAnnouncement {
 }
 
 export const CALENDAR_STORAGE_KEY = 'kp_school_calendar_events_v2';
+export const DELETED_CALENDAR_IDS_KEY = 'kp_school_calendar_deleted_ids_v2';
 export const ANNOUNCEMENTS_STORAGE_KEY = 'kp_school_announcements_v2';
 export const CALENDAR_UPDATED_EVENT = 'kp-school-calendar-updated';
 export const ANNOUNCEMENTS_UPDATED_EVENT = 'kp-school-announcements-updated';
+
+/**
+ * สกัด root ID ของกิจกรรม เช่น
+ * hol-db-cly123-16-5-2569 -> hol-db-cly123
+ * acad-db-cly456-20-7-2569 -> acad-db-cly456
+ */
+export function extractRootEventId(id: string): string {
+  if (!id || typeof id !== 'string') return id;
+  if (id.startsWith('hol-db-')) {
+    const stripped = id.slice('hol-db-'.length);
+    const m = stripped.match(/^(.+?)-(\d+)-(\d+)-(\d+)$/);
+    return m ? `hol-db-${m[1]}` : id;
+  }
+  if (id.startsWith('acad-db-')) {
+    const stripped = id.slice('acad-db-'.length);
+    const m = stripped.match(/^(.+?)-(\d+)-(\d+)-(\d+)$/);
+    return m ? `acad-db-${m[1]}` : id;
+  }
+  return id;
+}
+
+/**
+ * สกัด holidayId จาก event id เช่น hol-db-cm123-16-5-2569 หรือ hol-db-cm123
+ */
+export function parseHolidayId(id: string): string | null {
+  if (!id || typeof id !== 'string' || !id.startsWith('hol-db-')) return null;
+  const stripped = id.slice('hol-db-'.length);
+  const match = stripped.match(/^(.+?)-(\d+)-(\d+)-(\d+)$/);
+  if (match) return match[1];
+  return stripped;
+}
+
+/**
+ * สกัด academicEventId จาก event id เช่น acad-db-cm456-20-7-2569 หรือ acad-db-cm456
+ */
+export function parseAcademicEventId(id: string): string | null {
+  if (!id || typeof id !== 'string' || !id.startsWith('acad-db-')) return null;
+  const stripped = id.slice('acad-db-'.length);
+  const match = stripped.match(/^(.+?)-(\d+)-(\d+)-(\d+)$/);
+  if (match) return match[1];
+  return stripped;
+}
+
+
 
 // ─────────────────────────────────────────────────────────────
 // ข้อมูลจริง: วันหยุดราชการไทยประจำปี พ.ศ. 2569 (ค.ศ. 2026)
@@ -486,22 +531,54 @@ let inMemoryEvents: SchoolCalendarEvent[] = [...REAL_SCHOOL_AND_PUBLIC_EVENTS_25
 let inMemoryAnnouncements: SchoolAnnouncement[] = [];
 
 export const schoolCalendarSyncService = {
-  // ดึงกิจกรรมปฏิทินทั้งหมด (กรองข้อมูลจำลองออกอัตโนมัติ และผสานวันหยุดราชการจริง)
+  // ดึงรายการ ID กิจกรรมที่เคยถูกสั่งลบออกจากปฏิทิน
+  getDeletedIds(): Set<string> {
+    if (typeof window === 'undefined') return new Set();
+    try {
+      const raw = localStorage.getItem(DELETED_CALENDAR_IDS_KEY);
+      if (raw) {
+        const arr = JSON.parse(raw);
+        if (Array.isArray(arr)) return new Set(arr);
+      }
+    } catch {}
+    return new Set();
+  },
+
+  // บันทึกรายการ ID ที่ถูกลบ เพื่อป้องกันไม่ให้ฟื้นคืนชีพจากแคชหรือวันหยุดตั้งต้น
+  recordDeletedIds(ids: string[]): void {
+    if (typeof window === 'undefined') return;
+    try {
+      const set = this.getDeletedIds();
+      ids.forEach((id) => {
+        set.add(id);
+        const root = extractRootEventId(id);
+        if (root !== id) set.add(root);
+      });
+      localStorage.setItem(DELETED_CALENDAR_IDS_KEY, JSON.stringify(Array.from(set)));
+    } catch (e) {
+      console.warn('Failed to record deleted calendar IDs:', e);
+    }
+  },
+
+  // ดึงกิจกรรมปฏิทินทั้งหมด (กรองข้อมูลจำลองออกอัตโนมัติ ผสานวันหยุดราชการจริง และตัดกิจกรรมที่ถูกลบทิ้ง)
   getEvents(): SchoolCalendarEvent[] {
     if (typeof window === 'undefined') return inMemoryEvents;
+    const deletedIds = this.getDeletedIds();
     try {
       const raw = localStorage.getItem(CALENDAR_STORAGE_KEY);
       if (raw) {
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed)) {
-          // ลบข้อมูลจำลองทั้งหมดออก
-          const cleaned = parsed.filter((e) => !isMockEvent(e));
+          // ลบข้อมูลจำลองทั้งหมดออก และตัดรายการที่ถูกลบออก
+          const cleaned = parsed.filter(
+            (e) => !isMockEvent(e) && !deletedIds.has(e.id) && !deletedIds.has(extractRootEventId(e.id))
+          );
           
-          // ตรวจสอบว่ามีวันหยุดราชการจริงครบหรือไม่ หากขาดรายการใด ให้เติมเข้าชุดข้อมูล
+          // ตรวจสอบว่ามีวันหยุดราชการจริงครบหรือไม่ หากขาดรายการใด ให้เติมเข้าชุดข้อมูล (เฉพาะที่ไม่ได้สั่งลบ)
           const existingIds = new Set(cleaned.map((e) => e.id));
           const merged = [...cleaned];
           for (const ev of REAL_SCHOOL_AND_PUBLIC_EVENTS_2569) {
-            if (!existingIds.has(ev.id)) {
+            if (!existingIds.has(ev.id) && !deletedIds.has(ev.id) && !deletedIds.has(extractRootEventId(ev.id))) {
               merged.push(ev);
             }
           }
@@ -520,12 +597,18 @@ export const schoolCalendarSyncService = {
     }
 
     try {
-      localStorage.setItem(CALENDAR_STORAGE_KEY, JSON.stringify(REAL_SCHOOL_AND_PUBLIC_EVENTS_2569));
+      const initial = REAL_SCHOOL_AND_PUBLIC_EVENTS_2569.filter(
+        (e) => !deletedIds.has(e.id) && !deletedIds.has(extractRootEventId(e.id))
+      );
+      localStorage.setItem(CALENDAR_STORAGE_KEY, JSON.stringify(initial));
+      return initial;
     } catch {}
-    return REAL_SCHOOL_AND_PUBLIC_EVENTS_2569;
+    return REAL_SCHOOL_AND_PUBLIC_EVENTS_2569.filter(
+      (e) => !deletedIds.has(e.id) && !deletedIds.has(extractRootEventId(e.id))
+    );
   },
 
-  // บันทึกกิจกรรมใหม่ หรือแก้ไขกิจกรรมเดิม
+  // บันทึกกิจกรรมใหม่ หรือแก้ไขกิจกรรมเดิม (พร้อมบันทึกลงฐานข้อมูล Neon PostgreSQL)
   saveEvent(event: SchoolCalendarEvent): SchoolCalendarEvent {
     if (typeof window === 'undefined') {
       const existingIdx = inMemoryEvents.findIndex((e) => e.id === event.id);
@@ -548,26 +631,136 @@ export const schoolCalendarSyncService = {
       }
       localStorage.setItem(CALENDAR_STORAGE_KEY, JSON.stringify(updated));
       window.dispatchEvent(new CustomEvent(CALENDAR_UPDATED_EVENT, { detail: updated }));
+
+      // ส่งคำสั่งบันทึกลงฐานข้อมูลจริงในเบื้องหลัง
+      import('@/app/actions/school-calendar')
+        .then(({ saveSchoolCalendarEvent }) => {
+          saveSchoolCalendarEvent({
+            id: event.id,
+            day: event.day,
+            month: event.month,
+            year: event.year,
+            endDay: event.endDay,
+            endMonth: event.endMonth,
+            endYear: event.endYear,
+            title: event.title,
+            category: event.category,
+            colorType: event.colorType,
+            targetRole: event.targetRole,
+            isAllDay: event.isAllDay,
+            time: event.time,
+            location: event.location,
+            description: event.description,
+          }).then((res) => {
+            if (res.success && res.eventId && res.eventId !== event.id) {
+              this.updateEventId(event.id, res.eventId);
+            }
+          });
+        })
+        .catch((e) => console.warn('Background save calendar error:', e));
     } catch (e) {
       console.error('Failed to save calendar event:', e);
     }
     return event;
   },
 
-  // ลบกิจกรรม
-  deleteEvent(id: string): void {
-    if (typeof window === 'undefined') {
-      inMemoryEvents = inMemoryEvents.filter((e) => e.id !== id);
-      return;
+  // บันทึกกิจกรรมแบบ Async เพื่อรอผลลัพธ์จาก Server
+  async saveEventAsync(event: SchoolCalendarEvent): Promise<SchoolCalendarEvent> {
+    let saved = this.saveEvent(event);
+    if (typeof window !== 'undefined') {
+      try {
+        const { saveSchoolCalendarEvent } = await import('@/app/actions/school-calendar');
+        const res = await saveSchoolCalendarEvent({
+          id: event.id,
+          day: event.day,
+          month: event.month,
+          year: event.year,
+          endDay: event.endDay,
+          endMonth: event.endMonth,
+          endYear: event.endYear,
+          title: event.title,
+          category: event.category,
+          colorType: event.colorType,
+          targetRole: event.targetRole,
+          isAllDay: event.isAllDay,
+          time: event.time,
+          location: event.location,
+          description: event.description,
+        });
+        if (res.success && res.eventId) {
+          this.updateEventId(event.id, res.eventId);
+          saved = { ...event, id: res.eventId };
+        }
+      } catch (e) {
+        console.warn('saveEventAsync server error:', e);
+      }
     }
+    return saved;
+  },
+
+  updateEventId(oldId: string, newId: string): void {
+    if (typeof window === 'undefined') return;
     try {
       const current = this.getEvents();
-      const updated = current.filter((e) => e.id !== id);
+      const updated = current.map((e) => (e.id === oldId ? { ...e, id: newId } : e));
       localStorage.setItem(CALENDAR_STORAGE_KEY, JSON.stringify(updated));
       window.dispatchEvent(new CustomEvent(CALENDAR_UPDATED_EVENT, { detail: updated }));
-    } catch (e) {
-      console.error('Failed to delete calendar event:', e);
+    } catch {}
+  },
+
+  // ลบกลุ่มกิจกรรม (รองรับทั้งแบบวันเดียวและหลายวัน)
+  deleteEvents(ids: string[]): void {
+    if (!ids || ids.length === 0) return;
+    this.recordDeletedIds(ids);
+
+    const rootsToDelete = new Set(ids.map(extractRootEventId));
+    const idsToDelete = new Set(ids);
+
+    const matchesDeleted = (e: SchoolCalendarEvent) => {
+      if (idsToDelete.has(e.id)) return true;
+      const root = extractRootEventId(e.id);
+      return rootsToDelete.has(root);
+    };
+
+    if (typeof window === 'undefined') {
+      inMemoryEvents = inMemoryEvents.filter((e) => !matchesDeleted(e));
+      return;
     }
+
+    try {
+      const current = this.getEvents();
+      const updated = current.filter((e) => !matchesDeleted(e));
+      localStorage.setItem(CALENDAR_STORAGE_KEY, JSON.stringify(updated));
+      window.dispatchEvent(new CustomEvent(CALENDAR_UPDATED_EVENT, { detail: updated }));
+
+      // ส่งคำสั่งลบไปยังฐานข้อมูลจริง
+      import('@/app/actions/school-calendar')
+        .then(({ deleteSchoolCalendarEvents }) => deleteSchoolCalendarEvents(ids))
+        .catch((e) => console.warn('Background delete error:', e));
+    } catch (e) {
+      console.error('Failed to delete calendar events:', e);
+    }
+  },
+
+  // ลบกลุ่มกิจกรรมแบบ Async
+  async deleteEventsAsync(ids: string[]): Promise<void> {
+    this.deleteEvents(ids);
+    try {
+      const { deleteSchoolCalendarEvents } = await import('@/app/actions/school-calendar');
+      await deleteSchoolCalendarEvents(ids);
+    } catch (e) {
+      console.warn('Failed to delete school calendar events on server:', e);
+    }
+  },
+
+  // ลบกิจกรรมเดี่ยว
+  deleteEvent(id: string): void {
+    this.deleteEvents([id]);
+  },
+
+  // ลบกิจกรรมเดี่ยวแบบ Async
+  async deleteEventAsync(id: string): Promise<void> {
+    return this.deleteEventsAsync([id]);
   },
 
   // ดึงประกาศข่าวสารทั้งหมด (กรองข้อมูลจำลองออก)
@@ -649,18 +842,31 @@ export const schoolCalendarSyncService = {
       const { getOfficialSchoolCalendarEvents } = await import('@/app/actions/school-calendar');
       const officialEvents = await getOfficialSchoolCalendarEvents(yearBE);
       if (officialEvents && officialEvents.length > 0) {
+        const deletedIds = this.getDeletedIds();
+
+        // กรองเอาเฉพาะเหตุการณ์ที่ไม่ได้ถูกสั่งลบ (ทั้ง ID ตรง และ root ID)
+        const activeOfficial = officialEvents.filter(
+          (e) => !deletedIds.has(e.id) && !deletedIds.has(extractRootEventId(e.id))
+        );
+
         const current = this.getEvents();
-        // กรองเอาเฉพาะกิจกรรมที่ผู้ใช้สร้างเอง ไม่ใช่วันหยุดที่ซิงค์มา
+        // กรองเอาเฉพาะกิจกรรมที่ผู้ใช้สร้างเอง ไม่ใช่วันหยุดที่ซิงค์มา และยังไม่ถูกสั่งลบ
         const customEvents = current.filter(
-          (e) => !e.id.startsWith('th-hol-') && !e.id.startsWith('hol-db-') && !e.id.startsWith('holiday-')
+          (e) =>
+            !e.id.startsWith('th-hol-') &&
+            !e.id.startsWith('hol-db-') &&
+            !e.id.startsWith('holiday-') &&
+            !e.id.startsWith('acad-db-') &&
+            !deletedIds.has(e.id) &&
+            !deletedIds.has(extractRootEventId(e.id))
         );
 
         // รวมวันหยุดและวันเรียนพิเศษอย่างเป็นทางการจากระบบการลาเข้ากับ custom events
-        const officialDayTitles = new Set(officialEvents.map((e) => `${e.year}-${e.month}-${e.day}-${e.title}`));
+        const officialDayTitles = new Set(activeOfficial.map((e) => `${e.year}-${e.month}-${e.day}-${e.title}`));
         const filteredCustom = customEvents.filter(
           (e) => !officialDayTitles.has(`${e.year}-${e.month}-${e.day}-${e.title}`)
         );
-        const merged = [...officialEvents, ...filteredCustom];
+        const merged = [...activeOfficial, ...filteredCustom];
 
         localStorage.setItem(CALENDAR_STORAGE_KEY, JSON.stringify(merged));
         window.dispatchEvent(new CustomEvent(CALENDAR_UPDATED_EVENT, { detail: merged }));

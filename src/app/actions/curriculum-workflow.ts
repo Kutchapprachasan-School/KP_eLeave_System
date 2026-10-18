@@ -347,10 +347,35 @@ export async function saveAcademicEventAction(data: SaveAcademicEventInput) {
 
     revalidatePath("/academic/calendar");
     revalidatePath("/academic/curriculum");
+    revalidatePath("/calendar");
+    revalidatePath("/dashboard");
     return event;
   } catch (error: any) {
     console.error("Error in saveAcademicEventAction:", error);
     throw new Error(`Failed to save academic event: ${error.message}`);
+  }
+}
+
+export async function deleteAcademicEventAction(id: string) {
+  try {
+    const rawId = id.startsWith("acad-db-")
+      ? id.replace(/^acad-db-/, "").split("-")[0]
+      : id;
+
+    await prisma.academicEvent.delete({
+      where: { id: rawId }
+    });
+
+    revalidatePath("/academic/calendar");
+    revalidatePath("/academic/planning/calendar");
+    revalidatePath("/academic/curriculum");
+    revalidatePath("/calendar");
+    revalidatePath("/dashboard");
+
+    return { success: true };
+  } catch (error: any) {
+    console.error("Error in deleteAcademicEventAction:", error);
+    throw new Error(`Failed to delete academic event: ${error.message}`);
   }
 }
 

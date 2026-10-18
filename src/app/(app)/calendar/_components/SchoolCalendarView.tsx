@@ -55,6 +55,7 @@ export default function SchoolCalendarView() {
   const [selectedEvent, setSelectedEvent] = useState<SchoolCalendarEvent | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   // Form State
   const [formId, setFormId] = useState("");
@@ -267,36 +268,70 @@ export default function SchoolCalendarView() {
     setIsModalOpen(true);
   };
 
-  const handleSaveForm = (e: React.FormEvent) => {
+  const handleSaveForm = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formTitle.trim()) return;
 
-    const newEv: SchoolCalendarEvent = {
-      id: formId,
-      day: formDay,
-      month: formMonth,
-      year: formYear,
-      fullDateLabel: `วันที่ ${formDay} ${THAI_MONTHS[formMonth - 1]} ${formYear}`,
-      time: formIsAllDay ? undefined : formTime,
-      isAllDay: formIsAllDay,
-      title: formTitle.trim(),
-      category: formCategory,
-      colorType: formColor,
-      targetRole: formRole,
-      location: formLocation.trim() || undefined,
-      description: formDescription.trim() || undefined,
-    };
+    setIsProcessing(true);
+    try {
+      const newEv: SchoolCalendarEvent = {
+        id: formId,
+        day: formDay,
+        month: formMonth,
+        year: formYear,
+        fullDateLabel: `วันที่ ${formDay} ${THAI_MONTHS[formMonth - 1]} ${formYear}`,
+        time: formIsAllDay ? undefined : formTime,
+        isAllDay: formIsAllDay,
+        title: formTitle.trim(),
+        category: formCategory,
+        colorType: formColor,
+        targetRole: formRole,
+        location: formLocation.trim() || undefined,
+        description: formDescription.trim() || undefined,
+      };
 
-    schoolCalendarSyncService.saveEvent(newEv);
-    setIsModalOpen(false);
-  };
-
-  const handleDeleteEvent = (id: string) => {
-    if (confirm("คุณแน่ใจหรือไม่ว่าต้องการลบกิจกรรมนี้ออกจากปฏิทิน?")) {
-      schoolCalendarSyncService.deleteEvent(id);
-      setSelectedEvent(null);
+      await schoolCalendarSyncService.saveEventAsync(newEv);
+      setIsModalOpen(false);
+    } catch (err) {
+      console.error("Save event failed:", err);
+      alert("เกิดข้อผิดพลาดในการบันทึกกิจกรรม");
+    } finally {
+      setIsProcessing(false);
     }
   };
+
+  const handleDeleteEvent = async (id: string) => {
+    if (confirm("คุณแน่ใจหรือไม่ว่าต้องการลบกิจกรรมนี้ออกจากปฏิทิน?")) {
+      setIsProcessing(true);
+      try {
+        await schoolCalendarSyncService.deleteEventAsync(id);
+        setSelectedEvent(null);
+      } catch (err) {
+        console.error("Delete event failed:", err);
+        alert("เกิดข้อผิดพลาดในการลบกิจกรรม");
+      } finally {
+        setIsProcessing(false);
+      }
+    }
+  };
+
+  const handleDeleteGroup = async (group: { id: string; title: string; rawEvents: SchoolCalendarEvent[] }) => {
+    if (confirm(`คุณแน่ใจหรือไม่ว่าต้องการลบกิจกรรม "${group.title}" ออกจากปฏิทิน?`)) {
+      setIsProcessing(true);
+      try {
+        const ids = group.rawEvents.map((r) => r.id);
+        if (ids.length === 0) ids.push(group.id);
+        await schoolCalendarSyncService.deleteEventsAsync(ids);
+        setSelectedEvent(null);
+      } catch (err) {
+        console.error("Delete group failed:", err);
+        alert("เกิดข้อผิดพลาดในการลบกิจกรรม");
+      } finally {
+        setIsProcessing(false);
+      }
+    }
+  };
+
 
   const getCategoryBadge = (cat: CalendarCategory, color: CalendarColor) => {
     let colorClasses = "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300";
@@ -711,10 +746,9 @@ export default function SchoolCalendarView() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => {
-                        ev.rawEvents.forEach((r) => handleDeleteEvent(r.id));
-                      }}
-                      className="p-2 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-rose-50 hover:border-rose-200 text-rose-600 hover:text-rose-700 dark:hover:bg-rose-950/40 text-xs font-bold cursor-pointer transition"
+                      disabled={isProcessing}
+                      onClick={() => handleDeleteGroup(ev)}
+                      className="p-2 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-rose-50 hover:border-rose-200 text-rose-600 hover:text-rose-700 dark:hover:bg-rose-950/40 text-xs font-bold cursor-pointer transition disabled:opacity-50"
                       title="ลบ"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
@@ -781,10 +815,11 @@ export default function SchoolCalendarView() {
             <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800">
               <button
                 type="button"
+                disabled={isProcessing}
                 onClick={() => handleDeleteEvent(selectedEvent.id)}
-                className="px-3 py-2 rounded-xl text-rose-600 hover:bg-rose-50 text-xs font-bold transition cursor-pointer"
+                className="px-3 py-2 rounded-xl text-rose-600 hover:bg-rose-50 text-xs font-bold transition cursor-pointer disabled:opacity-50"
               >
-                ลบกิจกรรม
+                {isProcessing ? "กำลังลบ..." : "ลบกิจกรรม"}
               </button>
 
               <div className="flex items-center gap-2">
