@@ -142,7 +142,7 @@ export async function getOfficialSchoolCalendarEvents(yearBE?: number) {
 /**
  * สกัด holidayId จาก event id เช่น hol-db-cm123-16-5-2569 หรือ hol-db-cm123
  */
-export function parseHolidayId(id: string): string | null {
+function parseHolidayId(id: string): string | null {
   if (!id || typeof id !== "string" || !id.startsWith("hol-db-")) return null;
   const stripped = id.slice("hol-db-".length);
   const match = stripped.match(/^(.+?)-(\d+)-(\d+)-(\d+)$/);
@@ -153,13 +153,14 @@ export function parseHolidayId(id: string): string | null {
 /**
  * สกัด academicEventId จาก event id เช่น acad-db-cm456-20-7-2569 หรือ acad-db-cm456
  */
-export function parseAcademicEventId(id: string): string | null {
+function parseAcademicEventId(id: string): string | null {
   if (!id || typeof id !== "string" || !id.startsWith("acad-db-")) return null;
   const stripped = id.slice("acad-db-".length);
   const match = stripped.match(/^(.+?)-(\d+)-(\d+)-(\d+)$/);
   if (match) return match[1];
   return stripped;
 }
+
 
 /**
  * ลบกิจกรรมออกจากปฏิทินและฐานข้อมูล (รองรับทั้ง Holiday และ AcademicEvent)
