@@ -90,7 +90,7 @@ export async function withRollbackTransaction(
 
   try {
     await client.$transaction(
-      async (tx) => {
+      async (tx: Prisma.TransactionClient) => {
         const proxiedDb = createNestedTransactionProxy(tx);
 
         // รันเนื้อหาของเทสต์และ Assertions ทั้งหมด
