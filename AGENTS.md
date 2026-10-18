@@ -53,6 +53,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 | **ข้อมูลทดสอบ & ความปลอดภัย DB** | `.agent/rules/test-data-and-account-safety.md` | ห้ามทิ้ง Test Account ใน DB จริง, ใช้ Transactional Rollback Test, ห้ามสั่ง `DISABLE TRIGGER USER` |
 | **Frontend & Next.js 16** | `.agent/rules/frontend.md` | Server Component Default, Serialize `Decimal`/`BigInt`/`Date` ก่อนข้าม Boundary, Hydration-safe `isMounted` |
 | **มาตรฐาน UI/UX สถานศึกษา** | `docs/handoff/UI_UX_DESIGN_SYSTEM_GUIDE.md` | โทนสี Indigo/Slate/Emerald, ปุ่ม/Input สูง `h-11` (44px), การ์ด Glassmorphism ทึบแสงอย่างน้อย `bg-white/90` |
+| **แดชบอร์ดผู้บริหาร & Design System** | `docs/handoff/EXECUTIVE_HUB_DESIGN_HANDOFF.md` | Pastel Anime UI (Clean first, cute second), R2-Only Storage, 7-Widget Customizer |
 | **การกำกับ Version แผนงาน** | `.agent/rules/plan-versioning.md` | กำกับ `vX.Y (Rev. Z)` พร้อมตาราง Added / Changed / Removed |
 | **การเขียนสรุปส่งต่องาน** | `.agent/skills/handoff/SKILL.md` | โครงสร้างบันทึก Handoff มาตรฐาน 5 ส่วนเมื่อจบ Milestone |
 
@@ -65,3 +66,4 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 3. **ห้ามสลับกิ่งไป `main` (`git checkout main`)** ใน Working Tree บน Google Drive ให้ใช้ `git push origin dev:main` เสมอ
 4. **ห้าม Commit โฟลเดอร์ `scratch/`** หรือทิ้งบัญชีทดสอบค้างไว้ในฐานข้อมูลจริง
 5. **ห้ามส่งค่า `Decimal` หรือ `BigInt` ดิบ** ข้ามจาก Server Component/Action ไปยัง Client Component โดยไม่ผ่านการแปลงค่า
+6. **ห้ามเก็บไฟล์เป็น Base64 หรือ Binary Blob ในฐานข้อมูล PostgreSQL/Neon เด็ดขาด** ต้องจัดเก็บใน Cloudflare R2 เท่านั้น (Zero Egress) และเก็บเฉพาะ `storageKey` หรือ URL ภายนอกในฐานข้อมูล
