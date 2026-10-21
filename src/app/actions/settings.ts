@@ -125,6 +125,7 @@ export async function ensureSubsystemColumnsExist() {
 
       ALTER TABLE "SystemSettings" ADD COLUMN IF NOT EXISTS "substitutePolicy" TEXT DEFAULT 'DEPARTMENT';
       ALTER TABLE "SystemSettings" ADD COLUMN IF NOT EXISTS "substituteWorkloadPenalty" INTEGER DEFAULT 10;
+      ALTER TABLE "SystemSettings" ADD COLUMN IF NOT EXISTS "leaveApproverLineTargetGroupId" TEXT;
       ALTER TABLE "SystemSettings" ADD COLUMN IF NOT EXISTS "enableSubstituteLineNotify" BOOLEAN DEFAULT true;
 
       ALTER TABLE "SystemSettings" ADD COLUMN IF NOT EXISTS "supervisionMinPerTerm" INTEGER DEFAULT 2;
@@ -271,6 +272,7 @@ export async function getSystemSettings() {
       lineChannelAccessToken: null,
 
       lineTargetGroupId: null,
+      leaveApproverLineTargetGroupId: null,
 
       enableLineNotify: true,
 
@@ -401,6 +403,7 @@ export async function updateSystemSettings(data: {
   lineChannelAccessToken?: string;
 
   lineTargetGroupId?: string;
+  leaveApproverLineTargetGroupId?: string;
 
   enableLineNotify?: boolean;
 
@@ -501,6 +504,7 @@ export async function updateSystemSettings(data: {
         lineChannelAccessToken: data.lineChannelAccessToken !== undefined ? data.lineChannelAccessToken : undefined,
 
         lineTargetGroupId: data.lineTargetGroupId !== undefined ? data.lineTargetGroupId : undefined,
+        leaveApproverLineTargetGroupId: data.leaveApproverLineTargetGroupId !== undefined ? data.leaveApproverLineTargetGroupId : undefined,
 
         enableLineNotify: data.enableLineNotify !== undefined ? data.enableLineNotify : undefined,
 
@@ -592,6 +596,7 @@ export async function updateSystemSettings(data: {
         lineChannelAccessToken: data.lineChannelAccessToken,
 
         lineTargetGroupId: data.lineTargetGroupId,
+        leaveApproverLineTargetGroupId: data.leaveApproverLineTargetGroupId || null,
 
         enableLineNotify: data.enableLineNotify !== undefined ? data.enableLineNotify : true,
 

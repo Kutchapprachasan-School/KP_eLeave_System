@@ -212,6 +212,7 @@ model SystemSettings {
   updatedAt                    DateTime @updatedAt
   lineChannelAccessToken       String?
   lineTargetGroupId            String?
+  leaveApproverLineTargetGroupId String?
   leaveRules                   String   @default("การลากิจต้องยื่นคำขอล่วงหน้าอย่างน้อย 3 วันทำการ\nการลาป่วยติดต่อกันเกิน 3 วัน ต้องแนบใบรับรองแพทย์\nระบบจะส่งแจ้งเตือนให้หัวหน้าหมวดของท่านพิจารณาเป็นลำดับแรก")
   requirePersonalAdvance       Boolean  @default(true)
   memoThresholdDays            Int      @default(15)

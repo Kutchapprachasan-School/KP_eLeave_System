@@ -5,7 +5,7 @@ import { getSession as getAuthSession } from "@/lib/auth-session";
 import { prisma } from "@/lib/db";
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
-import { sendLineNotify, formatLeaveMessage } from "@/lib/line-notify";
+import { sendLineNotify, formatLeaveMessage, sendLeaveSubmissionTargetedNotification, sendLeaveApprovalTargetedNotification } from "@/lib/line-notify";
 import { getCurrentLeaveCycle, getLeaveCycleFilter } from "@/lib/cycle";
 import { cache } from "react";
 import { z } from "zod";
@@ -357,7 +357,7 @@ export async function submitLeaveRequest(data: {
     subjectGroup: initialStatus === "PENDING_HEAD" ? (user.subjectGroup || undefined) : undefined,
     requestedDays,
   });
-  await sendLineNotify(notifyMsg);
+  await sendLeaveSubmissionTargetedNotification(notifyMsg, session.user.id);
 
   revalidatePath("/history");
   revalidatePath("/dashboard");
@@ -1299,7 +1299,7 @@ export async function approveLeaveRequest(id: string, pdfBase64?: string, skipDr
       actorName: `${user.name} (${user.position || user.role})`,
       statusText,
     });
-    await sendLineNotify(notifyMsg);
+    await sendLeaveApprovalTargetedNotification("APPROVE", request.userId, notifyMsg);
 
     revalidatePath("/history");
     revalidatePath("/dashboard");

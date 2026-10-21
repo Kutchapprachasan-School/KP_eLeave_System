@@ -4,6 +4,288 @@ import { prisma } from "@/lib/db";
  * Send a LINE message using LINE Messaging API (LINE OA).
  * Requires lineChannelAccessToken and lineTargetGroupId from SystemSettings.
  */
+
+/**
+ * Resolves all recipient user IDs for leave submission notifications:
+ * 1. เจ้าหน้าที่ตรวจสอบ (Inspector): defaultInspectorId, dutyType 'INSPECTOR', positions
+ * 2. หัวหน้าบุคคล (HR Head): dutyType 'HR_HEAD', 'DIVISION_HEAD' with divisionScope 'PERSONNEL', positions
+ * 3. ผู้อำนวยการ (Director): finalApproverUserIds, role 'DIRECTOR', positions
+ * 4. แอดมิน (Admin): role 'ADMIN', positions
+ */
+export async function getLeaveApprovalChainUserIds(): Promise<string[]> {
+  const targetUserIds = new Set<string>();
+
+  try {
+    const settings = await prisma.systemSettings.findUnique({
+      where: { id: 'default' },
+      select: { defaultInspectorId: true, finalApproverUserIds: true },
+    });
+
+    if (settings?.defaultInspectorId) {
+      targetUserIds.add(settings.defaultInspectorId.trim());
+    }
+
+    if (settings?.finalApproverUserIds) {
+      settings.finalApproverUserIds
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .forEach((id) => targetUserIds.add(id));
+    }
+
+    // Active duty assignments for INSPECTOR, HR_HEAD, DIVISION_HEAD (PERSONNEL)
+    const duties = await prisma.userDutyAssignment.findMany({
+      where: {
+        revokedAt: null,
+        OR: [
+          { dutyType: 'INSPECTOR' },
+          { dutyType: 'HR_HEAD' },
+          { dutyType: 'DIVISION_HEAD', divisionScope: 'PERSONNEL' },
+        ],
+      },
+      select: { userId: true },
+    });
+    duties.forEach((d) => targetUserIds.add(d.userId));
+
+    // Role & position matches for Admin, Director, HR Head, Inspector
+    const users = await prisma.user.findMany({
+      where: {
+        isApproved: true,
+        OR: [
+          { role: { in: ['ADMIN', 'DIRECTOR'] } },
+          {
+            position: {
+              in: [
+                'แอดมิน',
+                'ผู้ดูแลระบบ',
+                'ผู้อำนวยการ',
+                'รักษาการผู้อำนวยการ',
+                'รักษาการในตำแหน่งผู้อำนวยการ',
+                'ผู้อำนวยการโรงเรียน',
+                'หัวหน้างานบุคคล',
+                'หัวหน้าฝ่ายบุคคล',
+                'หัวหน้ากลุ่มบริหารงานบุคคล',
+                'ผู้ตรวจสอบ',
+                'เจ้าหน้าที่ตรวจสอบ',
+              ],
+            },
+          },
+        ],
+      },
+      select: { id: true },
+    });
+    users.forEach((u) => targetUserIds.add(u.id));
+  } catch (err) {
+    console.error('[getLeaveApprovalChainUserIds] Error resolving chain:', err);
+  }
+
+  return Array.from(targetUserIds);
+}
+
+/**
+ * Send targeted LINE notification for new leave submissions:
+ * Only notifies Inspector, HR Head, Director, and Admin on their phones.
+ * NEVER sends to the all-staff general group (lineTargetGroupId).
+ */
+export async function sendLeaveSubmissionTargetedNotification(message: string, requesterUserId?: string) {
+  try {
+    const settings = await prisma.systemSettings.findUnique({
+      where: { id: 'default' },
+      select: {
+        lineChannelAccessToken: true,
+        enableLineNotify: true,
+        leaveApproverLineTargetGroupId: true,
+      },
+    });
+
+    if (settings?.enableLineNotify === false) {
+      return;
+    }
+
+    const token = settings?.lineChannelAccessToken?.trim();
+    if (!token) {
+      return;
+    }
+
+    // 1. Send to dedicated approver LINE group if configured
+    const approverGroupId = (settings as any)?.leaveApproverLineTargetGroupId?.trim();
+    if (approverGroupId) {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 5000);
+      try {
+        const res = await fetch('https://api.line.me/v2/bot/message/push', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: 'Bearer ' + token,
+          },
+          body: JSON.stringify({
+            to: approverGroupId,
+            messages: [{ type: 'text', text: message }],
+          }),
+          signal: controller.signal,
+        });
+        if (!res.ok) {
+          console.error('[LINE OA Approver Group] Failed:', res.status, await res.text());
+        }
+      } catch (err) {
+        console.error('[LINE OA Approver Group] Push error:', err);
+      } finally {
+        clearTimeout(timeout);
+      }
+    }
+
+    // 2. Direct Push / Multicast to target approvers who have lineUserId linked
+    const targetUserIds = await getLeaveApprovalChainUserIds();
+    // Exclude requester so they don't get alerted about their own submission if they are an admin/approver
+    const filteredUserIds = requesterUserId ? targetUserIds.filter(id => id !== requesterUserId) : targetUserIds;
+
+    if (filteredUserIds.length > 0) {
+      const approversWithLine = await prisma.user.findMany({
+        where: {
+          id: { in: filteredUserIds },
+          lineUserId: { not: null },
+        },
+        select: { lineUserId: true },
+      });
+
+      const lineUserIds = Array.from(
+        new Set(
+          approversWithLine
+            .map((u) => u.lineUserId?.trim())
+            .filter((id): id is string => Boolean(id && id.length > 0))
+        )
+      );
+
+      if (lineUserIds.length > 0) {
+        for (let i = 0; i < lineUserIds.length; i += 500) {
+          const chunk = lineUserIds.slice(i, i + 500);
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 6000);
+          try {
+            const res = await fetch('https://api.line.me/v2/bot/message/multicast', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: 'Bearer ' + token,
+              },
+              body: JSON.stringify({
+                to: chunk,
+                messages: [{ type: 'text', text: message }],
+              }),
+              signal: controller.signal,
+            });
+            if (!res.ok) {
+              console.error('[LINE Multicast Approvers] Failed:', res.status, await res.text());
+            }
+          } catch (err) {
+            console.error('[LINE Multicast Approvers] Error:', err);
+          } finally {
+            clearTimeout(timeout);
+          }
+        }
+      }
+    }
+  } catch (error) {
+    console.error('[sendLeaveSubmissionTargetedNotification] Error:', error);
+  }
+}
+
+/**
+ * Send targeted LINE notification when a leave is approved or rejected:
+ * Notifies the requester directly via personal LINE (if linked),
+ * and notifies the approver group (if configured).
+ */
+export async function sendLeaveApprovalTargetedNotification(
+  action: 'APPROVE' | 'REJECT',
+  requesterUserId: string,
+  message: string
+) {
+  try {
+    const settings = await prisma.systemSettings.findUnique({
+      where: { id: 'default' },
+      select: {
+        lineChannelAccessToken: true,
+        enableLineNotify: true,
+        leaveApproverLineTargetGroupId: true,
+      },
+    });
+
+    if (settings?.enableLineNotify === false) {
+      return;
+    }
+
+    const token = settings?.lineChannelAccessToken?.trim();
+    if (!token) {
+      return;
+    }
+
+    // 1. Direct Push to requester if lineUserId is linked
+    if (requesterUserId) {
+      const requester = await prisma.user.findUnique({
+        where: { id: requesterUserId },
+        select: { lineUserId: true },
+      });
+
+      if (requester?.lineUserId?.trim()) {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 5000);
+        try {
+          const res = await fetch('https://api.line.me/v2/bot/message/push', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: 'Bearer ' + token,
+            },
+            body: JSON.stringify({
+              to: requester.lineUserId.trim(),
+              messages: [{ type: 'text', text: message }],
+            }),
+            signal: controller.signal,
+          });
+          if (!res.ok) {
+            console.error('[LINE OA Requester Push] Failed:', res.status, await res.text());
+          }
+        } catch (err) {
+          console.error('[LINE OA Requester Push] Error:', err);
+        } finally {
+          clearTimeout(timeout);
+        }
+      }
+    }
+
+    // 2. Also notify the approver group if configured
+    const approverGroupId = (settings as any)?.leaveApproverLineTargetGroupId?.trim();
+    if (approverGroupId) {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 5000);
+      try {
+        const res = await fetch('https://api.line.me/v2/bot/message/push', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: 'Bearer ' + token,
+          },
+          body: JSON.stringify({
+            to: approverGroupId,
+            messages: [{ type: 'text', text: message }],
+          }),
+          signal: controller.signal,
+        });
+        if (!res.ok) {
+          console.error('[LINE OA Approver Group] Failed:', res.status, await res.text());
+        }
+      } catch (err) {
+        console.error('[LINE OA Approver Group] Push error:', err);
+      } finally {
+        clearTimeout(timeout);
+      }
+    }
+  } catch (error) {
+    console.error('[sendLeaveApprovalTargetedNotification] Error:', error);
+  }
+}
+
 export async function sendLineNotify(message: string) {
   try {
     const settings = await prisma.systemSettings.findUnique({

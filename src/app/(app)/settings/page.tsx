@@ -346,6 +346,7 @@ export default function SettingsPage() {
   const [lineChannelAccessToken, setLineChannelAccessToken] = useState("");
 
   const [lineTargetGroupId, setLineTargetGroupId] = useState("");
+  const [leaveApproverLineTargetGroupId, setLeaveApproverLineTargetGroupId] = useState("");
 
   const [enableLineNotify, setEnableLineNotify] = useState(true);
 
@@ -1025,7 +1026,8 @@ export default function SettingsPage() {
 
         lineChannelAccessToken, 
 
-        lineTargetGroupId, 
+        lineTargetGroupId,
+        leaveApproverLineTargetGroupId, 
 
         enableLineNotify,
 
@@ -4042,11 +4044,41 @@ export default function SettingsPage() {
 
                 onChange={(e) => setLineTargetGroupId(e.target.value)}
 
-                placeholder="LINE Target Group ID"
+                placeholder="LINE Target Group ID (กลุ่มหลัก)"
 
                 className="w-full h-11 px-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm font-mono text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none"
 
               />
+
+            </div>
+
+            <div>
+
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+
+                LINE Approver Group ID (ห้องแจ้งเตือนเฉพาะผู้อนุมัติ/ตรวจสอบการลา)
+
+              </label>
+
+              <input
+
+                type="text"
+
+                value={leaveApproverLineTargetGroupId}
+
+                onChange={(e) => setLeaveApproverLineTargetGroupId(e.target.value)}
+
+                placeholder="LINE Approver Group ID (เช่น Cxxxxxx...)"
+
+                className="w-full h-11 px-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm font-mono text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none"
+
+              />
+
+              <p className="text-xs text-slate-500 mt-1">
+
+                เมื่อมีผู้ยื่นใบลาเข้ามา ระบบจะแจ้งเตือนเฉพาะ เจ้าหน้าที่ตรวจสอบ, หัวหน้าบุคคล, ผอ., แอดมิน (ทาง LINE ส่วนตัว หรือห้องกลุ่มนี้) โดยไม่ส่งเข้ากลุ่มรวมครูทั่วไป
+
+              </p>
 
             </div>
 
