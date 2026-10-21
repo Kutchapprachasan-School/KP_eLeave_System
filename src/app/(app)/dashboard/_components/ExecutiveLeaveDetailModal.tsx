@@ -280,29 +280,35 @@ export default function ExecutiveLeaveDetailModal({
 
           {isPending && (
             canApprove ? (
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    onReject(leave.id);
-                    onClose();
-                  }}
-                  className="px-4 py-2 rounded-xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-semibold transition-colors cursor-pointer"
-                >
-                  ไม่อนุมัติ
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    onApprove(leave.id);
-                    onClose();
-                  }}
-                  className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all shadow-md shadow-blue-500/20 flex items-center gap-1.5 cursor-pointer"
-                >
-                  <Check className="w-4 h-4" />
-                  <span>อนุมัติคำขอ</span>
-                </button>
-              </div>
+              leave.status === "PENDING_HEAD" ? (
+                <span className="text-xs text-amber-700 bg-amber-50 border border-amber-200/80 px-3 py-1.5 rounded-xl font-medium">
+                  รอหัวหน้ากลุ่มสาระฯ/บุคคลตรวจสอบก่อน
+                </span>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onReject(leave.id);
+                      onClose();
+                    }}
+                    className="px-4 py-2 rounded-xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-semibold transition-colors cursor-pointer"
+                  >
+                    ไม่อนุมัติ
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onApprove(leave.id);
+                      onClose();
+                    }}
+                    className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all shadow-md shadow-blue-500/20 flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Check className="w-4 h-4" />
+                    <span>อนุมัติคำขอ</span>
+                  </button>
+                </div>
+              )
             ) : (
               <span className="text-xs font-semibold text-amber-800 bg-amber-50 px-3 py-1.5 rounded-xl border border-amber-200/80">
                 โหมดผู้ดูแลระบบ: ตรวจสอบและติดตามขั้นตอน (ไม่มีอำนาจอนุมัติ)

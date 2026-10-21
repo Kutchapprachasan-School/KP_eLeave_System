@@ -452,7 +452,7 @@ export default function ApprovalsPage() {
 
             const canApproveFinal = isDirector || isDeputyDirector || isFinalApprover;
 
-            let canApproveHead = isHRHead || canApproveFinal;
+            let canApproveHead = isHRHead;
             if (!canApproveHead && isDeptHead) {
               const activeDuties = (effectiveUser.duties || []).filter((d: any) => !d.revokedAt);
               const deptScopes = activeDuties

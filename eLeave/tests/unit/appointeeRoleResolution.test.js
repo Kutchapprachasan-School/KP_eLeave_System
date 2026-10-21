@@ -237,7 +237,7 @@ describe('Appointee Role Resolution & Capabilities Parity', () => {
 
       const canApproveFinal = isDirector || isDeputyDirector || isFinalApprover;
 
-      let canApproveHead = isHRHead || canApproveFinal;
+      let canApproveHead = isHRHead;
       if (!canApproveHead && isDeptHead) {
         const activeDuties = (effectiveUser.duties || []).filter(d => !d.revokedAt);
         const deptScopes = activeDuties
@@ -277,11 +277,11 @@ describe('Appointee Role Resolution & Capabilities Parity', () => {
       assert.equal(computeCanApproveItem(hrTeacher, pendingExecItem), false);
     });
 
-    test('Director can approve both PENDING_HEAD and PENDING_EXEC requests', () => {
+    test('Director can approve PENDING_EXEC requests, but cannot approve PENDING_HEAD requests (must wait for Step 1)', () => {
       const director = { id: 'u-dir', position: 'ผู้อำนวยการ', role: 'DIRECTOR', duties: [] };
       const pendingHeadItem = { id: 'req-1', status: 'PENDING_HEAD', user: { subjectGroup: 'ภาษาไทย' } };
       const pendingExecItem = { id: 'req-2', status: 'PENDING_EXEC', user: { subjectGroup: 'ภาษาไทย' } };
-      assert.equal(computeCanApproveItem(director, pendingHeadItem), true);
+      assert.equal(computeCanApproveItem(director, pendingHeadItem), false);
       assert.equal(computeCanApproveItem(director, pendingExecItem), true);
     });
 

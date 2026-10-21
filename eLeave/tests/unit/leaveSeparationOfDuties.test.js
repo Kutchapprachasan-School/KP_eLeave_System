@@ -146,4 +146,26 @@ describe('Leave Separation of Duties & Anti-Self-Approval', () => {
     assert.ok(snapshot.approvedAt);
     assert.ok(snapshot.dutyType);
   });
+
+  test('sequential approval invariant: director cannot approve leave in PENDING_HEAD stage before head review', () => {
+    const directorCaps = {
+      isDirector: true,
+      isHRHead: false,
+      isDeptHead: false,
+    };
+    const isFinalApprover = true;
+
+    const canApproveRequest = (status, caps, finalApprover) => {
+      if ((caps.isHRHead || caps.isDeptHead) && status === 'PENDING_HEAD') {
+        return true;
+      }
+      if (finalApprover && status === 'PENDING_EXEC') {
+        return true;
+      }
+      return false;
+    };
+
+    assert.equal(canApproveRequest('PENDING_HEAD', directorCaps, isFinalApprover), false);
+    assert.equal(canApproveRequest('PENDING_EXEC', directorCaps, isFinalApprover), true);
+  });
 });

@@ -1088,7 +1088,7 @@ export async function approveLeaveRequest(id: string, pdfBase64?: string, skipDr
     let updateData: any = {};
     const now = new Date();
 
-    if ((caps.isHRHead || caps.isDeptHead) && request.status === "PENDING_HEAD" && !isFinalApprover) {
+    if ((caps.isHRHead || caps.isDeptHead) && request.status === "PENDING_HEAD") {
       // If Department Head approving, verify domain scope
       if (caps.isDeptHead && !caps.isHRHead) {
         const requestDept = mapSubjectGroupToDeptScope(request.user?.subjectGroup);
@@ -1127,7 +1127,7 @@ export async function approveLeaveRequest(id: string, pdfBase64?: string, skipDr
       };
     } else if (
       isFinalApprover &&
-      (request.status === "PENDING_EXEC" || request.status === "PENDING_HEAD")
+      request.status === "PENDING_EXEC"
     ) {
       // Director / configured final approver gives final approval
       newStatus = "APPROVED";
@@ -1137,7 +1137,7 @@ export async function approveLeaveRequest(id: string, pdfBase64?: string, skipDr
       try {
         if (request.extraFields) extraObj = JSON.parse(request.extraFields);
       } catch {}
-      if (!extraObj.headApprovedAt && request.status === "PENDING_HEAD") {
+      if (!extraObj.headApprovedAt) {
         extraObj.headApprovedAt = now.toISOString();
       }
       extraObj.execApprovedAt = now.toISOString();
@@ -1156,8 +1156,8 @@ export async function approveLeaveRequest(id: string, pdfBase64?: string, skipDr
         status: newStatus, 
         execApproverId: session.user.id,
         execApprovedAt: now,
-        headApprovedAt: request.headApprovedAt || (request.status === "PENDING_HEAD" ? now : undefined),
-        headApproverId: request.headApproverId || (request.status === "PENDING_HEAD" ? session.user.id : undefined),
+        headApprovedAt: request.headApprovedAt || now,
+        headApproverId: request.headApproverId || session.user.id,
         headApproverSnapshot: headSnapshot,
         fiscalYear: fy,
         extraFields: JSON.stringify(extraObj)
@@ -1362,11 +1362,11 @@ export async function rejectLeaveRequest(id: string, rejectReason?: string, pdfB
     }
 
     let canReject = false;
-    if ((caps.isHRHead || caps.isDeptHead) && request.status === "PENDING_HEAD" && !isFinalApprover) {
+    if ((caps.isHRHead || caps.isDeptHead) && request.status === "PENDING_HEAD") {
       canReject = true;
     } else if (
       isFinalApprover &&
-      (request.status === "PENDING_EXEC" || request.status === "PENDING_HEAD")
+      request.status === "PENDING_EXEC"
     ) {
       canReject = true;
     }
