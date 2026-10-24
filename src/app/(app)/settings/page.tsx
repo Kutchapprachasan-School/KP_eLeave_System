@@ -36,6 +36,7 @@ import { useToast } from "@/components/toast-provider";
 import { useI18n } from "@/lib/i18n";
 import { removeClientCache } from "@/lib/client-cache";
 import { getUserRoleKey } from "@/lib/permissions";
+import { PlanningSettingsCard } from "./_components/PlanningSettingsCard";
 
 type DocTab = "sections" | "patterns" | "signees";
 
@@ -399,6 +400,8 @@ export default function SettingsPage() {
   const [enableFacility, setEnableFacility] = useState(true);
   const [enableAcademicSettings, setEnableAcademicSettings] = useState(true);
   const [enableBudget, setEnableBudget] = useState(false);
+  const [enablePlanning, setEnablePlanning] = useState(true);
+  const [planningOfficerUserIds, setPlanningOfficerUserIds] = useState<string[]>([]);
   const [enableStudentAffairs, setEnableStudentAffairs] = useState(false);
   const [enableStudentCouncil, setEnableStudentCouncil] = useState(false);
   const [enableAcademicPlanning, setEnableAcademicPlanning] = useState(false);
@@ -810,6 +813,12 @@ export default function SettingsPage() {
       setEnableFacility((data as any).enableFacility !== false);
       setEnableAcademicSettings((data as any).enableAcademicSettings !== false);
       setEnableBudget((data as any).enableBudget === true);
+      setEnablePlanning((data as any).enablePlanning !== false);
+      if ((data as any).planningOfficerUserIds) {
+        setPlanningOfficerUserIds(
+          (data as any).planningOfficerUserIds.split(",").map((s: string) => s.trim()).filter(Boolean)
+        );
+      }
       setEnableStudentAffairs((data as any).enableStudentAffairs === true);
       setEnableStudentCouncil((data as any).enableStudentCouncil === true);
       setEnableAcademicPlanning((data as any).enableAcademicPlanning === true);
@@ -1084,7 +1093,7 @@ export default function SettingsPage() {
 
   // Inline-save a single subsystem toggle
   const saveSubsystem = async (
-    key: "enableLeave" | "enableAttendance" | "enableDocument" | "enableRepair" | "enableTimetable" | "enableSubstitute" | "enableSupervision" | "enableExam" | "enableCompetency" | "enableFacility" | "enableAcademicSettings" | "enableBudget" | "enableStudentAffairs" | "enableStudentCouncil" | "enableAcademicPlanning" | "enableAmssSync" | "enableCertificate",
+    key: "enableLeave" | "enableAttendance" | "enableDocument" | "enableRepair" | "enableTimetable" | "enableSubstitute" | "enableSupervision" | "enableExam" | "enableCompetency" | "enableFacility" | "enableAcademicSettings" | "enableBudget" | "enablePlanning" | "enableStudentAffairs" | "enableStudentCouncil" | "enableAcademicPlanning" | "enableAmssSync" | "enableCertificate",
     val: boolean
   ) => {
     if (key === "enableLeave") setEnableLeave(val);
@@ -1099,6 +1108,7 @@ export default function SettingsPage() {
     if (key === "enableFacility") setEnableFacility(val);
     if (key === "enableAcademicSettings") setEnableAcademicSettings(val);
     if (key === "enableBudget") setEnableBudget(val);
+    if (key === "enablePlanning") setEnablePlanning(val);
     if (key === "enableStudentAffairs") setEnableStudentAffairs(val);
     if (key === "enableStudentCouncil") setEnableStudentCouncil(val);
     if (key === "enableAcademicPlanning") setEnableAcademicPlanning(val);
@@ -2900,7 +2910,8 @@ export default function SettingsPage() {
         "repair-settings",
         "timetable-settings",
         "substitute-settings",
-        "supervision-settings"
+        "supervision-settings",
+        "planning-settings"
       ];
       if (activeSection && subsystemSections.includes(activeSection)) {
         setActiveSection("subsystems");
@@ -7757,6 +7768,7 @@ function doPost(e) {
       if (key === "enableFacility") setEnableFacility(val);
       if (key === "enableAcademicSettings") setEnableAcademicSettings(val);
       if (key === "enableBudget") setEnableBudget(val);
+    if (key === "enablePlanning") setEnablePlanning(val);
       if (key === "enableStudentAffairs") setEnableStudentAffairs(val);
       if (key === "enableStudentCouncil") setEnableStudentCouncil(val);
       if (key === "enableAcademicPlanning") setEnableAcademicPlanning(val);
@@ -7924,12 +7936,13 @@ function doPost(e) {
           {
             id: "planning",
             title: "งานวางแผนฯ",
+            settingsId: "planning-settings",
             icon: <Map className="w-4 h-4" />,
             iconBg: "bg-purple-100 dark:bg-purple-950/50",
             iconColor: "text-purple-600 dark:text-purple-400",
-            enabled: enableBudget,
-            saveKey: "enableBudget",
-            customPath: "/budget",
+            enabled: enablePlanning,
+            saveKey: "enablePlanning",
+            customPath: "/planning",
           },
           {
             id: "finance",
@@ -9104,6 +9117,33 @@ function doPost(e) {
     );
   };
 
+  // --- Planning & Budget Settings Section ---
+  const renderPlanningSettingsSection = () => {
+    const availableUsers = (simpleUsers && simpleUsers.length > 0)
+      ? simpleUsers
+      : (userList && userList.length > 0 ? userList : []);
+
+    return (
+      <div className="space-y-6">
+        <SectionHeader title="ตั้งค่าระบบแผนงานโครงการและติดตามงบประมาณ (School Planning Settings)" />
+        <PlanningSettingsCard
+          initialEnablePlanning={enablePlanning}
+          initialPlanningOfficerUserIds={planningOfficerUserIds}
+          availableUsers={availableUsers.map((u) => ({
+            id: u.id,
+            name: u.name,
+            position: u.position,
+            department: (u as any).department || (u as any).subjectGroup || null,
+            email: u.email,
+          }))}
+          onSaved={() => {
+            showToast("success", "บันทึกการตั้งค่าแผนงานเรียบร้อยแล้ว");
+          }}
+        />
+      </div>
+    );
+  };
+
   // --- Section renderer map ---
 
   const renderActiveSection = () => {
@@ -9147,6 +9187,8 @@ function doPost(e) {
       case "substitute-settings": return renderSubstituteSettingsSection();
 
       case "supervision-settings": return renderSupervisionSettingsSection();
+
+      case "planning-settings": return renderPlanningSettingsSection();
 
       default: return null;
 

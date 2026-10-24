@@ -461,6 +461,8 @@ export async function updateSystemSettings(data: {
   enableStudentAffairs?: boolean;
   enableStudentCouncil?: boolean;
   enableAcademicPlanning?: boolean;
+  enablePlanning?: boolean;
+  planningOfficerUserIds?: string;
   academicPlanningAllowedUserIds?: string;
   documentAdminUserIds?: string;
   documentManageMode?: string;
@@ -562,6 +564,8 @@ export async function updateSystemSettings(data: {
         enableStudentAffairs: data.enableStudentAffairs !== undefined ? data.enableStudentAffairs : undefined,
         enableStudentCouncil: data.enableStudentCouncil !== undefined ? data.enableStudentCouncil : undefined,
         enableAcademicPlanning: data.enableAcademicPlanning !== undefined ? data.enableAcademicPlanning : undefined,
+        enablePlanning: data.enablePlanning !== undefined ? data.enablePlanning : undefined,
+        planningOfficerUserIds: data.planningOfficerUserIds !== undefined ? data.planningOfficerUserIds : undefined,
         academicPlanningAllowedUserIds: data.academicPlanningAllowedUserIds !== undefined ? data.academicPlanningAllowedUserIds : undefined,
         documentAdminUserIds: data.documentAdminUserIds !== undefined ? data.documentAdminUserIds : undefined,
         documentManageMode: data.documentManageMode !== undefined ? data.documentManageMode : undefined,
@@ -654,6 +658,8 @@ export async function updateSystemSettings(data: {
         enableAcademicSettings: data.enableAcademicSettings !== undefined ? data.enableAcademicSettings : true,
         enableAmssSync: data.enableAmssSync !== undefined ? data.enableAmssSync : true,
         enableCertificate: data.enableCertificate !== undefined ? data.enableCertificate : true,
+        enablePlanning: data.enablePlanning !== undefined ? data.enablePlanning : true,
+        planningOfficerUserIds: data.planningOfficerUserIds || "",
         repairLineChannelAccessToken: data.repairLineChannelAccessToken || null,
         repairLineTargetGroupId: data.repairLineTargetGroupId || null,
       }
