@@ -31,11 +31,11 @@ interface ExpenseFormModalProps {
 
 const EXPENSE_CATEGORIES: { value: ExpenseCategoryType; label: string }[] = [
   { value: "OPERATING", label: "ค่าใช้สอย (จัดสถานที่/วิทยากร/เดินทาง/เบี้ยเลี้ยง)" },
-  { value: "MATERIAL", label: "ค่าวัสดุ (เครื่องเขียน/อุปกรณ์การเรียน/เอกสาร)" },
+  { value: "MATERIALS", label: "ค่าวัสดุ (เครื่องเขียน/อุปกรณ์การเรียน/เอกสาร)" },
   { value: "REMUNERATION", label: "ค่าตอบแทน (กรรมการ/ครูพี่เลี้ยง)" },
   { value: "EQUIPMENT", label: "ค่าครุภัณฑ์ (อุปกรณ์/เครื่องคอมพิวเตอร์)" },
-  { value: "UTILITY", label: "ค่าสาธารณูปโภค" },
-  { value: "MISCELLANEOUS", label: "ค่าใช้จ่ายเบ็ดเตล็ดอื่น ๆ" },
+  { value: "UTILITIES", label: "ค่าสาธารณูปโภค" },
+  { value: "OTHER", label: "ค่าใช้จ่ายเบ็ดเตล็ดอื่น ๆ" },
 ];
 
 export function ExpenseFormModal({
@@ -50,7 +50,7 @@ export function ExpenseFormModal({
   const [title, setTitle] = useState("");
   const [amount, setAmount] = useState("");
   const [disbursedAt, setDisbursedAt] = useState(new Date().toISOString().split("T")[0]);
-  const [requesterName, setRequesterName] = useState(activity.responsibleUser?.name || "");
+  const [requesterName, setRequesterName] = useState(activity.responsibleUserName || "");
   const [receiptNo, setReceiptNo] = useState("");
 
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -84,8 +84,8 @@ export function ExpenseFormModal({
         status,
         title: title.trim(),
         amount: parsedAmount,
-        disbursedAt: new Date(disbursedAt).toISOString(),
-        requesterName: requesterName.trim() || undefined,
+        expenseDate: new Date(disbursedAt),
+        requesterUserId: activity.responsibleUserId,
         receiptNo: receiptNo.trim() || undefined,
       });
 

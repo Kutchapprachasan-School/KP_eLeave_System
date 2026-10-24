@@ -57,8 +57,8 @@ export function ProjectFormModal({
     projectToEdit ? String(projectToEdit.financials.allocatedAmount) : ""
   );
   const [adjustedAmount, setAdjustedAmount] = useState<string>(
-    projectToEdit?.adjustedAmount !== undefined && projectToEdit?.adjustedAmount !== null
-      ? String(projectToEdit.adjustedAmount)
+    projectToEdit?.financials?.isAdjusted
+      ? String(projectToEdit.financials.effectiveBudget)
       : ""
   );
   const [strategyCode, setStrategyCode] = useState(projectToEdit?.strategyCode || "");

@@ -15,9 +15,9 @@ import type {
   StorageProviderType,
   BudgetSourceCategoryType,
   ProjectStatusType,
-} from "./types.ts";
-import { calculateActivityFinancials, calculateProjectFinancials, toSatang, fromSatang } from "./calculator.ts";
-import { getPlanningPermissions } from "./permissions.ts";
+} from "./types";
+import { calculateActivityFinancials, calculateProjectFinancials, toSatang, fromSatang } from "./calculator";
+import { getPlanningPermissions } from "./permissions";
 
 export function serializeAttachmentToDTO(att: any): ProjectAttachmentDTO {
   return {

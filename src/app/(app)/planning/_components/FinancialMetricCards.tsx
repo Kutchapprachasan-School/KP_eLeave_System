@@ -9,26 +9,33 @@ interface FinancialMetricCardsProps {
 }
 
 export function FinancialMetricCards({ summary }: FinancialMetricCardsProps) {
-  const formatCurrency = (val: number) => {
+  const formatCurrency = (val?: number | null) => {
     return new Intl.NumberFormat("th-TH", {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
-    }).format(val);
+    }).format(val ?? 0);
   };
 
+  const totalEffectiveBudget = summary?.totalEffectiveBudget ?? 0;
+  const totalPaidAmount = summary?.totalPaidAmount ?? 0;
+  const totalReservedAmount = summary?.totalReservedAmount ?? 0;
+  const totalRemainingBalance = summary?.totalRemainingBalance ?? 0;
+  const projectCount = summary?.projectCount ?? 0;
+  const activityCount = summary?.activityCount ?? 0;
+
   const spentRatio =
-    summary.totalEffectiveBudget > 0
-      ? Math.min(100, (summary.totalPaid / summary.totalEffectiveBudget) * 100)
+    totalEffectiveBudget > 0
+      ? Math.min(100, (totalPaidAmount / totalEffectiveBudget) * 100)
       : 0;
 
   const reservedRatio =
-    summary.totalEffectiveBudget > 0
-      ? Math.min(100, (summary.totalReserved / summary.totalEffectiveBudget) * 100)
+    totalEffectiveBudget > 0
+      ? Math.min(100, (totalReservedAmount / totalEffectiveBudget) * 100)
       : 0;
 
   const remainingRatio =
-    summary.totalEffectiveBudget > 0
-      ? Math.max(0, (summary.totalRemaining / summary.totalEffectiveBudget) * 100)
+    totalEffectiveBudget > 0
+      ? Math.max(0, (totalRemainingBalance / totalEffectiveBudget) * 100)
       : 0;
 
   return (
@@ -45,12 +52,12 @@ export function FinancialMetricCards({ summary }: FinancialMetricCardsProps) {
         </div>
         <div>
           <div className="text-2xl font-black text-gray-900 dark:text-white tracking-tight">
-            ฿{formatCurrency(summary.totalEffectiveBudget)}
+            ฿{formatCurrency(totalEffectiveBudget)}
           </div>
           <div className="mt-1 flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-            <span>{summary.totalProjects} โครงการ</span>
+            <span>{projectCount} โครงการ</span>
             <span>•</span>
-            <span>{summary.totalActivities} กิจกรรมย่อย</span>
+            <span>{activityCount} กิจกรรมย่อย</span>
           </div>
         </div>
         <div className="mt-3 pt-3 border-t border-purple-50 dark:border-purple-950/40 text-[11px] text-purple-600 dark:text-purple-400 flex items-center gap-1">
@@ -71,7 +78,7 @@ export function FinancialMetricCards({ summary }: FinancialMetricCardsProps) {
         </div>
         <div>
           <div className="text-2xl font-black text-blue-700 dark:text-blue-400 tracking-tight">
-            ฿{formatCurrency(summary.totalPaid)}
+            ฿{formatCurrency(totalPaidAmount)}
           </div>
           <div className="mt-1 flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
             <span>เบิกจ่ายแล้ว</span>
@@ -101,7 +108,7 @@ export function FinancialMetricCards({ summary }: FinancialMetricCardsProps) {
         </div>
         <div>
           <div className="text-2xl font-black text-amber-700 dark:text-amber-400 tracking-tight">
-            ฿{formatCurrency(summary.totalReserved)}
+            ฿{formatCurrency(totalReservedAmount)}
           </div>
           <div className="mt-1 flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
             <span>ผูกพันรอจ่าย</span>
@@ -131,7 +138,7 @@ export function FinancialMetricCards({ summary }: FinancialMetricCardsProps) {
         </div>
         <div>
           <div className="text-2xl font-black text-emerald-700 dark:text-emerald-400 tracking-tight">
-            ฿{formatCurrency(summary.totalRemaining)}
+            ฿{formatCurrency(totalRemainingBalance)}
           </div>
           <div className="mt-1 flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
             <span>สามารถใช้ได้</span>

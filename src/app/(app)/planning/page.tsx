@@ -8,6 +8,8 @@ import { getPlanningPermissions } from "@/lib/planning/permissions";
 import { PlanningDashboardClient } from "./_components/PlanningDashboardClient";
 import { Map, ShieldCheck, Lock } from "lucide-react";
 
+export const dynamic = "force-dynamic";
+
 export const metadata = {
   title: "แผนงานโครงการ & ติดตามงบประมาณ | โรงเรียนสุราษฎร์ธานี",
   description: "ระบบบริหารจัดการแผนงานโครงการ กิจกรรมย่อย และติดตามการเบิกจ่ายงบประมาณสถานศึกษา",
@@ -47,13 +49,17 @@ export default async function PlanningPage({
   });
 
   const permissions = getPlanningPermissions(
-    user.id,
-    user.role,
-    settings?.planningOfficerUserIds || ""
+    { id: user.id, role: user.role },
+    {
+      enablePlanning: settings?.enablePlanning ?? true,
+      planningOfficerUserIds: settings?.planningOfficerUserIds || "",
+    }
   );
 
+  const isAdmin = user.role === "ADMIN";
+
   // If system disabled and not admin, show graceful notice
-  if (settings && settings.enablePlanning === false && !permissions.isAdmin) {
+  if (settings && settings.enablePlanning === false && !isAdmin) {
     return (
       <div className="max-w-4xl mx-auto py-16 px-4 text-center">
         <div className="w-16 h-16 rounded-2xl bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 flex items-center justify-center mx-auto mb-4 border border-amber-200 dark:border-amber-800">
@@ -73,15 +79,15 @@ export default async function PlanningPage({
   const ledgerResult = await getPlanningLedgerAction({ fiscalYear });
   const projects = ledgerResult.success ? ledgerResult.data.projects : [];
   const summary = ledgerResult.success
-    ? ledgerResult.data.summary
+    ? ledgerResult.data.portfolioSummary
     : {
-        totalProjects: 0,
-        totalActivities: 0,
         totalEffectiveBudget: 0,
-        totalPaid: 0,
-        totalReserved: 0,
-        totalRemaining: 0,
-        overallSpentPercentage: 0,
+        totalReservedAmount: 0,
+        totalPaidAmount: 0,
+        totalSpentAmount: 0,
+        totalRemainingBalance: 0,
+        projectCount: 0,
+        activityCount: 0,
       };
 
   // Fetch available departments for filter
@@ -118,7 +124,7 @@ export default async function PlanningPage({
               <h1 className="text-2xl font-black text-gray-900 dark:text-white tracking-tight">
                 แผนงานโครงการ & ติดตามงบประมาณ
               </h1>
-              {permissions.canManageBudget && (
+              {permissions.canManageProjectsAndBudget && (
                 <span className="hidden sm:inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
                   <ShieldCheck className="w-3.5 h-3.5" />
                   <span>เจ้าหน้าที่แผนงานและการเงิน</span>
@@ -139,7 +145,7 @@ export default async function PlanningPage({
         departments={departments}
         users={users}
         currentUserId={user.id}
-        canManageBudget={permissions.canManageBudget}
+        canManageBudget={permissions.canManageProjectsAndBudget}
         defaultFiscalYear={fiscalYear}
         availableFiscalYears={availableFiscalYears}
       />

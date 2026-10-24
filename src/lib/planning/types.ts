@@ -5,6 +5,7 @@
 
 export type ProjectStatusType = "DRAFT" | "APPROVED" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
 export type BudgetSourceCategoryType = "SUBSIDY" | "FREE_EDUCATION_15Y" | "SCHOOL_INCOME" | "LOCAL_GOV" | "OTHER";
+export type BudgetSourceType = BudgetSourceCategoryType;
 export type ExpenseCategoryType = "REMUNERATION" | "OPERATING" | "MATERIALS" | "EQUIPMENT" | "UTILITIES" | "OTHER";
 export type ExpenseStatusType = "RESERVED" | "PAID" | "CANCELLED";
 export type AttachmentCategoryType = "PROPOSAL" | "APPROVAL" | "SUMMARY" | "RECEIPT" | "OTHER";

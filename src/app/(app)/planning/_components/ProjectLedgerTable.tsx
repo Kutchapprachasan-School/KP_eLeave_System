@@ -39,19 +39,22 @@ interface ProjectLedgerTableProps {
   onViewHistory: (project: ProjectDTO, activity: ProjectActivityDTO) => void;
 }
 
-const BUDGET_SOURCE_BADGES: Record<BudgetSourceType, { label: string; color: string }> = {
+const BUDGET_SOURCE_BADGES: Record<string, { label: string; color: string }> = {
   SUBSIDY: { label: "เงินอุดหนุน", color: "bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300 border-purple-200" },
-  GENERAL_BUDGET: { label: "งบแผ่นดิน", color: "bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 border-blue-200" },
-  REVENUE: { label: "รายได้สถานศึกษา", color: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border-emerald-200" },
-  SPECIAL_PROJECT: { label: "โครงการพิเศษ", color: "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 border-amber-200" },
-  DONATION: { label: "เงินบริจาค", color: "bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 border-rose-200" },
+  FREE_EDUCATION_15Y: { label: "เรียนฟรี 15 ปี", color: "bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 border-blue-200" },
+  SCHOOL_INCOME: { label: "รายได้สถานศึกษา", color: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border-emerald-200" },
+  LOCAL_GOV: { label: "อปท./หน่วยงานอื่น", color: "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 border-amber-200" },
+  OTHER: { label: "เงินนอกงบประมาณ/อื่นๆ", color: "bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 border-rose-200" },
 };
 
 const CATEGORY_NAMES: Record<string, string> = {
   OPERATING: "ค่าใช้สอย",
-  MATERIAL: "ค่าวัสดุ",
+  MATERIALS: "ค่าวัสดุ",
   REMUNERATION: "ค่าตอบแทน",
   EQUIPMENT: "ค่าครุภัณฑ์",
+  UTILITIES: "ค่าสาธารณูปโภค",
+  OTHER: "เบ็ดเตล็ด/อื่นๆ",
+  MATERIAL: "ค่าวัสดุ",
   UTILITY: "ค่าสาธารณูปโภค",
   MISCELLANEOUS: "เบ็ดเตล็ด",
 };
@@ -170,10 +173,10 @@ export function ProjectLedgerTable({
                           <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${srcBadge?.color}`}>
                             {srcBadge?.label || project.budgetSourceType}
                           </span>
-                          {project.unallocatedBudget > 0 && (
+                          {project.financials.unallocatedBudget > 0 && (
                             <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-400 border border-amber-200">
                               <AlertTriangle className="w-2.5 h-2.5" />
-                              <span>รอจัดสรร ฿{formatCurrency(project.unallocatedBudget)}</span>
+                              <span>รอจัดสรร ฿{formatCurrency(project.financials.unallocatedBudget)}</span>
                             </span>
                           )}
                         </div>
@@ -202,10 +205,10 @@ export function ProjectLedgerTable({
                       {/* Leader & Department */}
                       <td className="py-3 px-4 align-top">
                         <div className="font-medium text-gray-800 dark:text-gray-200">
-                          {project.leaderUser?.name || "ไม่ระบุหัวหน้า"}
+                          {project.leaderUserName || "ไม่ระบุหัวหน้า"}
                         </div>
                         <div className="text-gray-500 dark:text-gray-400 text-[11px] mt-0.5">
-                          {project.department?.name || "-"}
+                          {project.departmentName || "-"}
                         </div>
                       </td>
 
@@ -244,7 +247,7 @@ export function ProjectLedgerTable({
                             type="button"
                             onClick={() => onManageAttachments(project)}
                             className={`p-1.5 rounded-lg border text-[11px] transition-colors cursor-pointer ${
-                              project.sarReadiness.hasProposal
+                              project.financials?.sarReadiness?.hasProposal
                                 ? "bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 border-blue-200"
                                 : "text-gray-300 dark:text-gray-600 border-dashed border-gray-200 dark:border-gray-800 hover:border-gray-400"
                             }`}
@@ -258,7 +261,7 @@ export function ProjectLedgerTable({
                             type="button"
                             onClick={() => onManageAttachments(project)}
                             className={`p-1.5 rounded-lg border text-[11px] transition-colors cursor-pointer ${
-                              project.sarReadiness.hasApproval
+                              project.financials?.sarReadiness?.hasApproval
                                 ? "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 border-amber-200"
                                 : "text-gray-300 dark:text-gray-600 border-dashed border-gray-200 dark:border-gray-800 hover:border-gray-400"
                             }`}
@@ -272,7 +275,7 @@ export function ProjectLedgerTable({
                             type="button"
                             onClick={() => onManageAttachments(project)}
                             className={`p-1.5 rounded-lg border text-[11px] transition-colors cursor-pointer ${
-                              project.sarReadiness.hasSummary
+                              project.financials?.sarReadiness?.hasSummary
                                 ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border-emerald-200"
                                 : "text-gray-300 dark:text-gray-600 border-dashed border-gray-200 dark:border-gray-800 hover:border-gray-400"
                             }`}
@@ -376,7 +379,7 @@ export function ProjectLedgerTable({
 
                               {/* Responsible Teacher */}
                               <td className="py-2.5 px-4 text-xs text-gray-600 dark:text-gray-400">
-                                {act.responsibleUser?.name || "-"}
+                                {act.responsibleUserName || "-"}
                               </td>
 
                               {/* Budget Numbers */}
@@ -506,7 +509,7 @@ export function ProjectLedgerTable({
                     type="button"
                     onClick={() => onManageAttachments(project)}
                     className={`p-1.5 rounded-lg border text-xs ${
-                      project.sarReadiness.hasProposal
+                      project.financials?.sarReadiness?.hasProposal
                         ? "bg-blue-50 text-blue-700 border-blue-200"
                         : "text-gray-300 border-dashed border-gray-200"
                     }`}
@@ -517,7 +520,7 @@ export function ProjectLedgerTable({
                     type="button"
                     onClick={() => onManageAttachments(project)}
                     className={`p-1.5 rounded-lg border text-xs ${
-                      project.sarReadiness.hasApproval
+                      project.financials?.sarReadiness?.hasApproval
                         ? "bg-amber-50 text-amber-700 border-amber-200"
                         : "text-gray-300 border-dashed border-gray-200"
                     }`}
@@ -528,7 +531,7 @@ export function ProjectLedgerTable({
                     type="button"
                     onClick={() => onManageAttachments(project)}
                     className={`p-1.5 rounded-lg border text-xs ${
-                      project.sarReadiness.hasSummary
+                      project.financials?.sarReadiness?.hasSummary
                         ? "bg-emerald-50 text-emerald-700 border-emerald-200"
                         : "text-gray-300 border-dashed border-gray-200"
                     }`}
@@ -545,8 +548,8 @@ export function ProjectLedgerTable({
                 </h3>
                 <div className="flex items-center gap-2 mt-1 text-xs text-gray-500">
                   <User className="w-3.5 h-3.5 text-gray-400" />
-                  <span>{project.leaderUser?.name || "ไม่ระบุหัวหน้า"}</span>
-                  {project.department && <span>• {project.department.name}</span>}
+                  <span>{project.leaderUserName || "ไม่ระบุหัวหน้า"}</span>
+                  {project.departmentName && <span>• {project.departmentName}</span>}
                 </div>
               </div>
 
@@ -609,7 +612,7 @@ export function ProjectLedgerTable({
                               {act.activityNo}. {act.name}
                             </div>
                             <div className="text-[11px] text-gray-500">
-                              ผู้รับผิดชอบ: {act.responsibleUser?.name || "-"}
+                              ผู้รับผิดชอบ: {act.responsibleUserName || "-"}
                             </div>
                           </div>
                           <div className="text-right">

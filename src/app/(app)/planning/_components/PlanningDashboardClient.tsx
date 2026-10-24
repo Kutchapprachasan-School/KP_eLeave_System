@@ -95,12 +95,12 @@ export function PlanningDashboardClient({
         const q = searchQuery.toLowerCase().trim();
         const codeMatch = p.code?.toLowerCase().includes(q);
         const nameMatch = p.name.toLowerCase().includes(q);
-        const leaderMatch = p.leaderUser?.name.toLowerCase().includes(q);
-        const deptMatch = p.department?.name.toLowerCase().includes(q);
+        const leaderMatch = p.leaderUserName?.toLowerCase().includes(q);
+        const deptMatch = p.departmentName?.toLowerCase().includes(q);
         const actMatch = (p.activities || []).some(
           (a) =>
             a.name.toLowerCase().includes(q) ||
-            a.responsibleUser?.name.toLowerCase().includes(q)
+            a.responsibleUserName?.toLowerCase().includes(q)
         );
         if (!codeMatch && !nameMatch && !leaderMatch && !deptMatch && !actMatch) {
           return false;

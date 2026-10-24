@@ -114,7 +114,7 @@ export function ExpenseHistoryDrawer({
     startTransition(async () => {
       const res = await voidExpenseAction({
         expenseId: voidTarget.id,
-        remark: voidRemark.trim(),
+        cancelRemark: voidRemark.trim(),
       });
 
       if (res.success) {
@@ -234,7 +234,7 @@ export function ExpenseHistoryDrawer({
                       </h4>
 
                       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-xs text-gray-500 dark:text-gray-400">
-                        <span>วันที่ {new Date(exp.disbursedAt).toLocaleDateString("th-TH")}</span>
+                        <span>วันที่ {new Date(exp.expenseDate).toLocaleDateString("th-TH")}</span>
                         {exp.requesterName && <span>• ขอเบิกโดย: {exp.requesterName}</span>}
                         {exp.receiptNo && <span>• เลขที่: {exp.receiptNo}</span>}
                       </div>

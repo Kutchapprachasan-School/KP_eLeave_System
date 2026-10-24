@@ -108,7 +108,8 @@ export async function addProjectAttachmentAction(formData: FormData) {
     let fileUrl = "";
     try {
       const r2 = new R2StorageProvider();
-      const res = await r2.upload(buffer, {
+      const res = await r2.upload({
+        buffer,
         storageKey,
         mimeType: file.type || "application/octet-stream",
       });
