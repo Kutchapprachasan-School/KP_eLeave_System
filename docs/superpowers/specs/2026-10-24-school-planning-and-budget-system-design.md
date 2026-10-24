@@ -1,8 +1,9 @@
-# ระบบแผนงานโครงการและติดตามงบประมาณสถานศึกษา (School Planning & Budget Ledger) (v1.0 / Rev. 0)
+# ระบบแผนงานโครงการและติดตามงบประมาณสถานศึกษา (School Planning & Budget Ledger) (v1.1 / Rev. 1)
 
 | Version / Rev | วันที่ / เวลา | การเปลี่ยนแปลงสำคัญ (Changelog) | สถานะ (Status) |
 |---|---|---|---|
-| `v1.0 (Rev. 0)` | 2026-10-24 13:20 | บันทึกการออกแบบระบบแผนงานโครงการและติดตามงบประมาณฉบับสมบูรณ์ (Initial Design Spec) ผนวกรวมโครงสร้าง Data Schema, สิทธิ์การใช้งาน, Stacked Progress Bar, ป้าย SAR Readiness, ปุ่มลัดยืนยันเบิกจ่ายจริง, และ Export Excel | Pending Review |
+| `v1.0 (Rev. 0)` | 2026-10-24 13:20 | บันทึกการออกแบบระบบแผนงานโครงการและติดตามงบประมาณฉบับสมบูรณ์ (Initial Design Spec) | Superseded |
+| `v1.1 (Rev. 1)` | 2026-10-24 13:22 | ปรับปรุงเงื่อนไข Edge Cases ทางการเงิน: Settlement Delta Invariant, แยกสูตร Unallocated Budget, Satang-Safe Math, R2 Resilient Delete, และเคสทดสอบเพิ่มเติม | Approved / Final |
 
 ---
 
@@ -200,10 +201,10 @@ model ActivityExpense {
 
 ### 4.1 หน้าจอหลัก (`/planning`)
 1. **Financial Metric Cards (4 การ์ดสถิติ Real-time):**
-   * **งบประมาณทั้งสิ้น:** รวม `Effective Budget` ตามตัวกรอง
+   * **งบประมาณทั้งสิ้น:** รวม $\text{Project Effective Budget}$ ตามตัวกรอง
    * **เบิกจ่ายจริงแล้ว (`PAID`):** ยอดตัดจ่ายสมบูรณ์
    * **กันวงเงินจอง (`RESERVED`):** ยอดที่ขออนุมัติไว้รอเคลียร์ใบเสร็จ
-   * **คงเหลือสุทธิ:** $(\text{งบประมาณ} - (\text{เบิกจ่ายจริง} + \text{กันเงิน}))$ แสดงสีเขียวสดใสเมื่อบวก และสีแดงเตือนเมื่อเกินงบ
+   * **คงเหลือสุทธิ:** $\text{งบประมาณ} - (\text{เบิกจ่ายจริง} + \text{กันเงิน})$ แสดงสีเขียวสดใสเมื่อบวก และสีแดงเตือนเมื่อเกินงบ
 
 2. **Filter & Action Toolbar:**
    * เลือกปีงบประมาณ (เช่น 2569, 2568)
@@ -303,41 +304,48 @@ export function getPlanningPermissions(
 
 ## 6. เอนจินการคำนวณและ Invariants ทางการเงิน (Financial Calculation Engine)
 
-1. **สูตรการคำนวณระดับกิจกรรม (Activity):**
-   $$\text{Effective Budget} = \text{adjustedAmount} \text{ ?? } \text{allocatedAmount}$$
-   $$\text{Reserved Amount} = \sum \text{amount} \quad [\text{status} = \text{RESERVED} \land \text{deletedAt IS NULL}]$$
-   $$\text{Paid Amount} = \sum \text{amount} \quad [\text{status} = \text{PAID} \land \text{deletedAt IS NULL}]$$
-   $$\text{Total Spent} = \text{Reserved Amount} + \text{Paid Amount}$$
-   $$\text{Remaining Balance} = \text{Effective Budget} - \text{Total Spent}$$
+### 6.1 สูตรคำนวณระดับกิจกรรม (Activity Level)
+$$\text{Activity Effective Budget} = \text{activity.adjustedAmount} \text{ ?? } \text{activity.allocatedAmount}$$
+$$\text{Reserved Amount} = \sum \text{amount} \quad [\text{status} = \text{RESERVED} \land \text{deletedAt IS NULL}]$$
+$$\text{Paid Amount} = \sum \text{amount} \quad [\text{status} = \text{PAID} \land \text{deletedAt IS NULL}]$$
+$$\text{Total Spent} = \text{Reserved Amount} + \text{Paid Amount}$$
+$$\text{Remaining Balance} = \text{Activity Effective Budget} - \text{Total Spent}$$
 
-2. **สูตรการคำนวณระดับโครงการ (Project):**
-   $$\text{Project Effective Budget} = \text{adjustedAmount} \text{ ?? } \text{allocatedAmount}$$
-   $$\text{Project Total Activities Budget} = \sum \text{Activity.Effective Budget}$$
-   $$\text{Project Unallocated} = \text{Project Effective Budget} - \text{Project Total Activities Budget}$$
-   $$\text{Project Reserved} = \sum \text{Activity.Reserved Amount}$$
-   $$\text{Project Paid} = \sum \text{Activity.Paid Amount}$$
-   $$\text{Project Remaining} = \text{Project Effective Budget} - (\text{Project Reserved} + \text{Project Paid})$$
+### 6.2 สูตรคำนวณระดับโครงการ (Project Level vs Activity Sum)
+แก้ปัญหา Edge Case เมื่อโครงการเพิ่งสร้างหรือยังไม่มีกิจกรรมย่อย โดยอิงจากงบโครงการโดยตรง:
+$$\text{Project Effective Budget} = \text{project.adjustedAmount} \text{ ?? } \text{project.allocatedAmount}$$
+$$\text{Allocated to Activities} = \sum \text{activity.effectiveBudget} \quad [\text{activity.deletedAt IS NULL}]$$
+$$\text{Unallocated Budget} = \text{Project Effective Budget} - \text{Allocated to Activities}$$
+$$\text{Project Reserved} = \sum \text{activity.reservedAmount}$$
+$$\text{Project Paid} = \sum \text{activity.paidAmount}$$
+$$\text{Project Remaining Balance} = \text{Project Effective Budget} - (\text{Project Reserved} + \text{Project Paid})$$
 
-3. **Financial Invariants & Safety:**
-   * ทุกการบันทึกหรือปรับปรุงเงินดำเนินการใน `prisma.$transaction`
-   * การลบรายการใช้จ่ายเป็นการ Soft Delete (`deletedAt = now()`) เพื่อรักษา Audit Trail ย้อนหลัง
-   * แปลงค่า `Decimal` เป็น Number / String ใน Server Action ก่อนส่งไป Client Components ตามกฎ Frontend
+### 6.3 การตรวจสอบวงเงินเมื่อเปลี่ยนสถานะ `RESERVED` เป็น `PAID` (Settlement Delta Invariant)
+เมื่อแก้ไขรายการหรือแปลงสถานะรายการเดิม:
+$$\text{Available Balance for Update} = \text{Current Remaining Balance} + \text{Old Active Expense Amount}$$
+$$\text{Invariant Check: } \text{New Expense Amount} \le \text{Available Balance for Update}$$
+
+### 6.4 ความแม่นยำทศนิยม & ความทนทานในการลบไฟล์ R2 (Resilience & Hygiene)
+* **Satang-Safe Math:** คำนวณผลรวมทั้งหมดฝั่ง Server ด้วย `Prisma.Decimal` ให้เสร็จสิ้นก่อน Serialize แปลงเป็น Number/String ข้าม Boundary ไปยัง Client Component
+* **Helper Comma-separated IDs:** ใช้ `.split(",").map(id => id.trim()).filter(Boolean)` ป้องกัน String ว่างกลายเป็น Array `[""]`
+* **R2 Resilient Deletion:** ใช้ `try / catch` ในการส่งคำสั่ง `DeleteObjectCommand` ไปยัง Cloudflare R2 หากเกิด `NoSuchKey` หรือเน็ตเวิร์กขัดข้อง ให้บันทึก `console.warn` และอนุญาตให้ลบระเบียนในฐานข้อมูลได้สำเร็จ ไม่เกิด Deadlock ค้างเติ่ง
 
 ---
 
 ## 7. แผนการตรวจสอบและการทดสอบ (Verification & Testing Plan)
 
-1. **Financial Precision & Invariant Unit Tests:**
-   * คำนวณยอดเงินคงเหลือสุทธิระดับกิจกรรมและโครงการตรงตามทศนิยม 2 ตำแหน่ง
-   * ทดสอบปุ่มลัดแปลง `RESERVED` $\to$ `PAID` พร้อมปรับเปลี่ยนยอดเงินจริง ยอดคงเหลือต้องหักลบแม่นยำ
-   * ทดสอบการกดยกเลิกรายการ (Soft delete): ยอดเงินคงเหลือต้องคืนกลับทันที
-2. **Permission Boundary Tests:**
-   * ครูทั่วไปเข้าดูตารางและแนบไฟล์เล่มโครงการของตนเองได้ แต่ถูกบล็อกเมื่อพยายามยิง Server Action บันทึกค่าใช้จ่าย
+1. **Financial Engine & Edge Case Tests:**
+   * ทดสอบคำนวณยอดเงินคงเหลือสุทธิระดับกิจกรรมและโครงการตรงตามทศนิยม 2 ตำแหน่ง
+   * **Settlement Test:** เปลี่ยนสถานะรายการจาก `RESERVED` (฿10,000) เป็น `PAID` (฿9,500) ในขณะที่งบคงเหลือเป็น ฿0 ตรวจสอบว่าระบบยอมให้บันทึก และยอดคงเหลือกลับมาเป็น ฿500
+   * **Soft Delete Test:** ทดสอบ Soft Delete กิจกรรมย่อย (`ProjectActivity.deletedAt !== null`) ยอดใช้จ่ายภายในกิจกรรมที่ถูกลบต้องไม่ถูกนำมารวมในยอดระดับโครงการ
+   * **Unallocated Budget Test:** ตรวจสอบว่าเมื่อสร้างโครงการใหม่แต่ยังไม่มีกิจกรรม ยอดคงเหลือระดับโครงการต้องแสดงเต็มจำนวนตามงบโครงการแม่
+2. **Permission Boundary & Security Tests:**
+   * เมื่อ `planningOfficerUserIds` ว่างเปล่า `""` ครูทั่วไปไม่สามารถยิง Server Action บันทึกค่าใช้จ่ายตรงๆ ได้
    * เจ้าหน้าที่แผนงานสามารถเพิ่มโครงการ กิจกรรม และตัดยอดเงินได้สมบูรณ์
-3. **Cloudflare R2 Storage Hygiene Tests:**
+3. **Next.js 16 Boundary Serialization Verification:**
+   * ตรวจสอบว่าไม่มี Instance ของ `Prisma.Decimal` หรือ `Date` ที่ไม่ได้แปลงสภาพ หลุดข้าม Server Action / Component Boundary
+4. **Cloudflare R2 Storage Hygiene Tests:**
    * ทดสอบอัปโหลดไฟล์ PDF/Word เข้า R2 ได้รับ `fileKey`
-   * ทดสอบการลบเอกสารแนบ ต้องส่ง `DeleteObjectCommand` ลบไฟล์ออกจาก R2 จริง ไม่ค้างเป็นไฟล์ขยะ
-4. **Export Excel Verification:**
-   * ทดสอบปุ่ม Export Excel ส่งออกข้อมูลโครงการและกิจกรรมพร้อมยอดเงินตามตัวกรองที่เลือก
+   * ทดสอบการลบเอกสารแนบและการทำงานของ Resilient deletion
 5. **Codebase Index Synchronization:**
    * รันคำสั่ง `npm run index:sync` หลังการแก้ไขโค้ดทุกครั้งตามกฎ AGENTS.md
