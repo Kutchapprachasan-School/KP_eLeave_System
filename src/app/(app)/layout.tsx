@@ -49,6 +49,7 @@ import {
   Trash2,
   ExternalLink,
   Home,
+  Map,
   Search
 } from "lucide-react";
 import { hasRepairPermission, hasFacilityPermission, getUserRoleKey, getUserRoleKeys } from "@/lib/permissions";
@@ -570,6 +571,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
   const [enableFacility, setEnableFacility] = useState(true);
   const [enableAcademicSettings, setEnableAcademicSettings] = useState(true);
   const [enableBudget, setEnableBudget] = useState(false);
+  const [enablePlanning, setEnablePlanning] = useState(true);
   const [enableStudentAffairs, setEnableStudentAffairs] = useState(false);
   const [enableStudentCouncil, setEnableStudentCouncil] = useState(false);
   const [enableAmssSync, setEnableAmssSync] = useState(true);
@@ -619,6 +621,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
       const storedEnableFacility = localStorage.getItem("eleave_enableFacility");
       const storedEnableAcademicSettings = localStorage.getItem("eleave_enableAcademicSettings");
       const storedEnableBudget = localStorage.getItem("eleave_enableBudget");
+      const storedEnablePlanning = localStorage.getItem("eleave_enablePlanning");
       const storedEnableStudentAffairs = localStorage.getItem("eleave_enableStudentAffairs");
       const storedEnableStudentCouncil = localStorage.getItem("eleave_enableStudentCouncil");
       const storedEnableAcademicPlanning = localStorage.getItem("eleave_enableAcademicPlanning");
@@ -640,6 +643,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
       if (storedEnableFacility) setEnableFacility(storedEnableFacility === "true");
       if (storedEnableAcademicSettings) setEnableAcademicSettings(storedEnableAcademicSettings === "true");
       if (storedEnableBudget) setEnableBudget(storedEnableBudget === "true");
+      if (storedEnablePlanning) setEnablePlanning(storedEnablePlanning !== "false");
       if (storedEnableStudentAffairs) setEnableStudentAffairs(storedEnableStudentAffairs === "true");
       if (storedEnableStudentCouncil) setEnableStudentCouncil(storedEnableStudentCouncil === "true");
       if (storedEnableAcademicPlanning) setEnableAcademicPlanning(storedEnableAcademicPlanning === "true");
@@ -767,6 +771,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
       const storedEnableFacility = localStorage.getItem("eleave_enableFacility");
       const storedEnableAcademicSettings = localStorage.getItem("eleave_enableAcademicSettings");
       const storedEnableBudget = localStorage.getItem("eleave_enableBudget");
+      const storedEnablePlanning = localStorage.getItem("eleave_enablePlanning");
       const storedEnableStudentAffairs = localStorage.getItem("eleave_enableStudentAffairs");
       const storedEnableStudentCouncil = localStorage.getItem("eleave_enableStudentCouncil");
       const storedEnableAcademicPlanning = localStorage.getItem("eleave_enableAcademicPlanning");
@@ -783,6 +788,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
       if (storedEnableFacility) setEnableFacility(storedEnableFacility === "true");
       if (storedEnableAcademicSettings) setEnableAcademicSettings(storedEnableAcademicSettings === "true");
       if (storedEnableBudget) setEnableBudget(storedEnableBudget === "true");
+      if (storedEnablePlanning) setEnablePlanning(storedEnablePlanning !== "false");
       if (storedEnableStudentAffairs) setEnableStudentAffairs(storedEnableStudentAffairs === "true");
       if (storedEnableStudentCouncil) setEnableStudentCouncil(storedEnableStudentCouncil === "true");
       if (storedEnableAcademicPlanning) setEnableAcademicPlanning(storedEnableAcademicPlanning === "true");
@@ -849,6 +855,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
   const showRepair = enableRepair || isAdmin;
   const showAttendance = enableAttendance || isAdmin;
   const showBudget = enableBudget || isAdmin;
+  const showPlanning = enablePlanning || isAdmin;
   const showStudentAffairs = enableStudentAffairs || isAdmin;
   const showStudentCouncil = enableStudentCouncil || isAdmin;
   const isAcademicPlanningAllowed = isAdmin || (user?.id && academicPlanningAllowedUserIds.includes(user.id));
@@ -967,11 +974,12 @@ function AppContent({ children }: { children: React.ReactNode }) {
     : [];
 
   // Sub-items for Budget System (ระบบบริหารงานงบประมาณ & เบิกจ่าย)
-  const budgetSubItems = showBudget
+  const budgetSubItems = (showBudget || showPlanning)
     ? [
-        { href: "/budget", label: "บริหารงานงบประมาณ & พัสดุ", icon: Wallet },
-        { href: "/budget?view=projects", label: "จัดสรรงบโครงการ & แผนงาน", icon: FileText },
-        { href: "/budget?view=reports", label: "รายงานและการเบิกจ่าย", icon: FileSpreadsheet },
+        ...(showPlanning ? [{ href: "/planning", label: "แผนงานโครงการ & ติดตามงบ", icon: Map }] : []),
+        ...(showBudget ? [{ href: "/budget", label: "บริหารงานงบประมาณ & พัสดุ", icon: Wallet }] : []),
+        ...(showBudget ? [{ href: "/budget?view=projects", label: "จัดสรรงบโครงการ & แผนงาน", icon: FileText }] : []),
+        ...(showBudget ? [{ href: "/budget?view=reports", label: "รายงานและการเบิกจ่าย", icon: FileSpreadsheet }] : []),
       ]
     : [];
 
@@ -1062,6 +1070,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
     if ((path.startsWith("/repair") || path.startsWith("/general/repair")) && !hasRepairPermission(effectiveUser, "repair:view.own") && !hasRepairPermission(effectiveUser, "repair:view.all")) return false;
     if ((path.startsWith("/facility") || path.startsWith("/general/facility") || path.startsWith("/academic/facility")) && !enableFacility && !isAdmin) return false;
     if (path.startsWith("/budget") && !enableBudget && !isAdmin) return false;
+    if (path.startsWith("/planning") && !enablePlanning && !isAdmin) return false;
     if (path.startsWith("/student-affairs") && !enableStudentAffairs && !isAdmin) return false;
     if (path.startsWith("/student-council") && !enableStudentCouncil && !isAdmin) return false;
     if (path.startsWith("/academic/planning") && !isAcademicPlanningAllowed) return false;
