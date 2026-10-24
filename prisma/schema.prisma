@@ -54,6 +54,7 @@ model User {
   activitiesResponsible ProjectActivity[] @relation("ActivityResponsible")
   expensesRequested   ActivityExpense[]  @relation("ExpenseRequestedBy")
   expensesApproved    ActivityExpense[]  @relation("ExpenseApprovedBy")
+  expensesRecorded    ActivityExpense[]  @relation("ExpenseRecordedBy")
   reversalsCancelled  ExpenseReversal[]  @relation("ReversalCancelledBy")
   reversalsApproved   ExpenseReversal[]  @relation("ReversalApprovedBy")
   transfersRequested  BudgetTransfer[]   @relation("TransferRequestedBy")
@@ -264,6 +265,8 @@ model SystemSettings {
   enableCertificate            Boolean  @default(true)
   enableBudget                 Boolean  @default(false)
   budgetAdminUserIds           String   @default("")
+  enablePlanning               Boolean  @default(true)
+  planningOfficerUserIds       String   @default("")
   enableStudentAffairs         Boolean  @default(false)
   enableStudentCouncil         Boolean  @default(false)
   enableAcademicPlanning       Boolean  @default(false)
@@ -817,6 +820,7 @@ model Department {
   name        String
   teachers    Teacher[]
   subjects    Subject[]
+  projects    Project[]
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 }
@@ -1593,12 +1597,59 @@ model BudgetReceipt {
   @@index([receivedDate], map: "idx_receipt_received_date")
 }
 
+enum ProjectStatus {
+  DRAFT
+  APPROVED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum BudgetSourceType {
+  SUBSIDY
+  FREE_EDUCATION_15Y
+  SCHOOL_INCOME
+  LOCAL_GOV
+  OTHER
+}
+
+enum ExpenseCategory {
+  REMUNERATION
+  OPERATING
+  MATERIALS
+  EQUIPMENT
+  UTILITIES
+  OTHER
+}
+
+enum ExpenseStatus {
+  RESERVED
+  PAID
+  CANCELLED
+}
+
+enum AttachmentType {
+  PROPOSAL
+  APPROVAL
+  SUMMARY
+  RECEIPT
+  OTHER
+}
+
+enum StorageType {
+  R2_UPLOAD
+  EXTERNAL_LINK
+}
+
 model Project {
   id                 String              @id @default(cuid())
   fiscalYearId       String
   fiscalYear         FiscalYear          @relation(fields: [fiscalYearId], references: [id], onDelete: Restrict)
   budgetSourceId     String
   budgetSource       BudgetSource        @relation(fields: [budgetSourceId], references: [id], onDelete: Restrict)
+  budgetSourceType   BudgetSourceType    @default(SUBSIDY)
+  departmentId       String?
+  department         Department?         @relation(fields: [departmentId], references: [id])
   departmentName     String?             // e.g. "ฝ่ายบริหารงานวิชาการ", "กลุ่มสาระการเรียนรู้วิทยาศาสตร์ฯ"
   leaderUserId       String
   leaderUser         User                @relation("ProjectLeader", fields: [leaderUserId], references: [id], onDelete: Restrict)
@@ -1606,18 +1657,23 @@ model Project {
   code               String              // e.g. "PRJ-2569-001"
   name               String              // ชื่อโครงการ
   targetAcademicYear Int                 // ปีการศึกษาเป้าหมาย e.g. 2569
+  strategyCode       String?             // กลยุทธ์โรงเรียน e.g. "ยุทธศาสตร์ที่ 1"
+  standardTags       String[]            @default([]) // มาตรฐาน สมศ. e.g. ["ม.1", "ม.3"]
   allocatedAmount    Decimal             @default(0) @db.Decimal(19, 4)
+  adjustedAmount     Decimal?            @db.Decimal(19, 4)
   status             String              @default("APPROVED") // DRAFT, APPROVED, IN_PROGRESS, COMPLETED, CANCELLED
   activities         ProjectActivity[]
   attachments        ProjectAttachment[]
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
+  deletedAt          DateTime?
 
   @@unique([fiscalYearId, code], map: "uk_project_fy_code")
   @@index([fiscalYearId], map: "idx_project_fy")
   @@index([budgetSourceId], map: "idx_project_budget_source")
   @@index([leaderUserId], map: "idx_project_leader")
   @@index([status], map: "idx_project_status")
+  @@index([deletedAt], map: "idx_project_deleted_at")
 }
 
 model ProjectActivity {
@@ -1629,16 +1685,20 @@ model ProjectActivity {
   activityNo         Int                         // 1, 2, 3...
   name               String                      // ชื่อกิจกรรม
   allocatedAmount    Decimal                     @default(0) @db.Decimal(19, 4)
+  adjustedAmount     Decimal?                    @db.Decimal(19, 4)
   plannedStartDate   DateTime?
   plannedEndDate     DateTime?
   status             String                      @default("NOT_STARTED") // NOT_STARTED, IN_PROGRESS, COMPLETED, CANCELLED
   trancheAllocations ActivityTrancheAllocation[]
+  expenses           ActivityExpense[]
   createdAt          DateTime                    @default(now())
   updatedAt          DateTime                    @updatedAt
+  deletedAt          DateTime?
 
   @@unique([projectId, activityNo], map: "uk_activity_project_no")
   @@index([projectId, status], map: "idx_activity_project_status")
   @@index([responsibleUserId], map: "idx_activity_responsible")
+  @@index([deletedAt], map: "idx_activity_deleted_at")
 }
 
 model ActivityTrancheAllocation {
@@ -1664,14 +1724,22 @@ model ActivityExpense {
   idempotencyKey    String                    @unique(map: "uk_expense_idempotency")
   allocationId      String
   allocation        ActivityTrancheAllocation @relation(fields: [allocationId], references: [id], onDelete: Restrict)
+  activityId        String?
+  activity          ProjectActivity?          @relation(fields: [activityId], references: [id], onDelete: Cascade)
   requestedByUserId String
   requestedByUser   User                      @relation("ExpenseRequestedBy", fields: [requestedByUserId], references: [id], onDelete: Restrict)
   approvedByUserId  String?
   approvedByUser    User?                     @relation("ExpenseApprovedBy", fields: [approvedByUserId], references: [id], onDelete: Restrict)
+  recordedByUserId  String?
+  recordedByUser    User?                     @relation("ExpenseRecordedBy", fields: [recordedByUserId], references: [id], onDelete: SetNull)
   expenseDate       DateTime
   title             String
+  expenseCategory   ExpenseCategory           @default(MATERIALS)
   amount            Decimal                   @db.Decimal(19, 4)
   receiptNo         String?
+  attachmentUrl     String?
+  attachmentKey     String?
+  remark            String?
   status            String                    @default("SUBMITTED") // DRAFT, SUBMITTED, APPROVED, REJECTED, REVERSED
   rejectedReason    String?
   submittedAt       DateTime?                 @default(now())
@@ -1681,8 +1749,12 @@ model ActivityExpense {
   reversal          ExpenseReversal?
   createdAt         DateTime                  @default(now())
   updatedAt         DateTime                  @updatedAt
+  deletedAt         DateTime?
 
   @@index([allocationId, status], map: "idx_expense_alloc_status")
+  @@index([activityId, status], map: "idx_expense_activity_status")
+  @@index([recordedByUserId], map: "idx_expense_recorded_by")
+  @@index([deletedAt], map: "idx_expense_deleted_at")
   @@index([expenseDate], map: "idx_expense_date")
   @@index([requestedByUserId], map: "idx_expense_requested_by")
   @@index([status], map: "idx_expense_status")
@@ -1750,7 +1822,12 @@ model AuditLog {
 model ProjectAttachment {
   id               String   @id @default(cuid())
   projectId        String
-  project          Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project          Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title            String?
+  attachmentType   AttachmentType  @default(PROPOSAL)
+  storageType      StorageType     @default(R2_UPLOAD)
+  fileUrl          String?
+  fileKey          String?
   storageProvider  String   // "LOCAL", "SUPABASE_STORAGE", "GOOGLE_DRIVE_LINK"
   objectKey        String   // file path or external URL
   originalFileName String
@@ -1761,6 +1838,7 @@ model ProjectAttachment {
   createdAt        DateTime @default(now())
 
   @@index([projectId], map: "idx_proj_attach_proj")
+  @@index([projectId, attachmentType], map: "idx_proj_attach_proj_type")
   @@index([uploadedByUserId], map: "idx_proj_attach_user")
 }
 
