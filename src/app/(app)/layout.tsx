@@ -682,6 +682,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
       const finalEnableFacility = (s as any).enableFacility !== false;
       const finalEnableAcademicSettings = (s as any).enableAcademicSettings !== false;
       const finalEnableBudget = (s as any).enableBudget === true;
+      const finalEnablePlanning = (s as any).enablePlanning !== false;
       const finalEnableStudentAffairs = (s as any).enableStudentAffairs === true;
       const finalEnableStudentCouncil = (s as any).enableStudentCouncil === true;
       const finalEnableAcademicPlanning = (s as any).enableAcademicPlanning !== false;
@@ -709,6 +710,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
       setEnableFacility(finalEnableFacility);
       setEnableAcademicSettings(finalEnableAcademicSettings);
       setEnableBudget(finalEnableBudget);
+      setEnablePlanning(finalEnablePlanning);
       setEnableStudentAffairs(finalEnableStudentAffairs);
       setEnableAmssSync(finalEnableAmssSync);
       setEnableCertificate(finalEnableCertificate);
@@ -747,6 +749,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
         localStorage.setItem("eleave_enableCompetency", String(finalEnableCompetency));
         localStorage.setItem("eleave_enableFacility", String(finalEnableFacility));
         localStorage.setItem("eleave_enableAcademicSettings", String(finalEnableAcademicSettings));
+        localStorage.setItem("eleave_enablePlanning", String(finalEnablePlanning));
       }
 
       setIsLoadingSettings(false);

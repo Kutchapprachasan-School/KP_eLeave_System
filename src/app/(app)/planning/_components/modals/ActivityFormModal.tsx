@@ -41,8 +41,8 @@ export function ActivityFormModal({
     activityToEdit ? String(activityToEdit.financials.allocatedAmount) : ""
   );
   const [adjustedAmount, setAdjustedAmount] = useState<string>(
-    activityToEdit?.adjustedAmount !== undefined && activityToEdit?.adjustedAmount !== null
-      ? String(activityToEdit.adjustedAmount)
+    activityToEdit?.financials?.isAdjusted
+      ? String(activityToEdit.financials.effectiveBudget)
       : ""
   );
 

@@ -9,6 +9,7 @@ export type BudgetSourceType = BudgetSourceCategoryType;
 export type ExpenseCategoryType = "REMUNERATION" | "OPERATING" | "MATERIALS" | "EQUIPMENT" | "UTILITIES" | "OTHER";
 export type ExpenseStatusType = "RESERVED" | "PAID" | "CANCELLED";
 export type AttachmentCategoryType = "PROPOSAL" | "APPROVAL" | "SUMMARY" | "RECEIPT" | "OTHER";
+export type AttachmentType = AttachmentCategoryType;
 export type StorageProviderType = "R2_UPLOAD" | "EXTERNAL_LINK";
 
 export interface ActivityFinancialSummaryDTO {
