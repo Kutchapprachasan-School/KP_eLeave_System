@@ -3,7 +3,7 @@
  * Module: src/lib/planning/calculator.ts
  */
 
-import { Prisma } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 import type {
   ActivityFinancialSummaryDTO,
   ProjectFinancialSummaryDTO,
