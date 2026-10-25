@@ -21,6 +21,10 @@ import {
   EXPENSE_CATEGORY_LABELS,
 } from '../../../src/lib/planning/types.ts';
 
+import {
+  buildR2ObjectKey,
+} from '../../../src/lib/planning/storage-keys.ts';
+
 describe('Planning Core - Financial Engine & Invariants', () => {
   it('TC-01: Satang-safe addition (100.25 + 200.50 = 300.75)', () => {
     const s1 = toSatang('100.25');
@@ -226,5 +230,10 @@ describe('Planning Core - Permissions Helper', () => {
 
     assert.equal(BUDGET_SOURCE_LABELS[mockProjects[0].budgetSourceType], 'เงินอุดหนุนรายหัว');
     assert.equal(EXPENSE_CATEGORY_LABELS[mockProjects[0].activities[0].expenses[0].expenseCategory], 'ค่าวัสดุ');
+  });
+
+  it('TC-12: R2 Object Key generation sanitizes and structures properly', () => {
+    const key = buildR2ObjectKey(2569, 'PRJ/2569 #01', 'รายงาน โครงการ (1).pdf', 'documents');
+    assert.match(key, /^planning\/2569\/PRJ_2569__01\/documents\/[a-f0-9]{8}-รายงาน_โครงการ_1\.pdf$/);
   });
 });
