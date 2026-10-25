@@ -63,7 +63,7 @@ export function AttachmentManagerModal({
   const canManage =
     propCanManageAttachments ??
     project?.permissions?.canManageAttachments ??
-    true;
+    false;
 
   const [title, setTitle] = useState("");
   const [attachmentType, setAttachmentType] =
@@ -358,7 +358,7 @@ export function AttachmentManagerModal({
                     onChange={(e) =>
                       setSelectedFile(e.target.files?.[0] ?? null)
                     }
-                    className="mt-1 block w-full rounded-lg border border-slate-300 bg-white p-2 text-xs text-slate-700 file:mr-3 file:rounded-md file:border-0 file:bg-blue-50 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-blue-700 hover:file:bg-blue-100 dark:border-slate-700 dark:bg-gray-800 dark:text-slate-300 dark:file:bg-blue-950 dark:file:text-blue-300"
+                    className="mt-1 block w-full rounded-lg border border-slate-300 bg-white p-2 text-xs text-slate-700 file:mr-3 file:rounded-md file:border-0 file:bg-blue-50 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-blue-700 hover:file:bg-blue-100 dark:border-slate-700 dark:bg-gray-800 dark:text-slate-200 dark:file:bg-blue-900/50 dark:file:text-blue-200"
                   />
                 </div>
               ) : (

@@ -82,7 +82,10 @@ export function exportPlanningToExcel(projects: ProjectDTO[], fiscalYear: number
           "รหัสโครงการ": proj.code || "-",
           "ชื่อโครงการ": proj.name,
           "กิจกรรมย่อย": act.name,
-          "วันที่ทำรายการ": new Date(exp.expenseDate).toLocaleDateString("th-TH"),
+          "วันที่ทำรายการ":
+            exp.expenseDate && !isNaN(new Date(exp.expenseDate).getTime())
+              ? new Date(exp.expenseDate).toLocaleDateString("th-TH")
+              : "-",
           "สถานะรายการ": exp.status === "PAID" ? "เบิกจ่ายจริง (PAID)" : exp.status === "RESERVED" ? "กันเงินงบประมาณ (RESERVED)" : "ยกเลิก (CANCELLED)",
           "หมวดค่าใช้จ่าย": catName,
           "รายละเอียดรายการ": exp.title,

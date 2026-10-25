@@ -24,12 +24,22 @@ export type {
   UpdateActivityInput,
 };
 
-export async function getPlanningDashboardDataAction(fiscalYear?: number) {
-  return await _getPlanningDashboardDataAction(fiscalYear);
+export async function getPlanningDashboardDataAction(
+  params?: number | { fiscalYear?: number }
+) {
+  return await _getPlanningDashboardDataAction(params);
 }
 
-export async function getPlanningLedgerAction(fiscalYear?: number) {
-  return await _getPlanningLedgerAction(fiscalYear);
+export async function getPlanningLedgerAction(
+  filters?: number | {
+    fiscalYear?: number;
+    departmentName?: string;
+    budgetSourceType?: string;
+    searchQuery?: string;
+    myProjectsOnly?: boolean;
+  }
+) {
+  return await _getPlanningLedgerAction(filters);
 }
 
 export async function createProjectAction(input: CreateProjectInput) {

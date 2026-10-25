@@ -66,7 +66,7 @@ export function ExpenseFormModal({
     mode === "SETTLE" ? "PAID" : "PAID"
   );
   const [expenseDate, setExpenseDate] = useState<string>(
-    settlingExpense ? settlingExpense.expenseDate.slice(0, 10) : todayIso
+    settlingExpense ? String(settlingExpense.expenseDate).slice(0, 10) : todayIso
   );
   const [title, setTitle] = useState<string>(settlingExpense?.title ?? "");
   const [expenseCategory, setExpenseCategory] = useState<ExpenseCategoryType>(

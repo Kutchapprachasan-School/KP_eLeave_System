@@ -35,8 +35,8 @@ export interface PlanningDashboardPayload {
 /**
  * ดึงข้อมูลทั้งหมดสำหรับหน้า /planning พร้อมแปลงผ่าน DTO Serializer
  */
-export async function getPlanningDashboardDataAction(params: {
-  fiscalYear: number;
+export async function getPlanningDashboardDataAction(params?: number | {
+  fiscalYear?: number;
 }): Promise<ActionResult<PlanningDashboardPayload>> {
   try {
     const { user, settings } = await getPlanningActionContext();
@@ -49,10 +49,17 @@ export async function getPlanningDashboardDataAction(params: {
       };
     }
 
+    const defaultThaiYear =
+      new Date().getFullYear() + 543 + (new Date().getMonth() >= 9 ? 1 : 0);
+    const targetFiscalYear =
+      typeof params === "number"
+        ? params
+        : (params?.fiscalYear ?? defaultThaiYear);
+
     const [rawProjects, departments, teachers] = await Promise.all([
       prisma.project.findMany({
         where: {
-          fiscalYear: { year: params.fiscalYear },
+          fiscalYear: { year: targetFiscalYear },
           deletedAt: null,
         },
         include: {
@@ -131,7 +138,7 @@ export async function getPlanningDashboardDataAction(params: {
 /**
  * ดึงข้อมูลเฉพาะบัญชีโครงการ (Get Ledger Action)
  */
-export async function getPlanningLedgerAction(filters?: {
+export async function getPlanningLedgerAction(filters?: number | {
   fiscalYear?: number;
   departmentName?: string;
   budgetSourceType?: string;
@@ -146,23 +153,25 @@ export async function getPlanningLedgerAction(filters?: {
       return { success: false as const, error: "Forbidden: ระบบแผนงานโครงการปิดการใช้งานชั่วคราว" };
     }
 
+    const normFilters = typeof filters === "number" ? { fiscalYear: filters } : (filters || {});
+
     const where: Prisma.ProjectWhereInput = {
       deletedAt: null,
     };
 
-    if (filters?.departmentName && filters.departmentName !== "ALL") {
-      where.departmentName = filters.departmentName;
+    if (normFilters.departmentName && normFilters.departmentName !== "ALL") {
+      where.departmentName = normFilters.departmentName;
     }
 
-    if (filters?.budgetSourceType && filters.budgetSourceType !== "ALL") {
-      where.budgetSourceType = filters.budgetSourceType as any;
+    if (normFilters.budgetSourceType && normFilters.budgetSourceType !== "ALL") {
+      where.budgetSourceType = normFilters.budgetSourceType as any;
     }
 
-    if (filters?.fiscalYear) {
-      where.fiscalYear = { year: filters.fiscalYear };
+    if (normFilters.fiscalYear) {
+      where.fiscalYear = { year: normFilters.fiscalYear };
     }
 
-    if (filters?.myProjectsOnly) {
+    if (normFilters.myProjectsOnly) {
       where.OR = [
         { leaderUserId: user.id },
         { activities: { some: { responsibleUserId: user.id, deletedAt: null } } },
@@ -320,16 +329,12 @@ export async function createProjectAction(
       },
     });
     if (!bs) {
-      bs = await prisma.budgetSource.findFirst({
-        where: { fiscalYearId: fy.id },
-      });
-    }
-    if (!bs) {
+      const bSourceLabel = BUDGET_SOURCE_LABELS[bSourceType as keyof typeof BUDGET_SOURCE_LABELS] || bSourceType;
       bs = await prisma.budgetSource.create({
         data: {
           fiscalYearId: fy.id,
           code: bSourceType,
-          name: `งบประมาณประเภท ${bSourceType}`,
+          name: `งบประมาณประเภท ${bSourceLabel}`,
           totalPlannedAmount: new Prisma.Decimal(10000000),
         },
       });

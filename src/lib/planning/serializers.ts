@@ -59,7 +59,12 @@ export function serializeExpenseToDTO(exp: any): ActivityExpenseDTO {
     receiptNo: exp.receiptNo || null,
     attachmentUrl: exp.attachmentUrl || null,
     attachmentKey: exp.attachmentKey || null,
-    status: (exp.status || "PAID") as ExpenseStatusType,
+    status:
+      exp.status === "RESERVED" || exp.status === "SUBMITTED"
+        ? "RESERVED"
+        : exp.status === "CANCELLED" || exp.status === "REVERSED"
+        ? "CANCELLED"
+        : "PAID",
     remark: exp.remark || null,
     requesterUserId: reqUserId,
     requesterName: reqName,

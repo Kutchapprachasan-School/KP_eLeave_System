@@ -173,6 +173,7 @@ export async function recordExpenseAction(
           approvedAt: isPaid ? new Date() : null,
           receiptNo: input.receiptNo?.trim() || null,
           attachmentUrl: input.attachmentUrl || null,
+          attachmentKey: input.attachmentKey || null,
           remark: input.remark?.trim() || null,
         },
         include: {

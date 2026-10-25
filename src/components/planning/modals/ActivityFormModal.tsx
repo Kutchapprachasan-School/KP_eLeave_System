@@ -53,7 +53,8 @@ export function ActivityFormModal({
   const teachers = (propTeachers || users || []) as SimpleUserDTO[];
   const handleSuccess = onSuccess || onSaved || onClose;
 
-  const resolvedProjectId = project?.id || projectId || "";
+  const resolvedProjectId =
+    project?.id || projectId || activity?.projectId || "";
   const resolvedProjectName = project ? `${project.code}: ${project.name}` : (projectName || "โครงการ");
   const unallocatedBudget = project?.financials?.unallocatedBudget ?? 0;
 
