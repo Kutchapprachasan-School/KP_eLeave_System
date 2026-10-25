@@ -33,11 +33,15 @@ interface PlanningFilterToolbarProps {
 
 const BUDGET_SOURCE_LABELS: Record<string, string> = {
   ALL: "แหล่งงบประมาณทั้งหมด",
-  SUBSIDY: "เงินอุดหนุน (SUBSIDY)",
-  GENERAL_BUDGET: "งบประมาณแผ่นดิน (GENERAL)",
-  REVENUE: "เงินรายได้สถานศึกษา (REVENUE)",
-  SPECIAL_PROJECT: "โครงการพิเศษ (SPECIAL)",
-  DONATION: "เงินบริจาค/ระดมทรัพยากร (DONATION)",
+  SUBSIDY: "เงินอุดหนุนรายหัว",
+  FREE_EDUCATION_15Y: "เงินเรียนฟรี 15 ปี",
+  SCHOOL_INCOME: "เงินรายได้สถานศึกษา",
+  LOCAL_GOV: "เงินอุดหนุน อปท./อบจ.",
+  OTHER: "เงินนอกงบประมาณ/อื่นๆ",
+  GENERAL_BUDGET: "งบประมาณแผ่นดิน",
+  REVENUE: "เงินรายได้สถานศึกษา",
+  SPECIAL_PROJECT: "โครงการพิเศษ",
+  DONATION: "เงินบริจาค/ระดมทรัพยากร",
 };
 
 export function PlanningFilterToolbar({

@@ -10,7 +10,34 @@ export type ExpenseCategoryType = "REMUNERATION" | "OPERATING" | "MATERIALS" | "
 export type ExpenseStatusType = "RESERVED" | "PAID" | "CANCELLED";
 export type AttachmentCategoryType = "PROPOSAL" | "APPROVAL" | "SUMMARY" | "RECEIPT" | "OTHER";
 export type AttachmentType = AttachmentCategoryType;
+export type AttachmentTypeValue = AttachmentCategoryType;
 export type StorageProviderType = "R2_UPLOAD" | "EXTERNAL_LINK";
+export type StorageTypeValue = StorageProviderType;
+
+export const PROJECT_STATUS_LABELS: Record<ProjectStatusType, string> = {
+  DRAFT: "ร่างโครงการ",
+  APPROVED: "อนุมัติแล้ว",
+  IN_PROGRESS: "กำลังดำเนินการ",
+  COMPLETED: "เสร็จสิ้น",
+  CANCELLED: "ยกเลิก",
+};
+
+export const BUDGET_SOURCE_LABELS: Record<BudgetSourceCategoryType, string> = {
+  SUBSIDY: "เงินอุดหนุนรายหัว",
+  FREE_EDUCATION_15Y: "เงินเรียนฟรี 15 ปี",
+  SCHOOL_INCOME: "เงินรายได้สถานศึกษา",
+  LOCAL_GOV: "เงินอุดหนุน อปท./อบจ.",
+  OTHER: "เงินนอกงบประมาณ/อื่นๆ",
+};
+
+export const EXPENSE_CATEGORY_LABELS: Record<ExpenseCategoryType, string> = {
+  REMUNERATION: "ค่าตอบแทน",
+  OPERATING: "ค่าใช้สอย",
+  MATERIALS: "ค่าวัสดุ",
+  EQUIPMENT: "ค่าครุภัณฑ์",
+  UTILITIES: "ค่าสาธารณูปโภค",
+  OTHER: "เบ็ดเตล็ด/อื่นๆ",
+};
 
 export interface ActivityFinancialSummaryDTO {
   allocatedAmount: number;

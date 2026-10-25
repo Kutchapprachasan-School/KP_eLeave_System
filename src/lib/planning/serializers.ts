@@ -132,31 +132,4 @@ export function serializeProjectToDTO(
   };
 }
 
-export function computePortfolioSummary(projects: ProjectDTO[]): PortfolioSummaryDTO {
-  let totalEffectiveSatang = 0;
-  let totalReservedSatang = 0;
-  let totalPaidSatang = 0;
-  let totalRemainingSatang = 0;
-  let activityCount = 0;
-
-  for (const prj of projects) {
-    if (prj.deletedAt) continue;
-    totalEffectiveSatang += toSatang(prj.financials.effectiveBudget);
-    totalReservedSatang += toSatang(prj.financials.reservedAmount);
-    totalPaidSatang += toSatang(prj.financials.paidAmount);
-    totalRemainingSatang += toSatang(prj.financials.remainingBalance);
-    activityCount += prj.activities.length;
-  }
-
-  const totalSpentSatang = totalReservedSatang + totalPaidSatang;
-
-  return {
-    totalEffectiveBudget: fromSatang(totalEffectiveSatang),
-    totalReservedAmount: fromSatang(totalReservedSatang),
-    totalPaidAmount: fromSatang(totalPaidSatang),
-    totalSpentAmount: fromSatang(totalSpentSatang),
-    totalRemainingBalance: fromSatang(totalRemainingSatang),
-    projectCount: projects.length,
-    activityCount,
-  };
-}
+export { computePortfolioSummary, calculatePortfolioSummary } from "./calculator";

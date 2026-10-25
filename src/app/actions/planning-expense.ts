@@ -45,7 +45,7 @@ async function ensureActivityAllocation(tx: Prisma.TransactionClient, activityId
     // Find project and tranche
     const project = await tx.project.findUnique({
       where: { id: projectId },
-      select: { fiscalYearId: true, budgetSourceId: true },
+      select: { fiscalYearId: true, budgetSourceId: true, targetAcademicYear: true },
     });
 
     if (!project) throw new Error("ไม่พบโครงการ");
@@ -60,8 +60,10 @@ async function ensureActivityAllocation(tx: Prisma.TransactionClient, activityId
           budgetSourceId: project.budgetSourceId,
           trancheNo: 1,
           name: "งวดงบประมาณประจำปี",
-          allocatedAmount: new Prisma.Decimal(1000000),
-          status: "RECEIVED",
+          academicYear: project.targetAcademicYear || 2569,
+          semester: 1,
+          plannedAmount: new Prisma.Decimal(1000000),
+          isClosed: false,
         },
       });
     }

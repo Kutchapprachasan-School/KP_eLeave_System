@@ -38,6 +38,14 @@ export function PlanningSettingsCard({
 }: PlanningSettingsCardProps) {
   const [enablePlanning, setEnablePlanning] = useState<boolean>(initialEnablePlanning);
   const [selectedOfficerIds, setSelectedOfficerIds] = useState<string[]>(initialPlanningOfficerUserIds);
+
+  React.useEffect(() => {
+    setEnablePlanning(initialEnablePlanning);
+  }, [initialEnablePlanning]);
+
+  React.useEffect(() => {
+    setSelectedOfficerIds(initialPlanningOfficerUserIds);
+  }, [initialPlanningOfficerUserIds]);
   const [searchTerm, setSearchTerm] = useState("");
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
