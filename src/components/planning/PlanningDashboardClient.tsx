@@ -94,6 +94,10 @@ export function PlanningDashboardClient({
   const currentUserId = initialData?.currentUserId || propCurrentUserId || "";
   const canManageProjectsAndBudget =
     initialData?.modulePermissions?.canManageProjectsAndBudget ?? propCanManageBudget ?? false;
+  const canAdjustBudget =
+    initialData?.modulePermissions?.canAdjustBudget ?? canManageProjectsAndBudget;
+  const canRecordAndSettleExpenses =
+    initialData?.modulePermissions?.canRecordAndSettleExpenses ?? canManageProjectsAndBudget;
 
   const currentFiscalYear =
     selectedFiscalYear ||
@@ -443,6 +447,7 @@ export function PlanningDashboardClient({
           departments={departments}
           teachers={teachers}
           currentUserId={currentUserId}
+          canAdjustBudget={canAdjustBudget}
           onClose={() => setActiveModal(null)}
           onSuccess={() => {
             setActiveModal(null);
@@ -460,6 +465,7 @@ export function PlanningDashboardClient({
           departments={departments}
           teachers={teachers}
           currentUserId={currentUserId}
+          canAdjustBudget={canAdjustBudget}
           onClose={() => setActiveModal(null)}
           onSuccess={() => {
             setActiveModal(null);
@@ -474,6 +480,7 @@ export function PlanningDashboardClient({
           mode="CREATE"
           project={activeModal.project}
           teachers={teachers}
+          canAdjustBudget={canAdjustBudget}
           onClose={() => setActiveModal(null)}
           onSuccess={() => {
             setActiveModal(null);
@@ -489,6 +496,7 @@ export function PlanningDashboardClient({
           project={activeModal.project}
           activity={activeModal.activity}
           teachers={teachers}
+          canAdjustBudget={canAdjustBudget}
           onClose={() => setActiveModal(null)}
           onSuccess={() => {
             setActiveModal(null);

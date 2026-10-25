@@ -323,4 +323,62 @@ describe('Planning Core - Permissions Helper', () => {
     const projectedRemainingSatang = availableSatang - enteredSatang;
     assert.equal(fromSatang(projectedRemainingSatang), 1000);
   });
+
+  it('TC-16: Granular permission separation for budget adjusters and disbursers', () => {
+    const budgetOfficer = { id: 'budget-user', role: 'TEACHER' };
+    const disburser = { id: 'disburser-user', role: 'TEACHER' };
+    const generalOfficer = { id: 'general-user', role: 'TEACHER' };
+    const regularTeacher = { id: 'regular-user', role: 'TEACHER' };
+    const adminUser = { id: 'admin-user', role: 'ADMIN' };
+
+    const granularSettings = {
+      enablePlanning: true,
+      planningOfficerUserIds: 'general-user',
+      planningBudgetOfficerUserIds: 'budget-user',
+      planningDisburserUserIds: 'disburser-user',
+    };
+
+    // 1. Budget Officer can adjust budget, but cannot record expenses or manage general project
+    const pBudget = getPlanningPermissions(budgetOfficer, granularSettings);
+    assert.equal(pBudget.canAdjustBudget, true);
+    assert.equal(pBudget.canRecordAndSettleExpenses, false);
+    assert.equal(pBudget.canManageProjectsAndBudget, false);
+
+    // 2. Disburser can record expenses, but cannot adjust budget or manage general project
+    const pDisburse = getPlanningPermissions(disburser, granularSettings);
+    assert.equal(pDisburse.canRecordAndSettleExpenses, true);
+    assert.equal(pDisburse.canAdjustBudget, false);
+    assert.equal(pDisburse.canManageProjectsAndBudget, false);
+
+    // 3. General Officer has canManageProjectsAndBudget, but cannot adjust budget or disburse when granular lists are explicitly set
+    const pGeneral = getPlanningPermissions(generalOfficer, granularSettings);
+    assert.equal(pGeneral.canManageProjectsAndBudget, true);
+    assert.equal(pGeneral.canAdjustBudget, false);
+    assert.equal(pGeneral.canRecordAndSettleExpenses, false);
+
+    // 4. Regular Teacher has no management permissions
+    const pRegular = getPlanningPermissions(regularTeacher, granularSettings);
+    assert.equal(pRegular.canManageProjectsAndBudget, false);
+    assert.equal(pRegular.canAdjustBudget, false);
+    assert.equal(pRegular.canRecordAndSettleExpenses, false);
+
+    // 5. Admin has all rights regardless of settings lists
+    const pAdmin = getPlanningPermissions(adminUser, granularSettings);
+    assert.equal(pAdmin.canManageProjectsAndBudget, true);
+    assert.equal(pAdmin.canAdjustBudget, true);
+    assert.equal(pAdmin.canRecordAndSettleExpenses, true);
+    assert.equal(pAdmin.canManageAttachments, true);
+
+    // 6. Fallback parity: When granular lists are empty, general officer inherits both
+    const fallbackSettings = {
+      enablePlanning: true,
+      planningOfficerUserIds: 'general-user',
+      planningBudgetOfficerUserIds: '',
+      planningDisburserUserIds: '',
+    };
+    const pFallback = getPlanningPermissions(generalOfficer, fallbackSettings);
+    assert.equal(pFallback.canManageProjectsAndBudget, true);
+    assert.equal(pFallback.canAdjustBudget, true);
+    assert.equal(pFallback.canRecordAndSettleExpenses, true);
+  });
 });

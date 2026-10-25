@@ -40,12 +40,16 @@ export async function getPlanningActionContext(): Promise<{
     select: {
       enablePlanning: true,
       planningOfficerUserIds: true,
+      planningBudgetOfficerUserIds: true,
+      planningDisburserUserIds: true,
     },
   });
 
   const settings: PermissionCheckSettings = {
     enablePlanning: rawSettings?.enablePlanning ?? true,
     planningOfficerUserIds: rawSettings?.planningOfficerUserIds ?? "",
+    planningBudgetOfficerUserIds: rawSettings?.planningBudgetOfficerUserIds ?? "",
+    planningDisburserUserIds: rawSettings?.planningDisburserUserIds ?? "",
   };
 
   return {

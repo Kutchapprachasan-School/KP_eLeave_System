@@ -267,6 +267,8 @@ model SystemSettings {
   budgetAdminUserIds           String   @default("")
   enablePlanning               Boolean  @default(true)
   planningOfficerUserIds       String   @default("")
+  planningBudgetOfficerUserIds String   @default("")
+  planningDisburserUserIds     String   @default("")
   enableStudentAffairs         Boolean  @default(false)
   enableStudentCouncil         Boolean  @default(false)
   enableAcademicPlanning       Boolean  @default(false)

@@ -15,6 +15,8 @@ export async function getPlanningSettingsAction() {
 export async function updatePlanningSettingsAction(input: {
   enablePlanning: boolean;
   planningOfficerUserIds: string[];
+  planningBudgetOfficerUserIds?: string[];
+  planningDisburserUserIds?: string[];
 }) {
   return await _updatePlanningSettingsAction(input);
 }

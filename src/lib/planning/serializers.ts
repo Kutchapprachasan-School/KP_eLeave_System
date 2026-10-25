@@ -89,6 +89,7 @@ export function serializeActivityToDTO(
   projectPermissions?: {
     canRecordAndSettleExpenses?: boolean;
     canManageProjectsAndBudget?: boolean;
+    canAdjustBudget?: boolean;
   }
 ): ProjectActivityDTO {
   const financials = calculateActivityFinancials(act);
@@ -129,6 +130,7 @@ export function serializeActivityToDTO(
     permissions: {
       canRecordAndSettleExpenses: Boolean(projectPermissions?.canRecordAndSettleExpenses),
       canManageProjectsAndBudget: Boolean(projectPermissions?.canManageProjectsAndBudget),
+      canAdjustBudget: Boolean(projectPermissions?.canAdjustBudget),
     },
     createdAt: act.createdAt instanceof Date ? act.createdAt.toISOString() : String(act.createdAt),
     updatedAt: act.updatedAt instanceof Date ? act.updatedAt.toISOString() : String(act.updatedAt),
@@ -139,11 +141,22 @@ export function serializeActivityToDTO(
 export function serializeProjectToDTO(
   project: any,
   currentUser?: { id: string; role: string },
-  settings?: { enablePlanning?: boolean; planningOfficerUserIds?: string | null }
+  settings?: {
+    enablePlanning?: boolean;
+    planningOfficerUserIds?: string | null;
+    planningBudgetOfficerUserIds?: string | null;
+    planningDisburserUserIds?: string | null;
+  }
 ): ProjectDTO {
   const perms = currentUser && settings
     ? getPlanningPermissions(currentUser, settings, { leaderUserId: project.leaderUserId, projectStatus: project.status })
-    : { canManageProjectsAndBudget: false, canRecordAndSettleExpenses: false, canManageAttachments: false, canViewModule: false };
+    : {
+        canManageProjectsAndBudget: false,
+        canAdjustBudget: false,
+        canRecordAndSettleExpenses: false,
+        canManageAttachments: false,
+        canViewModule: false,
+      };
 
   const financials = calculateProjectFinancials(project);
   const activities = (project.activities || [])
@@ -153,6 +166,7 @@ export function serializeProjectToDTO(
       serializeActivityToDTO(act, {
         canRecordAndSettleExpenses: perms.canRecordAndSettleExpenses,
         canManageProjectsAndBudget: perms.canManageProjectsAndBudget,
+        canAdjustBudget: perms.canAdjustBudget,
       })
     );
 
@@ -161,6 +175,7 @@ export function serializeProjectToDTO(
   const permissions = {
     canManageProject: perms.canManageProjectsAndBudget,
     canManageActivities: perms.canManageProjectsAndBudget,
+    canAdjustBudget: perms.canAdjustBudget,
     canDisburseExpenses: perms.canRecordAndSettleExpenses,
     canManageAttachments: perms.canManageAttachments,
     canManageProjectsAndBudget: perms.canManageProjectsAndBudget,

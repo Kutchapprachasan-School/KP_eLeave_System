@@ -168,6 +168,7 @@ export interface ProjectActivityDTO {
   permissions: {
     canRecordAndSettleExpenses: boolean;
     canManageProjectsAndBudget: boolean;
+    canAdjustBudget?: boolean;
   };
   createdAt: string;
   updatedAt: string;
@@ -219,6 +220,7 @@ export interface ProjectDTO {
   permissions: {
     canManageProject: boolean;
     canManageActivities: boolean;
+    canAdjustBudget?: boolean;
     canDisburseExpenses: boolean;
     canManageAttachments: boolean;
     canManageProjectsAndBudget?: boolean;

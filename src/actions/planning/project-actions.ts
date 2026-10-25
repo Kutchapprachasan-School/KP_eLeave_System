@@ -277,6 +277,38 @@ export async function createProjectAction(
       };
     }
 
+    if (allocatedSatang < 0 || adjustedSatang < 0) {
+      return {
+        success: false,
+        error: "วงเงินงบประมาณต้องไม่ติดลบ",
+      };
+    }
+
+    const existingProject = await prisma.project.findUnique({
+      where: { id: input.id },
+      select: { allocatedAmount: true, adjustedAmount: true },
+    });
+    if (!existingProject) {
+      return {
+        success: false,
+        error: "ไม่พบโครงการที่ต้องการแก้ไข",
+      };
+    }
+
+    const existingAllocatedSatang = toSatang(Number(existingProject.allocatedAmount));
+    const existingAdjustedSatang = toSatang(Number(existingProject.adjustedAmount));
+
+    const isAmountChanged =
+      existingAllocatedSatang !== allocatedSatang ||
+      existingAdjustedSatang !== adjustedSatang;
+
+    if (isAmountChanged && !perms.canAdjustBudget) {
+      return {
+        success: false,
+        error: "คุณไม่มีสิทธิ์ในการแก้ไขข้อมูลจำนวนเงินหรือโอนเปลี่ยนแปลงงบประมาณโครงการ (ต้องได้รับสิทธิ์ผู้แก้ไขจำนวนเงิน)",
+      };
+    }
+
     const adjustedSatang =
       input.adjustedAmount !== undefined
         ? toSatang(input.adjustedAmount)
@@ -436,6 +468,31 @@ export async function updateProjectAction(
       return {
         success: false,
         error: "วงเงินงบประมาณต้องไม่ติดลบ",
+      };
+    }
+
+    const existingProject = await prisma.project.findUnique({
+      where: { id: input.id },
+      select: { allocatedAmount: true, adjustedAmount: true },
+    });
+    if (!existingProject) {
+      return {
+        success: false,
+        error: "ไม่พบโครงการที่ต้องการแก้ไข",
+      };
+    }
+
+    const existingAllocatedSatang = toSatang(Number(existingProject.allocatedAmount));
+    const existingAdjustedSatang = toSatang(Number(existingProject.adjustedAmount));
+
+    const isAmountChanged =
+      existingAllocatedSatang !== allocatedSatang ||
+      existingAdjustedSatang !== adjustedSatang;
+
+    if (isAmountChanged && !perms.canAdjustBudget) {
+      return {
+        success: false,
+        error: "คุณไม่มีสิทธิ์ในการแก้ไขข้อมูลจำนวนเงินหรือโอนเปลี่ยนแปลงงบประมาณโครงการ (ต้องได้รับสิทธิ์ผู้แก้ไขจำนวนเงิน)",
       };
     }
 
@@ -604,6 +661,13 @@ export async function createActivityAction(
       };
     }
 
+    if (allocatedSatang > 0 && !perms.canAdjustBudget) {
+      return {
+        success: false,
+        error: "คุณไม่มีสิทธิ์ในการกำหนดวงเงินงบประมาณกิจกรรมย่อย (ต้องได้รับสิทธิ์ผู้แก้ไขจำนวนเงิน)",
+      };
+    }
+
     let nextActivityNo = input.activityNo;
     if (!nextActivityNo) {
       // ค้นหา activityNo สูงสุดจากทุกแถว (รวมแถวที่ถูก soft-delete) เพื่อป้องกัน P2002 uk_activity_project_no
@@ -691,10 +755,29 @@ export async function updateActivityAction(
 
     const currentAct = await prisma.projectActivity.findUnique({
       where: { id: input.id },
-      select: { projectId: true, activityNo: true },
+      select: {
+        projectId: true,
+        activityNo: true,
+        allocatedAmount: true,
+        adjustedAmount: true,
+      },
     });
     if (!currentAct) {
       return { success: false, error: "ไม่พบกิจกรรมย่อยที่ต้องการแก้ไข" };
+    }
+
+    const existingAllocatedSatang = toSatang(Number(currentAct.allocatedAmount));
+    const existingAdjustedSatang = toSatang(Number(currentAct.adjustedAmount));
+
+    const isAmountChanged =
+      existingAllocatedSatang !== allocatedSatang ||
+      existingAdjustedSatang !== adjustedSatang;
+
+    if (isAmountChanged && !perms.canAdjustBudget) {
+      return {
+        success: false,
+        error: "คุณไม่มีสิทธิ์ในการแก้ไขข้อมูลจำนวนเงินหรือโอนเปลี่ยนแปลงงบประมาณกิจกรรมย่อย (ต้องได้รับสิทธิ์ผู้แก้ไขจำนวนเงิน)",
+      };
     }
 
     if (input.activityNo !== currentAct.activityNo) {

@@ -18,6 +18,7 @@ export interface ActivityFormModalProps {
   project?: ProjectDTO;
   activity?: ProjectActivityDTO;
   teachers?: SimpleUserDTO[] | Array<{ id: string; name: string; position?: string | null }>;
+  canAdjustBudget?: boolean;
   onClose: () => void;
   onSuccess?: () => void;
   // Legacy / alternate prop support
@@ -34,6 +35,7 @@ export function ActivityFormModal({
   project,
   activity: propActivity,
   teachers: propTeachers,
+  canAdjustBudget = true,
   onClose,
   onSuccess,
   isOpen = true,
@@ -256,6 +258,7 @@ export function ActivityFormModal({
                 step="0.01"
                 min="0"
                 required
+                disabled={!canAdjustBudget}
                 value={allocatedAmount}
                 onChange={(e) => {
                   setAllocatedAmount(e.target.value);
@@ -263,8 +266,13 @@ export function ActivityFormModal({
                     setAdjustedAmount(e.target.value);
                   }
                 }}
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-900 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-gray-800 dark:text-white"
+                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-900 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:opacity-70 dark:border-slate-700 dark:bg-gray-800 dark:text-white dark:disabled:bg-gray-900"
               />
+              {!canAdjustBudget && (
+                <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
+                  🔒 เฉพาะผู้มีสิทธิ์แก้ไขจำนวนเงินเท่านั้นที่แก้ไขวงเงินได้
+                </p>
+              )}
             </div>
 
             {mode === "EDIT" && (
@@ -277,10 +285,16 @@ export function ActivityFormModal({
                   step="0.01"
                   min="0"
                   required
+                  disabled={!canAdjustBudget}
                   value={adjustedAmount}
                   onChange={(e) => setAdjustedAmount(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-blue-300 bg-blue-50/40 px-3 py-2 text-sm font-bold text-blue-900 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-blue-700 dark:bg-gray-800 dark:text-white"
+                  className="mt-1 w-full rounded-lg border border-blue-300 bg-blue-50/40 px-3 py-2 text-sm font-bold text-blue-900 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:opacity-70 dark:border-blue-700 dark:bg-gray-800 dark:text-white dark:disabled:bg-gray-900"
                 />
+                {!canAdjustBudget && (
+                  <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
+                    🔒 เฉพาะผู้มีสิทธิ์แก้ไขจำนวนเงินเท่านั้นที่แก้ไขวงเงินได้
+                  </p>
+                )}
               </div>
             )}
           </div>

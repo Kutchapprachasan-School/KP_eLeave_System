@@ -402,6 +402,8 @@ export default function SettingsPage() {
   const [enableBudget, setEnableBudget] = useState(false);
   const [enablePlanning, setEnablePlanning] = useState(true);
   const [planningOfficerUserIds, setPlanningOfficerUserIds] = useState<string[]>([]);
+  const [planningBudgetOfficerUserIds, setPlanningBudgetOfficerUserIds] = useState<string[]>([]);
+  const [planningDisburserUserIds, setPlanningDisburserUserIds] = useState<string[]>([]);
   const [enableStudentAffairs, setEnableStudentAffairs] = useState(false);
   const [enableStudentCouncil, setEnableStudentCouncil] = useState(false);
   const [enableAcademicPlanning, setEnableAcademicPlanning] = useState(false);
@@ -817,6 +819,16 @@ export default function SettingsPage() {
       if ((data as any).planningOfficerUserIds) {
         setPlanningOfficerUserIds(
           (data as any).planningOfficerUserIds.split(",").map((s: string) => s.trim()).filter(Boolean)
+        );
+      }
+      if ((data as any).planningBudgetOfficerUserIds) {
+        setPlanningBudgetOfficerUserIds(
+          (data as any).planningBudgetOfficerUserIds.split(",").map((s: string) => s.trim()).filter(Boolean)
+        );
+      }
+      if ((data as any).planningDisburserUserIds) {
+        setPlanningDisburserUserIds(
+          (data as any).planningDisburserUserIds.split(",").map((s: string) => s.trim()).filter(Boolean)
         );
       }
       setEnableStudentAffairs((data as any).enableStudentAffairs === true);
@@ -9129,6 +9141,8 @@ function doPost(e) {
         <PlanningSettingsCard
           initialEnablePlanning={enablePlanning}
           initialPlanningOfficerUserIds={planningOfficerUserIds}
+          initialPlanningBudgetOfficerUserIds={planningBudgetOfficerUserIds}
+          initialPlanningDisburserUserIds={planningDisburserUserIds}
           availableUsers={availableUsers.map((u) => ({
             id: u.id,
             name: u.name,

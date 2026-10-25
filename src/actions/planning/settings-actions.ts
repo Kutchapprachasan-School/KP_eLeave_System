@@ -11,6 +11,8 @@ import { ActionResult, getPlanningActionContext } from "./_context";
 export interface PlanningSettingsDTO {
   enablePlanning: boolean;
   planningOfficerUserIds: string[];
+  planningBudgetOfficerUserIds: string[];
+  planningDisburserUserIds: string[];
 }
 
 /**
@@ -27,6 +29,12 @@ export async function getPlanningSettingsAction(): Promise<
         enablePlanning: settings.enablePlanning,
         planningOfficerUserIds: parseCommaSeparatedIds(
           settings.planningOfficerUserIds
+        ),
+        planningBudgetOfficerUserIds: parseCommaSeparatedIds(
+          settings.planningBudgetOfficerUserIds
+        ),
+        planningDisburserUserIds: parseCommaSeparatedIds(
+          settings.planningDisburserUserIds
         ),
       },
     };
@@ -47,6 +55,8 @@ export async function getPlanningSettingsAction(): Promise<
 export async function updatePlanningSettingsAction(input: {
   enablePlanning: boolean;
   planningOfficerUserIds: string[];
+  planningBudgetOfficerUserIds?: string[];
+  planningDisburserUserIds?: string[];
 }): Promise<ActionResult<PlanningSettingsDTO>> {
   try {
     const { user } = await getPlanningActionContext();
@@ -59,18 +69,24 @@ export async function updatePlanningSettingsAction(input: {
       };
     }
 
-    const formattedIds = formatCommaSeparatedIds(input.planningOfficerUserIds);
+    const formattedOfficerIds = formatCommaSeparatedIds(input.planningOfficerUserIds);
+    const formattedBudgetOfficerIds = formatCommaSeparatedIds(input.planningBudgetOfficerUserIds ?? []);
+    const formattedDisburserIds = formatCommaSeparatedIds(input.planningDisburserUserIds ?? []);
 
     const updated = await prisma.systemSettings.upsert({
       where: { id: "default" },
       update: {
         enablePlanning: Boolean(input.enablePlanning),
-        planningOfficerUserIds: formattedIds,
+        planningOfficerUserIds: formattedOfficerIds,
+        planningBudgetOfficerUserIds: formattedBudgetOfficerIds,
+        planningDisburserUserIds: formattedDisburserIds,
       },
       create: {
         id: "default",
         enablePlanning: Boolean(input.enablePlanning),
-        planningOfficerUserIds: formattedIds,
+        planningOfficerUserIds: formattedOfficerIds,
+        planningBudgetOfficerUserIds: formattedBudgetOfficerIds,
+        planningDisburserUserIds: formattedDisburserIds,
       },
     });
 
@@ -83,6 +99,12 @@ export async function updatePlanningSettingsAction(input: {
         enablePlanning: updated.enablePlanning,
         planningOfficerUserIds: parseCommaSeparatedIds(
           updated.planningOfficerUserIds
+        ),
+        planningBudgetOfficerUserIds: parseCommaSeparatedIds(
+          updated.planningBudgetOfficerUserIds
+        ),
+        planningDisburserUserIds: parseCommaSeparatedIds(
+          updated.planningDisburserUserIds
         ),
       },
     };
