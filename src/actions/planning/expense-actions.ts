@@ -151,6 +151,11 @@ export async function recordExpenseAction(
 
       // 5. บันทึกรายการใช้จ่าย
       const expDate = typeof input.expenseDate === "string" ? new Date(input.expenseDate) : input.expenseDate;
+      const targetRequesterId = (input.requesterUserId && input.requesterUserId.trim()) || activity.responsibleUserId;
+
+      if (!targetRequesterId) {
+        throw new Error("กรุณาระบุครูผู้ขอเบิกงบประมาณ");
+      }
 
       return tx.activityExpense.create({
         data: {
@@ -162,7 +167,7 @@ export async function recordExpenseAction(
           expenseCategory: input.expenseCategory,
           amount: new Prisma.Decimal(input.amount),
           status: input.status,
-          requestedByUserId: input.requesterUserId,
+          requestedByUserId: targetRequesterId,
           recordedByUserId: user.id,
           approvedByUserId: isPaid ? user.id : null,
           approvedAt: isPaid ? new Date() : null,

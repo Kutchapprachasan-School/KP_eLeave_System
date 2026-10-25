@@ -194,15 +194,21 @@ export function AttachmentManagerModal({
                             <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-300">
                               {ATTACHMENT_TYPE_LABELS[att.attachmentType] || att.attachmentType}
                             </span>
-                            <a
-                              href={att.fileUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1 text-sm font-semibold text-blue-700 hover:underline dark:text-blue-400"
-                            >
-                              <span>{att.title}</span>
-                              <ExternalLink className="h-3.5 w-3.5" />
-                            </a>
+                            {att.fileUrl ? (
+                              <a
+                                href={att.fileUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 text-sm font-semibold text-blue-700 hover:underline dark:text-blue-400"
+                              >
+                                <span>{att.title}</span>
+                                <ExternalLink className="h-3.5 w-3.5" />
+                              </a>
+                            ) : (
+                              <span className="text-sm font-semibold text-slate-900 dark:text-white">
+                                {att.title}
+                              </span>
+                            )}
                           </div>
                           <div className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
                             {att.storageType === "R2_UPLOAD"

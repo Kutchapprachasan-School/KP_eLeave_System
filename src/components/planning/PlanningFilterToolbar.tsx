@@ -63,13 +63,13 @@ export function PlanningFilterToolbar({
         <div className="flex flex-1 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
           {/* ช่องค้นหา */}
           <div className="relative min-w-[240px] flex-1">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => onSearchChange(e.target.value)}
               placeholder="ค้นหารหัส, ชื่อโครงการ, กิจกรรม, หรือชื่อครู..."
-              className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-gray-800 py-2 pl-9 pr-3 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+              className="h-11 w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-gray-800 pl-10 pr-3 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
             />
           </div>
 
@@ -78,7 +78,7 @@ export function PlanningFilterToolbar({
             value={selectedDepartmentId}
             onChange={(e) => onDepartmentChange(e.target.value)}
             aria-label="กรองตามฝ่ายหรือกลุ่มสาระการเรียนรู้"
-            className="rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+            className="h-11 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-gray-800 px-3.5 text-sm text-slate-700 dark:text-slate-200 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
           >
             <option value="ALL">ทุกฝ่าย / กลุ่มสาระฯ</option>
             {departments.map((dept) => (
@@ -93,7 +93,7 @@ export function PlanningFilterToolbar({
             value={selectedBudgetSource}
             onChange={(e) => onBudgetSourceChange(e.target.value)}
             aria-label="กรองตามแหล่งงบประมาณ"
-            className="rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+            className="h-11 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-gray-800 px-3.5 text-sm text-slate-700 dark:text-slate-200 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
           >
             <option value="ALL">ทุกแหล่งงบประมาณ</option>
             {budgetSources.map(([key, label]) => (
@@ -107,7 +107,7 @@ export function PlanningFilterToolbar({
           <button
             type="button"
             onClick={() => onOnlyMyProjectsChange(!onlyMyProjects)}
-            className={`inline-flex items-center gap-2 rounded-lg border px-3.5 py-2 text-sm font-medium transition-colors cursor-pointer ${
+            className={`h-11 inline-flex items-center gap-2 rounded-xl border px-4 text-sm font-medium transition-colors cursor-pointer ${
               onlyMyProjects
                 ? "border-blue-600 bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 shadow-xs"
                 : "border-slate-300 dark:border-slate-700 bg-white dark:bg-gray-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-gray-700"
@@ -125,7 +125,7 @@ export function PlanningFilterToolbar({
             <button
               type="button"
               onClick={onResetFilters}
-              className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-medium text-slate-500 hover:bg-slate-100 dark:hover:bg-gray-800 hover:text-slate-800 dark:hover:text-slate-200 cursor-pointer"
+              className="h-11 inline-flex items-center gap-1.5 rounded-xl px-3 text-xs font-medium text-slate-500 hover:bg-slate-100 dark:hover:bg-gray-800 hover:text-slate-800 dark:hover:text-slate-200 cursor-pointer"
             >
               <RotateCcw className="h-3.5 w-3.5" />
               ล้างตัวกรอง
@@ -135,11 +135,11 @@ export function PlanningFilterToolbar({
 
         {/* ฝั่งขวา: ปุ่มกาง/หุบตาราง, ปุ่ม Export Excel, และปุ่มสร้างโครงการใหม่ */}
         <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 dark:border-slate-800 pt-3 lg:border-t-0 lg:pt-0">
-          <div className="inline-flex rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-gray-800 p-0.5">
+          <div className="h-11 inline-flex items-center rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-gray-800 p-1">
             <button
               type="button"
               onClick={onExpandAll}
-              className="inline-flex items-center gap-1 rounded-md px-2.5 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-gray-700 hover:text-slate-900 dark:hover:text-white hover:shadow-2xs cursor-pointer"
+              className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-gray-700 hover:text-slate-900 dark:hover:text-white hover:shadow-2xs cursor-pointer"
               title="กางดูกิจกรรมย่อยทั้งหมด"
             >
               <ChevronsUpDown className="h-3.5 w-3.5" />
@@ -148,7 +148,7 @@ export function PlanningFilterToolbar({
             <button
               type="button"
               onClick={onCollapseAll}
-              className="inline-flex items-center gap-1 rounded-md px-2.5 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-gray-700 hover:text-slate-900 dark:hover:text-white hover:shadow-2xs cursor-pointer"
+              className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-gray-700 hover:text-slate-900 dark:hover:text-white hover:shadow-2xs cursor-pointer"
               title="หุบกิจกรรมย่อยทั้งหมด"
             >
               หุบทั้งหมด
@@ -158,7 +158,7 @@ export function PlanningFilterToolbar({
           <button
             type="button"
             onClick={onExportExcel}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-600/30 bg-emerald-50 dark:bg-emerald-950/40 px-3.5 py-2 text-sm font-medium text-emerald-800 dark:text-emerald-300 transition-colors hover:bg-emerald-100 dark:hover:bg-emerald-900/50 cursor-pointer"
+            className="h-11 inline-flex items-center gap-1.5 rounded-xl border border-emerald-600/30 bg-emerald-50 dark:bg-emerald-950/40 px-4 text-sm font-medium text-emerald-800 dark:text-emerald-300 transition-colors hover:bg-emerald-100 dark:hover:bg-emerald-900/50 cursor-pointer"
           >
             <FileSpreadsheet className="h-4 w-4 text-emerald-700 dark:text-emerald-400" />
             <span>ส่งออก Excel</span>
@@ -168,7 +168,7 @@ export function PlanningFilterToolbar({
             <button
               type="button"
               onClick={onOpenCreateProject}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-xs transition-colors hover:bg-blue-700 cursor-pointer"
+              className="h-11 inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 text-sm font-semibold text-white shadow-xs transition-colors hover:bg-blue-700 cursor-pointer"
             >
               <Plus className="h-4 w-4" />
               <span>สร้างโครงการใหม่</span>
