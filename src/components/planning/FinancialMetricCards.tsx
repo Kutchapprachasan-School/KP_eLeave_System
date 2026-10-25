@@ -48,12 +48,12 @@ export function FinancialMetricCards({ summary }: FinancialMetricCardsProps) {
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
       {/* 1. งบประมาณสุทธิรวม */}
-      <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-gray-900 p-5 shadow-xs">
+      <div className="stat-card group rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-gray-900 p-5 shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md">
         <div className="flex items-center justify-between">
           <span className="text-sm font-medium text-slate-600 dark:text-slate-400">
             งบประมาณสุทธิรวม
           </span>
-          <div className="rounded-lg bg-slate-100 dark:bg-slate-800 p-2 text-slate-700 dark:text-slate-300">
+          <div className="rounded-lg bg-slate-100 dark:bg-slate-800 p-2 text-slate-700 dark:text-slate-300 group-hover:scale-105 transition-transform">
             <Wallet className="h-5 w-5" />
           </div>
         </div>
@@ -67,12 +67,12 @@ export function FinancialMetricCards({ summary }: FinancialMetricCardsProps) {
       </div>
 
       {/* 2. เบิกจ่ายจริงแล้ว (PAID) */}
-      <div className="rounded-xl border border-blue-200 dark:border-blue-900/60 bg-gradient-to-br from-blue-50/60 to-white dark:from-blue-950/40 dark:to-gray-900 p-5 shadow-xs">
+      <div className="stat-card group rounded-xl border border-blue-200 dark:border-blue-900/60 bg-gradient-to-br from-blue-50/60 to-white dark:from-blue-950/40 dark:to-gray-900 p-5 shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md">
         <div className="flex items-center justify-between">
           <span className="text-sm font-medium text-blue-900 dark:text-blue-300">
             เบิกจ่ายจริงแล้ว (Paid)
           </span>
-          <div className="rounded-lg bg-blue-100 dark:bg-blue-900/60 p-2 text-blue-700 dark:text-blue-300">
+          <div className="rounded-lg bg-blue-100 dark:bg-blue-900/60 p-2 text-blue-700 dark:text-blue-300 group-hover:scale-105 transition-transform">
             <CheckCircle2 className="h-5 w-5" />
           </div>
         </div>
@@ -85,12 +85,12 @@ export function FinancialMetricCards({ summary }: FinancialMetricCardsProps) {
       </div>
 
       {/* 3. กันวงเงินรอเบิก (RESERVED) */}
-      <div className="rounded-xl border border-amber-200 dark:border-amber-900/60 bg-gradient-to-br from-amber-50/60 to-white dark:from-amber-950/40 dark:to-gray-900 p-5 shadow-xs">
+      <div className="stat-card group rounded-xl border border-amber-200 dark:border-amber-900/60 bg-gradient-to-br from-amber-50/60 to-white dark:from-amber-950/40 dark:to-gray-900 p-5 shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md">
         <div className="flex items-center justify-between">
           <span className="text-sm font-medium text-amber-900 dark:text-amber-300">
             กันวงเงินจอง (Reserved)
           </span>
-          <div className="rounded-lg bg-amber-100 dark:bg-amber-900/60 p-2 text-amber-700 dark:text-amber-300">
+          <div className="rounded-lg bg-amber-100 dark:bg-amber-900/60 p-2 text-amber-700 dark:text-amber-300 group-hover:scale-105 transition-transform">
             <Clock className="h-5 w-5" />
           </div>
         </div>
@@ -104,7 +104,7 @@ export function FinancialMetricCards({ summary }: FinancialMetricCardsProps) {
 
       {/* 4. คงเหลือสุทธิ (REMAINING) */}
       <div
-        className={`rounded-xl border p-5 shadow-xs ${
+        className={`stat-card group rounded-xl border p-5 shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${
           totalRemainingBalance < 0
             ? "border-rose-200 dark:border-rose-900/60 bg-gradient-to-br from-rose-50/60 to-white dark:from-rose-950/40 dark:to-gray-900"
             : "border-emerald-200 dark:border-emerald-900/60 bg-gradient-to-br from-emerald-50/60 to-white dark:from-emerald-950/40 dark:to-gray-900"

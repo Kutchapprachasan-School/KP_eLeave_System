@@ -509,9 +509,9 @@ export function ProjectLedgerTable({
 
                     {/* รายการกิจกรรมย่อยเมื่อกดกางแถวโครงการ (Expanded Child Activity Table) */}
                     {isExpanded && (
-                      <tr className="bg-slate-50/70 dark:bg-gray-850/50">
+                      <tr className="bg-slate-50/60 dark:bg-gray-850/40">
                         <td colSpan={7} className="p-0 border-b border-slate-200 dark:border-gray-800">
-                          <div className="px-5 py-4 space-y-3">
+                          <div className="px-5 py-3.5 space-y-3 border-l-4 border-l-blue-600 dark:border-l-blue-500">
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-2">
                                 <span className="h-2 w-2 rounded-full bg-blue-600"></span>
@@ -969,7 +969,7 @@ export function ProjectLedgerTable({
                   <button
                     type="button"
                     onClick={() => onOpenAttachments(project)}
-                    className="inline-flex min-h-[36px] items-center gap-1 rounded-lg border border-blue-200 dark:border-blue-900 bg-blue-50/80 dark:bg-blue-950/40 px-2.5 py-1 text-xs font-medium text-blue-700 dark:text-blue-300"
+                    className="inline-flex min-h-[44px] items-center gap-1.5 rounded-xl border border-blue-200 dark:border-blue-900 bg-blue-50/80 dark:bg-blue-950/40 px-3.5 py-2 text-xs font-medium text-blue-700 dark:text-blue-300 hover:bg-blue-100 transition-colors"
                   >
                     <Paperclip className="h-3.5 w-3.5" />
                     <span>
