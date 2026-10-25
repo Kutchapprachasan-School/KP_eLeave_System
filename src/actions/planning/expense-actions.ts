@@ -283,7 +283,8 @@ export async function settleReservedExpenseAction(
       // 4. อัปเดตสถานะเป็น PAID พร้อมบันทึกยอดจ่ายจริงและเลขที่ใบเสร็จ
       const expDate = input.expenseDate
         ? typeof input.expenseDate === "string"
-        : new Date(input.expenseDate)
+          ? new Date(input.expenseDate)
+          : input.expenseDate
         : existingExpense.expenseDate;
 
       return tx.activityExpense.update({
