@@ -61,7 +61,6 @@ export async function getPlanningDashboardDataAction(params: {
           fiscalYear: true,
           budgetSource: true,
           attachments: {
-            where: { deletedAt: null },
             include: { uploadedByUser: true },
             orderBy: { createdAt: "desc" },
           },
@@ -194,7 +193,6 @@ export async function getPlanningLedgerAction(filters?: {
           },
         },
         attachments: {
-          where: { deletedAt: null },
           orderBy: { createdAt: "desc" },
           include: {
             uploadedByUser: { select: { id: true, name: true } },

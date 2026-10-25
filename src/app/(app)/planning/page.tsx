@@ -14,7 +14,7 @@ interface PlanningPageProps {
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "ระบบแผนงานโครงการและติดตามงบประมาณ | โรงเรียนสุราษฎร์ธานี",
+  title: "ระบบแผนงานโครงการและติดตามงบประมาณ",
   description:
     "ระบบบริหารจัดการแผนปฏิบัติการประจำปี ติดตามการเบิกจ่ายงบประมาณ และจัดเก็บเอกสารประกันคุณภาพ (SAR)",
 };
