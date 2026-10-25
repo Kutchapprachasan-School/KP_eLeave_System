@@ -20,6 +20,8 @@ import {
   BUDGET_SOURCE_LABELS,
   PROJECT_STATUS_LABELS,
   EXPENSE_CATEGORY_LABELS,
+  ATTACHMENT_TYPE_LABELS,
+  EXPENSE_STATUS_LABELS,
 } from '../../../src/lib/planning/types.ts';
 
 import {
@@ -300,5 +302,25 @@ describe('Planning Core - Permissions Helper', () => {
     assert.equal(mockProject.leader.name, mockProject.leaderUserName);
     assert.equal(mockProject.budgetSource, mockProject.budgetSourceType);
     assert.equal(mockProject.activities[0].responsibleUser.name, mockProject.activities[0].responsibleUserName);
+  });
+
+  it('TC-15: Labels Parity and Settlement Delta available balance computation', () => {
+    // 1. Label completeness
+    assert.equal(ATTACHMENT_TYPE_LABELS.PROPOSAL, 'เล่มโครงการที่จัดทำแล้ว');
+    assert.equal(ATTACHMENT_TYPE_LABELS.SUMMARY, 'รายงานสรุปผลการดำเนินงาน (SAR)');
+    assert.equal(EXPENSE_STATUS_LABELS.PAID, 'เบิกจ่ายจริง (PAID)');
+    assert.equal(EXPENSE_STATUS_LABELS.RESERVED, 'กันวงเงินจอง (RESERVED)');
+
+    // 2. Settlement Delta available balance formula:
+    // availableSatang = currentRemainingSatang + oldReservedSatang
+    const currentRemainingSatang = toSatang(5000);
+    const oldReservedSatang = toSatang(3000);
+    const availableSatang = currentRemainingSatang + oldReservedSatang;
+    assert.equal(fromSatang(availableSatang), 8000);
+
+    // If new amount is 7000 (within 8000), projected remaining is 1000
+    const enteredSatang = toSatang(7000);
+    const projectedRemainingSatang = availableSatang - enteredSatang;
+    assert.equal(fromSatang(projectedRemainingSatang), 1000);
   });
 });

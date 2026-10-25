@@ -39,6 +39,20 @@ export const EXPENSE_CATEGORY_LABELS: Record<ExpenseCategoryType, string> = {
   OTHER: "เบ็ดเตล็ด/อื่นๆ",
 };
 
+export const ATTACHMENT_TYPE_LABELS: Record<AttachmentCategoryType, string> = {
+  PROPOSAL: "เล่มโครงการที่จัดทำแล้ว",
+  APPROVAL: "แบบขออนุมัติโครงการ",
+  SUMMARY: "รายงานสรุปผลการดำเนินงาน (SAR)",
+  RECEIPT: "ใบเสร็จ/หลักฐานการจ่ายเงิน",
+  OTHER: "เอกสารประกอบอื่น ๆ",
+};
+
+export const EXPENSE_STATUS_LABELS: Record<ExpenseStatusType, string> = {
+  PAID: "เบิกจ่ายจริง (PAID)",
+  RESERVED: "กันวงเงินจอง (RESERVED)",
+  CANCELLED: "ยกเลิกรายการ (CANCELLED)",
+};
+
 export interface ActivityFinancialSummaryDTO {
   allocatedAmount: number;
   effectiveBudget: number;
@@ -102,8 +116,16 @@ export interface ActivityExpenseDTO {
   remark: string | null;
   requesterUserId: string;
   requesterName: string;
+  requester: {
+    id: string;
+    name: string;
+  };
   recordedByUserId: string | null;
   recordedByName: string | null;
+  recordedBy: {
+    id: string | null;
+    name: string;
+  };
   createdAt: string;
   updatedAt: string;
   deletedAt: string | null;
@@ -121,6 +143,10 @@ export interface ProjectAttachmentDTO {
   mimeType: string | null;
   uploadedByUserId: string;
   uploadedByName: string;
+  uploadedBy: {
+    id: string;
+    name: string;
+  };
   createdAt: string;
 }
 
@@ -135,11 +161,13 @@ export interface ProjectActivityDTO {
     id: string;
     name: string;
   };
+  allocatedAmount?: number;
+  adjustedAmount?: number;
   financials: ActivityFinancialSummaryDTO;
   expenses: ActivityExpenseDTO[];
-  permissions?: {
-    canRecordAndSettleExpenses?: boolean;
-    canManageProjectsAndBudget?: boolean;
+  permissions: {
+    canRecordAndSettleExpenses: boolean;
+    canManageProjectsAndBudget: boolean;
   };
   createdAt: string;
   updatedAt: string;
@@ -183,6 +211,8 @@ export interface ProjectDTO {
   strategyCode: string | null;
   standardTags: string[];
   status: ProjectStatusType;
+  allocatedAmount?: number;
+  adjustedAmount?: number;
   financials: ProjectFinancialSummaryDTO;
   activities: ProjectActivityDTO[];
   attachments: ProjectAttachmentDTO[];

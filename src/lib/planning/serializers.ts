@@ -20,6 +20,9 @@ import { calculateActivityFinancials, calculateProjectFinancials, toSatang, from
 import { getPlanningPermissions } from "./permissions";
 
 export function serializeAttachmentToDTO(att: any): ProjectAttachmentDTO {
+  const uploadedUserId = att.uploadedByUserId || att.uploadedBy?.id || "";
+  const uploadedName = att.uploadedByUser?.name || att.uploadedByName || att.uploadedBy?.name || "ไม่ระบุ";
+
   return {
     id: att.id,
     projectId: att.projectId,
@@ -30,13 +33,22 @@ export function serializeAttachmentToDTO(att: any): ProjectAttachmentDTO {
     fileKey: att.fileKey || null,
     fileSize: att.fileSize ?? null,
     mimeType: att.mimeType ?? null,
-    uploadedByUserId: att.uploadedByUserId,
-    uploadedByName: att.uploadedByUser?.name || "ไม่ระบุ",
+    uploadedByUserId: uploadedUserId,
+    uploadedByName: uploadedName,
+    uploadedBy: {
+      id: uploadedUserId,
+      name: uploadedName,
+    },
     createdAt: att.createdAt instanceof Date ? att.createdAt.toISOString() : String(att.createdAt),
   };
 }
 
 export function serializeExpenseToDTO(exp: any): ActivityExpenseDTO {
+  const reqUserId = exp.requestedByUserId || exp.requesterUserId || exp.requester?.id || "";
+  const reqName = exp.requestedByUser?.name || exp.requesterName || exp.requester?.name || "ไม่ระบุ";
+  const recUserId = exp.recordedByUserId || exp.recordedBy?.id || null;
+  const recName = exp.recordedByUser?.name || exp.recordedByName || exp.recordedBy?.name || "ระบบ";
+
   return {
     id: exp.id,
     activityId: exp.activityId || "",
@@ -49,10 +61,18 @@ export function serializeExpenseToDTO(exp: any): ActivityExpenseDTO {
     attachmentKey: exp.attachmentKey || null,
     status: (exp.status || "PAID") as ExpenseStatusType,
     remark: exp.remark || null,
-    requesterUserId: exp.requestedByUserId,
-    requesterName: exp.requestedByUser?.name || "ไม่ระบุ",
-    recordedByUserId: exp.recordedByUserId || null,
-    recordedByName: exp.recordedByUser?.name || null,
+    requesterUserId: reqUserId,
+    requesterName: reqName,
+    requester: {
+      id: reqUserId,
+      name: reqName,
+    },
+    recordedByUserId: recUserId,
+    recordedByName: recName,
+    recordedBy: {
+      id: recUserId,
+      name: recName,
+    },
     createdAt: exp.createdAt instanceof Date ? exp.createdAt.toISOString() : String(exp.createdAt),
     updatedAt: exp.updatedAt instanceof Date ? exp.updatedAt.toISOString() : String(exp.updatedAt),
     deletedAt: exp.deletedAt ? (exp.deletedAt instanceof Date ? exp.deletedAt.toISOString() : String(exp.deletedAt)) : null,
@@ -91,6 +111,8 @@ export function serializeActivityToDTO(act: any): ProjectActivityDTO {
       id: act.responsibleUserId,
       name: responsibleName,
     },
+    allocatedAmount: Number(act.allocatedAmount ?? financials.allocatedAmount),
+    adjustedAmount: Number(act.adjustedAmount ?? financials.effectiveBudget),
     financials: enrichedFinancials,
     expenses,
     permissions: {
@@ -172,6 +194,8 @@ export function serializeProjectToDTO(
     strategyCode: project.strategyCode || null,
     standardTags: project.standardTags || [],
     status: (project.status || "APPROVED") as ProjectStatusType,
+    allocatedAmount: Number(project.allocatedAmount ?? financials.allocatedAmount),
+    adjustedAmount: Number(project.adjustedAmount ?? financials.effectiveBudget),
     financials: enrichedFinancials,
     activities,
     attachments,

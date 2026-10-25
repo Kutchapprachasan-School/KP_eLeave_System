@@ -9,6 +9,7 @@ import {
 } from "@/actions/planning/project-actions";
 import { calculatePortfolioSummary } from "@/lib/planning/calculator";
 import {
+  ActivityExpenseDTO,
   DepartmentDTO,
   PortfolioSummaryDTO,
   ProjectActivityDTO,
@@ -21,11 +22,11 @@ import { ProjectLedgerTable } from "./ProjectLedgerTable";
 import { Landmark, Calendar } from "lucide-react";
 
 // Modals from Phase 4
-import { ProjectFormModal } from "@/app/(app)/planning/_components/modals/ProjectFormModal";
-import { ActivityFormModal } from "@/app/(app)/planning/_components/modals/ActivityFormModal";
-import { AttachmentManagerModal } from "@/app/(app)/planning/_components/modals/AttachmentManagerModal";
-import { ExpenseFormModal } from "@/app/(app)/planning/_components/modals/ExpenseFormModal";
-import { ExpenseHistoryDrawer } from "@/app/(app)/planning/_components/modals/ExpenseHistoryDrawer";
+import { ProjectFormModal } from "./modals/ProjectFormModal";
+import { ActivityFormModal } from "./modals/ActivityFormModal";
+import { AttachmentManagerModal } from "./modals/AttachmentManagerModal";
+import { ExpenseFormModal } from "./modals/ExpenseFormModal";
+import { ExpenseHistoryDrawer } from "./modals/ExpenseHistoryDrawer";
 
 export type ActivePlanningModalState =
   | { type: "CREATE_PROJECT" }
@@ -41,6 +42,12 @@ export type ActivePlanningModalState =
       type: "RECORD_EXPENSE";
       project: ProjectDTO;
       activity: ProjectActivityDTO;
+    }
+  | {
+      type: "SETTLE_EXPENSE";
+      project: ProjectDTO;
+      activity: ProjectActivityDTO;
+      expense: ActivityExpenseDTO;
     }
   | {
       type: "EXPENSE_HISTORY";
@@ -371,79 +378,128 @@ export function PlanningDashboardClient({
       />
 
       {/* Modals & Drawers */}
-      {(activeModal?.type === "CREATE_PROJECT" || activeModal?.type === "EDIT_PROJECT") && (
+      {activeModal?.type === "CREATE_PROJECT" && (
         <ProjectFormModal
-          isOpen={true}
+          mode="CREATE"
+          fiscalYear={currentFiscalYear}
+          departments={departments}
+          teachers={teachers}
+          currentUserId={currentUserId}
           onClose={() => setActiveModal(null)}
-          onSaved={() => {
+          onSuccess={() => {
             setActiveModal(null);
             router.refresh();
           }}
-          projectToEdit={activeModal.type === "EDIT_PROJECT" ? activeModal.project : null}
-          departments={departments}
-          users={teachers}
-          currentFiscalYear={currentFiscalYear}
         />
       )}
 
-      {(activeModal?.type === "CREATE_ACTIVITY" || activeModal?.type === "EDIT_ACTIVITY") && (
-        <ActivityFormModal
-          isOpen={true}
+      {activeModal?.type === "EDIT_PROJECT" && (
+        <ProjectFormModal
+          mode="EDIT"
+          fiscalYear={currentFiscalYear}
+          project={activeModal.project}
+          departments={departments}
+          teachers={teachers}
+          currentUserId={currentUserId}
           onClose={() => setActiveModal(null)}
-          onSaved={() => {
+          onSuccess={() => {
             setActiveModal(null);
             router.refresh();
           }}
-          projectId={activeModal.project.id}
-          projectName={activeModal.project.name}
-          activityToEdit={activeModal.type === "EDIT_ACTIVITY" ? activeModal.activity : null}
-          users={teachers}
+        />
+      )}
+
+      {activeModal?.type === "CREATE_ACTIVITY" && (
+        <ActivityFormModal
+          mode="CREATE"
+          project={activeModal.project}
+          teachers={teachers}
+          onClose={() => setActiveModal(null)}
+          onSuccess={() => {
+            setActiveModal(null);
+            router.refresh();
+          }}
+        />
+      )}
+
+      {activeModal?.type === "EDIT_ACTIVITY" && (
+        <ActivityFormModal
+          mode="EDIT"
+          project={activeModal.project}
+          activity={activeModal.activity}
+          teachers={teachers}
+          onClose={() => setActiveModal(null)}
+          onSuccess={() => {
+            setActiveModal(null);
+            router.refresh();
+          }}
         />
       )}
 
       {activeModal?.type === "ATTACHMENTS" && (
         <AttachmentManagerModal
-          isOpen={true}
+          project={activeModal.project}
           onClose={() => setActiveModal(null)}
-          onSaved={() => {
-            setActiveModal(null);
-            router.refresh();
-          }}
-          projectId={activeModal.project.id}
-          projectName={activeModal.project.name}
-          attachments={activeModal.project.attachments || []}
-          canManageAttachments={
-            canManageProjectsAndBudget ||
-            activeModal.project.leaderUserId === currentUserId ||
-            activeModal.project.leader?.id === currentUserId
-          }
+          onUpdated={() => router.refresh()}
         />
       )}
 
       {activeModal?.type === "RECORD_EXPENSE" && (
         <ExpenseFormModal
-          isOpen={true}
+          mode="RECORD"
+          project={activeModal.project}
+          activity={activeModal.activity}
+          teachers={teachers}
           onClose={() => setActiveModal(null)}
-          onSaved={() => {
+          onSuccess={() => {
             setActiveModal(null);
             router.refresh();
           }}
-          projectName={activeModal.project.name}
+        />
+      )}
+
+      {activeModal?.type === "SETTLE_EXPENSE" && (
+        <ExpenseFormModal
+          mode="SETTLE"
+          project={activeModal.project}
           activity={activeModal.activity}
+          settlingExpense={activeModal.expense}
+          teachers={teachers}
+          onClose={() =>
+            setActiveModal({
+              type: "EXPENSE_HISTORY",
+              project: activeModal.project,
+              activity: activeModal.activity,
+            })
+          }
+          onSuccess={() => {
+            setActiveModal(null);
+            router.refresh();
+          }}
         />
       )}
 
       {activeModal?.type === "EXPENSE_HISTORY" && (
         <ExpenseHistoryDrawer
-          isOpen={true}
-          onClose={() => setActiveModal(null)}
-          onSaved={() => {
-            setActiveModal(null);
-            router.refresh();
-          }}
-          projectName={activeModal.project.name}
+          project={activeModal.project}
           activity={activeModal.activity}
-          canManageBudget={canManageProjectsAndBudget}
+          onClose={() => setActiveModal(null)}
+          onOpenRecordNew={() =>
+            setActiveModal({
+              type: "RECORD_EXPENSE",
+              project: activeModal.project,
+              activity: activeModal.activity,
+            })
+          }
+          onOpenSettleReserved={(expense) =>
+            setActiveModal({
+              type: "SETTLE_EXPENSE",
+              project: activeModal.project,
+              activity: activeModal.activity,
+              expense,
+            })
+          }
+          onUpdated={() => router.refresh()}
         />
       )}
     </div>
