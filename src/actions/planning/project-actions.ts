@@ -83,11 +83,10 @@ export async function getPlanningDashboardDataAction(params: {
         orderBy: [{ code: "asc" }],
       }),
       prisma.department.findMany({
-        where: { isActive: true },
         orderBy: { code: "asc" },
       }),
       prisma.user.findMany({
-        where: { status: "ACTIVE" },
+        where: { isApproved: true },
         orderBy: { name: "asc" },
         select: { id: true, name: true, email: true, position: true },
       }),
@@ -284,9 +283,10 @@ export async function createProjectAction(
       fy = await prisma.fiscalYear.create({
         data: {
           year: input.fiscalYear,
+          title: `ปีงบประมาณ พ.ศ. ${input.fiscalYear}`,
           startDate: new Date(`${input.fiscalYear - 544}-10-01`),
           endDate: new Date(`${input.fiscalYear - 543}-09-30`),
-          isActive: true,
+          status: "ACTIVE",
         },
       });
     }
@@ -309,14 +309,23 @@ export async function createProjectAction(
 
     // 3. Resolve BudgetSource
     let bs = await prisma.budgetSource.findFirst({
-      where: { sourceType: bSourceType },
+      where: {
+        fiscalYearId: fy.id,
+        code: bSourceType,
+      },
     });
+    if (!bs) {
+      bs = await prisma.budgetSource.findFirst({
+        where: { fiscalYearId: fy.id },
+      });
+    }
     if (!bs) {
       bs = await prisma.budgetSource.create({
         data: {
+          fiscalYearId: fy.id,
+          code: bSourceType,
           name: `งบประมาณประเภท ${bSourceType}`,
-          sourceType: bSourceType,
-          totalBudget: new Prisma.Decimal(10000000),
+          totalPlannedAmount: new Prisma.Decimal(10000000),
         },
       });
     }
