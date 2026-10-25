@@ -76,11 +76,11 @@ export function ExpenseFormModal({
     settlingExpense ? String(settlingExpense.amount) : ""
   );
   const [requesterUserId, setRequesterUserId] = useState<string>(
-    settlingExpense?.requester?.id ??
-      settlingExpense?.requesterUserId ??
-      activity.responsibleUser?.id ??
-      activity.responsibleUserId ??
-      teachers[0]?.id ??
+    settlingExpense?.requesterUserId ||
+      settlingExpense?.requester?.id ||
+      activity.responsibleUserId ||
+      activity.responsibleUser?.id ||
+      teachers[0]?.id ||
       ""
   );
   const [receiptNo, setReceiptNo] = useState<string>(

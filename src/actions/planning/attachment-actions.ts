@@ -78,12 +78,11 @@ export async function addProjectAttachmentAction(
       (a) => a.responsibleUserId === user.id
     );
 
-    const perms = getPlanningPermissions(
-      user,
-      settings,
-      { leaderUserId: project.leaderUserId, status: project.status },
-      isResponsibleForAnyActivity ? { responsibleUserId: user.id } : undefined
-    );
+    const perms = getPlanningPermissions(user, settings, {
+      leaderUserId: project.leaderUserId,
+      responsibleUserId: isResponsibleForAnyActivity ? user.id : undefined,
+      projectStatus: project.status,
+    });
 
     if (!perms.canManageAttachments) {
       return {
@@ -226,15 +225,11 @@ export async function deleteProjectAttachmentAction(
       (a) => a.responsibleUserId === user.id
     );
 
-    const perms = getPlanningPermissions(
-      user,
-      settings,
-      {
-        leaderUserId: attachment.project.leaderUserId,
-        status: attachment.project.status,
-      },
-      isResponsibleForAnyActivity ? { responsibleUserId: user.id } : undefined
-    );
+    const perms = getPlanningPermissions(user, settings, {
+      leaderUserId: attachment.project.leaderUserId,
+      responsibleUserId: isResponsibleForAnyActivity ? user.id : undefined,
+      projectStatus: attachment.project.status,
+    });
 
     if (!perms.canManageAttachments) {
       return {

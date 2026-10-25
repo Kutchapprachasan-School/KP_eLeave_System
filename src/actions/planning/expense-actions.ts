@@ -256,6 +256,10 @@ export async function settleReservedExpenseAction(
         throw new Error("ไม่พบรายการกันวงเงินที่ต้องการเคลียร์ยอด");
       }
 
+      if (!existingExpense.activity) {
+        throw new Error("ไม่พบข้อมูลกิจกรรมย่อยที่เชื่อมโยงกับรายการนี้");
+      }
+
       if (existingExpense.status !== "RESERVED" && existingExpense.status !== "SUBMITTED") {
         throw new Error(
           "รายการนี้ไม่ใช่สถานะกันวงเงิน (RESERVED) จึงไม่สามารถเคลียร์ยอดซ้ำได้"
@@ -279,8 +283,7 @@ export async function settleReservedExpenseAction(
       // 4. อัปเดตสถานะเป็น PAID พร้อมบันทึกยอดจ่ายจริงและเลขที่ใบเสร็จ
       const expDate = input.expenseDate
         ? typeof input.expenseDate === "string"
-          ? new Date(input.expenseDate)
-          : input.expenseDate
+        : new Date(input.expenseDate)
         : existingExpense.expenseDate;
 
       return tx.activityExpense.update({
@@ -297,6 +300,10 @@ export async function settleReservedExpenseAction(
             input.attachmentUrl !== undefined
               ? input.attachmentUrl
               : existingExpense.attachmentUrl,
+          attachmentKey:
+            input.attachmentKey !== undefined
+              ? input.attachmentKey
+              : existingExpense.attachmentKey,
           remark:
             input.remark !== undefined
               ? input.remark?.trim() || null

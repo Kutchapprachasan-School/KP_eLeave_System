@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useTransition } from "react";
+import React, { useState, useEffect, useTransition } from "react";
 import { voidExpenseAction } from "@/actions/planning/expense-actions";
 import {
   ActivityExpenseDTO,
@@ -52,6 +52,12 @@ export function ExpenseHistoryDrawer({
   const [voidingExpenseId, setVoidingExpenseId] = useState<string | null>(null);
   const [cancelRemark, setCancelRemark] = useState("");
 
+  useEffect(() => {
+    setVoidingExpenseId(null);
+    setCancelRemark("");
+    setErrorMsg(null);
+  }, [activity.id, isOpen]);
+
   if (!isOpen) return null;
 
   const handleUpdated = onUpdated || onSaved || onClose;
@@ -66,7 +72,7 @@ export function ExpenseHistoryDrawer({
     propCanManageBudget ??
     activity.permissions?.canRecordAndSettleExpenses ??
     project?.permissions?.canDisburseExpenses ??
-    true;
+    false;
 
   const handleConfirmVoid = (expenseId: string) => {
     if (!cancelRemark.trim()) {

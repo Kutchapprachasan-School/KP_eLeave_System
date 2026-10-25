@@ -291,16 +291,21 @@ export async function createProjectAction(
       });
     }
 
-    // 2. Check for duplicate project code in the same fiscal year
+    // 2. Check for duplicate project code in the same fiscal year (including soft-deleted to avoid P2002)
     const existing = await prisma.project.findFirst({
       where: {
         fiscalYearId: fy.id,
         code: cleanCode,
-        deletedAt: null,
       },
     });
 
     if (existing) {
+      if (existing.deletedAt) {
+        return {
+          success: false,
+          error: `รหัสโครงการ "${cleanCode}" เคยถูกใช้งานและถูกลบไปแล้วในระบบ กรุณาใช้รหัสอื่น`,
+        };
+      }
       return {
         success: false,
         error: `รหัสโครงการ "${cleanCode}" มีอยู่ในปีงบประมาณ ${input.fiscalYear} แล้ว`,
@@ -443,7 +448,21 @@ export async function updateProjectAction(
     }
 
     if (input.departmentId !== undefined) {
-      dataToUpdate.department = input.departmentId ? { connect: { id: input.departmentId } } : { disconnect: true };
+      if (input.departmentId) {
+        dataToUpdate.department = { connect: { id: input.departmentId } };
+        let dName = input.departmentName;
+        if (!dName) {
+          const dept = await prisma.department.findUnique({
+            where: { id: input.departmentId },
+            select: { name: true },
+          });
+          dName = dept?.name || null;
+        }
+        dataToUpdate.departmentName = dName;
+      } else {
+        dataToUpdate.department = { disconnect: true };
+        dataToUpdate.departmentName = null;
+      }
     }
 
     if (input.leaderUserId) {
@@ -497,11 +516,25 @@ export async function softDeleteProjectAction(
       };
     }
 
+    const existing = await prisma.project.findUnique({
+      where: { id: projectId },
+      select: { id: true, code: true },
+    });
+    if (!existing) {
+      return { success: false, error: "ไม่พบข้อมูลโครงการ" };
+    }
+
     const now = new Date();
+    // ปลดล็อก Unique Constraint uk_project_fy_code ให้สามารถนำรหัสดั้งเดิมไปใช้ใหม่ได้
+    const freedCode = `${existing.code}_DEL_${Date.now()}`;
     await prisma.$transaction([
       prisma.project.update({
         where: { id: projectId },
-        data: { deletedAt: now, status: "CANCELLED" },
+        data: {
+          deletedAt: now,
+          status: "CANCELLED",
+          code: freedCode,
+        },
       }),
       prisma.projectActivity.updateMany({
         where: { projectId, deletedAt: null },
@@ -568,12 +601,24 @@ export async function createActivityAction(
 
     let nextActivityNo = input.activityNo;
     if (!nextActivityNo) {
+      // ค้นหา activityNo สูงสุดจากทุกแถว (รวมแถวที่ถูก soft-delete) เพื่อป้องกัน P2002 uk_activity_project_no
       const lastActivity = await prisma.projectActivity.findFirst({
-        where: { projectId: input.projectId, deletedAt: null },
+        where: { projectId: input.projectId },
         orderBy: { activityNo: "desc" },
         select: { activityNo: true },
       });
       nextActivityNo = (lastActivity?.activityNo ?? 0) + 1;
+    } else {
+      const existingAct = await prisma.projectActivity.findFirst({
+        where: { projectId: input.projectId, activityNo: nextActivityNo },
+        select: { id: true },
+      });
+      if (existingAct) {
+        return {
+          success: false,
+          error: `ลำดับกิจกรรมที่ ${nextActivityNo} มีอยู่แล้วในโครงการนี้ กรุณาระบุลำดับอื่น`,
+        };
+      }
     }
 
     const created = await prisma.projectActivity.create({
@@ -637,6 +682,30 @@ export async function updateActivityAction(
         success: false,
         error: "วงเงินงบประมาณต้องไม่ติดลบ",
       };
+    }
+
+    const currentAct = await prisma.projectActivity.findUnique({
+      where: { id: input.id },
+      select: { projectId: true, activityNo: true },
+    });
+    if (!currentAct) {
+      return { success: false, error: "ไม่พบกิจกรรมย่อยที่ต้องการแก้ไข" };
+    }
+
+    if (input.activityNo !== currentAct.activityNo) {
+      const conflict = await prisma.projectActivity.findFirst({
+        where: {
+          projectId: currentAct.projectId,
+          activityNo: input.activityNo,
+          id: { not: input.id },
+        },
+      });
+      if (conflict) {
+        return {
+          success: false,
+          error: `ลำดับกิจกรรมที่ ${input.activityNo} มีอยู่แล้วในโครงการนี้`,
+        };
+      }
     }
 
     const updated = await prisma.projectActivity.update({

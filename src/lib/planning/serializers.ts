@@ -79,7 +79,13 @@ export function serializeExpenseToDTO(exp: any): ActivityExpenseDTO {
   };
 }
 
-export function serializeActivityToDTO(act: any): ProjectActivityDTO {
+export function serializeActivityToDTO(
+  act: any,
+  projectPermissions?: {
+    canRecordAndSettleExpenses?: boolean;
+    canManageProjectsAndBudget?: boolean;
+  }
+): ProjectActivityDTO {
   const financials = calculateActivityFinancials(act);
   const expenses = (act.expenses || [])
     .filter((e: any) => e.deletedAt === null || e.deletedAt === undefined)
@@ -116,8 +122,8 @@ export function serializeActivityToDTO(act: any): ProjectActivityDTO {
     financials: enrichedFinancials,
     expenses,
     permissions: {
-      canRecordAndSettleExpenses: true,
-      canManageProjectsAndBudget: true,
+      canRecordAndSettleExpenses: Boolean(projectPermissions?.canRecordAndSettleExpenses),
+      canManageProjectsAndBudget: Boolean(projectPermissions?.canManageProjectsAndBudget),
     },
     createdAt: act.createdAt instanceof Date ? act.createdAt.toISOString() : String(act.createdAt),
     updatedAt: act.updatedAt instanceof Date ? act.updatedAt.toISOString() : String(act.updatedAt),
@@ -130,17 +136,22 @@ export function serializeProjectToDTO(
   currentUser?: { id: string; role: string },
   settings?: { enablePlanning?: boolean; planningOfficerUserIds?: string | null }
 ): ProjectDTO {
+  const perms = currentUser && settings
+    ? getPlanningPermissions(currentUser, settings, { leaderUserId: project.leaderUserId, projectStatus: project.status })
+    : { canManageProjectsAndBudget: false, canRecordAndSettleExpenses: false, canManageAttachments: false, canViewModule: false };
+
   const financials = calculateProjectFinancials(project);
   const activities = (project.activities || [])
     .filter((a: any) => a.deletedAt === null || a.deletedAt === undefined)
     .sort((a: any, b: any) => a.activityNo - b.activityNo)
-    .map(serializeActivityToDTO);
+    .map((act: any) =>
+      serializeActivityToDTO(act, {
+        canRecordAndSettleExpenses: perms.canRecordAndSettleExpenses,
+        canManageProjectsAndBudget: perms.canManageProjectsAndBudget,
+      })
+    );
 
   const attachments = (project.attachments || []).map(serializeAttachmentToDTO);
-
-  const perms = currentUser && settings
-    ? getPlanningPermissions(currentUser, settings, { leaderUserId: project.leaderUserId, projectStatus: project.status })
-    : { canManageProjectsAndBudget: false, canRecordAndSettleExpenses: false, canManageAttachments: false, canViewModule: false };
 
   const permissions = {
     canManageProject: perms.canManageProjectsAndBudget,
@@ -172,7 +183,10 @@ export function serializeProjectToDTO(
 
   return {
     id: project.id,
-    fiscalYear: project.fiscalYear?.year || project.targetAcademicYear || 2569,
+    fiscalYear:
+      project.fiscalYear?.year ||
+      project.targetAcademicYear ||
+      (new Date().getFullYear() + 543 + (new Date().getMonth() >= 9 ? 1 : 0)),
     fiscalYearId: project.fiscalYearId,
     code: project.code,
     name: project.name,

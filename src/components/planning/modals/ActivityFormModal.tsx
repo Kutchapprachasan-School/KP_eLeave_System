@@ -67,11 +67,11 @@ export function ActivityFormModal({
   );
   const [name, setName] = useState(activity?.name ?? "");
   const [responsibleUserId, setResponsibleUserId] = useState(
-    activity?.responsibleUser?.id ??
-      activity?.responsibleUserId ??
-      project?.leader?.id ??
-      project?.leaderUserId ??
-      teachers[0]?.id ??
+    activity?.responsibleUserId ||
+      activity?.responsibleUser?.id ||
+      project?.leaderUserId ||
+      project?.leader?.id ||
+      teachers[0]?.id ||
       ""
   );
   const [allocatedAmount, setAllocatedAmount] = useState<string>(

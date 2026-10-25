@@ -55,7 +55,9 @@ export function ProjectFormModal({
 
   const project = propProject || projectToEdit || undefined;
   const mode = propMode || (project ? "EDIT" : "CREATE");
-  const fiscalYear = propFiscalYear || currentFiscalYear || 2569;
+  const defaultCalculatedYear =
+    new Date().getFullYear() + 543 + (new Date().getMonth() >= 9 ? 1 : 0);
+  const fiscalYear = propFiscalYear || currentFiscalYear || defaultCalculatedYear;
   const teachers = (propTeachers || users || []) as SimpleUserDTO[];
   const handleSuccess = onSuccess || onSaved || onClose;
 
@@ -64,10 +66,10 @@ export function ProjectFormModal({
   );
   const [name, setName] = useState(project?.name ?? "");
   const [departmentId, setDepartmentId] = useState(
-    project?.department?.id ?? project?.departmentId ?? departments[0]?.id ?? ""
+    project?.departmentId || project?.department?.id || departments[0]?.id || ""
   );
   const [leaderUserId, setLeaderUserId] = useState(
-    project?.leader?.id ?? project?.leaderUserId ?? currentUserId ?? teachers[0]?.id ?? ""
+    project?.leaderUserId || project?.leader?.id || currentUserId || teachers[0]?.id || ""
   );
   const [budgetSource, setBudgetSource] = useState<BudgetSourceType>(
     (project?.budgetSource || project?.budgetSourceType || "SUBSIDY") as BudgetSourceType

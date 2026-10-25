@@ -318,10 +318,19 @@ export function PlanningDashboardClient({
   };
 
   const handleExportExcel = async () => {
-    const { exportPlanningToExcel } = await import(
-      "@/lib/planning/export-excel"
-    );
-    await exportPlanningToExcel(filteredProjects, currentFiscalYear);
+    try {
+      const { exportPlanningToExcel } = await import(
+        "@/lib/planning/export-excel"
+      );
+      await exportPlanningToExcel(filteredProjects, currentFiscalYear);
+      showToast("success", "ส่งออกไฟล์ Excel สำเร็จเรียบร้อยแล้ว");
+    } catch (err: any) {
+      console.error("Failed to export planning to Excel:", err);
+      showToast(
+        "error",
+        err?.message || "ไม่สามารถส่งออกไฟล์ Excel ได้ กรุณาลองใหม่อีกครั้ง"
+      );
+    }
   };
 
   // รายการตัวเลือกปีงบประมาณ

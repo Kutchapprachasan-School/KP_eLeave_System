@@ -39,3 +39,4 @@ node_modules_old/
 backup_*.json
 supabase_original_signatures.json
 scratch_*
+/ปกสอนแทน/
