@@ -13,7 +13,7 @@ import {
   Search, 
   Info 
 } from "lucide-react";
-import { updatePlanningSettingsAction } from "@/app/actions/planning-settings";
+import { updatePlanningSettingsAction } from "@/actions/planning/settings-actions";
 
 export interface UserOption {
   id: string;

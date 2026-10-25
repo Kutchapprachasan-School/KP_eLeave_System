@@ -403,9 +403,6 @@ export function ProjectLedgerTable({
                         </button>
                       </div>
                     )}
-                        </button>
-                      </div>
-                    )}
                   </div>
                 </div>
               </div>
