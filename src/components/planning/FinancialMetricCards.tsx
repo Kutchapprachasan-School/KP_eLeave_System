@@ -57,7 +57,7 @@ export function FinancialMetricCards({ summary }: FinancialMetricCardsProps) {
             <Wallet className="h-5 w-5" />
           </div>
         </div>
-        <div className="mt-3 text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
+        <div className="mt-3 text-2xl font-bold tracking-tight tabular-nums text-slate-900 dark:text-white">
           {formatCurrencyTHB(totalEffectiveBudget)}
         </div>
         <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
@@ -76,7 +76,7 @@ export function FinancialMetricCards({ summary }: FinancialMetricCardsProps) {
             <CheckCircle2 className="h-5 w-5" />
           </div>
         </div>
-        <div className="mt-3 text-2xl font-bold tracking-tight text-blue-700 dark:text-blue-400">
+        <div className="mt-3 text-2xl font-bold tracking-tight tabular-nums text-blue-700 dark:text-blue-400">
           {formatCurrencyTHB(totalPaidAmount)}
         </div>
         <p className="mt-1.5 text-xs text-blue-700/80 dark:text-blue-400/80">
@@ -94,7 +94,7 @@ export function FinancialMetricCards({ summary }: FinancialMetricCardsProps) {
             <Clock className="h-5 w-5" />
           </div>
         </div>
-        <div className="mt-3 text-2xl font-bold tracking-tight text-amber-700 dark:text-amber-400">
+        <div className="mt-3 text-2xl font-bold tracking-tight tabular-nums text-amber-700 dark:text-amber-400">
           {formatCurrencyTHB(totalReservedAmount)}
         </div>
         <p className="mt-1.5 text-xs text-amber-800/80 dark:text-amber-400/80">
@@ -129,7 +129,7 @@ export function FinancialMetricCards({ summary }: FinancialMetricCardsProps) {
           </div>
         </div>
         <div
-          className={`mt-3 text-2xl font-bold tracking-tight ${
+          className={`mt-3 text-2xl font-bold tracking-tight tabular-nums ${
             totalRemainingBalance < 0 ? "text-rose-700 dark:text-rose-400" : "text-emerald-700 dark:text-emerald-400"
           }`}
         >

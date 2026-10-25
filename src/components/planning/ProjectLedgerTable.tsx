@@ -55,7 +55,14 @@ function StackedBudgetProgressBar({
   usagePercentage: number;
 }) {
   return (
-    <div className="w-full">
+    <div
+      className="w-full"
+      role="progressbar"
+      aria-label="ความคืบหน้าการใช้งบประมาณ"
+      aria-valuenow={Math.min(100, Math.round(usagePercentage))}
+      aria-valuemin={0}
+      aria-valuemax={100}
+    >
       <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-gray-800 ring-1 ring-inset ring-slate-200/80 dark:ring-gray-700">
         {/* ส่วนที่เบิกจ่ายจริงแล้ว (PAID) */}
         {paidPercentage > 0 && (
@@ -176,7 +183,8 @@ export function ProjectLedgerTable({
                   <button
                     type="button"
                     onClick={() => onToggleExpand(project.id)}
-                    aria-label="สลับการแสดงกิจกรรมย่อย"
+                    aria-label={isExpanded ? "ย่อกิจกรรมย่อย" : "กางกิจกรรมย่อย"}
+                    aria-expanded={isExpanded}
                     className="mt-0.5 rounded-lg border border-slate-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-1.5 text-slate-600 dark:text-slate-300 shadow-2xs hover:bg-slate-100 dark:hover:bg-gray-700 hover:text-slate-900 cursor-pointer"
                   >
                     {isExpanded ? (
@@ -189,7 +197,7 @@ export function ProjectLedgerTable({
                   <div className="space-y-2">
                     {/* บรรทัดที่ 1: รหัสโครงการ + ชื่อโครงการ + ป้ายสถานะ */}
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="rounded-md bg-slate-900 dark:bg-purple-950/60 px-2 py-0.5 font-mono text-xs font-semibold text-white dark:text-purple-300">
+                      <span className="rounded-md bg-slate-900 dark:bg-slate-800 px-2 py-0.5 font-mono text-xs font-semibold text-white dark:text-slate-300">
                         {project.code}
                       </span>
                       <button
@@ -314,12 +322,12 @@ export function ProjectLedgerTable({
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                     <div className="rounded-lg bg-white dark:bg-gray-800 p-2.5 ring-1 ring-slate-200/80 dark:ring-gray-700">
                       <div className="text-[11px] text-slate-500 dark:text-slate-400">งบสุทธิโครงการ</div>
-                      <div className="mt-0.5 text-sm font-bold text-slate-900 dark:text-white">
+                      <div className="mt-0.5 text-sm font-bold tabular-nums text-slate-900 dark:text-white">
                         {formatCurrencyTHB(financials.effectiveBudget)}
                       </div>
                       {financials.isAdjusted && (
                         <div
-                          className="text-[10px] text-slate-400"
+                          className="text-[10px] tabular-nums text-slate-400"
                           title="มีการโอนเกลี่ยงบประมาณจากแผนตั้งต้น"
                         >
                           เดิม {formatCurrencyTHB(financials.allocatedAmount)}
@@ -329,14 +337,14 @@ export function ProjectLedgerTable({
 
                     <div className="rounded-lg bg-white dark:bg-gray-800 p-2.5 ring-1 ring-slate-200/80 dark:ring-gray-700">
                       <div className="text-[11px] text-amber-700 dark:text-amber-400">กันวงเงิน</div>
-                      <div className="mt-0.5 text-sm font-semibold text-amber-700 dark:text-amber-400">
+                      <div className="mt-0.5 text-sm font-semibold tabular-nums text-amber-700 dark:text-amber-400">
                         {formatCurrencyTHB(financials.reservedAmount)}
                       </div>
                     </div>
 
                     <div className="rounded-lg bg-white dark:bg-gray-800 p-2.5 ring-1 ring-slate-200/80 dark:ring-gray-700">
                       <div className="text-[11px] text-blue-700 dark:text-blue-400">เบิกจ่ายจริง</div>
-                      <div className="mt-0.5 text-sm font-semibold text-blue-700 dark:text-blue-400">
+                      <div className="mt-0.5 text-sm font-semibold tabular-nums text-blue-700 dark:text-blue-400">
                         {formatCurrencyTHB(financials.paidAmount)}
                       </div>
                     </div>
@@ -344,7 +352,7 @@ export function ProjectLedgerTable({
                     <div className="rounded-lg bg-white dark:bg-gray-800 p-2.5 ring-1 ring-slate-200/80 dark:ring-gray-700">
                       <div className="text-[11px] text-slate-500 dark:text-slate-400">คงเหลือสุทธิ</div>
                       <div
-                        className={`mt-0.5 text-sm font-bold ${
+                        className={`mt-0.5 text-sm font-bold tabular-nums ${
                           financials.remainingBalance < 0
                             ? "text-rose-600 dark:text-rose-400"
                             : "text-emerald-700 dark:text-emerald-400"
@@ -370,26 +378,31 @@ export function ProjectLedgerTable({
                         <button
                           type="button"
                           onClick={() => onAddActivity(project)}
-                          className="inline-flex items-center gap-1 rounded-lg bg-slate-900 dark:bg-purple-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-slate-800 dark:hover:bg-purple-700 cursor-pointer"
+                          className="inline-flex min-h-[44px] items-center gap-1 rounded-xl bg-slate-900 dark:bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800 dark:hover:bg-blue-700 cursor-pointer"
                         >
-                          <Plus className="h-3.5 w-3.5" />
+                          <Plus className="h-4 w-4" />
                           เพิ่มกิจกรรมย่อย
                         </button>
                         <button
                           type="button"
                           onClick={() => onEditProject(project)}
-                          className="rounded-lg border border-slate-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-1.5 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-gray-700 hover:text-slate-900 cursor-pointer"
+                          aria-label="แก้ไขโครงการ / โอนเกลี่ยงบ"
+                          className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl border border-slate-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-gray-700 hover:text-slate-900 cursor-pointer"
                           title="แก้ไขโครงการ / โอนเกลี่ยงบ"
                         >
-                          <Edit3 className="h-3.5 w-3.5" />
+                          <Edit3 className="h-4 w-4" />
                         </button>
                         <button
                           type="button"
                           onClick={() => onDeleteProject(project)}
-                          className="rounded-lg border border-slate-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-1.5 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 cursor-pointer"
+                          aria-label="ลบโครงการ"
+                          className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl border border-slate-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-2 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 cursor-pointer"
                           title="ลบโครงการ"
                         >
-                          <Trash2 className="h-3.5 w-3.5" />
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    )}
                         </button>
                       </div>
                     )}
@@ -477,11 +490,11 @@ export function ProjectLedgerTable({
                               <div className="text-[11px] text-slate-400">
                                 งบกิจกรรม
                               </div>
-                              <div className="font-semibold text-slate-800 dark:text-slate-200">
+                              <div className="font-semibold tabular-nums text-slate-800 dark:text-slate-200">
                                 {formatCurrencyTHB(actFin.effectiveBudget)}
                               </div>
                               {actFin.isAdjusted && (
-                                <div className="text-[10px] text-slate-400">
+                                <div className="text-[10px] tabular-nums text-slate-400">
                                   (เดิม {formatCurrencyTHB(actFin.allocatedAmount)})
                                 </div>
                               )}
@@ -491,7 +504,7 @@ export function ProjectLedgerTable({
                               <div className="text-[11px] text-amber-600 dark:text-amber-400">
                                 กันวงเงิน
                               </div>
-                              <div className="font-medium text-amber-700 dark:text-amber-400">
+                              <div className="font-medium tabular-nums text-amber-700 dark:text-amber-400">
                                 {formatCurrencyTHB(actFin.reservedAmount)}
                               </div>
                             </div>
@@ -500,7 +513,7 @@ export function ProjectLedgerTable({
                               <div className="text-[11px] text-blue-600 dark:text-blue-400">
                                 จ่ายแล้ว
                               </div>
-                              <div className="font-medium text-blue-700 dark:text-blue-400">
+                              <div className="font-medium tabular-nums text-blue-700 dark:text-blue-400">
                                 {formatCurrencyTHB(actFin.paidAmount)}
                               </div>
                             </div>
@@ -510,7 +523,7 @@ export function ProjectLedgerTable({
                                 คงเหลือ
                               </div>
                               <div
-                                className={`font-bold ${
+                                className={`font-bold tabular-nums ${
                                   actFin.remainingBalance < 0
                                     ? "text-rose-600 dark:text-rose-400"
                                     : "text-emerald-700 dark:text-emerald-400"
@@ -529,9 +542,9 @@ export function ProjectLedgerTable({
                                 onClick={() =>
                                   onRecordExpense(project, activity)
                                 }
-                                className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white shadow-2xs transition-colors hover:bg-emerald-700 cursor-pointer"
+                                className="inline-flex min-h-[44px] items-center gap-1.5 rounded-xl bg-emerald-600 px-3.5 py-2 text-xs font-semibold text-white shadow-2xs transition-colors hover:bg-emerald-700 cursor-pointer"
                               >
-                                <Receipt className="h-3.5 w-3.5" />
+                                <Receipt className="h-4 w-4" />
                                 <span>บันทึกการใช้เงิน</span>
                               </button>
                             )}
@@ -541,14 +554,14 @@ export function ProjectLedgerTable({
                               onClick={() =>
                                 onOpenExpenseHistory(project, activity)
                               }
-                              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-gray-700 cursor-pointer"
+                              className="inline-flex min-h-[44px] items-center gap-1.5 rounded-xl border border-slate-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-3.5 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-gray-700 cursor-pointer"
                             >
-                              <History className="h-3.5 w-3.5 text-slate-500" />
+                              <History className="h-4 w-4 text-slate-500" />
                               <span>
                                 ประวัติเงิน ({actExpensesCount})
                               </span>
                               {actReservedCount > 0 && (
-                                <span className="rounded-full bg-amber-100 dark:bg-amber-950/60 px-1.5 py-0.2 text-[10px] font-bold text-amber-800 dark:text-amber-300">
+                                <span className="rounded-full bg-amber-100 dark:bg-amber-950/60 px-2 py-0.5 text-[10px] font-bold text-amber-800 dark:text-amber-300">
                                   รอเคลียร์ {actReservedCount}
                                 </span>
                               )}
@@ -561,20 +574,22 @@ export function ProjectLedgerTable({
                                   onClick={() =>
                                     onEditActivity(project, activity)
                                   }
-                                  className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-gray-700 hover:text-slate-700 dark:hover:text-slate-200 cursor-pointer"
+                                  aria-label="แก้ไขกิจกรรมย่อย"
+                                  className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-gray-700 hover:text-slate-700 dark:hover:text-slate-200 cursor-pointer"
                                   title="แก้ไขกิจกรรมย่อย"
                                 >
-                                  <Edit3 className="h-3.5 w-3.5" />
+                                  <Edit3 className="h-4 w-4" />
                                 </button>
                                 <button
                                   type="button"
                                   onClick={() =>
                                     onDeleteActivity(project, activity)
                                   }
-                                  className="rounded-md p-1.5 text-slate-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 hover:text-rose-600 cursor-pointer"
+                                  aria-label="ลบกิจกรรมย่อย"
+                                  className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl p-2 text-slate-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 hover:text-rose-600 cursor-pointer"
                                   title="ลบกิจกรรมย่อย"
                                 >
-                                  <Trash2 className="h-3.5 w-3.5" />
+                                  <Trash2 className="h-4 w-4" />
                                 </button>
                               </div>
                             )}

@@ -115,6 +115,7 @@ export function ExpenseHistoryDrawer({
           <button
             type="button"
             onClick={onClose}
+            aria-label="ปิดหน้าต่าง"
             className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-200/60 hover:text-slate-700 dark:hover:bg-slate-700 dark:hover:text-white"
           >
             <X className="h-5 w-5" />
@@ -125,28 +126,28 @@ export function ExpenseHistoryDrawer({
         <div className="grid grid-cols-2 gap-2.5 border-b border-slate-200 bg-white px-6 py-4 dark:border-slate-800 dark:bg-gray-900 sm:grid-cols-4">
           <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-gray-800/40">
             <div className="text-[11px] text-slate-500 dark:text-slate-400">งบสุทธิกิจกรรม</div>
-            <div className="mt-0.5 text-sm font-bold text-slate-900 dark:text-white">
+            <div className="mt-0.5 text-sm font-bold tabular-nums text-slate-900 dark:text-white">
               {formatCurrencyTHB(financials.effectiveBudget)}
             </div>
           </div>
 
           <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-3 dark:border-amber-900/50 dark:bg-amber-950/30">
             <div className="text-[11px] text-amber-800 dark:text-amber-400">กันวงเงินจอง</div>
-            <div className="mt-0.5 text-sm font-bold text-amber-700 dark:text-amber-300">
+            <div className="mt-0.5 text-sm font-bold tabular-nums text-amber-700 dark:text-amber-300">
               {formatCurrencyTHB(financials.reservedAmount)}
             </div>
           </div>
 
           <div className="rounded-xl border border-blue-200 bg-blue-50/60 p-3 dark:border-blue-900/50 dark:bg-blue-950/30">
             <div className="text-[11px] text-blue-800 dark:text-blue-400">เบิกจ่ายจริงแล้ว</div>
-            <div className="mt-0.5 text-sm font-bold text-blue-700 dark:text-blue-300">
+            <div className="mt-0.5 text-sm font-bold tabular-nums text-blue-700 dark:text-blue-300">
               {formatCurrencyTHB(financials.paidAmount)}
             </div>
           </div>
 
           <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-3 dark:border-emerald-900/50 dark:bg-emerald-950/30">
             <div className="text-[11px] text-emerald-800 dark:text-emerald-400">คงเหลือสุทธิ</div>
-            <div className="mt-0.5 text-sm font-bold text-emerald-700 dark:text-emerald-300">
+            <div className="mt-0.5 text-sm font-bold tabular-nums text-emerald-700 dark:text-emerald-300">
               {formatCurrencyTHB(financials.remainingBalance)}
             </div>
           </div>
@@ -275,7 +276,7 @@ export function ExpenseHistoryDrawer({
                     {/* ยอดเงิน + ปุ่มจัดการสำหรับเจ้าหน้าที่แผน */}
                     <div className="flex flex-row items-center justify-between gap-3 sm:flex-col sm:items-end">
                       <div
-                        className={`text-base font-bold ${
+                        className={`text-base font-bold tabular-nums ${
                           isReserved
                             ? "text-amber-700 dark:text-amber-400"
                             : "text-blue-700 dark:text-blue-400"
@@ -322,7 +323,9 @@ export function ExpenseHistoryDrawer({
                     <div className="mt-3 rounded-lg border border-rose-200 bg-rose-50/70 p-3 dark:border-rose-900 dark:bg-rose-950/40">
                       <label className="block text-xs font-semibold text-rose-900 dark:text-rose-200">
                         ระบุเหตุผลในการยกเลิกรายการ (วงเงิน{" "}
-                        {formatCurrencyTHB(exp.amount)}{" "}
+                        <span className="tabular-nums font-bold">
+                          {formatCurrencyTHB(exp.amount)}
+                        </span>{" "}
                         จะถูกคืนกลับเข้ากิจกรรมทันที):
                       </label>
                       <div className="mt-2 flex flex-col gap-2 sm:flex-row">

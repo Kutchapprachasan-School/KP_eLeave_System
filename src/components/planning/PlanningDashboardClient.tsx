@@ -20,6 +20,7 @@ import { FinancialMetricCards } from "./FinancialMetricCards";
 import { PlanningFilterToolbar } from "./PlanningFilterToolbar";
 import { ProjectLedgerTable } from "./ProjectLedgerTable";
 import { Landmark, Calendar } from "lucide-react";
+import { useToast } from "@/components/toast-provider";
 
 // Modals from Phase 4
 import { ProjectFormModal } from "./modals/ProjectFormModal";
@@ -27,6 +28,7 @@ import { ActivityFormModal } from "./modals/ActivityFormModal";
 import { AttachmentManagerModal } from "./modals/AttachmentManagerModal";
 import { ExpenseFormModal } from "./modals/ExpenseFormModal";
 import { ExpenseHistoryDrawer } from "./modals/ExpenseHistoryDrawer";
+import { ConfirmDialog } from "./modals/ConfirmDialog";
 
 export type ActivePlanningModalState =
   | { type: "CREATE_PROJECT" }
@@ -108,13 +110,32 @@ export function PlanningDashboardClient({
   const [selectedBudgetSource, setSelectedBudgetSource] = useState("ALL");
   const [onlyMyProjects, setOnlyMyProjects] = useState(false);
 
-  // กางแถวโครงการทั้งหมดเป็นค่าเริ่มต้นเพื่อให้เห็นกิจกรรมย่อยได้ทันที
+  const { showToast } = useToast();
+
+  // เริ่มต้นพับแถวโครงการทั้งหมดเพื่อลด Cognitive Load (ผู้ใช้สามารถกด "กางทั้งหมด" หรือคลิกดูทีละโครงการได้)
   const [expandedProjectIds, setExpandedProjectIds] = useState<Set<string>>(
-    () => new Set(projects.map((p) => p.id))
+    () => new Set()
   );
 
   // State สำหรับควบคุมการเปิด Modals และ Drawers
   const [activeModal, setActiveModal] = useState<ActivePlanningModalState>(null);
+
+  // State สำหรับควบคุม Accessible Confirm Dialog (ลบโครงการ / กิจกรรมย่อย)
+  const [deleteConfirmState, setDeleteConfirmState] = useState<{
+    isOpen: boolean;
+    type: "PROJECT" | "ACTIVITY";
+    id: string;
+    title: string;
+    description: string;
+    isPending: boolean;
+  }>({
+    isOpen: false,
+    type: "PROJECT",
+    id: "",
+    title: "",
+    description: "",
+    isPending: false,
+  });
 
   // ==========================================
   // 2. Real-Time Filtering & Portfolio Calculation
@@ -237,35 +258,63 @@ export function PlanningDashboardClient({
     setOnlyMyProjects(false);
   };
 
-  const handleDeleteProject = async (project: ProjectDTO) => {
-    const confirmed = window.confirm(
-      `ยืนยันการลบโครงการ "${project.code}: ${project.name}" หรือไม่?\n(ข้อมูลจะถูกเก็บในรูปแบบ Soft Delete เพื่อรักษาประวัติตรวจสอบ)`
-    );
-    if (!confirmed) return;
-
-    const res = await softDeleteProjectAction(project.id);
-    if (!res.success) {
-      window.alert(res.error);
-      return;
-    }
-    router.refresh();
+  const handleDeleteProject = (project: ProjectDTO) => {
+    setDeleteConfirmState({
+      isOpen: true,
+      type: "PROJECT",
+      id: project.id,
+      title: "ยืนยันการลบโครงการ",
+      description: `คุณต้องการลบ "${project.code}: ${project.name}" หรือไม่? ข้อมูลจะถูกเก็บในรูปแบบ Soft Delete เพื่อรักษาประวัติตรวจสอบ`,
+      isPending: false,
+    });
   };
 
-  const handleDeleteActivity = async (
+  const handleDeleteActivity = (
     project: ProjectDTO,
     activity: ProjectActivityDTO
   ) => {
-    const confirmed = window.confirm(
-      `ยืนยันการลบกิจกรรมที่ ${activity.activityNo} "${activity.name}" ภายใต้โครงการ ${project.code} หรือไม่?`
-    );
-    if (!confirmed) return;
+    setDeleteConfirmState({
+      isOpen: true,
+      type: "ACTIVITY",
+      id: activity.id,
+      title: "ยืนยันการลบกิจกรรมย่อย",
+      description: `คุณต้องการลบกิจกรรมที่ ${activity.activityNo} "${activity.name}" ภายใต้โครงการ ${project.code} หรือไม่?`,
+      isPending: false,
+    });
+  };
 
-    const res = await softDeleteActivityAction(activity.id);
-    if (!res.success) {
-      window.alert(res.error);
-      return;
+  const handleConfirmDelete = async () => {
+    setDeleteConfirmState((prev) => ({ ...prev, isPending: true }));
+    try {
+      if (deleteConfirmState.type === "PROJECT") {
+        const res = await softDeleteProjectAction(deleteConfirmState.id);
+        if (!res.success) {
+          showToast("error", res.error || "เกิดข้อผิดพลาดในการลบโครงการ");
+          return;
+        }
+        showToast("success", "ลบโครงการเรียบร้อยแล้ว");
+      } else {
+        const res = await softDeleteActivityAction(deleteConfirmState.id);
+        if (!res.success) {
+          showToast("error", res.error || "เกิดข้อผิดพลาดในการลบกิจกรรมย่อย");
+          return;
+        }
+        showToast("success", "ลบกิจกรรมย่อยเรียบร้อยแล้ว");
+      }
+      setDeleteConfirmState({
+        isOpen: false,
+        type: "PROJECT",
+        id: "",
+        title: "",
+        description: "",
+        isPending: false,
+      });
+      router.refresh();
+    } catch (err: any) {
+      showToast("error", err?.message || "เกิดข้อผิดพลาดที่ไม่คาดคิด");
+    } finally {
+      setDeleteConfirmState((prev) => ({ ...prev, isPending: false }));
     }
-    router.refresh();
   };
 
   const handleExportExcel = async () => {
@@ -388,6 +437,7 @@ export function PlanningDashboardClient({
           onClose={() => setActiveModal(null)}
           onSuccess={() => {
             setActiveModal(null);
+            showToast("success", "สร้างโครงการใหม่สำเร็จ");
             router.refresh();
           }}
         />
@@ -404,6 +454,7 @@ export function PlanningDashboardClient({
           onClose={() => setActiveModal(null)}
           onSuccess={() => {
             setActiveModal(null);
+            showToast("success", "บันทึกการแก้ไขโครงการสำเร็จ");
             router.refresh();
           }}
         />
@@ -417,6 +468,7 @@ export function PlanningDashboardClient({
           onClose={() => setActiveModal(null)}
           onSuccess={() => {
             setActiveModal(null);
+            showToast("success", "สร้างกิจกรรมย่อยสำเร็จ");
             router.refresh();
           }}
         />
@@ -431,6 +483,7 @@ export function PlanningDashboardClient({
           onClose={() => setActiveModal(null)}
           onSuccess={() => {
             setActiveModal(null);
+            showToast("success", "บันทึกการแก้ไขกิจกรรมย่อยสำเร็จ");
             router.refresh();
           }}
         />
@@ -453,6 +506,7 @@ export function PlanningDashboardClient({
           onClose={() => setActiveModal(null)}
           onSuccess={() => {
             setActiveModal(null);
+            showToast("success", "บันทึกตัดยอดงบประมาณสำเร็จ");
             router.refresh();
           }}
         />
@@ -474,6 +528,7 @@ export function PlanningDashboardClient({
           }
           onSuccess={() => {
             setActiveModal(null);
+            showToast("success", "ยืนยันการเบิกจ่ายจริงสำเร็จ");
             router.refresh();
           }}
         />
@@ -502,6 +557,25 @@ export function PlanningDashboardClient({
           onUpdated={() => router.refresh()}
         />
       )}
+
+      {/* Accessible Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={deleteConfirmState.isOpen}
+        title={deleteConfirmState.title}
+        description={deleteConfirmState.description}
+        isPending={deleteConfirmState.isPending}
+        onConfirm={handleConfirmDelete}
+        onCancel={() =>
+          setDeleteConfirmState({
+            isOpen: false,
+            type: "PROJECT",
+            id: "",
+            title: "",
+            description: "",
+            isPending: false,
+          })
+        }
+      />
     </div>
   );
 }

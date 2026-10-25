@@ -164,6 +164,7 @@ export function ActivityFormModal({
           <button
             type="button"
             onClick={onClose}
+            aria-label="ปิดหน้าต่าง"
             className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-200/60 hover:text-slate-700 dark:hover:bg-slate-700 dark:hover:text-white"
           >
             <X className="h-5 w-5" />
@@ -178,7 +179,7 @@ export function ActivityFormModal({
                 งบโครงการที่รอจัดสรรลงกิจกรรม:
               </span>
               <strong
-                className={`text-sm ${
+                className={`text-sm tabular-nums ${
                   unallocatedBudget >= 0
                     ? "text-emerald-700 dark:text-emerald-400"
                     : "text-rose-600 dark:text-rose-400"

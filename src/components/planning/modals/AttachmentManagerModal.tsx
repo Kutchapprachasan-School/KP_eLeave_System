@@ -24,6 +24,7 @@ import {
   AlertCircle,
   CheckCircle2,
 } from "lucide-react";
+import { ConfirmDialog } from "./ConfirmDialog";
 
 export interface AttachmentManagerModalProps {
   project?: ProjectDTO;
@@ -110,20 +111,49 @@ export function AttachmentManagerModal({
     });
   };
 
-  const handleDelete = (attachmentId: string, docTitle: string) => {
-    const confirmed = window.confirm(
-      `ยืนยันการลบเอกสาร "${docTitle}" หรือไม่?`
-    );
-    if (!confirmed) return;
+  const [deleteConfirm, setDeleteConfirm] = useState<{
+    isOpen: boolean;
+    attachmentId: string;
+    docTitle: string;
+    isPending: boolean;
+  }>({
+    isOpen: false,
+    attachmentId: "",
+    docTitle: "",
+    isPending: false,
+  });
 
+  const handleDelete = (attachmentId: string, docTitle: string) => {
+    setDeleteConfirm({
+      isOpen: true,
+      attachmentId,
+      docTitle,
+      isPending: false,
+    });
+  };
+
+  const handleConfirmDeleteAttachment = () => {
+    setDeleteConfirm((prev) => ({ ...prev, isPending: true }));
     setErrorMsg(null);
     startTransition(async () => {
-      const res = await deleteProjectAttachmentAction(attachmentId);
-      if (!res.success) {
-        setErrorMsg(res.error);
-        return;
+      try {
+        const res = await deleteProjectAttachmentAction(
+          deleteConfirm.attachmentId
+        );
+        if (!res.success) {
+          setErrorMsg(res.error);
+          return;
+        }
+        setDeleteConfirm({
+          isOpen: false,
+          attachmentId: "",
+          docTitle: "",
+          isPending: false,
+        });
+        handleUpdated();
+      } finally {
+        setDeleteConfirm((prev) => ({ ...prev, isPending: false }));
       }
-      handleUpdated();
     });
   };
 
@@ -148,6 +178,7 @@ export function AttachmentManagerModal({
           <button
             type="button"
             onClick={onClose}
+            aria-label="ปิดหน้าต่าง"
             className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-200/60 hover:text-slate-700 dark:hover:bg-slate-700 dark:hover:text-white"
           >
             <X className="h-5 w-5" />
@@ -363,6 +394,23 @@ export function AttachmentManagerModal({
           )}
         </div>
       </div>
+
+      {/* Accessible Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={deleteConfirm.isOpen}
+        title="ยืนยันการลบเอกสาร"
+        description={`คุณต้องการลบเอกสาร "${deleteConfirm.docTitle}" หรือไม่? การกระทำนี้ไม่สามารถย้อนกลับได้`}
+        isPending={deleteConfirm.isPending}
+        onConfirm={handleConfirmDeleteAttachment}
+        onCancel={() =>
+          setDeleteConfirm({
+            isOpen: false,
+            attachmentId: "",
+            docTitle: "",
+            isPending: false,
+          })
+        }
+      />
     </div>
   );
 }

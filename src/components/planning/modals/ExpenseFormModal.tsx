@@ -186,6 +186,7 @@ export function ExpenseFormModal({
           <button
             type="button"
             onClick={onClose}
+            aria-label="ปิดหน้าต่าง"
             className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-200/60 hover:text-slate-700 dark:hover:bg-slate-700 dark:hover:text-white"
           >
             <X className="h-5 w-5" />
@@ -204,11 +205,11 @@ export function ExpenseFormModal({
                   ? "วงเงินที่ใช้ได้ (รวมยอดกันเงินเดิม)"
                   : "งบคงเหลือปัจจุบันของกิจกรรม"}
               </div>
-              <div className="mt-0.5 text-base font-bold text-slate-900 dark:text-white">
+              <div className="mt-0.5 text-base font-bold tabular-nums text-slate-900 dark:text-white">
                 {formatCurrencyTHB(availableBalance)}
               </div>
               {mode === "SETTLE" && settlingExpense && (
-                <div className="text-[11px] text-amber-700 dark:text-amber-400">
+                <div className="text-[11px] tabular-nums text-amber-700 dark:text-amber-400">
                   (เดิมกันไว้ {formatCurrencyTHB(settlingExpense.amount)})
                 </div>
               )}
@@ -219,7 +220,7 @@ export function ExpenseFormModal({
                 คงเหลือสุทธิหลังบันทึกรายการนี้
               </div>
               <div
-                className={`mt-0.5 text-base font-bold ${
+                className={`mt-0.5 text-base font-bold tabular-nums ${
                   projectedRemaining < 0
                     ? "text-rose-600 dark:text-rose-400"
                     : "text-emerald-700 dark:text-emerald-400"
@@ -228,7 +229,7 @@ export function ExpenseFormModal({
                 {formatCurrencyTHB(projectedRemaining)}
               </div>
               {projectedRemaining < 0 && (
-                <div className="text-[11px] font-semibold text-rose-600 dark:text-rose-400">
+                <div className="text-[11px] font-semibold tabular-nums text-rose-600 dark:text-rose-400">
                   เกินวงเงิน {formatCurrencyTHB(Math.abs(projectedRemaining))}
                 </div>
               )}
@@ -362,7 +363,7 @@ export function ExpenseFormModal({
                 value={amountInput}
                 onChange={(e) => setAmountInput(e.target.value)}
                 placeholder="0.00"
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-base font-bold text-slate-900 focus:border-blue-600 focus:outline-none dark:border-slate-700 dark:bg-gray-800 dark:text-white"
+                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-base font-bold tabular-nums text-slate-900 focus:border-blue-600 focus:outline-none dark:border-slate-700 dark:bg-gray-800 dark:text-white"
               />
             </div>
 
