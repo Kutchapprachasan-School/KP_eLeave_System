@@ -23,9 +23,10 @@ import {
   Edit3,
   Trash2,
   FolderOpen,
+  User,
 } from "lucide-react";
 
-interface ProjectLedgerTableProps {
+export interface ProjectLedgerTableProps {
   projects: ProjectDTO[];
   expandedProjectIds: Set<string>;
   onToggleExpand: (projectId: string) => void;
@@ -45,14 +46,16 @@ interface ProjectLedgerTableProps {
 /**
  * แถบความก้าวหน้าการใช้เงินแบบ 2 ชั้น (Stacked Progress Bar: Paid + Reserved)
  */
-function StackedBudgetProgressBar({
+export function StackedBudgetProgressBar({
   paidPercentage,
   reservedPercentage,
   usagePercentage,
+  compact = false,
 }: {
   paidPercentage: number;
   reservedPercentage: number;
   usagePercentage: number;
+  compact?: boolean;
 }) {
   return (
     <div
@@ -63,11 +66,15 @@ function StackedBudgetProgressBar({
       aria-valuemin={0}
       aria-valuemax={100}
     >
-      <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-gray-800 ring-1 ring-inset ring-slate-200/80 dark:ring-gray-700">
+      <div
+        className={`flex w-full overflow-hidden rounded-full bg-slate-100 dark:bg-gray-800 ring-1 ring-inset ring-slate-200/80 dark:ring-gray-700 ${
+          compact ? "h-2" : "h-2.5"
+        }`}
+      >
         {/* ส่วนที่เบิกจ่ายจริงแล้ว (PAID) */}
         {paidPercentage > 0 && (
           <div
-            style={{ width: `${paidPercentage}%` }}
+            style={{ width: `${Math.min(100, paidPercentage)}%` }}
             className="bg-blue-600 transition-all duration-300"
             title={`เบิกจ่ายจริงแล้ว ${paidPercentage}%`}
           />
@@ -75,27 +82,31 @@ function StackedBudgetProgressBar({
         {/* ส่วนที่กันวงเงินจองไว้ (RESERVED) */}
         {reservedPercentage > 0 && (
           <div
-            style={{ width: `${reservedPercentage}%` }}
+            style={{ width: `${Math.min(100 - paidPercentage, reservedPercentage)}%` }}
             className="bg-amber-400 transition-all duration-300"
             title={`กันวงเงินจอง ${reservedPercentage}%`}
           />
         )}
       </div>
-      <div className="mt-1 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
-        <div className="flex items-center gap-2">
-          <span className="inline-flex items-center gap-1">
-            <span className="h-2 w-2 rounded-full bg-blue-600" />
-            จ่ายจริง {paidPercentage}%
-          </span>
-          {reservedPercentage > 0 && (
-            <span className="inline-flex items-center gap-1 text-amber-700 dark:text-amber-400">
-              <span className="h-2 w-2 rounded-full bg-amber-400" />
-              กันเงิน {reservedPercentage}%
+      {!compact && (
+        <div className="mt-1 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center gap-1">
+              <span className="h-2 w-2 rounded-full bg-blue-600" />
+              จ่ายจริง {paidPercentage}%
             </span>
-          )}
+            {reservedPercentage > 0 && (
+              <span className="inline-flex items-center gap-1 text-amber-700 dark:text-amber-400">
+                <span className="h-2 w-2 rounded-full bg-amber-400" />
+                กันเงิน {reservedPercentage}%
+              </span>
+            )}
+          </div>
+          <span className="font-medium text-slate-700 dark:text-slate-300">
+            รวม {usagePercentage}%
+          </span>
         </div>
-        <span className="font-medium text-slate-700 dark:text-slate-300">รวม {usagePercentage}%</span>
-      </div>
+      )}
     </div>
   );
 }
@@ -103,18 +114,25 @@ function StackedBudgetProgressBar({
 /**
  * ป้ายสีตามสถานะโครงการ
  */
-function ProjectStatusBadge({ status }: { status: ProjectDTO["status"] }) {
+export function ProjectStatusBadge({ status }: { status: ProjectDTO["status"] }) {
   const badgeStyles: Record<ProjectDTO["status"], string> = {
-    DRAFT: "bg-slate-100 text-slate-700 border-slate-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700",
-    APPROVED: "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800",
-    IN_PROGRESS: "bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-300 dark:border-indigo-800",
-    COMPLETED: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800",
-    CANCELLED: "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800",
+    DRAFT:
+      "bg-slate-100 text-slate-700 border-slate-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700",
+    APPROVED:
+      "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800",
+    IN_PROGRESS:
+      "bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-300 dark:border-indigo-800",
+    COMPLETED:
+      "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800",
+    CANCELLED:
+      "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800",
   };
 
   return (
     <span
-      className={`inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium ${badgeStyles[status] || "bg-slate-100 text-slate-700 border-slate-200"}`}
+      className={`inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium ${
+        badgeStyles[status] || "bg-slate-100 text-slate-700 border-slate-200"
+      }`}
     >
       {PROJECT_STATUS_LABELS[status] || status}
     </span>
@@ -152,377 +170,950 @@ export function ProjectLedgerTable({
 
   return (
     <div className="space-y-4">
-      {projects.map((project) => {
-        const isExpanded = expandedProjectIds.has(project.id);
-        const { financials, permissions } = project;
-        const { sarReadiness } = financials;
-        const bSourceKey = project.budgetSource || project.budgetSourceType;
-        const deptName = project.department?.name || project.departmentName || "-";
-        const leaderName = project.leader?.name || project.leaderUserName || "-";
+      {/* ========================================================================= */}
+      {/* 1. DESKTOP & TABLET VIEW: High-Density Financial Ledger Table (ตารางคุมงบ) */}
+      {/* ========================================================================= */}
+      <div className="hidden md:block overflow-hidden rounded-xl border border-slate-200 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-xs">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead className="bg-slate-50 dark:bg-gray-850 border-b border-slate-200 dark:border-gray-800 text-[11px] font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wider">
+              <tr>
+                <th scope="col" className="py-3 px-4 w-[34%]">
+                  โครงการ / ฝ่ายงาน / หัวหน้า
+                </th>
+                <th scope="col" className="py-3 px-3 w-[15%]">
+                  สถานะ SAR / แนบไฟล์
+                </th>
+                <th scope="col" className="py-3 px-3 w-[11%] text-right">
+                  งบสุทธิ
+                </th>
+                <th scope="col" className="py-3 px-3 w-[10%] text-right">
+                  กันเงิน
+                </th>
+                <th scope="col" className="py-3 px-3 w-[12%] text-right">
+                  เบิกจ่ายแล้ว
+                </th>
+                <th scope="col" className="py-3 px-3 w-[11%] text-right">
+                  คงเหลือสุทธิ
+                </th>
+                <th scope="col" className="py-3 px-4 w-[11%] text-center">
+                  การจัดการ
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-200/80 dark:divide-gray-800 text-xs">
+              {projects.map((project) => {
+                const isExpanded = expandedProjectIds.has(project.id);
+                const { financials, permissions } = project;
+                const { sarReadiness } = financials;
+                const bSourceKey = project.budgetSource || project.budgetSourceType;
+                const deptName =
+                  project.department?.name || project.departmentName || "-";
+                const leaderName =
+                  project.leader?.name || project.leaderUserName || "-";
 
-        const paidPct = financials.paidPercentage ?? (financials.effectiveBudget > 0 ? Number(((financials.paidAmount / financials.effectiveBudget) * 100).toFixed(1)) : 0);
-        const resPct = financials.reservedPercentage ?? (financials.effectiveBudget > 0 ? Number(((financials.reservedAmount / financials.effectiveBudget) * 100).toFixed(1)) : 0);
-        const usePct = financials.usagePercentage ?? (financials.effectiveBudget > 0 ? Number(((financials.totalSpent / financials.effectiveBudget) * 100).toFixed(1)) : 0);
-        const hasWarning = financials.hasUnallocatedWarning ?? (financials.unallocatedBudget !== 0);
+                const paidPct =
+                  financials.paidPercentage ??
+                  (financials.effectiveBudget > 0
+                    ? Number(
+                        ((financials.paidAmount / financials.effectiveBudget) *
+                          100).toFixed(1)
+                      )
+                    : 0);
+                const resPct =
+                  financials.reservedPercentage ??
+                  (financials.effectiveBudget > 0
+                    ? Number(
+                        (
+                          (financials.reservedAmount /
+                            financials.effectiveBudget) *
+                          100
+                        ).toFixed(1)
+                      )
+                    : 0);
+                const usePct =
+                  financials.usagePercentage ??
+                  (financials.effectiveBudget > 0
+                    ? Number(
+                        ((financials.totalSpent / financials.effectiveBudget) *
+                          100).toFixed(1)
+                      )
+                    : 0);
+                const hasWarning =
+                  financials.hasUnallocatedWarning ??
+                  financials.unallocatedBudget !== 0;
 
-        const canManageBudget = permissions?.canManageProjectsAndBudget ?? permissions?.canManageProject ?? false;
-        const canAttach = permissions?.canManageAttachments ?? true;
+                const canManageBudget =
+                  permissions?.canManageProjectsAndBudget ??
+                  permissions?.canManageProject ??
+                  false;
+                const canAttach = permissions?.canManageAttachments ?? true;
 
-        return (
-          <div
-            key={project.id}
-            className="overflow-hidden rounded-xl border border-slate-200 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-xs transition-shadow hover:shadow-md"
-          >
-            {/* ========================================================= */}
-            {/* LEVEL 1: แถวโครงการหลัก (Project Master Card / Row) */}
-            {/* ========================================================= */}
-            <div className="border-b border-slate-100 dark:border-gray-800 bg-slate-50/70 dark:bg-gray-850/60 p-4 sm:p-5">
-              <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-                {/* ข้อมูลโครงการด้านซ้าย */}
-                <div className="flex items-start gap-3">
-                  <button
-                    type="button"
-                    onClick={() => onToggleExpand(project.id)}
-                    aria-label={isExpanded ? "ย่อกิจกรรมย่อย" : "กางกิจกรรมย่อย"}
-                    aria-expanded={isExpanded}
-                    className="mt-0.5 rounded-lg border border-slate-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-1.5 text-slate-600 dark:text-slate-300 shadow-2xs hover:bg-slate-100 dark:hover:bg-gray-700 hover:text-slate-900 cursor-pointer"
-                  >
-                    {isExpanded ? (
-                      <ChevronDown className="h-4 w-4" />
-                    ) : (
-                      <ChevronRight className="h-4 w-4" />
-                    )}
-                  </button>
+                return (
+                  <React.Fragment key={project.id}>
+                    {/* แถวโครงการหลักในตาราง Desktop (Master Project Row) */}
+                    <tr
+                      className={`transition-colors hover:bg-slate-50/90 dark:hover:bg-gray-800/60 ${
+                        isExpanded
+                          ? "bg-slate-50/40 dark:bg-gray-850/40 font-medium"
+                          : ""
+                      }`}
+                    >
+                      {/* คอลัมน์ที่ 1: โครงการ / ฝ่าย / รหัส / หัวหน้า */}
+                      <td className="py-3.5 px-4 align-top">
+                        <div className="flex items-start gap-2.5">
+                          <button
+                            type="button"
+                            onClick={() => onToggleExpand(project.id)}
+                            aria-label={
+                              isExpanded ? "ย่อกิจกรรมย่อย" : "กางดูกิจกรรมย่อย"
+                            }
+                            aria-expanded={isExpanded}
+                            className="mt-0.5 rounded-lg border border-slate-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-1 text-slate-600 dark:text-slate-300 shadow-2xs hover:bg-slate-100 dark:hover:bg-gray-700 hover:text-slate-900 cursor-pointer transition-colors"
+                          >
+                            {isExpanded ? (
+                              <ChevronDown className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                            ) : (
+                              <ChevronRight className="h-4 w-4" />
+                            )}
+                          </button>
 
-                  <div className="space-y-2">
-                    {/* บรรทัดที่ 1: รหัสโครงการ + ชื่อโครงการ + ป้ายสถานะ */}
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="rounded-md bg-slate-900 dark:bg-slate-800 px-2 py-0.5 font-mono text-xs font-semibold text-white dark:text-slate-300">
-                        {project.code}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => onToggleExpand(project.id)}
-                        className="text-left text-base font-bold text-slate-900 dark:text-white hover:text-blue-700 dark:hover:text-blue-400 cursor-pointer"
-                      >
-                        {project.name}
-                      </button>
-                      <ProjectStatusBadge status={project.status} />
-                    </div>
+                          <div className="space-y-1">
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <span className="rounded bg-slate-900 dark:bg-slate-800 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-white dark:text-slate-300">
+                                {project.code}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => onToggleExpand(project.id)}
+                                className="text-left font-bold text-slate-900 dark:text-white hover:text-blue-600 dark:hover:text-blue-400 cursor-pointer"
+                              >
+                                {project.name}
+                              </button>
+                            </div>
 
-                    {/* บรรทัดที่ 2: ฝ่ายงาน + แหล่งเงิน + หัวหน้าโครงการ + กลยุทธ์ */}
-                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600 dark:text-slate-400">
-                      <span className="font-medium text-slate-800 dark:text-slate-200">
-                        {deptName}
-                      </span>
-                      <span>•</span>
-                      <span className="rounded-md bg-blue-50 dark:bg-blue-950/50 px-2 py-0.5 font-medium text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
-                        {BUDGET_SOURCE_LABELS[bSourceKey] || bSourceKey}
-                      </span>
-                      <span>•</span>
-                      <span>
-                        หัวหน้าโครงการ:{" "}
-                        <strong className="text-slate-800 dark:text-slate-200">
-                          {leaderName}
-                        </strong>
-                      </span>
-                      {project.strategyCode && (
-                        <>
-                          <span>•</span>
-                          <span>กลยุทธ์: {project.strategyCode}</span>
-                        </>
-                      )}
-                    </div>
+                            <div className="flex flex-wrap items-center gap-x-2 text-[11px] text-slate-500 dark:text-slate-400">
+                              <span className="font-medium text-slate-700 dark:text-slate-300">
+                                {deptName}
+                              </span>
+                              <span>•</span>
+                              <span className="rounded bg-blue-50 dark:bg-blue-950/50 px-1.5 py-0.2 border border-blue-200 dark:border-blue-900 text-[10px] font-medium text-blue-800 dark:text-blue-300">
+                                {BUDGET_SOURCE_LABELS[bSourceKey] || bSourceKey}
+                              </span>
+                              <span>•</span>
+                              <span>
+                                หัวหน้า:{" "}
+                                <strong className="text-slate-700 dark:text-slate-300 font-medium">
+                                  {leaderName}
+                                </strong>
+                              </span>
+                            </div>
 
-                    {/* บรรทัดที่ 3: สถานะเอกสาร SAR 3 ช่อง + ปุ่มจัดการเอกสารแนบ + ป้ายเตือนงบยังไม่จัดสรร */}
-                    <div className="flex flex-wrap items-center gap-2 pt-1">
-                      <div className="inline-flex flex-wrap items-center gap-1.5 rounded-lg border border-slate-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-2.5 py-1 text-xs">
-                        <span className="font-medium text-slate-500 dark:text-slate-400">
-                          เอกสาร SAR:
-                        </span>
-                        <span
-                          className={`inline-flex items-center gap-1 ${
-                            sarReadiness.hasProposal
-                              ? "font-medium text-emerald-700 dark:text-emerald-400"
-                              : "text-slate-400 dark:text-gray-500"
-                          }`}
-                        >
-                          {sarReadiness.hasProposal ? (
-                            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
-                          ) : (
-                            <Circle className="h-3.5 w-3.5" />
-                          )}
-                          เล่มโครงการ
-                        </span>
-                        <span className="text-slate-300 dark:text-gray-600">|</span>
-                        <span
-                          className={`inline-flex items-center gap-1 ${
-                            sarReadiness.hasApproval
-                              ? "font-medium text-emerald-700 dark:text-emerald-400"
-                              : "text-slate-400 dark:text-gray-500"
-                          }`}
-                        >
-                          {sarReadiness.hasApproval ? (
-                            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
-                          ) : (
-                            <Circle className="h-3.5 w-3.5" />
-                          )}
-                          ขออนุมัติ
-                        </span>
-                        <span className="text-slate-300 dark:text-gray-600">|</span>
-                        <span
-                          className={`inline-flex items-center gap-1 ${
-                            sarReadiness.hasSummary
-                              ? "font-medium text-emerald-700 dark:text-emerald-400"
-                              : "text-slate-400 dark:text-gray-500"
-                          }`}
-                        >
-                          {sarReadiness.hasSummary ? (
-                            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
-                          ) : (
-                            <Circle className="h-3.5 w-3.5" />
-                          )}
-                          สรุปผล SAR
-                        </span>
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => onOpenAttachments(project)}
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50/80 dark:bg-blue-950/40 px-2.5 py-1 text-xs font-medium text-blue-700 dark:text-blue-300 hover:bg-blue-100 cursor-pointer"
-                      >
-                        <Paperclip className="h-3.5 w-3.5" />
-                        <span>
-                          เอกสารแนบ ({project.attachments?.length || 0})
-                          {canAttach ? " / + แนบไฟล์" : ""}
-                        </span>
-                      </button>
-
-                      {/* ป้ายเตือนกรณีงบโครงการกับผลรวมงบกิจกรรมย่อยยังไม่ตรงกัน */}
-                      {hasWarning && (
-                        <span
-                          className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs font-medium ${
-                            financials.unallocatedBudget > 0
-                              ? "border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/50 text-amber-800 dark:text-amber-300"
-                              : "border-rose-200 dark:border-rose-800 bg-rose-50 dark:bg-rose-950/50 text-rose-800 dark:text-rose-300"
-                          }`}
-                        >
-                          <AlertTriangle className="h-3.5 w-3.5" />
-                          {financials.unallocatedBudget > 0
-                            ? `รอจัดสรรลงกิจกรรม ${formatCurrencyTHB(financials.unallocatedBudget)}`
-                            : `จัดสรรเกินงบโครงการ ${formatCurrencyTHB(Math.abs(financials.unallocatedBudget))}`}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* ข้อมูลตัวเลขการเงินและปุ่มจัดการระดับโครงการด้านขวา */}
-                <div className="flex flex-col gap-3 border-t border-slate-200/80 dark:border-gray-800 pt-3 xl:min-w-[440px] xl:border-t-0 xl:pt-0">
-                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                    <div className="rounded-lg bg-white dark:bg-gray-800 p-2.5 ring-1 ring-slate-200/80 dark:ring-gray-700">
-                      <div className="text-[11px] text-slate-500 dark:text-slate-400">งบสุทธิโครงการ</div>
-                      <div className="mt-0.5 text-sm font-bold tabular-nums text-slate-900 dark:text-white">
-                        {formatCurrencyTHB(financials.effectiveBudget)}
-                      </div>
-                      {financials.isAdjusted && (
-                        <div
-                          className="text-[10px] tabular-nums text-slate-400"
-                          title="มีการโอนเกลี่ยงบประมาณจากแผนตั้งต้น"
-                        >
-                          เดิม {formatCurrencyTHB(financials.allocatedAmount)}
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="rounded-lg bg-white dark:bg-gray-800 p-2.5 ring-1 ring-slate-200/80 dark:ring-gray-700">
-                      <div className="text-[11px] text-amber-700 dark:text-amber-400">กันวงเงิน</div>
-                      <div className="mt-0.5 text-sm font-semibold tabular-nums text-amber-700 dark:text-amber-400">
-                        {formatCurrencyTHB(financials.reservedAmount)}
-                      </div>
-                    </div>
-
-                    <div className="rounded-lg bg-white dark:bg-gray-800 p-2.5 ring-1 ring-slate-200/80 dark:ring-gray-700">
-                      <div className="text-[11px] text-blue-700 dark:text-blue-400">เบิกจ่ายจริง</div>
-                      <div className="mt-0.5 text-sm font-semibold tabular-nums text-blue-700 dark:text-blue-400">
-                        {formatCurrencyTHB(financials.paidAmount)}
-                      </div>
-                    </div>
-
-                    <div className="rounded-lg bg-white dark:bg-gray-800 p-2.5 ring-1 ring-slate-200/80 dark:ring-gray-700">
-                      <div className="text-[11px] text-slate-500 dark:text-slate-400">คงเหลือสุทธิ</div>
-                      <div
-                        className={`mt-0.5 text-sm font-bold tabular-nums ${
-                          financials.remainingBalance < 0
-                            ? "text-rose-600 dark:text-rose-400"
-                            : "text-emerald-700 dark:text-emerald-400"
-                        }`}
-                      >
-                        {formatCurrencyTHB(financials.remainingBalance)}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* แถบ Progress Bar 2 ชั้น + ปุ่มจัดการของเจ้าหน้าที่แผน */}
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="flex-1">
-                      <StackedBudgetProgressBar
-                        paidPercentage={paidPct}
-                        reservedPercentage={resPct}
-                        usagePercentage={usePct}
-                      />
-                    </div>
-
-                    {canManageBudget && (
-                      <div className="flex items-center justify-end gap-1.5 sm:ml-3">
-                        <button
-                          type="button"
-                          onClick={() => onAddActivity(project)}
-                          className="inline-flex min-h-[44px] items-center gap-1 rounded-xl bg-slate-900 dark:bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800 dark:hover:bg-blue-700 cursor-pointer"
-                        >
-                          <Plus className="h-4 w-4" />
-                          เพิ่มกิจกรรมย่อย
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => onEditProject(project)}
-                          aria-label="แก้ไขโครงการ / โอนเกลี่ยงบ"
-                          className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl border border-slate-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-gray-700 hover:text-slate-900 cursor-pointer"
-                          title="แก้ไขโครงการ / โอนเกลี่ยงบ"
-                        >
-                          <Edit3 className="h-4 w-4" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => onDeleteProject(project)}
-                          aria-label="ลบโครงการ"
-                          className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl border border-slate-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-2 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 cursor-pointer"
-                          title="ลบโครงการ"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* ========================================================= */}
-            {/* LEVEL 2: รายการกิจกรรมย่อยภายใต้โครงการ (Child Activity Rows) */}
-            {/* ========================================================= */}
-            {isExpanded && (
-              <div className="divide-y divide-slate-100 dark:divide-gray-800 bg-white dark:bg-gray-900">
-                {!project.activities || project.activities.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-8 text-center">
-                    <FileText className="h-6 w-6 text-slate-300 dark:text-gray-600" />
-                    <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                      ยังไม่มีกิจกรรมย่อยในโครงการนี้
-                    </p>
-                    {canManageBudget && (
-                      <button
-                        type="button"
-                        onClick={() => onAddActivity(project)}
-                        className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
-                      >
-                        <Plus className="h-3.5 w-3.5" />
-                        คลิกเพื่อเพิ่มกิจกรรมย่อยแรก
-                      </button>
-                    )}
-                  </div>
-                ) : (
-                  project.activities.map((activity) => {
-                    const actFin = activity.financials;
-                    const respName = activity.responsibleUser?.name || activity.responsibleUserName || "-";
-                    const actExpensesCount = actFin.activeExpenseCount ?? (activity.expenses?.filter(e => e.status !== "CANCELLED").length || 0);
-                    const actReservedCount = actFin.reservedExpenseCount ?? (activity.expenses?.filter(e => e.status === "RESERVED").length || 0);
-                    const canSettle = activity.permissions?.canRecordAndSettleExpenses ?? canManageBudget;
-                    const canManageAct = activity.permissions?.canManageProjectsAndBudget ?? canManageBudget;
-
-                    return (
-                      <div
-                        key={activity.id}
-                        className="flex flex-col gap-3 px-4 py-3.5 transition-colors hover:bg-slate-50/80 dark:hover:bg-gray-800/50 sm:px-6 lg:flex-row lg:items-center lg:justify-between"
-                      >
-                        {/* ข้อมูลกิจกรรมย่อยด้านซ้าย */}
-                        <div className="space-y-1 lg:max-w-md xl:max-w-xl">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="inline-flex h-5 items-center rounded bg-slate-100 dark:bg-gray-800 px-1.5 font-mono text-xs font-semibold text-slate-700 dark:text-slate-300">
-                              กิจกรรมที่ {activity.activityNo}
-                            </span>
-                            <span className="text-sm font-semibold text-slate-900 dark:text-white">
-                              {activity.name}
-                            </span>
-                          </div>
-
-                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
-                            <span>
-                              ผู้รับผิดชอบ:{" "}
-                              <strong className="text-slate-700 dark:text-slate-200">
-                                {respName}
-                              </strong>
-                            </span>
-
-                            {/* ป้ายหมวดค่าใช้จ่ายที่มีการเบิกจริงในกิจกรรมนี้ */}
-                            {actFin.usedCategories && actFin.usedCategories.length > 0 && (
-                              <div className="flex flex-wrap items-center gap-1">
-                                <span>• หมวดที่เบิก:</span>
-                                {actFin.usedCategories.map((cat) => (
-                                  <span
-                                    key={cat}
-                                    className="rounded bg-slate-100 dark:bg-gray-800 px-1.5 py-0.5 text-[11px] font-medium text-slate-700 dark:text-slate-300"
-                                  >
-                                    {EXPENSE_CATEGORY_LABELS[cat] || cat}
-                                  </span>
-                                ))}
+                            {/* ป้ายเตือนกรณีงบโครงการกับผลรวมกิจกรรมย่อยไม่ตรงกัน */}
+                            {hasWarning && (
+                              <div className="pt-0.5">
+                                <span
+                                  className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium ${
+                                    financials.unallocatedBudget > 0
+                                      ? "bg-amber-50 dark:bg-amber-950/50 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800"
+                                      : "bg-rose-50 dark:bg-rose-950/50 text-rose-800 dark:text-rose-300 border border-rose-200 dark:border-rose-800"
+                                  }`}
+                                >
+                                  <AlertTriangle className="h-3 w-3" />
+                                  {financials.unallocatedBudget > 0
+                                    ? `รอจัดสรรลงกิจกรรม ${formatCurrencyTHB(financials.unallocatedBudget)}`
+                                    : `จัดสรรเกินงบ ${formatCurrencyTHB(Math.abs(financials.unallocatedBudget))}`}
+                                </span>
                               </div>
                             )}
                           </div>
                         </div>
+                      </td>
 
-                        {/* ตัวเลขงบประมาณระดับกิจกรรมย่อย + ปุ่มดำเนินการ */}
-                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between lg:justify-end lg:gap-5">
-                          <div className="grid grid-cols-4 gap-3 text-right text-xs">
-                            <div>
-                              <div className="text-[11px] text-slate-400">
-                                งบกิจกรรม
+                      {/* คอลัมน์ที่ 2: สถานะ SAR & เอกสารแนบ */}
+                      <td className="py-3.5 px-3 align-top">
+                        <div className="space-y-1.5">
+                          <div className="flex items-center gap-1 text-[11px]">
+                            <span
+                              title={
+                                sarReadiness.hasProposal
+                                  ? "มีเล่มโครงการแล้ว"
+                                  : "ยังไม่มีเล่มโครงการ"
+                              }
+                              className={`inline-flex items-center gap-0.5 ${
+                                sarReadiness.hasProposal
+                                  ? "text-emerald-700 dark:text-emerald-400 font-medium"
+                                  : "text-slate-400 dark:text-gray-500"
+                              }`}
+                            >
+                              {sarReadiness.hasProposal ? (
+                                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                              ) : (
+                                <Circle className="h-3.5 w-3.5" />
+                              )}
+                              เล่ม
+                            </span>
+                            <span className="text-slate-300 dark:text-gray-600">|</span>
+                            <span
+                              title={
+                                sarReadiness.hasApproval
+                                  ? "มีบันทึกขออนุมัติแล้ว"
+                                  : "ยังไม่มีบันทึกขออนุมัติ"
+                              }
+                              className={`inline-flex items-center gap-0.5 ${
+                                sarReadiness.hasApproval
+                                  ? "text-emerald-700 dark:text-emerald-400 font-medium"
+                                  : "text-slate-400 dark:text-gray-500"
+                              }`}
+                            >
+                              {sarReadiness.hasApproval ? (
+                                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                              ) : (
+                                <Circle className="h-3.5 w-3.5" />
+                              )}
+                              อนุมัติ
+                            </span>
+                            <span className="text-slate-300 dark:text-gray-600">|</span>
+                            <span
+                              title={
+                                sarReadiness.hasSummary
+                                  ? "มีรายงานสรุป SAR แล้ว"
+                                  : "ยังไม่มีรายงานสรุป SAR"
+                              }
+                              className={`inline-flex items-center gap-0.5 ${
+                                sarReadiness.hasSummary
+                                  ? "text-emerald-700 dark:text-emerald-400 font-medium"
+                                  : "text-slate-400 dark:text-gray-500"
+                              }`}
+                            >
+                              {sarReadiness.hasSummary ? (
+                                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                              ) : (
+                                <Circle className="h-3.5 w-3.5" />
+                              )}
+                              SAR
+                            </span>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => onOpenAttachments(project)}
+                            className="inline-flex items-center gap-1 rounded border border-blue-200 dark:border-blue-900 bg-blue-50/80 dark:bg-blue-950/40 px-2 py-0.5 text-[11px] font-medium text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/60 cursor-pointer transition-colors"
+                          >
+                            <Paperclip className="h-3 w-3" />
+                            <span>
+                              ไฟล์แนบ ({project.attachments?.length || 0})
+                              {canAttach ? " / +" : ""}
+                            </span>
+                          </button>
+                        </div>
+                      </td>
+
+                      {/* คอลัมน์ที่ 3: งบสุทธิ */}
+                      <td className="py-3.5 px-3 align-top text-right">
+                        <div className="font-bold tabular-nums text-slate-900 dark:text-white">
+                          {formatCurrencyTHB(financials.effectiveBudget)}
+                        </div>
+                        {financials.isAdjusted && (
+                          <div
+                            className="text-[10px] tabular-nums text-slate-400"
+                            title="งบประมาณตั้งต้นก่อนโอนเกลี่ย"
+                          >
+                            เดิม {formatCurrencyTHB(financials.allocatedAmount)}
+                          </div>
+                        )}
+                      </td>
+
+                      {/* คอลัมน์ที่ 4: กันเงิน */}
+                      <td className="py-3.5 px-3 align-top text-right">
+                        <div className="font-semibold tabular-nums text-amber-700 dark:text-amber-400">
+                          {formatCurrencyTHB(financials.reservedAmount)}
+                        </div>
+                        {resPct > 0 && (
+                          <div className="text-[10px] tabular-nums text-amber-600 dark:text-amber-500">
+                            ({resPct}%)
+                          </div>
+                        )}
+                      </td>
+
+                      {/* คอลัมน์ที่ 5: เบิกจ่ายแล้ว + Mini Progress Bar */}
+                      <td className="py-3.5 px-3 align-top text-right">
+                        <div className="font-semibold tabular-nums text-blue-700 dark:text-blue-400">
+                          {formatCurrencyTHB(financials.paidAmount)}
+                        </div>
+                        <div className="mt-1">
+                          <StackedBudgetProgressBar
+                            paidPercentage={paidPct}
+                            reservedPercentage={resPct}
+                            usagePercentage={usePct}
+                            compact
+                          />
+                        </div>
+                        <div className="mt-0.5 text-[10px] tabular-nums text-slate-500 dark:text-slate-400">
+                          ใช้ไป {usePct}%
+                        </div>
+                      </td>
+
+                      {/* คอลัมน์ที่ 6: คงเหลือสุทธิ */}
+                      <td className="py-3.5 px-3 align-top text-right">
+                        <div
+                          className={`font-bold tabular-nums text-sm ${
+                            financials.remainingBalance < 0
+                              ? "text-rose-600 dark:text-rose-400"
+                              : "text-emerald-700 dark:text-emerald-400"
+                          }`}
+                        >
+                          {formatCurrencyTHB(financials.remainingBalance)}
+                        </div>
+                      </td>
+
+                      {/* คอลัมน์ที่ 7: การจัดการและสถานะ */}
+                      <td className="py-3.5 px-4 align-top text-center">
+                        <div className="flex flex-col items-center gap-1.5">
+                          <ProjectStatusBadge status={project.status} />
+
+                          {canManageBudget && (
+                            <div className="flex items-center gap-1 mt-0.5">
+                              <button
+                                type="button"
+                                onClick={() => onAddActivity(project)}
+                                aria-label="เพิ่มกิจกรรมย่อย"
+                                className="rounded p-1 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-gray-800 hover:text-slate-900 cursor-pointer transition-colors"
+                                title="เพิ่มกิจกรรมย่อย"
+                              >
+                                <Plus className="h-4 w-4" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => onEditProject(project)}
+                                aria-label="แก้ไขโครงการ / โอนเกลี่ยงบ"
+                                className="rounded p-1 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-gray-800 hover:text-slate-900 cursor-pointer transition-colors"
+                                title="แก้ไขโครงการ / โอนเกลี่ยงบ"
+                              >
+                                <Edit3 className="h-4 w-4" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => onDeleteProject(project)}
+                                aria-label="ลบโครงการ"
+                                className="rounded p-1 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 cursor-pointer transition-colors"
+                                title="ลบโครงการ"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+
+                    {/* รายการกิจกรรมย่อยเมื่อกดกางแถวโครงการ (Expanded Child Activity Table) */}
+                    {isExpanded && (
+                      <tr className="bg-slate-50/70 dark:bg-gray-850/50">
+                        <td colSpan={7} className="p-0 border-b border-slate-200 dark:border-gray-800">
+                          <div className="px-5 py-4 space-y-3">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <span className="h-2 w-2 rounded-full bg-blue-600"></span>
+                                <span className="font-semibold text-slate-800 dark:text-slate-200 text-xs">
+                                  กิจกรรมย่อยภายใต้โครงการ ({project.activities?.length || 0} รายการ)
+                                </span>
                               </div>
-                              <div className="font-semibold tabular-nums text-slate-800 dark:text-slate-200">
-                                {formatCurrencyTHB(actFin.effectiveBudget)}
-                              </div>
-                              {actFin.isAdjusted && (
-                                <div className="text-[10px] tabular-nums text-slate-400">
-                                  (เดิม {formatCurrencyTHB(actFin.allocatedAmount)})
-                                </div>
+                              {canManageBudget && (
+                                <button
+                                  type="button"
+                                  onClick={() => onAddActivity(project)}
+                                  className="inline-flex items-center gap-1 rounded-lg bg-slate-900 dark:bg-blue-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-slate-800 dark:hover:bg-blue-700 cursor-pointer transition-colors"
+                                >
+                                  <Plus className="h-3.5 w-3.5" />
+                                  <span>เพิ่มกิจกรรมย่อย</span>
+                                </button>
                               )}
                             </div>
 
-                            <div>
-                              <div className="text-[11px] text-amber-600 dark:text-amber-400">
-                                กันวงเงิน
+                            {!project.activities || project.activities.length === 0 ? (
+                              <div className="rounded-lg border border-dashed border-slate-300 dark:border-gray-700 bg-white dark:bg-gray-900 py-6 text-center">
+                                <FileText className="mx-auto h-6 w-6 text-slate-300 dark:text-gray-600" />
+                                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                                  ยังไม่มีกิจกรรมย่อยในโครงการนี้
+                                </p>
                               </div>
+                            ) : (
+                              <div className="overflow-hidden rounded-lg border border-slate-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-2xs">
+                                <table className="w-full text-left border-collapse">
+                                  <thead className="bg-slate-100/80 dark:bg-gray-800/80 text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider border-b border-slate-200 dark:border-gray-700">
+                                    <tr>
+                                      <th scope="col" className="py-2.5 px-3.5 w-[36%]">
+                                        กิจกรรมย่อย / ผู้รับผิดชอบ / หมวดที่เบิก
+                                      </th>
+                                      <th scope="col" className="py-2.5 px-2.5 w-[11%] text-right">
+                                        งบกิจกรรม
+                                      </th>
+                                      <th scope="col" className="py-2.5 px-2.5 w-[11%] text-right">
+                                        กันเงิน
+                                      </th>
+                                      <th scope="col" className="py-2.5 px-2.5 w-[11%] text-right">
+                                        จ่ายแล้ว
+                                      </th>
+                                      <th scope="col" className="py-2.5 px-2.5 w-[11%] text-right">
+                                        คงเหลือ
+                                      </th>
+                                      <th scope="col" className="py-2.5 px-3.5 w-[20%] text-right">
+                                        การเงิน / จัดการ
+                                      </th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-slate-100 dark:divide-gray-800 text-xs">
+                                    {project.activities.map((activity) => {
+                                      const actFin = activity.financials;
+                                      const respName =
+                                        activity.responsibleUser?.name ||
+                                        activity.responsibleUserName ||
+                                        "-";
+                                      const actExpensesCount =
+                                        actFin.activeExpenseCount ??
+                                        (activity.expenses?.filter(
+                                          (e) => e.status !== "CANCELLED"
+                                        ).length || 0);
+                                      const actReservedCount =
+                                        actFin.reservedExpenseCount ??
+                                        (activity.expenses?.filter(
+                                          (e) => e.status === "RESERVED"
+                                        ).length || 0);
+                                      const canSettle =
+                                        activity.permissions
+                                          ?.canRecordAndSettleExpenses ??
+                                        canManageBudget;
+                                      const canManageAct =
+                                        activity.permissions
+                                          ?.canManageProjectsAndBudget ??
+                                        canManageBudget;
+
+                                      return (
+                                        <tr
+                                          key={activity.id}
+                                          className="hover:bg-slate-50/80 dark:hover:bg-gray-800/40 transition-colors"
+                                        >
+                                          {/* ชื่อกิจกรรม & ผู้รับผิดชอบ */}
+                                          <td className="py-2.5 px-3.5 align-middle">
+                                            <div className="space-y-0.5">
+                                              <div className="flex items-center gap-1.5">
+                                                <span className="font-mono text-[11px] font-semibold text-slate-700 dark:text-slate-300">
+                                                  #{activity.activityNo}
+                                                </span>
+                                                <span className="font-semibold text-slate-900 dark:text-white">
+                                                  {activity.name}
+                                                </span>
+                                              </div>
+                                              <div className="flex flex-wrap items-center gap-x-2 text-[11px] text-slate-500 dark:text-slate-400">
+                                                <span>
+                                                  ผู้รับผิดชอบ:{" "}
+                                                  <strong className="text-slate-700 dark:text-slate-300 font-medium">
+                                                    {respName}
+                                                  </strong>
+                                                </span>
+                                                {actFin.usedCategories &&
+                                                  actFin.usedCategories.length >
+                                                    0 && (
+                                                    <>
+                                                      <span>•</span>
+                                                      <span className="flex items-center gap-1">
+                                                        {actFin.usedCategories.map(
+                                                          (cat) => (
+                                                            <span
+                                                              key={cat}
+                                                              className="rounded bg-slate-100 dark:bg-gray-800 px-1 py-0.2 text-[10px] text-slate-600 dark:text-slate-400"
+                                                            >
+                                                              {EXPENSE_CATEGORY_LABELS[
+                                                                cat
+                                                              ] || cat}
+                                                            </span>
+                                                          )
+                                                        )}
+                                                      </span>
+                                                    </>
+                                                  )}
+                                              </div>
+                                            </div>
+                                          </td>
+
+                                          {/* งบกิจกรรม */}
+                                          <td className="py-2.5 px-2.5 align-middle text-right">
+                                            <div className="font-semibold tabular-nums text-slate-800 dark:text-slate-200">
+                                              {formatCurrencyTHB(
+                                                actFin.effectiveBudget
+                                              )}
+                                            </div>
+                                          </td>
+
+                                          {/* กันเงิน */}
+                                          <td className="py-2.5 px-2.5 align-middle text-right">
+                                            <div className="font-medium tabular-nums text-amber-700 dark:text-amber-400">
+                                              {formatCurrencyTHB(
+                                                actFin.reservedAmount
+                                              )}
+                                            </div>
+                                          </td>
+
+                                          {/* จ่ายแล้ว */}
+                                          <td className="py-2.5 px-2.5 align-middle text-right">
+                                            <div className="font-medium tabular-nums text-blue-700 dark:text-blue-400">
+                                              {formatCurrencyTHB(
+                                                actFin.paidAmount
+                                              )}
+                                            </div>
+                                          </td>
+
+                                          {/* คงเหลือ */}
+                                          <td className="py-2.5 px-2.5 align-middle text-right">
+                                            <div
+                                              className={`font-bold tabular-nums ${
+                                                actFin.remainingBalance < 0
+                                                  ? "text-rose-600 dark:text-rose-400"
+                                                  : "text-emerald-700 dark:text-emerald-400"
+                                              }`}
+                                            >
+                                              {formatCurrencyTHB(
+                                                actFin.remainingBalance
+                                              )}
+                                            </div>
+                                          </td>
+
+                                          {/* ปุ่มการเงินและจัดการ */}
+                                          <td className="py-2.5 px-3.5 align-middle text-right">
+                                            <div className="flex items-center justify-end gap-1.5">
+                                              {canSettle && (
+                                                <button
+                                                  type="button"
+                                                  onClick={() =>
+                                                    onRecordExpense(
+                                                      project,
+                                                      activity
+                                                    )
+                                                  }
+                                                  className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-emerald-700 cursor-pointer transition-colors shadow-2xs"
+                                                  title="บันทึกตัดยอดงบประมาณ"
+                                                >
+                                                  <Receipt className="h-3.5 w-3.5" />
+                                                  <span>บันทึกเงิน</span>
+                                                </button>
+                                              )}
+
+                                              <button
+                                                type="button"
+                                                onClick={() =>
+                                                  onOpenExpenseHistory(
+                                                    project,
+                                                    activity
+                                                  )
+                                                }
+                                                className="inline-flex items-center gap-1 rounded-lg border border-slate-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-2 py-1 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-gray-700 cursor-pointer transition-colors"
+                                                title="ดูประวัติการเบิกจ่าย"
+                                              >
+                                                <History className="h-3.5 w-3.5 text-slate-500" />
+                                                <span>({actExpensesCount})</span>
+                                                {actReservedCount > 0 && (
+                                                  <span className="rounded-full bg-amber-100 dark:bg-amber-950/60 px-1.5 text-[10px] font-bold text-amber-800 dark:text-amber-300">
+                                                    รอ {actReservedCount}
+                                                  </span>
+                                                )}
+                                              </button>
+
+                                              {canManageAct && (
+                                                <div className="flex items-center gap-0.5">
+                                                  <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                      onEditActivity(
+                                                        project,
+                                                        activity
+                                                      )
+                                                    }
+                                                    aria-label="แก้ไขกิจกรรมย่อย"
+                                                    className="rounded p-1 text-slate-400 hover:bg-slate-100 dark:hover:bg-gray-700 hover:text-slate-700 dark:hover:text-slate-200 cursor-pointer transition-colors"
+                                                    title="แก้ไขกิจกรรมย่อย"
+                                                  >
+                                                    <Edit3 className="h-3.5 w-3.5" />
+                                                  </button>
+                                                  <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                      onDeleteActivity(
+                                                        project,
+                                                        activity
+                                                      )
+                                                    }
+                                                    aria-label="ลบกิจกรรมย่อย"
+                                                    className="rounded p-1 text-slate-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 hover:text-rose-600 cursor-pointer transition-colors"
+                                                    title="ลบกิจกรรมย่อย"
+                                                  >
+                                                    <Trash2 className="h-3.5 w-3.5" />
+                                                  </button>
+                                                </div>
+                                              )}
+                                            </div>
+                                          </td>
+                                        </tr>
+                                      );
+                                    })}
+                                  </tbody>
+                                </table>
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* ========================================================================= */}
+      {/* 2. MOBILE VIEW: Thumb-Friendly Rich Cards (การ์ดสำหรับหน้าจอมือถือ)        */}
+      {/* ========================================================================= */}
+      <div className="block md:hidden space-y-3.5">
+        {projects.map((project) => {
+          const isExpanded = expandedProjectIds.has(project.id);
+          const { financials, permissions } = project;
+          const { sarReadiness } = financials;
+          const bSourceKey = project.budgetSource || project.budgetSourceType;
+          const deptName =
+            project.department?.name || project.departmentName || "-";
+          const leaderName =
+            project.leader?.name || project.leaderUserName || "-";
+
+          const paidPct =
+            financials.paidPercentage ??
+            (financials.effectiveBudget > 0
+              ? Number(
+                  ((financials.paidAmount / financials.effectiveBudget) * 100).toFixed(
+                    1
+                  )
+                )
+              : 0);
+          const resPct =
+            financials.reservedPercentage ??
+            (financials.effectiveBudget > 0
+              ? Number(
+                  (
+                    (financials.reservedAmount / financials.effectiveBudget) *
+                    100
+                  ).toFixed(1)
+                )
+              : 0);
+          const usePct =
+            financials.usagePercentage ??
+            (financials.effectiveBudget > 0
+              ? Number(
+                  ((financials.totalSpent / financials.effectiveBudget) * 100).toFixed(
+                    1
+                  )
+                )
+              : 0);
+          const hasWarning =
+            financials.hasUnallocatedWarning ??
+            financials.unallocatedBudget !== 0;
+
+          const canManageBudget =
+            permissions?.canManageProjectsAndBudget ??
+            permissions?.canManageProject ??
+            false;
+          const canAttach = permissions?.canManageAttachments ?? true;
+
+          return (
+            <div
+              key={`mobile-${project.id}`}
+              className="overflow-hidden rounded-xl border border-slate-200 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-xs transition-shadow"
+            >
+              {/* ส่วนหัวการ์ดโครงการ: รหัส + สถานะ + ปุ่มกางดู */}
+              <div className="p-4 border-b border-slate-100 dark:border-gray-800 space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="rounded bg-slate-900 dark:bg-slate-800 px-2 py-0.5 font-mono text-xs font-semibold text-white dark:text-slate-300">
+                    {project.code}
+                  </span>
+                  <ProjectStatusBadge status={project.status} />
+                </div>
+
+                {/* ชื่อโครงการแตะเพื่อย่อ/ขยาย */}
+                <button
+                  type="button"
+                  onClick={() => onToggleExpand(project.id)}
+                  className="w-full text-left font-bold text-base text-slate-900 dark:text-white hover:text-blue-600 dark:hover:text-blue-400 cursor-pointer flex items-start justify-between gap-2"
+                >
+                  <span>{project.name}</span>
+                  <span className="mt-1 shrink-0 text-slate-400">
+                    {isExpanded ? (
+                      <ChevronDown className="h-5 w-5 text-blue-600" />
+                    ) : (
+                      <ChevronRight className="h-5 w-5" />
+                    )}
+                  </span>
+                </button>
+
+                {/* รายละเอียดสังกัด, แหล่งเงิน, หัวหน้า */}
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-600 dark:text-slate-400">
+                  <span className="font-medium text-slate-800 dark:text-slate-200">
+                    {deptName}
+                  </span>
+                  <span>•</span>
+                  <span className="rounded bg-blue-50 dark:bg-blue-950/50 px-1.5 py-0.5 font-medium text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-900 text-[11px]">
+                    {BUDGET_SOURCE_LABELS[bSourceKey] || bSourceKey}
+                  </span>
+                  <span>•</span>
+                  <span className="inline-flex items-center gap-1">
+                    <User className="h-3 w-3 text-slate-400" />
+                    {leaderName}
+                  </span>
+                </div>
+
+                {/* ตารางตัวเลข 4 ช่องในจอมือถือ (2x2 Grid) */}
+                <div className="grid grid-cols-2 gap-2 pt-1">
+                  <div className="rounded-lg bg-slate-50 dark:bg-gray-800/70 p-2.5 border border-slate-200/80 dark:border-gray-700/80">
+                    <div className="text-[11px] text-slate-500 dark:text-slate-400">งบสุทธิโครงการ</div>
+                    <div className="text-sm font-bold tabular-nums text-slate-900 dark:text-white">
+                      {formatCurrencyTHB(financials.effectiveBudget)}
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg bg-amber-50/60 dark:bg-amber-950/30 p-2.5 border border-amber-200/80 dark:border-amber-900/60">
+                    <div className="text-[11px] text-amber-700 dark:text-amber-400">กันวงเงินจอง</div>
+                    <div className="text-sm font-semibold tabular-nums text-amber-700 dark:text-amber-400">
+                      {formatCurrencyTHB(financials.reservedAmount)}
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg bg-blue-50/60 dark:bg-blue-950/30 p-2.5 border border-blue-200/80 dark:border-blue-900/60">
+                    <div className="text-[11px] text-blue-700 dark:text-blue-400">เบิกจ่ายจริง</div>
+                    <div className="text-sm font-semibold tabular-nums text-blue-700 dark:text-blue-400">
+                      {formatCurrencyTHB(financials.paidAmount)}
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg bg-emerald-50/60 dark:bg-emerald-950/30 p-2.5 border border-emerald-200/80 dark:border-emerald-900/60">
+                    <div className="text-[11px] text-emerald-800 dark:text-emerald-300">คงเหลือสุทธิ</div>
+                    <div
+                      className={`text-sm font-bold tabular-nums ${
+                        financials.remainingBalance < 0
+                          ? "text-rose-600 dark:text-rose-400"
+                          : "text-emerald-700 dark:text-emerald-400"
+                      }`}
+                    >
+                      {formatCurrencyTHB(financials.remainingBalance)}
+                    </div>
+                  </div>
+                </div>
+
+                {/* แถบ Progress Bar */}
+                <div className="pt-1">
+                  <StackedBudgetProgressBar
+                    paidPercentage={paidPct}
+                    reservedPercentage={resPct}
+                    usagePercentage={usePct}
+                  />
+                </div>
+
+                {/* สถานะ SAR & เอกสารแนบในจอมือถือ */}
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-slate-100 dark:border-gray-800">
+                  <div className="flex items-center gap-1.5 text-xs">
+                    <span className="text-[11px] text-slate-500 dark:text-slate-400">SAR:</span>
+                    <span
+                      className={`inline-flex items-center gap-0.5 ${
+                        sarReadiness.hasProposal
+                          ? "text-emerald-700 dark:text-emerald-400 font-medium"
+                          : "text-slate-400"
+                      }`}
+                    >
+                      {sarReadiness.hasProposal ? (
+                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                      ) : (
+                        <Circle className="h-3.5 w-3.5" />
+                      )}
+                      เล่ม
+                    </span>
+                    <span className="text-slate-300">|</span>
+                    <span
+                      className={`inline-flex items-center gap-0.5 ${
+                        sarReadiness.hasApproval
+                          ? "text-emerald-700 dark:text-emerald-400 font-medium"
+                          : "text-slate-400"
+                      }`}
+                    >
+                      {sarReadiness.hasApproval ? (
+                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                      ) : (
+                        <Circle className="h-3.5 w-3.5" />
+                      )}
+                      อนุมัติ
+                    </span>
+                    <span className="text-slate-300">|</span>
+                    <span
+                      className={`inline-flex items-center gap-0.5 ${
+                        sarReadiness.hasSummary
+                          ? "text-emerald-700 dark:text-emerald-400 font-medium"
+                          : "text-slate-400"
+                      }`}
+                    >
+                      {sarReadiness.hasSummary ? (
+                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                      ) : (
+                        <Circle className="h-3.5 w-3.5" />
+                      )}
+                      SAR
+                    </span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => onOpenAttachments(project)}
+                    className="inline-flex min-h-[36px] items-center gap-1 rounded-lg border border-blue-200 dark:border-blue-900 bg-blue-50/80 dark:bg-blue-950/40 px-2.5 py-1 text-xs font-medium text-blue-700 dark:text-blue-300"
+                  >
+                    <Paperclip className="h-3.5 w-3.5" />
+                    <span>
+                      แนบไฟล์ ({project.attachments?.length || 0})
+                    </span>
+                  </button>
+                </div>
+
+                {/* ปุ่มจัดการโครงการระดับมือถือ */}
+                {canManageBudget && (
+                  <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-gray-800">
+                    <button
+                      type="button"
+                      onClick={() => onAddActivity(project)}
+                      className="inline-flex min-h-[44px] flex-1 items-center justify-center gap-1.5 rounded-xl bg-slate-900 dark:bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800 cursor-pointer"
+                    >
+                      <Plus className="h-4 w-4" />
+                      เพิ่มกิจกรรมย่อย
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onEditProject(project)}
+                      aria-label="แก้ไขโครงการ"
+                      className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl border border-slate-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-2 text-slate-700 dark:text-slate-300"
+                      title="แก้ไขโครงการ"
+                    >
+                      <Edit3 className="h-4 w-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onDeleteProject(project)}
+                      aria-label="ลบโครงการ"
+                      className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl border border-slate-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-2 text-rose-600"
+                      title="ลบโครงการ"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* กิจกรรมย่อยในจอมือถือ (เมื่อกางออก) */}
+              {isExpanded && (
+                <div className="divide-y divide-slate-100 dark:divide-gray-800 bg-slate-50/60 dark:bg-gray-850/60 p-3 space-y-3">
+                  {!project.activities || project.activities.length === 0 ? (
+                    <div className="py-6 text-center text-xs text-slate-500">
+                      ยังไม่มีกิจกรรมย่อยในโครงการนี้
+                    </div>
+                  ) : (
+                    project.activities.map((activity) => {
+                      const actFin = activity.financials;
+                      const respName =
+                        activity.responsibleUser?.name ||
+                        activity.responsibleUserName ||
+                        "-";
+                      const actExpensesCount =
+                        actFin.activeExpenseCount ??
+                        (activity.expenses?.filter(
+                          (e) => e.status !== "CANCELLED"
+                        ).length || 0);
+                      const actReservedCount =
+                        actFin.reservedExpenseCount ??
+                        (activity.expenses?.filter(
+                          (e) => e.status === "RESERVED"
+                        ).length || 0);
+                      const canSettle =
+                        activity.permissions?.canRecordAndSettleExpenses ??
+                        canManageBudget;
+                      const canManageAct =
+                        activity.permissions?.canManageProjectsAndBudget ??
+                        canManageBudget;
+
+                      return (
+                        <div
+                          key={`mobile-act-${activity.id}`}
+                          className="rounded-lg border border-slate-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-3 space-y-2.5"
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <span className="font-mono text-xs font-bold text-slate-700 dark:text-slate-300">
+                                กิจกรรม #{activity.activityNo}
+                              </span>
+                              <h4 className="font-semibold text-sm text-slate-900 dark:text-white">
+                                {activity.name}
+                              </h4>
+                              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                                ผู้รับผิดชอบ:{" "}
+                                <strong className="text-slate-700 dark:text-slate-200 font-medium">
+                                  {respName}
+                                </strong>
+                              </p>
+                            </div>
+                            {canManageAct && (
+                              <div className="flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    onEditActivity(project, activity)
+                                  }
+                                  aria-label="แก้ไขกิจกรรมย่อย"
+                                  className="p-1.5 text-slate-400 hover:text-slate-700"
+                                >
+                                  <Edit3 className="h-4 w-4" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    onDeleteActivity(project, activity)
+                                  }
+                                  aria-label="ลบกิจกรรมย่อย"
+                                  className="p-1.5 text-slate-400 hover:text-rose-600"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* ตัวเลขการเงินของกิจกรรมในมือถือ */}
+                          <div className="grid grid-cols-2 gap-2 text-xs">
+                            <div className="bg-slate-50 dark:bg-gray-800 p-2 rounded">
+                              <span className="text-[10px] text-slate-500">งบกิจกรรม:</span>
+                              <div className="font-bold tabular-nums text-slate-800 dark:text-slate-200">
+                                {formatCurrencyTHB(actFin.effectiveBudget)}
+                              </div>
+                            </div>
+                            <div className="bg-amber-50/50 dark:bg-amber-950/30 p-2 rounded">
+                              <span className="text-[10px] text-amber-700 dark:text-amber-400">กันวงเงิน:</span>
                               <div className="font-medium tabular-nums text-amber-700 dark:text-amber-400">
                                 {formatCurrencyTHB(actFin.reservedAmount)}
                               </div>
                             </div>
-
-                            <div>
-                              <div className="text-[11px] text-blue-600 dark:text-blue-400">
-                                จ่ายแล้ว
-                              </div>
+                            <div className="bg-blue-50/50 dark:bg-blue-950/30 p-2 rounded">
+                              <span className="text-[10px] text-blue-700 dark:text-blue-400">จ่ายแล้ว:</span>
                               <div className="font-medium tabular-nums text-blue-700 dark:text-blue-400">
                                 {formatCurrencyTHB(actFin.paidAmount)}
                               </div>
                             </div>
-
-                            <div>
-                              <div className="text-[11px] text-slate-400">
-                                คงเหลือ
-                              </div>
+                            <div className="bg-emerald-50/50 dark:bg-emerald-950/30 p-2 rounded">
+                              <span className="text-[10px] text-emerald-800 dark:text-emerald-300">คงเหลือ:</span>
                               <div
                                 className={`font-bold tabular-nums ${
                                   actFin.remainingBalance < 0
-                                    ? "text-rose-600 dark:text-rose-400"
+                                    ? "text-rose-600"
                                     : "text-emerald-700 dark:text-emerald-400"
                                 }`}
                               >
@@ -531,15 +1122,15 @@ export function ProjectLedgerTable({
                             </div>
                           </div>
 
-                          {/* ปุ่ม Actions ของกิจกรรมย่อย */}
-                          <div className="flex flex-wrap items-center gap-2">
+                          {/* ปุ่ม Actions ในมือถือ */}
+                          <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-100 dark:border-gray-800">
                             {canSettle && (
                               <button
                                 type="button"
                                 onClick={() =>
                                   onRecordExpense(project, activity)
                                 }
-                                className="inline-flex min-h-[44px] items-center gap-1.5 rounded-xl bg-emerald-600 px-3.5 py-2 text-xs font-semibold text-white shadow-2xs transition-colors hover:bg-emerald-700 cursor-pointer"
+                                className="inline-flex min-h-[44px] flex-1 items-center justify-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700 cursor-pointer"
                               >
                                 <Receipt className="h-4 w-4" />
                                 <span>บันทึกการใช้เงิน</span>
@@ -551,56 +1142,27 @@ export function ProjectLedgerTable({
                               onClick={() =>
                                 onOpenExpenseHistory(project, activity)
                               }
-                              className="inline-flex min-h-[44px] items-center gap-1.5 rounded-xl border border-slate-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-3.5 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-gray-700 cursor-pointer"
+                              className="inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-xl border border-slate-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-300"
                             >
                               <History className="h-4 w-4 text-slate-500" />
-                              <span>
-                                ประวัติเงิน ({actExpensesCount})
-                              </span>
+                              <span>ประวัติเงิน ({actExpensesCount})</span>
                               {actReservedCount > 0 && (
-                                <span className="rounded-full bg-amber-100 dark:bg-amber-950/60 px-2 py-0.5 text-[10px] font-bold text-amber-800 dark:text-amber-300">
-                                  รอเคลียร์ {actReservedCount}
+                                <span className="rounded-full bg-amber-100 dark:bg-amber-950/60 px-1.5 py-0.5 text-[10px] font-bold text-amber-800 dark:text-amber-300">
+                                  รอ {actReservedCount}
                                 </span>
                               )}
                             </button>
-
-                            {canManageAct && (
-                              <div className="flex items-center gap-1">
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    onEditActivity(project, activity)
-                                  }
-                                  aria-label="แก้ไขกิจกรรมย่อย"
-                                  className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-gray-700 hover:text-slate-700 dark:hover:text-slate-200 cursor-pointer"
-                                  title="แก้ไขกิจกรรมย่อย"
-                                >
-                                  <Edit3 className="h-4 w-4" />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    onDeleteActivity(project, activity)
-                                  }
-                                  aria-label="ลบกิจกรรมย่อย"
-                                  className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl p-2 text-slate-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 hover:text-rose-600 cursor-pointer"
-                                  title="ลบกิจกรรมย่อย"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </button>
-                              </div>
-                            )}
                           </div>
                         </div>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            )}
-          </div>
-        );
-      })}
+                      );
+                    })
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
