@@ -1,0 +1,451 @@
+"use client";
+
+import React, { useMemo, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import {
+  PlanningDashboardPayload,
+  softDeleteActivityAction,
+  softDeleteProjectAction,
+} from "@/actions/planning/project-actions";
+import { calculatePortfolioSummary } from "@/lib/planning/calculator";
+import {
+  DepartmentDTO,
+  PortfolioSummaryDTO,
+  ProjectActivityDTO,
+  ProjectDTO,
+  SimpleUserDTO,
+} from "@/lib/planning/types";
+import { FinancialMetricCards } from "./FinancialMetricCards";
+import { PlanningFilterToolbar } from "./PlanningFilterToolbar";
+import { ProjectLedgerTable } from "./ProjectLedgerTable";
+import { Landmark, Calendar } from "lucide-react";
+
+// Modals from Phase 4
+import { ProjectFormModal } from "@/app/(app)/planning/_components/modals/ProjectFormModal";
+import { ActivityFormModal } from "@/app/(app)/planning/_components/modals/ActivityFormModal";
+import { AttachmentManagerModal } from "@/app/(app)/planning/_components/modals/AttachmentManagerModal";
+import { ExpenseFormModal } from "@/app/(app)/planning/_components/modals/ExpenseFormModal";
+import { ExpenseHistoryDrawer } from "@/app/(app)/planning/_components/modals/ExpenseHistoryDrawer";
+
+export type ActivePlanningModalState =
+  | { type: "CREATE_PROJECT" }
+  | { type: "EDIT_PROJECT"; project: ProjectDTO }
+  | { type: "CREATE_ACTIVITY"; project: ProjectDTO }
+  | {
+      type: "EDIT_ACTIVITY";
+      project: ProjectDTO;
+      activity: ProjectActivityDTO;
+    }
+  | { type: "ATTACHMENTS"; project: ProjectDTO }
+  | {
+      type: "RECORD_EXPENSE";
+      project: ProjectDTO;
+      activity: ProjectActivityDTO;
+    }
+  | {
+      type: "EXPENSE_HISTORY";
+      project: ProjectDTO;
+      activity: ProjectActivityDTO;
+    }
+  | null;
+
+export interface PlanningDashboardClientProps {
+  initialData?: PlanningDashboardPayload;
+  selectedFiscalYear?: number;
+  // Two-way backwards compatibility props
+  initialProjects?: ProjectDTO[];
+  initialSummary?: PortfolioSummaryDTO;
+  departments?: DepartmentDTO[] | Array<{ id: string; name: string }>;
+  users?: SimpleUserDTO[] | Array<{ id: string; name: string; position?: string | null }>;
+  currentUserId?: string;
+  canManageBudget?: boolean;
+  defaultFiscalYear?: number;
+  availableFiscalYears?: number[];
+}
+
+export function PlanningDashboardClient({
+  initialData,
+  selectedFiscalYear,
+  initialProjects,
+  initialSummary,
+  departments: propDepartments,
+  users: propUsers,
+  currentUserId: propCurrentUserId,
+  canManageBudget: propCanManageBudget,
+  defaultFiscalYear,
+  availableFiscalYears: propAvailableFiscalYears,
+}: PlanningDashboardClientProps) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+
+  // Resolve data from either initialData or direct props
+  const projects = initialData?.projects || initialProjects || [];
+  const departments = (initialData?.departments || propDepartments || []) as DepartmentDTO[];
+  const teachers = (initialData?.teachers || propUsers || []) as SimpleUserDTO[];
+  const currentUserId = initialData?.currentUserId || propCurrentUserId || "";
+  const canManageProjectsAndBudget =
+    initialData?.modulePermissions?.canManageProjectsAndBudget ?? propCanManageBudget ?? false;
+
+  const currentFiscalYear =
+    selectedFiscalYear ||
+    defaultFiscalYear ||
+    (new Date().getMonth() >= 9
+      ? new Date().getFullYear() + 543 + 1
+      : new Date().getFullYear() + 543);
+
+  // ==========================================
+  // 1. Filter & Search States
+  // ==========================================
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedDepartmentId, setSelectedDepartmentId] = useState("ALL");
+  const [selectedBudgetSource, setSelectedBudgetSource] = useState("ALL");
+  const [onlyMyProjects, setOnlyMyProjects] = useState(false);
+
+  // กางแถวโครงการทั้งหมดเป็นค่าเริ่มต้นเพื่อให้เห็นกิจกรรมย่อยได้ทันที
+  const [expandedProjectIds, setExpandedProjectIds] = useState<Set<string>>(
+    () => new Set(projects.map((p) => p.id))
+  );
+
+  // State สำหรับควบคุมการเปิด Modals และ Drawers
+  const [activeModal, setActiveModal] = useState<ActivePlanningModalState>(null);
+
+  // ==========================================
+  // 2. Real-Time Filtering & Portfolio Calculation
+  // ==========================================
+  const filteredProjects = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+
+    return projects.filter((prj) => {
+      // กรองตามฝ่าย/กลุ่มสาระฯ
+      if (selectedDepartmentId !== "ALL") {
+        const prjDeptId = prj.department?.id || prj.departmentId;
+        if (prjDeptId !== selectedDepartmentId) {
+          return false;
+        }
+      }
+
+      // กรองตามแหล่งงบประมาณ
+      if (selectedBudgetSource !== "ALL") {
+        const prjBudgetSource = prj.budgetSource || prj.budgetSourceType;
+        if (prjBudgetSource !== selectedBudgetSource) {
+          return false;
+        }
+      }
+
+      // กรองเฉพาะโครงการ/กิจกรรมที่ฉันรับผิดชอบ
+      if (onlyMyProjects) {
+        const isLeader =
+          prj.leader?.id === currentUserId || prj.leaderUserId === currentUserId;
+        const isActivityResponsible = (prj.activities || []).some(
+          (act) =>
+            act.responsibleUser?.id === currentUserId ||
+            act.responsibleUserId === currentUserId
+        );
+        if (!isLeader && !isActivityResponsible) {
+          return false;
+        }
+      }
+
+      // กรองตามคำค้นหา (รหัสโครงการ, ชื่อโครงการ, ชื่อหัวหน้า, ชื่อฝ่าย, ชื่อกิจกรรมย่อย, ชื่อผู้รับผิดชอบกิจกรรม)
+      if (query.length > 0) {
+        const leaderName = prj.leader?.name || prj.leaderUserName || "";
+        const deptName = prj.department?.name || prj.departmentName || "";
+
+        const matchProject =
+          (prj.code && prj.code.toLowerCase().includes(query)) ||
+          prj.name.toLowerCase().includes(query) ||
+          leaderName.toLowerCase().includes(query) ||
+          deptName.toLowerCase().includes(query);
+
+        const matchActivity = (prj.activities || []).some((act) => {
+          const respName =
+            act.responsibleUser?.name || act.responsibleUserName || "";
+          return (
+            act.name.toLowerCase().includes(query) ||
+            respName.toLowerCase().includes(query)
+          );
+        });
+
+        if (!matchProject && !matchActivity) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }, [
+    projects,
+    searchQuery,
+    selectedDepartmentId,
+    selectedBudgetSource,
+    onlyMyProjects,
+    currentUserId,
+  ]);
+
+  // คำนวณตัวเลขในกล่องสถิติ 4 กล่องด้านบนใหม่แบบ Real-time ตามรายการโครงการที่ผ่านตัวกรอง
+  const dynamicSummary = useMemo(
+    () => calculatePortfolioSummary(filteredProjects),
+    [filteredProjects]
+  );
+
+  const hasActiveFilters =
+    searchQuery.trim() !== "" ||
+    selectedDepartmentId !== "ALL" ||
+    selectedBudgetSource !== "ALL" ||
+    onlyMyProjects;
+
+  // ==========================================
+  // 3. Event Handlers
+  // ==========================================
+  const handleFiscalYearChange = (newYear: number) => {
+    startTransition(() => {
+      router.push(`/planning?year=${newYear}`);
+    });
+  };
+
+  const handleToggleExpand = (projectId: string) => {
+    setExpandedProjectIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(projectId)) {
+        next.delete(projectId);
+      } else {
+        next.add(projectId);
+      }
+      return next;
+    });
+  };
+
+  const handleExpandAll = () => {
+    setExpandedProjectIds(new Set(filteredProjects.map((p) => p.id)));
+  };
+
+  const handleCollapseAll = () => {
+    setExpandedProjectIds(new Set());
+  };
+
+  const handleResetFilters = () => {
+    setSearchQuery("");
+    setSelectedDepartmentId("ALL");
+    setSelectedBudgetSource("ALL");
+    setOnlyMyProjects(false);
+  };
+
+  const handleDeleteProject = async (project: ProjectDTO) => {
+    const confirmed = window.confirm(
+      `ยืนยันการลบโครงการ "${project.code}: ${project.name}" หรือไม่?\n(ข้อมูลจะถูกเก็บในรูปแบบ Soft Delete เพื่อรักษาประวัติตรวจสอบ)`
+    );
+    if (!confirmed) return;
+
+    const res = await softDeleteProjectAction(project.id);
+    if (!res.success) {
+      window.alert(res.error);
+      return;
+    }
+    router.refresh();
+  };
+
+  const handleDeleteActivity = async (
+    project: ProjectDTO,
+    activity: ProjectActivityDTO
+  ) => {
+    const confirmed = window.confirm(
+      `ยืนยันการลบกิจกรรมที่ ${activity.activityNo} "${activity.name}" ภายใต้โครงการ ${project.code} หรือไม่?`
+    );
+    if (!confirmed) return;
+
+    const res = await softDeleteActivityAction(activity.id);
+    if (!res.success) {
+      window.alert(res.error);
+      return;
+    }
+    router.refresh();
+  };
+
+  const handleExportExcel = async () => {
+    const { exportPlanningToExcel } = await import(
+      "@/lib/planning/export-excel"
+    );
+    await exportPlanningToExcel(filteredProjects, currentFiscalYear);
+  };
+
+  // รายการตัวเลือกปีงบประมาณ
+  const fiscalYearOptions = propAvailableFiscalYears || [
+    currentFiscalYear - 2,
+    currentFiscalYear - 1,
+    currentFiscalYear,
+    currentFiscalYear + 1,
+    currentFiscalYear + 2,
+  ];
+
+  return (
+    <div className="mx-auto max-w-7xl space-y-6 p-4 sm:p-6">
+      {/* ส่วนหัวหน้าจอ (Header & Fiscal Year Selector) */}
+      <div className="flex flex-col gap-4 rounded-xl border border-slate-200 bg-white p-5 shadow-xs dark:border-slate-800 dark:bg-gray-900 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-start gap-3.5">
+          <div className="rounded-xl bg-blue-600 p-3 text-white shadow-xs">
+            <Landmark className="h-6 w-6" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-slate-900 dark:text-white sm:text-2xl">
+              ระบบแผนงานโครงการและติดตามงบประมาณ
+            </h1>
+            <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
+              บริหารแผนปฏิบัติการประจำปี ติดตามยอดใช้งบประมาณแบบ Real-time และจัดเก็บเอกสารประกันคุณภาพ (SAR)
+            </p>
+          </div>
+        </div>
+
+        {/* ตัวเลือกปีงบประมาณ */}
+        <div className="flex items-center gap-2 self-start sm:self-center">
+          <Calendar className="h-4 w-4 text-slate-500 dark:text-slate-400" />
+          <label
+            htmlFor="fiscal-year-select"
+            className="text-sm font-medium text-slate-700 dark:text-slate-300"
+          >
+            ปีงบประมาณ พ.ศ.
+          </label>
+          <select
+            id="fiscal-year-select"
+            value={currentFiscalYear}
+            disabled={isPending}
+            onChange={(e) => handleFiscalYearChange(Number(e.target.value))}
+            className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-900 focus:border-blue-600 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+          >
+            {fiscalYearOptions.map((yr) => (
+              <option key={yr} value={yr}>
+                {yr}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {/* กล่องสรุปสถานะการเงินรวม 4 กล่อง (Financial Metric Cards) */}
+      <FinancialMetricCards summary={dynamicSummary} />
+
+      {/* แถบเครื่องมือค้นหาและคัดกรอง (Filter Toolbar) */}
+      <PlanningFilterToolbar
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        selectedDepartmentId={selectedDepartmentId}
+        onDepartmentChange={setSelectedDepartmentId}
+        selectedBudgetSource={selectedBudgetSource}
+        onBudgetSourceChange={setSelectedBudgetSource}
+        onlyMyProjects={onlyMyProjects}
+        onOnlyMyProjectsChange={setOnlyMyProjects}
+        departments={departments}
+        canManageProjects={canManageProjectsAndBudget}
+        onOpenCreateProject={() => setActiveModal({ type: "CREATE_PROJECT" })}
+        onExportExcel={handleExportExcel}
+        onExpandAll={handleExpandAll}
+        onCollapseAll={handleCollapseAll}
+        onResetFilters={handleResetFilters}
+        hasActiveFilters={hasActiveFilters}
+      />
+
+      {/* ตารางแผนงานและกิจกรรมย่อย (Hierarchical Ledger Table) */}
+      <ProjectLedgerTable
+        projects={filteredProjects}
+        expandedProjectIds={expandedProjectIds}
+        onToggleExpand={handleToggleExpand}
+        onEditProject={(project) =>
+          setActiveModal({ type: "EDIT_PROJECT", project })
+        }
+        onDeleteProject={handleDeleteProject}
+        onAddActivity={(project) =>
+          setActiveModal({ type: "CREATE_ACTIVITY", project })
+        }
+        onEditActivity={(project, activity) =>
+          setActiveModal({ type: "EDIT_ACTIVITY", project, activity })
+        }
+        onDeleteActivity={handleDeleteActivity}
+        onOpenAttachments={(project) =>
+          setActiveModal({ type: "ATTACHMENTS", project })
+        }
+        onRecordExpense={(project, activity) =>
+          setActiveModal({ type: "RECORD_EXPENSE", project, activity })
+        }
+        onOpenExpenseHistory={(project, activity) =>
+          setActiveModal({ type: "EXPENSE_HISTORY", project, activity })
+        }
+      />
+
+      {/* Modals & Drawers */}
+      {(activeModal?.type === "CREATE_PROJECT" || activeModal?.type === "EDIT_PROJECT") && (
+        <ProjectFormModal
+          isOpen={true}
+          onClose={() => setActiveModal(null)}
+          onSaved={() => {
+            setActiveModal(null);
+            router.refresh();
+          }}
+          projectToEdit={activeModal.type === "EDIT_PROJECT" ? activeModal.project : null}
+          departments={departments}
+          users={teachers}
+          currentFiscalYear={currentFiscalYear}
+        />
+      )}
+
+      {(activeModal?.type === "CREATE_ACTIVITY" || activeModal?.type === "EDIT_ACTIVITY") && (
+        <ActivityFormModal
+          isOpen={true}
+          onClose={() => setActiveModal(null)}
+          onSaved={() => {
+            setActiveModal(null);
+            router.refresh();
+          }}
+          projectId={activeModal.project.id}
+          projectName={activeModal.project.name}
+          activityToEdit={activeModal.type === "EDIT_ACTIVITY" ? activeModal.activity : null}
+          users={teachers}
+        />
+      )}
+
+      {activeModal?.type === "ATTACHMENTS" && (
+        <AttachmentManagerModal
+          isOpen={true}
+          onClose={() => setActiveModal(null)}
+          onSaved={() => {
+            setActiveModal(null);
+            router.refresh();
+          }}
+          projectId={activeModal.project.id}
+          projectName={activeModal.project.name}
+          attachments={activeModal.project.attachments || []}
+          canManageAttachments={
+            canManageProjectsAndBudget ||
+            activeModal.project.leaderUserId === currentUserId ||
+            activeModal.project.leader?.id === currentUserId
+          }
+        />
+      )}
+
+      {activeModal?.type === "RECORD_EXPENSE" && (
+        <ExpenseFormModal
+          isOpen={true}
+          onClose={() => setActiveModal(null)}
+          onSaved={() => {
+            setActiveModal(null);
+            router.refresh();
+          }}
+          projectName={activeModal.project.name}
+          activity={activeModal.activity}
+        />
+      )}
+
+      {activeModal?.type === "EXPENSE_HISTORY" && (
+        <ExpenseHistoryDrawer
+          isOpen={true}
+          onClose={() => setActiveModal(null)}
+          onSaved={() => {
+            setActiveModal(null);
+            router.refresh();
+          }}
+          projectName={activeModal.project.name}
+          activity={activeModal.activity}
+          canManageBudget={canManageProjectsAndBudget}
+        />
+      )}
+    </div>
+  );
+}

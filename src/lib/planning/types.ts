@@ -49,6 +49,10 @@ export interface ActivityFinancialSummaryDTO {
   remainingBalance: number;
   usagePercentage: number;
   usedCategories: ExpenseCategoryType[];
+  paidPercentage?: number;
+  reservedPercentage?: number;
+  activeExpenseCount?: number;
+  reservedExpenseCount?: number;
 }
 
 export interface ProjectFinancialSummaryDTO {
@@ -64,6 +68,9 @@ export interface ProjectFinancialSummaryDTO {
   totalSpent: number;
   remainingBalance: number;
   usagePercentage: number;
+  paidPercentage?: number;
+  reservedPercentage?: number;
+  hasUnallocatedWarning?: boolean;
   sarReadiness: {
     hasProposal: boolean;
     hasApproval: boolean;
@@ -124,11 +131,32 @@ export interface ProjectActivityDTO {
   name: string;
   responsibleUserId: string;
   responsibleUserName: string;
+  responsibleUser: {
+    id: string;
+    name: string;
+  };
   financials: ActivityFinancialSummaryDTO;
   expenses: ActivityExpenseDTO[];
+  permissions?: {
+    canRecordAndSettleExpenses?: boolean;
+    canManageProjectsAndBudget?: boolean;
+  };
   createdAt: string;
   updatedAt: string;
   deletedAt: string | null;
+}
+
+export interface DepartmentDTO {
+  id: string;
+  code?: string;
+  name: string;
+}
+
+export interface SimpleUserDTO {
+  id: string;
+  name: string;
+  email?: string | null;
+  position?: string | null;
 }
 
 export interface ProjectDTO {
@@ -139,9 +167,18 @@ export interface ProjectDTO {
   name: string;
   departmentId: string | null;
   departmentName: string | null;
+  department: {
+    id: string;
+    name: string;
+  };
   leaderUserId: string;
   leaderUserName: string;
+  leader: {
+    id: string;
+    name: string;
+  };
   budgetSourceType: BudgetSourceCategoryType;
+  budgetSource: BudgetSourceCategoryType;
   budgetSourceName: string;
   strategyCode: string | null;
   standardTags: string[];
@@ -154,6 +191,8 @@ export interface ProjectDTO {
     canManageActivities: boolean;
     canDisburseExpenses: boolean;
     canManageAttachments: boolean;
+    canManageProjectsAndBudget?: boolean;
+    canRecordAndSettleExpenses?: boolean;
   };
   createdAt: string;
   updatedAt: string;

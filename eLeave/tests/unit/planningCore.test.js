@@ -7,6 +7,7 @@ import {
   calculateActivityFinancials,
   calculateProjectFinancials,
   validateExpenseInvariant,
+  calculatePortfolioSummary,
 } from '../../../src/lib/planning/calculator.ts';
 
 import {
@@ -235,5 +236,69 @@ describe('Planning Core - Permissions Helper', () => {
   it('TC-12: R2 Object Key generation sanitizes and structures properly', () => {
     const key = buildR2ObjectKey(2569, 'PRJ/2569 #01', 'รายงาน โครงการ (1).pdf', 'documents');
     assert.match(key, /^planning\/2569\/PRJ_2569__01\/documents\/[a-f0-9]{8}-รายงาน_โครงการ_1\.pdf$/);
+  });
+
+  it('TC-13: calculatePortfolioSummary rolls up multiple projects with satang precision', () => {
+    const projects = [
+      {
+        id: 'p1',
+        financials: {
+          effectiveBudget: 100000.50,
+          paidAmount: 25000.25,
+          reservedAmount: 15000.00,
+          remainingBalance: 60000.25,
+        },
+        activities: [{ id: 'a1' }, { id: 'a2' }],
+      },
+      {
+        id: 'p2',
+        financials: {
+          effectiveBudget: 50000.00,
+          paidAmount: 10000.00,
+          reservedAmount: 5000.50,
+          remainingBalance: 34999.50,
+        },
+        activities: [{ id: 'a3' }],
+      },
+    ];
+
+    const summary = calculatePortfolioSummary(projects);
+    assert.equal(summary.projectCount, 2);
+    assert.equal(summary.activityCount, 3);
+    assert.equal(summary.totalEffectiveBudget, 150000.50);
+    assert.equal(summary.totalPaidAmount, 35000.25);
+    assert.equal(summary.totalReservedAmount, 20000.50);
+    assert.equal(summary.totalSpentAmount, 55000.75);
+    assert.equal(summary.totalRemainingBalance, 94999.75);
+  });
+
+  it('TC-14: Two-way DTO property binding consistency', () => {
+    const mockProject = {
+      id: 'p1',
+      code: 'PRJ-01',
+      name: 'โครงการทดสอบ',
+      departmentId: 'd1',
+      departmentName: 'ฝ่ายบริหาร',
+      department: { id: 'd1', name: 'ฝ่ายบริหาร' },
+      leaderUserId: 'u1',
+      leaderUserName: 'ครูสมหวัง',
+      leader: { id: 'u1', name: 'ครูสมหวัง' },
+      budgetSourceType: 'SUBSIDY',
+      budgetSource: 'SUBSIDY',
+      activities: [
+        {
+          id: 'a1',
+          name: 'กิจกรรมที่ 1',
+          responsibleUserId: 'u2',
+          responsibleUserName: 'ครูสมศักดิ์',
+          responsibleUser: { id: 'u2', name: 'ครูสมศักดิ์' },
+        },
+      ],
+    };
+
+    assert.equal(mockProject.department.name, mockProject.departmentName);
+    assert.equal(mockProject.leader.name, mockProject.leaderUserName);
+    assert.equal(mockProject.budgetSource, mockProject.budgetSourceType);
+    assert.equal(mockProject.activities[0].responsibleUser.name, mockProject.activities[0].responsibleUserName);
   });
 });

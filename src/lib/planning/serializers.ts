@@ -65,15 +65,38 @@ export function serializeActivityToDTO(act: any): ProjectActivityDTO {
     .filter((e: any) => e.deletedAt === null || e.deletedAt === undefined)
     .map(serializeExpenseToDTO);
 
+  const responsibleName = act.responsibleUser?.name || act.responsibleUserName || "ไม่ระบุ";
+  const effective = financials.effectiveBudget;
+  const paidPct = effective > 0 ? Number(((financials.paidAmount / effective) * 100).toFixed(1)) : 0;
+  const resPct = effective > 0 ? Number(((financials.reservedAmount / effective) * 100).toFixed(1)) : 0;
+  const usePct = effective > 0 ? Number(((financials.totalSpent / effective) * 100).toFixed(1)) : 0;
+
+  const enrichedFinancials = {
+    ...financials,
+    paidPercentage: paidPct,
+    reservedPercentage: resPct,
+    usagePercentage: usePct,
+    activeExpenseCount: expenses.filter((e) => e.status !== "CANCELLED").length,
+    reservedExpenseCount: expenses.filter((e) => e.status === "RESERVED").length,
+  };
+
   return {
     id: act.id,
     projectId: act.projectId,
     activityNo: act.activityNo,
     name: act.name,
     responsibleUserId: act.responsibleUserId,
-    responsibleUserName: act.responsibleUser?.name || "ไม่ระบุ",
-    financials,
+    responsibleUserName: responsibleName,
+    responsibleUser: {
+      id: act.responsibleUserId,
+      name: responsibleName,
+    },
+    financials: enrichedFinancials,
     expenses,
+    permissions: {
+      canRecordAndSettleExpenses: true,
+      canManageProjectsAndBudget: true,
+    },
     createdAt: act.createdAt instanceof Date ? act.createdAt.toISOString() : String(act.createdAt),
     updatedAt: act.updatedAt instanceof Date ? act.updatedAt.toISOString() : String(act.updatedAt),
     deletedAt: act.deletedAt ? (act.deletedAt instanceof Date ? act.deletedAt.toISOString() : String(act.deletedAt)) : null,
@@ -93,19 +116,37 @@ export function serializeProjectToDTO(
 
   const attachments = (project.attachments || []).map(serializeAttachmentToDTO);
 
-  const permissions = currentUser && settings
-    ? {
-        canManageProject: getPlanningPermissions(currentUser, settings, { leaderUserId: project.leaderUserId, projectStatus: project.status }).canManageProjectsAndBudget,
-        canManageActivities: getPlanningPermissions(currentUser, settings, { leaderUserId: project.leaderUserId, projectStatus: project.status }).canManageProjectsAndBudget,
-        canDisburseExpenses: getPlanningPermissions(currentUser, settings, { leaderUserId: project.leaderUserId, projectStatus: project.status }).canRecordAndSettleExpenses,
-        canManageAttachments: getPlanningPermissions(currentUser, settings, { leaderUserId: project.leaderUserId, projectStatus: project.status }).canManageAttachments,
-      }
-    : {
-        canManageProject: false,
-        canManageActivities: false,
-        canDisburseExpenses: false,
-        canManageAttachments: false,
-      };
+  const perms = currentUser && settings
+    ? getPlanningPermissions(currentUser, settings, { leaderUserId: project.leaderUserId, projectStatus: project.status })
+    : { canManageProjectsAndBudget: false, canRecordAndSettleExpenses: false, canManageAttachments: false, canViewModule: false };
+
+  const permissions = {
+    canManageProject: perms.canManageProjectsAndBudget,
+    canManageActivities: perms.canManageProjectsAndBudget,
+    canDisburseExpenses: perms.canRecordAndSettleExpenses,
+    canManageAttachments: perms.canManageAttachments,
+    canManageProjectsAndBudget: perms.canManageProjectsAndBudget,
+    canRecordAndSettleExpenses: perms.canRecordAndSettleExpenses,
+  };
+
+  const deptName = project.departmentName || project.department?.name || "ไม่ระบุฝ่าย";
+  const deptId = project.departmentId || project.department?.id || "";
+  const leaderName = project.leaderUser?.name || project.leaderName || "ไม่ระบุ";
+  const leaderId = project.leaderUserId || project.leader?.id || "";
+  const bSource = (project.budgetSourceType || project.budgetSource?.sourceType || "SUBSIDY") as BudgetSourceCategoryType;
+
+  const effective = financials.effectiveBudget;
+  const paidPct = effective > 0 ? Number(((financials.paidAmount / effective) * 100).toFixed(1)) : 0;
+  const resPct = effective > 0 ? Number(((financials.reservedAmount / effective) * 100).toFixed(1)) : 0;
+  const usePct = effective > 0 ? Number(((financials.totalSpent / effective) * 100).toFixed(1)) : 0;
+
+  const enrichedFinancials = {
+    ...financials,
+    paidPercentage: paidPct,
+    reservedPercentage: resPct,
+    usagePercentage: usePct,
+    hasUnallocatedWarning: financials.unallocatedBudget !== 0,
+  };
 
   return {
     id: project.id,
@@ -113,16 +154,25 @@ export function serializeProjectToDTO(
     fiscalYearId: project.fiscalYearId,
     code: project.code,
     name: project.name,
-    departmentId: project.departmentId || null,
-    departmentName: project.departmentName || project.department?.name || null,
-    leaderUserId: project.leaderUserId,
-    leaderUserName: project.leaderUser?.name || project.leaderName || "ไม่ระบุ",
-    budgetSourceType: (project.budgetSourceType || "SUBSIDY") as BudgetSourceCategoryType,
+    departmentId: deptId || null,
+    departmentName: deptName,
+    department: {
+      id: deptId,
+      name: deptName,
+    },
+    leaderUserId: leaderId,
+    leaderUserName: leaderName,
+    leader: {
+      id: leaderId,
+      name: leaderName,
+    },
+    budgetSourceType: bSource,
+    budgetSource: bSource,
     budgetSourceName: project.budgetSource?.name || "เงินอุดหนุนรายหัว",
     strategyCode: project.strategyCode || null,
     standardTags: project.standardTags || [],
     status: (project.status || "APPROVED") as ProjectStatusType,
-    financials,
+    financials: enrichedFinancials,
     activities,
     attachments,
     permissions,

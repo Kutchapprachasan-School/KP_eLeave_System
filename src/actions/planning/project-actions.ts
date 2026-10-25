@@ -90,7 +90,7 @@ export async function getPlanningDashboardDataAction(params: {
       prisma.user.findMany({
         where: { status: "ACTIVE" },
         orderBy: { name: "asc" },
-        select: { id: true, name: true, email: true },
+        select: { id: true, name: true, email: true, position: true },
       }),
     ]);
 
@@ -113,6 +113,7 @@ export async function getPlanningDashboardDataAction(params: {
           id: t.id,
           name: t.name || "ไม่ระบุชื่อ",
           email: t.email,
+          position: t.position || null,
         })),
         modulePermissions,
         currentUserId: user.id,
