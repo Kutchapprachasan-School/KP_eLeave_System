@@ -20,6 +20,7 @@ import type {
   ActivityExpenseDTO, 
   ExpenseCategoryType 
 } from "@/lib/planning/types";
+import { EXPENSE_CATEGORY_LABELS } from "@/lib/planning/types";
 
 interface ExpenseHistoryDrawerProps {
   isOpen: boolean;
@@ -29,15 +30,6 @@ interface ExpenseHistoryDrawerProps {
   projectName: string;
   canManageBudget: boolean;
 }
-
-const CATEGORY_NAMES: Record<string, string> = {
-  OPERATING: "ค่าใช้สอย",
-  MATERIAL: "ค่าวัสดุ",
-  REMUNERATION: "ค่าตอบแทน",
-  EQUIPMENT: "ค่าครุภัณฑ์",
-  UTILITY: "ค่าสาธารณูปโภค",
-  MISCELLANEOUS: "เบ็ดเตล็ด",
-};
 
 export function ExpenseHistoryDrawer({
   isOpen,
@@ -225,7 +217,7 @@ export function ExpenseHistoryDrawer({
                         )}
 
                         <span className="text-xs font-medium px-2 py-0.5 rounded-md bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300">
-                          {CATEGORY_NAMES[exp.expenseCategory] || exp.expenseCategory}
+                          {EXPENSE_CATEGORY_LABELS[exp.expenseCategory] || exp.expenseCategory}
                         </span>
                       </div>
 

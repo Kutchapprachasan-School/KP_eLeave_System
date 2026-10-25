@@ -62,6 +62,7 @@ export function AttachmentManagerModal({
     const formData = new FormData();
     formData.append("projectId", projectId);
     formData.append("attachmentType", attachmentType);
+    formData.append("storageType", storageMode === "UPLOAD" ? "R2_UPLOAD" : "EXTERNAL_LINK");
     if (title.trim()) formData.append("title", title.trim());
 
     if (storageMode === "UPLOAD") {

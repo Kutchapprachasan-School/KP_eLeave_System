@@ -5,23 +5,7 @@
 
 import * as XLSX from "xlsx";
 import type { ProjectDTO } from "./types";
-
-const CATEGORY_NAMES: Record<string, string> = {
-  OPERATING: "ค่าใช้สอย",
-  MATERIAL: "ค่าวัสดุ",
-  REMUNERATION: "ค่าตอบแทน",
-  EQUIPMENT: "ค่าครุภัณฑ์",
-  UTILITY: "ค่าสาธารณูปโภค",
-  MISCELLANEOUS: "เบ็ดเตล็ด",
-};
-
-const BUDGET_SOURCE_NAMES: Record<string, string> = {
-  SUBSIDY: "เงินอุดหนุน",
-  GENERAL_BUDGET: "งบประมาณแผ่นดิน",
-  REVENUE: "เงินรายได้สถานศึกษา",
-  SPECIAL_PROJECT: "โครงการพิเศษ",
-  DONATION: "เงินบริจาค/ระดมทรัพยากร",
-};
+import { BUDGET_SOURCE_LABELS, EXPENSE_CATEGORY_LABELS } from "./types";
 
 export function exportPlanningToExcel(projects: ProjectDTO[], fiscalYear: number) {
   // 1. Sheet 1: Project & Activity Financial Summary
@@ -35,7 +19,7 @@ export function exportPlanningToExcel(projects: ProjectDTO[], fiscalYear: number
       "ลำดับ": projSeq++,
       "รหัสโครงการ": proj.code || "-",
       "ชื่อโครงการ/กิจกรรม": proj.name,
-      "แหล่งเงิน": BUDGET_SOURCE_NAMES[proj.budgetSourceType] || proj.budgetSourceType,
+      "แหล่งเงิน": BUDGET_SOURCE_LABELS[proj.budgetSourceType] || proj.budgetSourceType,
       "กลุ่มงาน/กลุ่มสาระ": proj.departmentName || "-",
       "ผู้รับผิดชอบ": proj.leaderUserName || "-",
       "งบตั้งต้น (บาท)": proj.financials.allocatedAmount,
@@ -57,7 +41,7 @@ export function exportPlanningToExcel(projects: ProjectDTO[], fiscalYear: number
           "ลำดับ": `${projSeq - 1}.${act.activityNo}`,
           "รหัสโครงการ": proj.code || "-",
           "ชื่อโครงการ/กิจกรรม": `  └─ ${act.name}`,
-          "แหล่งเงิน": BUDGET_SOURCE_NAMES[proj.budgetSourceType] || proj.budgetSourceType,
+          "แหล่งเงิน": BUDGET_SOURCE_LABELS[proj.budgetSourceType] || proj.budgetSourceType,
           "กลุ่มงาน/กลุ่มสาระ": proj.departmentName || "-",
           "ผู้รับผิดชอบ": act.responsibleUserName || "-",
           "งบตั้งต้น (บาท)": act.financials.allocatedAmount,
@@ -88,7 +72,7 @@ export function exportPlanningToExcel(projects: ProjectDTO[], fiscalYear: number
           "กิจกรรมย่อย": act.name,
           "วันที่ทำรายการ": new Date(exp.expenseDate).toLocaleDateString("th-TH"),
           "สถานะรายการ": exp.status === "PAID" ? "เบิกจ่ายจริง (PAID)" : "กันเงินงบประมาณ (RESERVED)",
-          "หมวดค่าใช้จ่าย": CATEGORY_NAMES[exp.expenseCategory] || exp.expenseCategory,
+          "หมวดค่าใช้จ่าย": EXPENSE_CATEGORY_LABELS[exp.expenseCategory] || exp.expenseCategory,
           "รายละเอียดรายการ": exp.title,
           "ผู้ขอเบิก/ผู้รับเงิน": exp.requesterName || "-",
           "เลขที่เอกสาร/ใบเสร็จ": exp.receiptNo || "-",

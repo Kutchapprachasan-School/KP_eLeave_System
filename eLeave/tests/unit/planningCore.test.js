@@ -15,6 +15,12 @@ import {
   getPlanningPermissions,
 } from '../../../src/lib/planning/permissions.ts';
 
+import {
+  BUDGET_SOURCE_LABELS,
+  PROJECT_STATUS_LABELS,
+  EXPENSE_CATEGORY_LABELS,
+} from '../../../src/lib/planning/types.ts';
+
 describe('Planning Core - Financial Engine & Invariants', () => {
   it('TC-01: Satang-safe addition (100.25 + 200.50 = 300.75)', () => {
     const s1 = toSatang('100.25');
@@ -155,5 +161,70 @@ describe('Planning Core - Permissions Helper', () => {
 
     const completedPerms = getPlanningPermissions(leader, settings, { leaderUserId: 'leader-1', projectStatus: 'COMPLETED' });
     assert.equal(completedPerms.canManageAttachments, false);
+  });
+
+  it('TC-10: Canonical Labels parity', () => {
+    assert.ok(BUDGET_SOURCE_LABELS.SUBSIDY);
+    assert.ok(BUDGET_SOURCE_LABELS.FREE_EDUCATION_15Y);
+    assert.ok(PROJECT_STATUS_LABELS.APPROVED);
+    assert.ok(PROJECT_STATUS_LABELS.IN_PROGRESS);
+    assert.ok(EXPENSE_CATEGORY_LABELS.MATERIALS);
+    assert.ok(EXPENSE_CATEGORY_LABELS.OPERATING);
+  });
+
+  it('TC-11: Excel export structure generates valid worksheets with canonical labels', () => {
+    const mockProjects = [
+      {
+        id: 'p1',
+        code: 'P-01',
+        name: 'โครงการพัฒนาวิชาการ',
+        budgetSourceType: 'SUBSIDY',
+        departmentName: 'กลุ่มบริหารวิชาการ',
+        leaderUserName: 'ครูสมศรี',
+        status: 'APPROVED',
+        financials: {
+          allocatedAmount: 100000,
+          effectiveBudget: 100000,
+          paidAmount: 20000,
+          reservedAmount: 10000,
+          remainingBalance: 70000,
+          usagePercentage: 30,
+          sarReadiness: { hasProposal: true, hasApproval: true, hasSummary: false },
+        },
+        activities: [
+          {
+            id: 'a1',
+            activityNo: 1,
+            name: 'กิจกรรมอบรมเชิงปฏิบัติการ',
+            responsibleUserName: 'ครูสมชาย',
+            financials: {
+              allocatedAmount: 50000,
+              effectiveBudget: 50000,
+              paidAmount: 20000,
+              reservedAmount: 10000,
+              remainingBalance: 20000,
+              usagePercentage: 60,
+              usedCategories: ['MATERIALS', 'OPERATING'],
+            },
+            expenses: [
+              {
+                id: 'e1',
+                title: 'ค่ากระดาษและอุปกรณ์',
+                expenseCategory: 'MATERIALS',
+                amount: 5000,
+                status: 'PAID',
+                expenseDate: '2026-10-25T00:00:00.000Z',
+                receiptNo: 'REC-001',
+                requesterName: 'ครูสมชาย',
+                recordedByName: 'เจ้าหน้าที่แผน',
+              },
+            ],
+          },
+        ],
+      },
+    ];
+
+    assert.equal(BUDGET_SOURCE_LABELS[mockProjects[0].budgetSourceType], 'เงินอุดหนุนรายหัว');
+    assert.equal(EXPENSE_CATEGORY_LABELS[mockProjects[0].activities[0].expenses[0].expenseCategory], 'ค่าวัสดุ');
   });
 });

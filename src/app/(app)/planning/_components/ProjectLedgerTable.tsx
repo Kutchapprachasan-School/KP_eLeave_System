@@ -24,6 +24,7 @@ import type {
   ProjectActivityDTO, 
   BudgetSourceType 
 } from "@/lib/planning/types";
+import { PROJECT_STATUS_LABELS, EXPENSE_CATEGORY_LABELS } from "@/lib/planning/types";
 
 interface ProjectLedgerTableProps {
   projects: ProjectDTO[];
@@ -39,6 +40,14 @@ interface ProjectLedgerTableProps {
   onViewHistory: (project: ProjectDTO, activity: ProjectActivityDTO) => void;
 }
 
+const PROJECT_STATUS_BADGES: Record<string, { label: string; color: string }> = {
+  DRAFT: { label: "ฉบับร่าง", color: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300 border-gray-200 dark:border-gray-700" },
+  APPROVED: { label: "อนุมัติแล้ว", color: "bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 border-blue-200 dark:border-blue-800" },
+  IN_PROGRESS: { label: "กำลังดำเนินการ", color: "bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300 border-purple-200 dark:border-purple-800" },
+  COMPLETED: { label: "เสร็จสิ้น", color: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800" },
+  CANCELLED: { label: "ยกเลิก", color: "bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 border-rose-200 dark:border-rose-800" },
+};
+
 const BUDGET_SOURCE_BADGES: Record<string, { label: string; color: string }> = {
   SUBSIDY: { label: "เงินอุดหนุน", color: "bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300 border-purple-200" },
   FREE_EDUCATION_15Y: { label: "เรียนฟรี 15 ปี", color: "bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 border-blue-200" },
@@ -47,17 +56,6 @@ const BUDGET_SOURCE_BADGES: Record<string, { label: string; color: string }> = {
   OTHER: { label: "เงินนอกงบประมาณ/อื่นๆ", color: "bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 border-rose-200" },
 };
 
-const CATEGORY_NAMES: Record<string, string> = {
-  OPERATING: "ค่าใช้สอย",
-  MATERIALS: "ค่าวัสดุ",
-  REMUNERATION: "ค่าตอบแทน",
-  EQUIPMENT: "ค่าครุภัณฑ์",
-  UTILITIES: "ค่าสาธารณูปโภค",
-  OTHER: "เบ็ดเตล็ด/อื่นๆ",
-  MATERIAL: "ค่าวัสดุ",
-  UTILITY: "ค่าสาธารณูปโภค",
-  MISCELLANEOUS: "เบ็ดเตล็ด",
-};
 
 export function ProjectLedgerTable({
   projects,
@@ -89,6 +87,9 @@ export function ProjectLedgerTable({
     });
   };
 
+  const handleExpandAll = () => setExpandedProjectIds(new Set(projects.map((p) => p.id)));
+  const handleCollapseAll = () => setExpandedProjectIds(new Set());
+
   const formatCurrency = (val: number) => {
     return new Intl.NumberFormat("th-TH", {
       minimumFractionDigits: 2,
@@ -112,6 +113,29 @@ export function ProjectLedgerTable({
 
   return (
     <div className="space-y-4">
+      {/* Table Actions Header */}
+      <div className="flex items-center justify-between gap-3 px-1 text-xs text-gray-500">
+        <div className="font-medium">
+          พบทั้งหมด <span className="font-bold text-gray-900 dark:text-white">{projects.length}</span> โครงการ
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleExpandAll}
+            className="px-2.5 py-1 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300 transition-colors cursor-pointer"
+          >
+            ขยายทั้งหมด
+          </button>
+          <button
+            type="button"
+            onClick={handleCollapseAll}
+            className="px-2.5 py-1 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300 transition-colors cursor-pointer"
+          >
+            ยุบทั้งหมด
+          </button>
+        </div>
+      </div>
+
       {/* Desktop Table View (Hidden on mobile) */}
       <div className="hidden lg:block bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
@@ -134,6 +158,7 @@ export function ProjectLedgerTable({
                 const isExpanded = expandedProjectIds.has(project.id);
                 const hasActivities = project.activities && project.activities.length > 0;
                 const srcBadge = BUDGET_SOURCE_BADGES[project.budgetSourceType];
+                const statusBadge = PROJECT_STATUS_BADGES[project.status] || { label: project.status, color: "bg-gray-100 text-gray-700 border-gray-200" };
                 const canAttach =
                   canManageBudget ||
                   (currentUserId && project.leaderUserId === currentUserId);
@@ -173,7 +198,10 @@ export function ProjectLedgerTable({
                           <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${srcBadge?.color}`}>
                             {srcBadge?.label || project.budgetSourceType}
                           </span>
-                          {project.financials.unallocatedBudget > 0 && (
+                          <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${statusBadge.color}`}>
+                            {statusBadge.label}
+                          </span>
+                          {project.financials.unallocatedBudget !== 0 && (
                             <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-400 border border-amber-200">
                               <AlertTriangle className="w-2.5 h-2.5" />
                               <span>รอจัดสรร ฿{formatCurrency(project.financials.unallocatedBudget)}</span>
@@ -370,7 +398,7 @@ export function ProjectLedgerTable({
                                           key={c}
                                           className="text-[10px] px-1.5 py-0.2 rounded bg-gray-200/70 dark:bg-gray-700 text-gray-700 dark:text-gray-300"
                                         >
-                                          {CATEGORY_NAMES[c] || c}
+                                          {EXPENSE_CATEGORY_LABELS[c as any] || c}
                                         </span>
                                       ))}
                                     </div>
@@ -478,6 +506,7 @@ export function ProjectLedgerTable({
         {projects.map((project) => {
           const isExpanded = expandedProjectIds.has(project.id);
           const srcBadge = BUDGET_SOURCE_BADGES[project.budgetSourceType];
+          const statusBadge = PROJECT_STATUS_BADGES[project.status] || { label: project.status, color: "bg-gray-100 text-gray-700 border-gray-200" };
           const effBudget = project.financials.effectiveBudget;
           const paidPct = effBudget > 0 ? (project.financials.paidAmount / effBudget) * 100 : 0;
           const reservedPct = effBudget > 0 ? (project.financials.reservedAmount / effBudget) * 100 : 0;
@@ -501,6 +530,15 @@ export function ProjectLedgerTable({
                   <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${srcBadge?.color}`}>
                     {srcBadge?.label || project.budgetSourceType}
                   </span>
+                  <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${statusBadge.color}`}>
+                    {statusBadge.label}
+                  </span>
+                  {project.financials.unallocatedBudget !== 0 && (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-400 border border-amber-200">
+                      <AlertTriangle className="w-2.5 h-2.5" />
+                      <span>รอจัดสรร ฿{formatCurrency(project.financials.unallocatedBudget)}</span>
+                    </span>
+                  )}
                 </div>
 
                 <div className="flex items-center gap-1">

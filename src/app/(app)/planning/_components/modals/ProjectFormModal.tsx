@@ -3,7 +3,8 @@
 import React, { useState, useTransition } from "react";
 import { X, Save, Loader2, FolderPlus, Building2, User, Coins, Hash, Tag, Layers } from "lucide-react";
 import { createProjectAction, updateProjectAction } from "@/app/actions/planning-project";
-import type { ProjectDTO, BudgetSourceType } from "@/lib/planning/types";
+import type { ProjectDTO, BudgetSourceType, ProjectStatusType } from "@/lib/planning/types";
+import { PROJECT_STATUS_LABELS, BUDGET_SOURCE_LABELS } from "@/lib/planning/types";
 
 interface UserOption {
   id: string;
@@ -28,10 +29,10 @@ interface ProjectFormModalProps {
 
 const BUDGET_SOURCES: { value: BudgetSourceType; label: string }[] = [
   { value: "SUBSIDY", label: "เงินอุดหนุน (SUBSIDY)" },
-  { value: "GENERAL_BUDGET", label: "งบประมาณแผ่นดิน (GENERAL)" },
-  { value: "REVENUE", label: "เงินรายได้สถานศึกษา (REVENUE)" },
-  { value: "SPECIAL_PROJECT", label: "โครงการพิเศษ (SPECIAL)" },
-  { value: "DONATION", label: "เงินบริจาค/ระดมทรัพยากร (DONATION)" },
+  { value: "FREE_EDUCATION_15Y", label: "เรียนฟรี 15 ปี (FREE_EDUCATION_15Y)" },
+  { value: "SCHOOL_INCOME", label: "เงินรายได้สถานศึกษา (SCHOOL_INCOME)" },
+  { value: "LOCAL_GOV", label: "เงินอุดหนุน อปท. (LOCAL_GOV)" },
+  { value: "OTHER", label: "เงินนอกงบประมาณอื่นๆ (OTHER)" },
 ];
 
 export function ProjectFormModal({
@@ -63,6 +64,7 @@ export function ProjectFormModal({
   );
   const [strategyCode, setStrategyCode] = useState(projectToEdit?.strategyCode || "");
   const [tagsInput, setTagsInput] = useState(projectToEdit?.standardTags?.join(", ") || "");
+  const [status, setStatus] = useState<ProjectStatusType>(projectToEdit?.status || "APPROVED");
 
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -108,6 +110,7 @@ export function ProjectFormModal({
           adjustedAmount: adj,
           strategyCode: strategyCode.trim() || undefined,
           standardTags,
+          status,
         });
 
         if (res.success) {
@@ -346,6 +349,26 @@ export function ProjectFormModal({
               />
             </div>
           </div>
+
+          {/* Status Selection (When Editing) */}
+          {isEditing && (
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                สถานะโครงการ
+              </label>
+              <select
+                value={status}
+                onChange={(e) => setStatus(e.target.value as ProjectStatusType)}
+                className="w-full h-11 px-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+              >
+                {Object.entries(PROJECT_STATUS_LABELS).map(([val, label]) => (
+                  <option key={val} value={val}>
+                    {label} ({val})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {/* Modal Footer */}
           <div className="pt-4 border-t border-gray-100 dark:border-gray-800 flex items-center justify-end gap-3">
