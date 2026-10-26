@@ -226,7 +226,7 @@ export function computePortfolioSummary(projects: ProjectDTO[]): PortfolioSummar
     totalPaidAmount: fromSatang(totalPaidSatang),
     totalSpentAmount: fromSatang(totalSpentSatang),
     totalRemainingBalance: fromSatang(totalRemainingSatang),
-    projectCount: projects.length,
+    projectCount: projects.filter((p) => !p.deletedAt).length,
     activityCount,
   };
 }

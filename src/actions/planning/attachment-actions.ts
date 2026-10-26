@@ -231,10 +231,16 @@ export async function deleteProjectAttachmentAction(
       projectStatus: attachment.project.status,
     });
 
-    if (!perms.canManageAttachments) {
+    const canDeleteThisAttachment =
+      perms.isPlanningOfficer ||
+      attachment.project.leaderUserId === user.id ||
+      (attachment.uploadedByUserId === user.id && perms.canManageAttachments);
+
+    if (!canDeleteThisAttachment) {
       return {
         success: false,
-        error: "คุณไม่มีสิทธิ์ลบเอกสารในโครงการนี้",
+        error:
+          "คุณไม่มีสิทธิ์ลบเอกสารนี้ (อนุญาตเฉพาะเจ้าหน้าที่แผนงาน, หัวหน้าโครงการ, หรือผู้ที่อัปโหลดเอกสารนี้เท่านั้น)",
       };
     }
 

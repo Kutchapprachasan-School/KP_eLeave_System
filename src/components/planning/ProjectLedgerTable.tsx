@@ -74,7 +74,7 @@ export function StackedBudgetProgressBar({
         {/* ส่วนที่เบิกจ่ายจริงแล้ว (PAID) */}
         {paidPercentage > 0 && (
           <div
-            style={{ width: `${Math.min(100, paidPercentage)}%` }}
+            style={{ width: `${Math.max(0, Math.min(100, paidPercentage))}%` }}
             className="bg-blue-600 transition-all duration-300"
             title={`เบิกจ่ายจริงแล้ว ${paidPercentage}%`}
           />
@@ -82,7 +82,7 @@ export function StackedBudgetProgressBar({
         {/* ส่วนที่กันวงเงินจองไว้ (RESERVED) */}
         {reservedPercentage > 0 && (
           <div
-            style={{ width: `${Math.min(100 - paidPercentage, reservedPercentage)}%` }}
+            style={{ width: `${Math.max(0, Math.min(100 - paidPercentage, reservedPercentage))}%` }}
             className="bg-amber-400 transition-all duration-300"
             title={`กันวงเงินจอง ${reservedPercentage}%`}
           />

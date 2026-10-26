@@ -112,7 +112,10 @@ export async function recordExpenseAction(
     }
 
     const createdExpense = await prisma.$transaction(async (tx) => {
-      // 1. ดึงข้อมูลกิจกรรมและรายการใช้จ่ายล่าสุดภายใน Transaction
+      // 1. Pessimistic Lock บนกิจกรรมย่อยเพื่อป้องกัน Race Condition
+      await tx.$executeRaw`SELECT id FROM "ProjectActivity" WHERE id = ${input.activityId} FOR UPDATE NOWAIT`;
+
+      // 2. ดึงข้อมูลกิจกรรมและรายการใช้จ่ายล่าสุดภายใน Transaction
       const activity = await tx.projectActivity.findFirst({
         where: { id: input.activityId, deletedAt: null },
         include: {
@@ -131,10 +134,10 @@ export async function recordExpenseAction(
         throw new Error("ไม่สามารถบันทึกค่าใช้จ่ายในโครงการที่ยกเลิกแล้วได้");
       }
 
-      // 2. คำนวณยอดคงเหลือปัจจุบันของกิจกรรม
+      // 3. คำนวณยอดคงเหลือปัจจุบันของกิจกรรม
       const financials = calculateActivityFinancials(activity as any);
 
-      // 3. ตรวจสอบ Financial Invariant ว่ายอดเบิกใหม่ไม่เกินยอดคงเหลือ
+      // 4. ตรวจสอบ Financial Invariant ว่ายอดเบิกใหม่ไม่เกินยอดคงเหลือ
       const check = validateExpenseInvariant({
         currentRemainingSatang: toSatang(financials.remainingBalance),
         newAmountSatang: amountSatang,
@@ -144,12 +147,12 @@ export async function recordExpenseAction(
         throw new Error(check.reason || "งบประมาณคงเหลือไม่เพียงพอ");
       }
 
-      // 4. Resolve allocation id
+      // 5. Resolve allocation id
       const allocationId = await ensureActivityAllocation(tx, activity.id, activity.project.id);
       const idempotencyKey = `EXP-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`;
       const isPaid = input.status === "PAID";
 
-      // 5. บันทึกรายการใช้จ่าย
+      // 6. บันทึกรายการใช้จ่าย
       const expDate = typeof input.expenseDate === "string" ? new Date(input.expenseDate) : input.expenseDate;
       const targetRequesterId = (input.requesterUserId && input.requesterUserId.trim()) || activity.responsibleUserId;
 
@@ -165,7 +168,7 @@ export async function recordExpenseAction(
           expenseDate: expDate,
           title: input.title.trim(),
           expenseCategory: input.expenseCategory,
-          amount: new Prisma.Decimal(input.amount),
+          amount: new Prisma.Decimal(fromSatang(amountSatang)),
           status: input.status,
           requestedByUserId: targetRequesterId,
           recordedByUserId: user.id,
@@ -261,6 +264,9 @@ export async function settleReservedExpenseAction(
         throw new Error("ไม่พบข้อมูลกิจกรรมย่อยที่เชื่อมโยงกับรายการนี้");
       }
 
+      // Pessimistic Lock บนกิจกรรมย่อยเพื่อป้องกัน Race Condition ระหว่าง settlement
+      await tx.$executeRaw`SELECT id FROM "ProjectActivity" WHERE id = ${existingExpense.activity.id} FOR UPDATE NOWAIT`;
+
       if (existingExpense.status !== "RESERVED" && existingExpense.status !== "SUBMITTED") {
         throw new Error(
           "รายการนี้ไม่ใช่สถานะกันวงเงิน (RESERVED) จึงไม่สามารถเคลียร์ยอดซ้ำได้"
@@ -292,7 +298,7 @@ export async function settleReservedExpenseAction(
         where: { id: existingExpense.id },
         data: {
           status: "PAID",
-          amount: new Prisma.Decimal(input.actualAmount),
+          amount: new Prisma.Decimal(fromSatang(actualSatang)),
           expenseDate: expDate,
           receiptNo: input.receiptNo?.trim() || existingExpense.receiptNo,
           expenseCategory:
@@ -376,6 +382,10 @@ export async function voidExpenseAction(
 
       if (!existing) {
         throw new Error("ไม่พบรายการใช้จ่าย หรือรายการนี้ถูกยกเลิกไปแล้ว");
+      }
+
+      if (existing.activityId) {
+        await tx.$executeRaw`SELECT id FROM "ProjectActivity" WHERE id = ${existing.activityId} FOR UPDATE NOWAIT`;
       }
 
       const combinedRemark = existing.remark

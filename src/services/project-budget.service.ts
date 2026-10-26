@@ -102,18 +102,38 @@ async function isFinanceAdmin(
     select: { role: true },
   });
   if (!user) return false;
-  if (user.role === "ADMIN" || user.role === "FINANCE_OFFICER") return true;
+  if (user.role === "ADMIN" || user.role === "DIRECTOR" || user.role === "FINANCE_OFFICER") return true;
 
   const settings = await tx.systemSettings.findUnique({
     where: { id: "default" },
-    select: { budgetAdminUserIds: true },
+    select: {
+      budgetAdminUserIds: true,
+      financeOfficerUserIds: true,
+      planningBudgetOfficerUserIds: true,
+      planningDisburserUserIds: true,
+    },
   });
-  const budgetAdmins = (settings?.budgetAdminUserIds || "")
-    .split(",")
+  const adminIds = [
+    ...(settings?.budgetAdminUserIds || "").split(","),
+    ...(settings?.financeOfficerUserIds || "").split(","),
+    ...(settings?.planningBudgetOfficerUserIds || "").split(","),
+    ...(settings?.planningDisburserUserIds || "").split(","),
+  ]
     .map((s) => s.trim())
     .filter(Boolean);
 
-  return budgetAdmins.includes(userId);
+  if (adminIds.includes(userId)) return true;
+
+  const duty = await tx.userDutyAssignment.findFirst({
+    where: {
+      userId,
+      dutyType: "DIVISION_HEAD",
+      divisionScope: "BUDGET",
+      revokedAt: null,
+    },
+  });
+
+  return Boolean(duty);
 }
 
 async function verifyServiceAuth(
@@ -236,7 +256,7 @@ export class ProjectBudgetService {
     reversals: Array<{ amount: Prisma.Decimal; status: string }>
   ): Prisma.Decimal {
     const gross = expenses
-      .filter((e) => e.status === "APPROVED" || e.status === "REVERSED")
+      .filter((e) => e.status === "APPROVED" || e.status === "REVERSED" || e.status === "PAID")
       .reduce((sum, e) => sum.add(e.amount), new Prisma.Decimal(0));
 
     const reversed = reversals
@@ -254,7 +274,11 @@ export class ProjectBudgetService {
     allocationId: string
   ): Promise<Prisma.Decimal> {
     const expenses = await tx.activityExpense.findMany({
-      where: { allocationId, status: { in: ["APPROVED", "REVERSED"] } },
+      where: {
+        allocationId,
+        status: { in: ["APPROVED", "REVERSED", "PAID"] },
+        deletedAt: null,
+      },
       select: { amount: true, status: true },
     });
 
@@ -277,7 +301,8 @@ export class ProjectBudgetService {
     const expenses = await tx.activityExpense.findMany({
       where: {
         allocation: { budgetTrancheId },
-        status: { in: ["APPROVED", "REVERSED"] },
+        status: { in: ["APPROVED", "REVERSED", "PAID"] },
+        deletedAt: null,
       },
       select: { amount: true, status: true },
     });
@@ -826,6 +851,7 @@ export class ProjectBudgetService {
           data: {
             idempotencyKey: data.idempotencyKey,
             allocationId: data.allocationId,
+            activityId: alloc.activityId,
             requestedByUserId: data.requestedByUserId,
             expenseDate: data.expenseDate,
             title: data.title,
@@ -1174,7 +1200,10 @@ export class ProjectBudgetService {
                 activityAllocations: {
                   include: {
                     expenses: {
-                      where: { status: { in: ["APPROVED", "REVERSED"] } },
+                      where: {
+                        status: { in: ["APPROVED", "REVERSED", "PAID"] },
+                        deletedAt: null,
+                      },
                       include: { reversal: true },
                     },
                   },
@@ -1184,14 +1213,17 @@ export class ProjectBudgetService {
           },
         },
         projects: {
+          where: { deletedAt: null },
           include: {
             leaderUser: { select: { id: true, name: true, image: true, position: true } },
             activities: {
+              where: { deletedAt: null },
               include: {
                 responsibleUser: { select: { id: true, name: true, image: true } },
                 trancheAllocations: {
                   include: {
                     expenses: {
+                      where: { deletedAt: null },
                       include: {
                         reversal: true,
                         requestedByUser: { select: { id: true, name: true, image: true } },
@@ -1286,13 +1318,20 @@ export class ProjectBudgetService {
           remainingAmount: act.allocatedAmount.sub(actSpent).toNumber(),
           status: act.status,
           responsibleUser: act.responsibleUser,
-          trancheAllocations: act.trancheAllocations.map((ta) => ({
-            id: ta.id,
-            budgetTrancheId: ta.budgetTrancheId,
-            trancheName: ta.budgetTranche?.name,
-            trancheNo: ta.budgetTranche?.trancheNo,
-            allocatedAmount: ta.allocatedAmount.toNumber(),
-            expenses: ta.expenses.map((e) => ({
+          trancheAllocations: act.trancheAllocations.map((ta) => {
+            const taReversals = ta.expenses
+              .map((e) => e.reversal)
+              .filter((r): r is NonNullable<typeof r> => Boolean(r));
+            const taSpent = ProjectBudgetService.calculateNetSpent(ta.expenses, taReversals);
+            return {
+              id: ta.id,
+              budgetTrancheId: ta.budgetTrancheId,
+              trancheName: ta.budgetTranche?.name,
+              trancheNo: ta.budgetTranche?.trancheNo,
+              allocatedAmount: ta.allocatedAmount.toNumber(),
+              spentAmount: taSpent.toNumber(),
+              remainingAmount: ta.allocatedAmount.sub(taSpent).toNumber(),
+              expenses: ta.expenses.map((e) => ({
               id: e.id,
               title: e.title,
               amount: e.amount.toNumber(),
@@ -1309,7 +1348,8 @@ export class ProjectBudgetService {
                   }
                 : null,
             })),
-          })),
+            };
+          }),
         };
       });
 
@@ -1844,6 +1884,7 @@ export class ProjectBudgetService {
         data: {
           idempotencyKey: data.idempotencyKey,
           allocationId: targetAllocationId,
+          activityId: alloc.activityId,
           requestedByUserId: data.actorUserId,
           approvedByUserId: isFinAdmin ? data.actorUserId : null,
           approvedAt: isFinAdmin ? now : null,
@@ -1859,7 +1900,7 @@ export class ProjectBudgetService {
         await tx.expenseAttachment.create({
           data: {
             expenseId: expense.id,
-            storageProvider: "LOCAL",
+            storageProvider: "R2_UPLOAD",
             objectKey: data.receiptAttachmentId,
             originalFileName: `receipt_${expense.id}.pdf`,
             uploadedByUserId: data.actorUserId,

@@ -15,6 +15,7 @@ import {
 import { serializeProjectToDTO } from "@/lib/planning/serializers";
 import {
   BudgetSourceType,
+  BUDGET_SOURCE_LABELS,
   DepartmentDTO,
   PortfolioSummaryDTO,
   ProjectDTO,
@@ -277,42 +278,24 @@ export async function createProjectAction(
       };
     }
 
-    if (allocatedSatang < 0 || adjustedSatang < 0) {
+    const adjustedSatang =
+      input.adjustedAmount !== undefined
+        ? toSatang(input.adjustedAmount)
+        : allocatedSatang;
+
+    if (adjustedSatang < 0) {
       return {
         success: false,
         error: "วงเงินงบประมาณต้องไม่ติดลบ",
       };
     }
 
-    const existingProject = await prisma.project.findUnique({
-      where: { id: input.id },
-      select: { allocatedAmount: true, adjustedAmount: true },
-    });
-    if (!existingProject) {
+    if (allocatedSatang > 0 && !perms.canAdjustBudget) {
       return {
         success: false,
-        error: "ไม่พบโครงการที่ต้องการแก้ไข",
+        error: "คุณไม่มีสิทธิ์ในการกำหนดวงเงินงบประมาณโครงการ (ต้องได้รับสิทธิ์ผู้แก้ไขจำนวนเงิน)",
       };
     }
-
-    const existingAllocatedSatang = toSatang(Number(existingProject.allocatedAmount));
-    const existingAdjustedSatang = toSatang(Number(existingProject.adjustedAmount));
-
-    const isAmountChanged =
-      existingAllocatedSatang !== allocatedSatang ||
-      existingAdjustedSatang !== adjustedSatang;
-
-    if (isAmountChanged && !perms.canAdjustBudget) {
-      return {
-        success: false,
-        error: "คุณไม่มีสิทธิ์ในการแก้ไขข้อมูลจำนวนเงินหรือโอนเปลี่ยนแปลงงบประมาณโครงการ (ต้องได้รับสิทธิ์ผู้แก้ไขจำนวนเงิน)",
-      };
-    }
-
-    const adjustedSatang =
-      input.adjustedAmount !== undefined
-        ? toSatang(input.adjustedAmount)
-        : allocatedSatang;
 
     const bSourceType = input.budgetSourceType || input.budgetSource || "SUBSIDY";
 
@@ -602,6 +585,13 @@ export async function softDeleteProjectAction(
         where: { projectId, deletedAt: null },
         data: { deletedAt: now },
       }),
+      prisma.activityExpense.updateMany({
+        where: {
+          activity: { projectId },
+          deletedAt: null,
+        },
+        data: { deletedAt: now },
+      }),
     ]);
 
     revalidatePath("/planning");
@@ -670,16 +660,16 @@ export async function createActivityAction(
 
     let nextActivityNo = input.activityNo;
     if (!nextActivityNo) {
-      // ค้นหา activityNo สูงสุดจากทุกแถว (รวมแถวที่ถูก soft-delete) เพื่อป้องกัน P2002 uk_activity_project_no
+      // ค้นหา activityNo สูงสุดจากกิจกรรมที่ยังไม่ถูก soft-delete
       const lastActivity = await prisma.projectActivity.findFirst({
-        where: { projectId: input.projectId },
+        where: { projectId: input.projectId, deletedAt: null },
         orderBy: { activityNo: "desc" },
         select: { activityNo: true },
       });
-      nextActivityNo = (lastActivity?.activityNo ?? 0) + 1;
+      nextActivityNo = Math.max(0, lastActivity?.activityNo ?? 0) + 1;
     } else {
       const existingAct = await prisma.projectActivity.findFirst({
-        where: { projectId: input.projectId, activityNo: nextActivityNo },
+        where: { projectId: input.projectId, activityNo: nextActivityNo, deletedAt: null },
         select: { id: true },
       });
       if (existingAct) {
@@ -785,6 +775,7 @@ export async function updateActivityAction(
         where: {
           projectId: currentAct.projectId,
           activityNo: input.activityNo,
+          deletedAt: null,
           id: { not: input.id },
         },
       });
@@ -837,10 +828,33 @@ export async function softDeleteActivityAction(
       };
     }
 
-    await prisma.projectActivity.update({
+    const current = await prisma.projectActivity.findUnique({
       where: { id: activityId },
-      data: { deletedAt: new Date() },
+      select: { id: true, activityNo: true },
     });
+    if (!current) {
+      return { success: false, error: "ไม่พบกิจกรรมย่อยที่ต้องการลบ" };
+    }
+
+    const freedActivityNo =
+      -1 *
+      Math.abs(
+        current.activityNo * 100000 + Math.floor(Date.now() % 100000)
+      );
+
+    await prisma.$transaction([
+      prisma.projectActivity.update({
+        where: { id: activityId },
+        data: {
+          deletedAt: new Date(),
+          activityNo: freedActivityNo,
+        },
+      }),
+      prisma.activityExpense.updateMany({
+        where: { activityId, deletedAt: null },
+        data: { deletedAt: new Date() },
+      }),
+    ]);
 
     revalidatePath("/planning");
     return { success: true, data: undefined };

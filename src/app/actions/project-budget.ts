@@ -47,15 +47,34 @@ async function verifyBudgetPermission(
     throw new Error("ระบบงบประมาณและโครงการถูกปิดการใช้งานชั่วคราว");
   }
 
-  const budgetAdmins = (settings?.budgetAdminUserIds || "")
-    .split(",")
+  const adminIds = [
+    ...(settings?.budgetAdminUserIds || "").split(","),
+    ...(settings?.financeOfficerUserIds || "").split(","),
+    ...(settings?.planningBudgetOfficerUserIds || "").split(","),
+    ...(settings?.planningDisburserUserIds || "").split(","),
+  ]
     .map((s) => s.trim())
     .filter(Boolean);
 
+  let hasBudgetDuty = false;
+  if (user.role !== "ADMIN" && !adminIds.includes(user.id)) {
+    const duty = await prisma.userDutyAssignment.findFirst({
+      where: {
+        userId: user.id,
+        dutyType: "DIVISION_HEAD",
+        divisionScope: "BUDGET",
+        revokedAt: null,
+      },
+    });
+    hasBudgetDuty = Boolean(duty);
+  }
+
   const isFinanceAdmin =
     user.role === "ADMIN" ||
+    user.role === "DIRECTOR" ||
     user.role === "FINANCE_OFFICER" ||
-    budgetAdmins.includes(user.id);
+    adminIds.includes(user.id) ||
+    hasBudgetDuty;
 
   if (action === "MANAGE") {
     if (!isFinanceAdmin) {
@@ -458,24 +477,40 @@ export async function recordExpenseAction(rawData: z.infer<typeof recordExpenseS
  */
 export async function recordAndApproveExpenseAction(rawData: z.infer<typeof recordExpenseSchema>) {
   try {
-    const { user } = await verifyBudgetPermission("MANAGE");
     const validated = recordExpenseSchema.parse(rawData);
     const targetAllocationId = await resolveAllocationDeterministically(validated);
-
-    // Step 1: Record as SUBMITTED
-    const expense = await ProjectBudgetService.recordExpense({
-      idempotencyKey: validated.idempotencyKey,
+    const { user, isFinanceAdmin } = await verifyBudgetPermission("SUBMIT", {
       allocationId: targetAllocationId,
-      requestedByUserId: user.id,
-      expenseDate: validated.expenseDate,
-      title: validated.title,
-      amount: new Prisma.Decimal(validated.amount),
-      receiptNo: validated.receiptNo,
+      activityId: validated.activityId,
     });
 
-    // Step 2: Approve
-    const approved = await ProjectBudgetService.approveExpense(expense.id, user.id);
-    return { success: true as const, data: serializeForClient(approved) };
+    // Step 1: Record as SUBMITTED
+    let expense;
+    try {
+      expense = await ProjectBudgetService.recordExpense({
+        idempotencyKey: validated.idempotencyKey,
+        allocationId: targetAllocationId,
+        requestedByUserId: user.id,
+        expenseDate: validated.expenseDate,
+        title: validated.title,
+        amount: new Prisma.Decimal(validated.amount),
+        receiptNo: validated.receiptNo,
+      });
+
+      // Step 2: If finance admin, immediately approve. Otherwise keep as SUBMITTED for review.
+      if (isFinanceAdmin) {
+        const approved = await ProjectBudgetService.approveExpense(expense.id, user.id);
+        return { success: true as const, data: serializeForClient(approved) };
+      }
+
+      return { success: true as const, data: serializeForClient(expense), pendingApproval: true };
+    } catch (stepErr) {
+      if (expense?.id) {
+        // Rollback orphan submitted expense to prevent permanent fiscal year lock
+        await prisma.activityExpense.delete({ where: { id: expense.id } }).catch(() => {});
+      }
+      throw stepErr;
+    }
   } catch (error) {
     return handleActionError(error);
   }
@@ -751,8 +786,11 @@ export async function getFiscalYearsListAction(includeArchived = true) {
  */
 export async function simplifiedDisburseBudgetAction(rawData: z.infer<typeof simplifiedDisburseSchema>) {
   try {
-    const { user } = await verifyBudgetPermission("MANAGE");
     const validated = simplifiedDisburseSchema.parse(rawData);
+    const { user } = await verifyBudgetPermission("SUBMIT", {
+      activityId: validated.activityId,
+      allocationId: validated.allocationId,
+    });
 
     const result = await ProjectBudgetService.simplifiedDisburseBudget({
       idempotencyKey: validated.idempotencyKey,
