@@ -40,7 +40,13 @@ async function verifyBudgetPermission(
 
   const settings = await prisma.systemSettings.findUnique({
     where: { id: "default" },
-    select: { enableBudget: true, budgetAdminUserIds: true },
+    select: {
+      enableBudget: true,
+      budgetAdminUserIds: true,
+      financeOfficerUserIds: true,
+      planningBudgetOfficerUserIds: true,
+      planningDisburserUserIds: true,
+    },
   });
 
   if (!settings?.enableBudget && user.role !== "ADMIN") {
