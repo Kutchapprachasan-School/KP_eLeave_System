@@ -19,7 +19,8 @@ import {
 import { FinancialMetricCards } from "./FinancialMetricCards";
 import { PlanningFilterToolbar } from "./PlanningFilterToolbar";
 import { ProjectLedgerTable } from "./ProjectLedgerTable";
-import { Landmark, Calendar } from "lucide-react";
+import { Landmark, Calendar, Settings, ShieldCheck } from "lucide-react";
+import Link from "next/link";
 import { useToast } from "@/components/toast-provider";
 
 // Modals from Phase 4
@@ -364,28 +365,43 @@ export function PlanningDashboardClient({
           </div>
         </div>
 
-        {/* ตัวเลือกปีงบประมาณ */}
-        <div className="flex items-center gap-2 self-start sm:self-center">
-          <Calendar className="h-4 w-4 text-slate-500 dark:text-slate-400" />
-          <label
-            htmlFor="fiscal-year-select"
-            className="text-sm font-medium text-slate-700 dark:text-slate-300"
-          >
-            ปีงบประมาณ พ.ศ.
-          </label>
-          <select
-            id="fiscal-year-select"
-            value={currentFiscalYear}
-            disabled={isPending}
-            onChange={(e) => handleFiscalYearChange(Number(e.target.value))}
-            className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-900 focus:border-blue-600 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-          >
-            {fiscalYearOptions.map((yr) => (
-              <option key={yr} value={yr}>
-                {yr}
-              </option>
-            ))}
-          </select>
+        {/* ส่วนตั้งค่าผู้รับผิดชอบ และตัวเลือกปีงบประมาณ */}
+        <div className="flex flex-wrap items-center gap-3 self-start sm:self-center">
+          {/* ปุ่มตั้งค่าผู้รับผิดชอบระบบ (สำหรับ Admin / Planning Officers) */}
+          {canManageProjectsAndBudget && (
+            <Link
+              href="/settings?section=planning-settings"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3.5 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 shadow-2xs hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-blue-600 dark:hover:text-blue-400 hover:border-blue-300 dark:hover:border-blue-700 transition-all cursor-pointer"
+              title="ตั้งค่าผู้รับผิดชอบระบบแผนงาน ผู้แก้ไขวงเงิน และผู้ตัดยอดเบิกจ่าย"
+            >
+              <Settings className="h-4 w-4 text-slate-500 dark:text-slate-400" />
+              <span>ตั้งค่าผู้รับผิดชอบ</span>
+            </Link>
+          )}
+
+          {/* ตัวเลือกปีงบประมาณ */}
+          <div className="flex items-center gap-2">
+            <Calendar className="h-4 w-4 text-slate-500 dark:text-slate-400" />
+            <label
+              htmlFor="fiscal-year-select"
+              className="text-sm font-medium text-slate-700 dark:text-slate-300"
+            >
+              ปีงบประมาณ พ.ศ.
+            </label>
+            <select
+              id="fiscal-year-select"
+              value={currentFiscalYear}
+              disabled={isPending}
+              onChange={(e) => handleFiscalYearChange(Number(e.target.value))}
+              className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-900 focus:border-blue-600 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+            >
+              {fiscalYearOptions.map((yr) => (
+                <option key={yr} value={yr}>
+                  {yr}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
 
