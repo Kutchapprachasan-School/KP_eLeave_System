@@ -35,15 +35,26 @@ export async function getPlanningActionContext(): Promise<{
     throw new Error("กรุณาเข้าสู่ระบบก่อนดำเนินการ (Unauthorized)");
   }
 
-  const rawSettings = await prisma.systemSettings.findUnique({
-    where: { id: "default" },
-    select: {
-      enablePlanning: true,
-      planningOfficerUserIds: true,
-      planningBudgetOfficerUserIds: true,
-      planningDisburserUserIds: true,
-    },
-  });
+  let rawSettings: {
+    enablePlanning?: boolean | null;
+    planningOfficerUserIds?: string | null;
+    planningBudgetOfficerUserIds?: string | null;
+    planningDisburserUserIds?: string | null;
+  } | null = null;
+
+  try {
+    rawSettings = await prisma.systemSettings.findUnique({
+      where: { id: "default" },
+      select: {
+        enablePlanning: true,
+        planningOfficerUserIds: true,
+        planningBudgetOfficerUserIds: true,
+        planningDisburserUserIds: true,
+      },
+    });
+  } catch (err) {
+    console.warn("Unable to fetch planning settings from SystemSettings, falling back to defaults:", err);
+  }
 
   const settings: PermissionCheckSettings = {
     enablePlanning: rawSettings?.enablePlanning ?? true,

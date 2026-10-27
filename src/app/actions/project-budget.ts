@@ -38,16 +38,28 @@ async function verifyBudgetPermission(
     throw new Error("Unauthorized: กรุณาเข้าสู่ระบบก่อนดำเนินการ");
   }
 
-  const settings = await prisma.systemSettings.findUnique({
-    where: { id: "default" },
-    select: {
-      enableBudget: true,
-      budgetAdminUserIds: true,
-      financeOfficerUserIds: true,
-      planningBudgetOfficerUserIds: true,
-      planningDisburserUserIds: true,
-    },
-  });
+  let settings: {
+    enableBudget?: boolean | null;
+    budgetAdminUserIds?: string | null;
+    financeOfficerUserIds?: string | null;
+    planningBudgetOfficerUserIds?: string | null;
+    planningDisburserUserIds?: string | null;
+  } | null = null;
+
+  try {
+    settings = await prisma.systemSettings.findUnique({
+      where: { id: "default" },
+      select: {
+        enableBudget: true,
+        budgetAdminUserIds: true,
+        financeOfficerUserIds: true,
+        planningBudgetOfficerUserIds: true,
+        planningDisburserUserIds: true,
+      },
+    });
+  } catch (err) {
+    console.warn("Unable to fetch settings in verifyBudgetPermission, falling back:", err);
+  }
 
   if (!settings?.enableBudget && user.role !== "ADMIN") {
     throw new Error("ระบบงบประมาณและโครงการถูกปิดการใช้งานชั่วคราว");

@@ -104,15 +104,26 @@ async function isFinanceAdmin(
   if (!user) return false;
   if (user.role === "ADMIN" || user.role === "DIRECTOR" || user.role === "FINANCE_OFFICER") return true;
 
-  const settings = await tx.systemSettings.findUnique({
-    where: { id: "default" },
-    select: {
-      budgetAdminUserIds: true,
-      financeOfficerUserIds: true,
-      planningBudgetOfficerUserIds: true,
-      planningDisburserUserIds: true,
-    },
-  });
+  let settings: {
+    budgetAdminUserIds?: string | null;
+    financeOfficerUserIds?: string | null;
+    planningBudgetOfficerUserIds?: string | null;
+    planningDisburserUserIds?: string | null;
+  } | null = null;
+
+  try {
+    settings = await tx.systemSettings.findUnique({
+      where: { id: "default" },
+      select: {
+        budgetAdminUserIds: true,
+        financeOfficerUserIds: true,
+        planningBudgetOfficerUserIds: true,
+        planningDisburserUserIds: true,
+      },
+    });
+  } catch (err) {
+    console.warn("Unable to fetch settings in isFinanceAdmin, falling back:", err);
+  }
   const adminIds = [
     ...(settings?.budgetAdminUserIds || "").split(","),
     ...(settings?.financeOfficerUserIds || "").split(","),
