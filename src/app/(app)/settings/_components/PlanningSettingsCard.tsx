@@ -16,6 +16,7 @@ import {
   Receipt
 } from "lucide-react";
 import { updatePlanningSettingsAction } from "@/actions/planning/settings-actions";
+import { getSimpleUsersList } from "@/app/actions/settings";
 
 export interface UserOption {
   id: string;
@@ -262,6 +263,29 @@ export function PlanningSettingsCard({
   const [selectedOfficerIds, setSelectedOfficerIds] = useState<string[]>(initialPlanningOfficerUserIds);
   const [selectedBudgetOfficerIds, setSelectedBudgetOfficerIds] = useState<string[]>(initialPlanningBudgetOfficerUserIds);
   const [selectedDisburserIds, setSelectedDisburserIds] = useState<string[]>(initialPlanningDisburserUserIds);
+  const [usersList, setUsersList] = useState<UserOption[]>(availableUsers);
+
+  React.useEffect(() => {
+    if (availableUsers && availableUsers.length > 0) {
+      setUsersList(availableUsers);
+    } else {
+      getSimpleUsersList()
+        .then((data) => {
+          if (data && Array.isArray(data) && data.length > 0) {
+            setUsersList(
+              data.map((u: any) => ({
+                id: u.id,
+                name: u.name,
+                position: u.position,
+                department: u.department || u.subjectGroup || null,
+                email: u.email,
+              }))
+            );
+          }
+        })
+        .catch(console.error);
+    }
+  }, [availableUsers]);
 
   React.useEffect(() => {
     setEnablePlanning(initialEnablePlanning);
@@ -373,7 +397,7 @@ export function PlanningSettingsCard({
         theme="purple"
         selectedIds={selectedOfficerIds}
         onChange={setSelectedOfficerIds}
-        availableUsers={availableUsers}
+        availableUsers={usersList}
         emptyNote="ยังไม่มีการแต่งตั้งเจ้าหน้าที่แผนงานหลัก (เฉพาะผู้ดูแลระบบที่จะมีสิทธิ์จัดการโครงสร้างโครงการ)"
         infoBulletPoints={[
           "สร้างโครงการ, กำหนดกิจกรรมย่อย และจัดทำรายงานแผนปฏิบัติการประจำปี",
@@ -393,7 +417,7 @@ export function PlanningSettingsCard({
         theme="indigo"
         selectedIds={selectedBudgetOfficerIds}
         onChange={setSelectedBudgetOfficerIds}
-        availableUsers={availableUsers}
+        availableUsers={usersList}
         emptyNote="ยังไม่ได้ระบุเฉพาะเจาะจง (ระบบจะให้สิทธิ์แก่ผู้ดูแลระบบและเจ้าหน้าที่แผนงานหลักโดยอัตโนมัติ)"
         infoBulletPoints={[
           "กำหนดวงเงินงบประมาณเริ่มต้นของโครงการและกิจกรรมย่อย",
@@ -414,7 +438,7 @@ export function PlanningSettingsCard({
         theme="emerald"
         selectedIds={selectedDisburserIds}
         onChange={setSelectedDisburserIds}
-        availableUsers={availableUsers}
+        availableUsers={usersList}
         emptyNote="ยังไม่ได้ระบุเฉพาะเจาะจง (ระบบจะให้สิทธิ์แก่ผู้ดูแลระบบและเจ้าหน้าที่แผนงานหลักโดยอัตโนมัติ)"
         infoBulletPoints={[
           "บันทึกข้อมูลการเบิกจ่ายจริง (PAID) พร้อมแนบใบสำคัญรับเงิน/หลักฐานการจ่าย",

@@ -274,7 +274,81 @@ export function ProjectLedgerTable({
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead className="bg-slate-50/80 dark:bg-gray-850 border-b border-slate-200/90 dark:border-gray-800 text-xs font-bold text-slate-700 dark:text-slate-200">
-              <tr
+              <tr>
+                <th scope="col" className="py-3.5 pl-6 pr-3 w-[33%] text-left">
+                  โครงการ / ฝ่ายงาน / หัวหน้า
+                </th>
+                <th scope="col" className="py-3.5 px-3 w-[17%] text-left">
+                  สถานะเอกสาร
+                </th>
+                <th scope="col" className="py-3.5 px-3 w-[11%] text-left">
+                  งบสุทธิ
+                </th>
+                <th scope="col" className="py-3.5 px-3 w-[9%] text-left">
+                  กันเงิน
+                </th>
+                <th scope="col" className="py-3.5 px-3 w-[12%] text-left">
+                  เบิกจ่ายแล้ว
+                </th>
+                <th scope="col" className="py-3.5 px-3 w-[11%] text-left">
+                  คงเหลือสุทธิ
+                </th>
+                <th scope="col" className="py-3.5 pr-6 pl-3 w-[7%] text-left">
+                  การจัดการ
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-200/80 dark:divide-gray-800 text-xs">
+              {projects.map((project) => {
+                const isExpanded = expandedProjectIds.has(project.id);
+                const { financials, permissions } = project;
+                const { sarReadiness } = financials;
+                const bSourceKey = project.budgetSource || project.budgetSourceType;
+                const deptName =
+                  project.department?.name || project.departmentName || "-";
+                const leaderName =
+                  project.leader?.name || project.leaderUserName || "-";
+
+                const paidPct =
+                  financials.paidPercentage ??
+                  (financials.effectiveBudget > 0
+                    ? Number(
+                        ((financials.paidAmount / financials.effectiveBudget) *
+                          100).toFixed(1)
+                      )
+                    : 0);
+                const resPct =
+                  financials.reservedPercentage ??
+                  (financials.effectiveBudget > 0
+                    ? Number(
+                        (
+                          (financials.reservedAmount /
+                            financials.effectiveBudget) *
+                          100
+                        ).toFixed(1)
+                      )
+                    : 0);
+                const usePct =
+                  financials.usagePercentage ??
+                  (financials.effectiveBudget > 0
+                    ? Number(
+                        ((financials.totalSpent / financials.effectiveBudget) *
+                          100).toFixed(1)
+                      )
+                    : 0);
+                const hasWarning =
+                  financials.hasUnallocatedWarning ??
+                  financials.unallocatedBudget !== 0;
+
+                const canManageBudget =
+                  permissions?.canManageProjectsAndBudget ??
+                  permissions?.canManageProject ??
+                  false;
+                const canAttach = permissions?.canManageAttachments ?? true;
+
+                return (
+                  <React.Fragment key={project.id}>
+                    <tr
                       className={`transition-colors hover:bg-slate-50/90 dark:hover:bg-gray-800/60 ${
                         isExpanded
                           ? "bg-slate-50/40 dark:bg-gray-850/40 font-medium"

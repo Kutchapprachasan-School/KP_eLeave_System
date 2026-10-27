@@ -1019,7 +1019,7 @@ export default function SettingsPage() {
 
     }
 
-    if ((activeSection === "repair-settings" || activeSection === "subsystems") && userList.length === 0) {
+    if ((activeSection === "repair-settings" || activeSection === "subsystems" || activeSection === "planning-settings") && userList.length === 0) {
 
       getSimpleUsersList().then(setUserList).catch(console.error);
 
@@ -9131,9 +9131,9 @@ function doPost(e) {
 
   // --- Planning & Budget Settings Section ---
   const renderPlanningSettingsSection = () => {
-    const availableUsers = (simpleUsers && simpleUsers.length > 0)
-      ? simpleUsers
-      : (userList && userList.length > 0 ? userList : []);
+    const availableUsers = (userList && userList.length > 0)
+      ? userList
+      : (simpleUsers && simpleUsers.length > 0 ? simpleUsers : []);
 
     return (
       <div className="space-y-6">
