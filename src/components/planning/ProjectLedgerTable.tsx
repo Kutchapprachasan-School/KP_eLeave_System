@@ -30,6 +30,7 @@ import {
   Landmark,
   Building2,
   Coins,
+  MoreVertical,
 } from "lucide-react";
 
 /**
@@ -196,26 +197,40 @@ export function StackedBudgetProgressBar({
  * ป้ายสีตามสถานะโครงการ
  */
 export function ProjectStatusBadge({ status }: { status: ProjectDTO["status"] }) {
-  const badgeStyles: Record<ProjectDTO["status"], string> = {
-    DRAFT:
-      "bg-slate-100 text-slate-700 border-slate-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700",
-    APPROVED:
-      "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800",
-    IN_PROGRESS:
-      "bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-300 dark:border-indigo-800",
-    COMPLETED:
-      "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800",
-    CANCELLED:
-      "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800",
+  const configs: Record<
+    ProjectDTO["status"],
+    { pill: string; dot: string }
+  > = {
+    APPROVED: {
+      pill: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800",
+      dot: "bg-emerald-500",
+    },
+    IN_PROGRESS: {
+      pill: "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800",
+      dot: "bg-blue-500",
+    },
+    COMPLETED: {
+      pill: "bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-950/40 dark:text-teal-300 dark:border-teal-800",
+      dot: "bg-teal-500",
+    },
+    DRAFT: {
+      pill: "bg-slate-100 text-slate-700 border-slate-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700",
+      dot: "bg-slate-400",
+    },
+    CANCELLED: {
+      pill: "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800",
+      dot: "bg-rose-500",
+    },
   };
+
+  const config = configs[status] || configs.DRAFT;
 
   return (
     <span
-      className={`inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium ${
-        badgeStyles[status] || "bg-slate-100 text-slate-700 border-slate-200"
-      }`}
+      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-semibold shadow-2xs whitespace-nowrap ${config.pill}`}
     >
-      {PROJECT_STATUS_LABELS[status] || status}
+      <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${config.dot}`} />
+      <span>{PROJECT_STATUS_LABELS[status] || status}</span>
     </span>
   );
 }
@@ -233,6 +248,7 @@ export function ProjectLedgerTable({
   onRecordExpense,
   onOpenExpenseHistory,
 }: ProjectLedgerTableProps) {
+  const [activeActionMenuId, setActiveActionMenuId] = React.useState<string | null>(null);
   if (projects.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-6 py-16 text-center">
@@ -254,95 +270,20 @@ export function ProjectLedgerTable({
       {/* ========================================================================= */}
       {/* 1. DESKTOP & TABLET VIEW: High-Density Financial Ledger Table (ตารางคุมงบ) */}
       {/* ========================================================================= */}
-      <div className="hidden md:block overflow-hidden rounded-xl border border-slate-200 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-xs">
+      <div className="hidden md:block overflow-hidden rounded-2xl border border-slate-200/90 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-xs">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
-            <thead className="bg-slate-50 dark:bg-gray-850 border-b border-slate-200 dark:border-gray-800 text-[11px] font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wider">
-              <tr>
-                <th scope="col" className="py-3 px-4 w-[34%]">
-                  โครงการ / ฝ่ายงาน / หัวหน้า
-                </th>
-                <th scope="col" className="py-3 px-3 w-[15%]">
-                  สถานะ SAR / แนบไฟล์
-                </th>
-                <th scope="col" className="py-3 px-3 w-[11%] text-right">
-                  งบสุทธิ
-                </th>
-                <th scope="col" className="py-3 px-3 w-[10%] text-right">
-                  กันเงิน
-                </th>
-                <th scope="col" className="py-3 px-3 w-[12%] text-right">
-                  เบิกจ่ายแล้ว
-                </th>
-                <th scope="col" className="py-3 px-3 w-[11%] text-right">
-                  คงเหลือสุทธิ
-                </th>
-                <th scope="col" className="py-3 px-4 w-[11%] text-center">
-                  การจัดการ
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-200/80 dark:divide-gray-800 text-xs">
-              {projects.map((project) => {
-                const isExpanded = expandedProjectIds.has(project.id);
-                const { financials, permissions } = project;
-                const { sarReadiness } = financials;
-                const bSourceKey = project.budgetSource || project.budgetSourceType;
-                const deptName =
-                  project.department?.name || project.departmentName || "-";
-                const leaderName =
-                  project.leader?.name || project.leaderUserName || "-";
-
-                const paidPct =
-                  financials.paidPercentage ??
-                  (financials.effectiveBudget > 0
-                    ? Number(
-                        ((financials.paidAmount / financials.effectiveBudget) *
-                          100).toFixed(1)
-                      )
-                    : 0);
-                const resPct =
-                  financials.reservedPercentage ??
-                  (financials.effectiveBudget > 0
-                    ? Number(
-                        (
-                          (financials.reservedAmount /
-                            financials.effectiveBudget) *
-                          100
-                        ).toFixed(1)
-                      )
-                    : 0);
-                const usePct =
-                  financials.usagePercentage ??
-                  (financials.effectiveBudget > 0
-                    ? Number(
-                        ((financials.totalSpent / financials.effectiveBudget) *
-                          100).toFixed(1)
-                      )
-                    : 0);
-                const hasWarning =
-                  financials.hasUnallocatedWarning ??
-                  financials.unallocatedBudget !== 0;
-
-                const canManageBudget =
-                  permissions?.canManageProjectsAndBudget ??
-                  permissions?.canManageProject ??
-                  false;
-                const canAttach = permissions?.canManageAttachments ?? true;
-
-                return (
-                  <React.Fragment key={project.id}>
-                    {/* แถวโครงการหลักในตาราง Desktop (Master Project Row) */}
-                    <tr
+            <thead className="bg-slate-50/80 dark:bg-gray-850 border-b border-slate-200/90 dark:border-gray-800 text-xs font-bold text-slate-700 dark:text-slate-200">
+              <tr
                       className={`transition-colors hover:bg-slate-50/90 dark:hover:bg-gray-800/60 ${
                         isExpanded
                           ? "bg-slate-50/40 dark:bg-gray-850/40 font-medium"
                           : ""
                       }`}
                     >
-                      {/* คอลัมน์ที่ 1: โครงการ / ฝ่าย / รหัส / หัวหน้า */}
-                      <td className="py-3.5 px-4 align-top">
-                        <div className="flex items-start gap-2.5">
+                      {/* คอลัมน์ที่ 1: โครงการ / ฝ่ายงาน / หัวหน้า */}
+                      <td className="py-4 pl-6 pr-3 align-top">
+                        <div className="flex items-start gap-3">
                           <button
                             type="button"
                             onClick={() => onToggleExpand(project.id)}
@@ -350,49 +291,45 @@ export function ProjectLedgerTable({
                               isExpanded ? "ย่อกิจกรรมย่อย" : "กางดูกิจกรรมย่อย"
                             }
                             aria-expanded={isExpanded}
-                            className="mt-0.5 rounded-lg border border-slate-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-1 text-slate-600 dark:text-slate-300 shadow-2xs hover:bg-slate-100 dark:hover:bg-gray-700 hover:text-slate-900 cursor-pointer transition-colors"
+                            className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-slate-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 shadow-2xs hover:border-slate-300 transition-colors cursor-pointer"
                           >
                             {isExpanded ? (
-                              <ChevronDown className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                              <ChevronDown className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
                             ) : (
-                              <ChevronRight className="h-4 w-4" />
+                              <ChevronRight className="h-3.5 w-3.5" />
                             )}
                           </button>
 
-                          <div className="space-y-1">
-                            <div className="flex flex-wrap items-center gap-1.5">
-                              <span className="rounded bg-slate-900 dark:bg-slate-800 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-white dark:text-slate-300">
+                          <div className="min-w-0 space-y-1">
+                            <div>
+                              <span className="inline-block rounded-full bg-[#0c356a] px-2.5 py-0.5 font-mono text-[11px] font-bold text-white shadow-2xs">
                                 {project.code}
                               </span>
-                              <button
-                                type="button"
-                                onClick={() => onToggleExpand(project.id)}
-                                className="text-left font-bold text-slate-900 dark:text-white hover:text-blue-600 dark:hover:text-blue-400 cursor-pointer"
-                              >
-                                {project.name}
-                              </button>
                             </div>
 
-                            <div className="flex flex-wrap items-center gap-x-2 text-[11px] text-slate-500 dark:text-slate-400">
-                              <span className="font-medium text-slate-700 dark:text-slate-300">
-                                {deptName}
-                              </span>
-                              <span>•</span>
+                            <button
+                              type="button"
+                              onClick={() => onToggleExpand(project.id)}
+                              className="block text-left text-sm font-bold text-slate-900 dark:text-white hover:text-blue-600 dark:hover:text-blue-400 cursor-pointer leading-snug"
+                            >
+                              {project.name}
+                            </button>
+
+                            <div className="text-xs text-slate-500 dark:text-slate-400">
+                              {deptName}
+                            </div>
+
+                            <div className="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
+                              <User className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                              <span>{leaderName}</span>
+                            </div>
+
+                            {/* ป้ายแหล่งเงินและเตือนจัดสรรงบ */}
+                            <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
                               <BudgetSourceBadge sourceKey={bSourceKey} />
-                              <span>•</span>
-                              <span>
-                                หัวหน้า:{" "}
-                                <strong className="text-slate-700 dark:text-slate-300 font-medium">
-                                  {leaderName}
-                                </strong>
-                              </span>
-                            </div>
-
-                            {/* ป้ายเตือนกรณีงบโครงการกับผลรวมกิจกรรมย่อยไม่ตรงกัน */}
-                            {hasWarning && (
-                              <div className="pt-0.5">
+                              {hasWarning && (
                                 <span
-                                  className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium ${
+                                  className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium ${
                                     financials.unallocatedBudget > 0
                                       ? "bg-amber-50 dark:bg-amber-950/50 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800"
                                       : "bg-rose-50 dark:bg-rose-950/50 text-rose-800 dark:text-rose-300 border border-rose-200 dark:border-rose-800"
@@ -400,102 +337,99 @@ export function ProjectLedgerTable({
                                 >
                                   <AlertTriangle className="h-3 w-3" />
                                   {financials.unallocatedBudget > 0
-                                    ? `รอจัดสรรลงกิจกรรม ${formatCurrencyTHB(financials.unallocatedBudget)}`
-                                    : `จัดสรรเกินงบ ${formatCurrencyTHB(Math.abs(financials.unallocatedBudget))}`}
+                                    ? `รอจัดสรร ${formatCurrencyTHB(financials.unallocatedBudget)}`
+                                    : `เกินงบ ${formatCurrencyTHB(Math.abs(financials.unallocatedBudget))}`}
                                 </span>
-                              </div>
-                            )}
+                              )}
+                            </div>
                           </div>
                         </div>
                       </td>
 
-                      {/* คอลัมน์ที่ 2: สถานะ SAR & เอกสารแนบ */}
-                      <td className="py-3.5 px-3 align-top">
-                        <div className="space-y-1.5">
-                          <div className="flex items-center gap-1 text-[11px]">
-                            <span
-                              title={
-                                sarReadiness.hasProposal
-                                  ? "มีเล่มโครงการแล้ว"
-                                  : "ยังไม่มีเล่มโครงการ"
-                              }
-                              className={`inline-flex items-center gap-0.5 ${
-                                sarReadiness.hasProposal
-                                  ? "text-emerald-700 dark:text-emerald-400 font-medium"
-                                  : "text-slate-400 dark:text-gray-500"
-                              }`}
-                            >
+                      {/* คอลัมน์ที่ 2: สถานะเอกสาร */}
+                      <td className="py-4 px-3 align-top">
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-1.5 text-xs">
+                            {/* เล่ม */}
+                            <div className="flex items-center gap-1">
                               {sarReadiness.hasProposal ? (
-                                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                                <CheckCircle2 className="h-4 w-4 fill-blue-600 text-white shrink-0" />
                               ) : (
-                                <Circle className="h-3.5 w-3.5" />
+                                <Circle className="h-4 w-4 text-slate-300 dark:text-gray-600 shrink-0" />
                               )}
-                              เล่ม
-                            </span>
-                            <span className="text-slate-300 dark:text-gray-600">|</span>
-                            <span
-                              title={
-                                sarReadiness.hasApproval
-                                  ? "มีบันทึกขออนุมัติแล้ว"
-                                  : "ยังไม่มีบันทึกขออนุมัติ"
-                              }
-                              className={`inline-flex items-center gap-0.5 ${
-                                sarReadiness.hasApproval
-                                  ? "text-emerald-700 dark:text-emerald-400 font-medium"
-                                  : "text-slate-400 dark:text-gray-500"
-                              }`}
-                            >
+                              <span
+                                className={
+                                  sarReadiness.hasProposal
+                                    ? "font-medium text-slate-800 dark:text-slate-200"
+                                    : "text-slate-400 dark:text-gray-500"
+                                }
+                              >
+                                เล่ม
+                              </span>
+                            </div>
+
+                            <div className="h-[1.5px] w-3.5 bg-slate-300 dark:bg-gray-700 shrink-0" />
+
+                            {/* อนุมัติ */}
+                            <div className="flex items-center gap-1">
                               {sarReadiness.hasApproval ? (
-                                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                                <CheckCircle2 className="h-4 w-4 fill-blue-600 text-white shrink-0" />
                               ) : (
-                                <Circle className="h-3.5 w-3.5" />
+                                <Circle className="h-4 w-4 text-slate-300 dark:text-gray-600 shrink-0" />
                               )}
-                              อนุมัติ
-                            </span>
-                            <span className="text-slate-300 dark:text-gray-600">|</span>
-                            <span
-                              title={
-                                sarReadiness.hasSummary
-                                  ? "มีรายงานสรุป SAR แล้ว"
-                                  : "ยังไม่มีรายงานสรุป SAR"
-                              }
-                              className={`inline-flex items-center gap-0.5 ${
-                                sarReadiness.hasSummary
-                                  ? "text-emerald-700 dark:text-emerald-400 font-medium"
-                                  : "text-slate-400 dark:text-gray-500"
-                              }`}
-                            >
+                              <span
+                                className={
+                                  sarReadiness.hasApproval
+                                    ? "font-medium text-slate-800 dark:text-slate-200"
+                                    : "text-slate-400 dark:text-gray-500"
+                                }
+                              >
+                                อนุมัติ
+                              </span>
+                            </div>
+
+                            <div className="h-[1.5px] w-3.5 bg-slate-300 dark:bg-gray-700 shrink-0" />
+
+                            {/* SAR */}
+                            <div className="flex items-center gap-1">
                               {sarReadiness.hasSummary ? (
-                                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                                <CheckCircle2 className="h-4 w-4 fill-blue-600 text-white shrink-0" />
                               ) : (
-                                <Circle className="h-3.5 w-3.5" />
+                                <Circle className="h-4 w-4 text-slate-300 dark:text-gray-600 shrink-0" />
                               )}
-                              SAR
-                            </span>
+                              <span
+                                className={
+                                  sarReadiness.hasSummary
+                                    ? "font-medium text-slate-800 dark:text-slate-200"
+                                    : "text-slate-400 dark:text-gray-500"
+                                }
+                              >
+                                SAR
+                              </span>
+                            </div>
                           </div>
 
-                          <button
-                            type="button"
-                            onClick={() => onOpenAttachments(project)}
-                            className="inline-flex items-center gap-1 rounded border border-blue-200 dark:border-blue-900 bg-blue-50/80 dark:bg-blue-950/40 px-2 py-0.5 text-[11px] font-medium text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/60 cursor-pointer transition-colors"
-                          >
-                            <Paperclip className="h-3 w-3" />
-                            <span>
-                              ไฟล์แนบ ({project.attachments?.length || 0})
-                              {canAttach ? " / +" : ""}
-                            </span>
-                          </button>
+                          <div>
+                            <button
+                              type="button"
+                              onClick={() => onOpenAttachments(project)}
+                              className="inline-flex items-center gap-1.5 rounded-full border border-blue-200 dark:border-blue-800 bg-blue-50/80 dark:bg-blue-950/40 px-3 py-1 text-xs font-medium text-blue-600 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/50 cursor-pointer transition-colors shadow-2xs"
+                            >
+                              <Paperclip className="h-3 w-3" />
+                              <span>ไฟล์แนบ ({project.attachments?.length || 0})</span>
+                            </button>
+                          </div>
                         </div>
                       </td>
 
                       {/* คอลัมน์ที่ 3: งบสุทธิ */}
-                      <td className="py-3.5 px-3 align-top text-right">
-                        <div className="font-bold tabular-nums text-slate-900 dark:text-white">
+                      <td className="py-4 px-3 align-top">
+                        <div className="text-sm font-bold tabular-nums text-slate-900 dark:text-white">
                           {formatCurrencyTHB(financials.effectiveBudget)}
                         </div>
                         {financials.isAdjusted && (
                           <div
-                            className="text-[10px] tabular-nums text-slate-400"
+                            className="text-[10px] tabular-nums text-slate-400 mt-0.5"
                             title="งบประมาณตั้งต้นก่อนโอนเกลี่ย"
                           >
                             เดิม {formatCurrencyTHB(financials.allocatedAmount)}
@@ -504,84 +438,123 @@ export function ProjectLedgerTable({
                       </td>
 
                       {/* คอลัมน์ที่ 4: กันเงิน */}
-                      <td className="py-3.5 px-3 align-top text-right">
-                        <div className="font-semibold tabular-nums text-amber-700 dark:text-amber-400">
+                      <td className="py-4 px-3 align-top">
+                        <div className="text-sm font-semibold tabular-nums text-amber-500 dark:text-amber-400">
                           {formatCurrencyTHB(financials.reservedAmount)}
                         </div>
-                        {resPct > 0 && (
-                          <div className="text-[10px] tabular-nums text-amber-600 dark:text-amber-500">
-                            ({resPct}%)
-                          </div>
-                        )}
                       </td>
 
-                      {/* คอลัมน์ที่ 5: เบิกจ่ายแล้ว + Mini Progress Bar */}
-                      <td className="py-3.5 px-3 align-top text-right">
-                        <div className="font-semibold tabular-nums text-blue-700 dark:text-blue-400">
-                          {formatCurrencyTHB(financials.paidAmount)}
-                        </div>
-                        <div className="mt-1">
-                          <StackedBudgetProgressBar
-                            paidPercentage={paidPct}
-                            reservedPercentage={resPct}
-                            usagePercentage={usePct}
-                            compact
-                          />
-                        </div>
-                        <div className="mt-0.5 text-[10px] tabular-nums text-slate-500 dark:text-slate-400">
-                          ใช้ไป {usePct}%
+                      {/* คอลัมน์ที่ 5: เบิกจ่ายแล้ว */}
+                      <td className="py-4 px-3 align-top">
+                        <div className="w-28">
+                          <div className="text-right text-sm font-semibold tabular-nums text-blue-600 dark:text-blue-400">
+                            {formatCurrencyTHB(financials.paidAmount)}
+                          </div>
+                          <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-blue-100 dark:bg-gray-800">
+                            <div
+                              style={{ width: `${Math.min(100, Math.max(0, paidPct))}%` }}
+                              className="h-full bg-blue-600 rounded-full transition-all duration-300"
+                            />
+                          </div>
+                          <div className="mt-1 text-right text-[11px] tabular-nums text-slate-400 dark:text-slate-500">
+                            ใช้ไป {usePct}%
+                          </div>
                         </div>
                       </td>
 
                       {/* คอลัมน์ที่ 6: คงเหลือสุทธิ */}
-                      <td className="py-3.5 px-3 align-top text-right">
+                      <td className="py-4 px-3 align-top">
                         <div
-                          className={`font-bold tabular-nums text-sm ${
+                          className={`text-sm font-bold tabular-nums ${
                             financials.remainingBalance < 0
                               ? "text-rose-600 dark:text-rose-400"
-                              : "text-emerald-700 dark:text-emerald-400"
+                              : "text-emerald-600 dark:text-emerald-400"
                           }`}
                         >
                           {formatCurrencyTHB(financials.remainingBalance)}
                         </div>
                       </td>
 
-                      {/* คอลัมน์ที่ 7: การจัดการและสถานะ */}
-                      <td className="py-3.5 px-4 align-top text-center">
-                        <div className="flex flex-col items-center gap-1.5">
+                      {/* คอลัมน์ที่ 7: การจัดการ */}
+                      <td className="py-4 pr-6 pl-3 align-top">
+                        <div className="flex items-center gap-1.5">
                           <ProjectStatusBadge status={project.status} />
 
-                          {canManageBudget && (
-                            <div className="flex items-center gap-1 mt-0.5">
-                              <button
-                                type="button"
-                                onClick={() => onAddActivity(project)}
-                                aria-label="เพิ่มกิจกรรมย่อย"
-                                className="rounded p-1 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-gray-800 hover:text-slate-900 cursor-pointer transition-colors"
-                                title="เพิ่มกิจกรรมย่อย"
-                              >
-                                <Plus className="h-4 w-4" />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => onEditProject(project)}
-                                aria-label="แก้ไขโครงการ / โอนเกลี่ยงบ"
-                                className="rounded p-1 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-gray-800 hover:text-slate-900 cursor-pointer transition-colors"
-                                title="แก้ไขโครงการ / โอนเกลี่ยงบ"
-                              >
-                                <Edit3 className="h-4 w-4" />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => onDeleteProject(project)}
-                                aria-label="ลบโครงการ"
-                                className="rounded p-1 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 cursor-pointer transition-colors"
-                                title="ลบโครงการ"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </button>
-                            </div>
-                          )}
+                          <div className="relative">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setActiveActionMenuId(
+                                  activeActionMenuId === project.id ? null : project.id
+                                )
+                              }
+                              aria-label="ตัวเลือกโครงการ"
+                              className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-gray-800 dark:hover:text-slate-200 cursor-pointer transition-colors"
+                            >
+                              <MoreVertical className="h-4 w-4" />
+                            </button>
+
+                            {activeActionMenuId === project.id && (
+                              <>
+                                <div
+                                  className="fixed inset-0 z-20"
+                                  onClick={() => setActiveActionMenuId(null)}
+                                />
+                                <div className="absolute right-0 top-full mt-1 w-44 rounded-xl border border-slate-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-1 shadow-lg z-30 text-xs">
+                                  {canManageBudget && (
+                                    <>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setActiveActionMenuId(null);
+                                          onAddActivity(project);
+                                        }}
+                                        className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-gray-700 transition-colors cursor-pointer font-medium"
+                                      >
+                                        <Plus className="h-3.5 w-3.5 text-blue-600" />
+                                        <span>เพิ่มกิจกรรมย่อย</span>
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setActiveActionMenuId(null);
+                                          onEditProject(project);
+                                        }}
+                                        className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-gray-700 transition-colors cursor-pointer font-medium"
+                                      >
+                                        <Edit3 className="h-3.5 w-3.5 text-slate-500" />
+                                        <span>แก้ไขโครงการ / ปรับงบ</span>
+                                      </button>
+                                    </>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setActiveActionMenuId(null);
+                                      onOpenAttachments(project);
+                                    }}
+                                    className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-gray-700 transition-colors cursor-pointer font-medium"
+                                  >
+                                    <Paperclip className="h-3.5 w-3.5 text-slate-500" />
+                                    <span>จัดการไฟล์แนบ</span>
+                                  </button>
+                                  {canManageBudget && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setActiveActionMenuId(null);
+                                        onDeleteProject(project);
+                                      }}
+                                      className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer font-medium"
+                                    >
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                      <span>ลบโครงการ</span>
+                                    </button>
+                                  )}
+                                </div>
+                              </>
+                            )}
+                          </div>
                         </div>
                       </td>
                     </tr>
