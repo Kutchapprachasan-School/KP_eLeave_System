@@ -15,7 +15,10 @@ import {
   Coins,
   Receipt
 } from "lucide-react";
-import { updatePlanningSettingsAction } from "@/actions/planning/settings-actions";
+import { 
+  updatePlanningSettingsAction,
+  getPlanningStaffListAction,
+} from "@/actions/planning/settings-actions";
 import { getSimpleUsersList } from "@/app/actions/settings";
 
 export interface UserOption {
@@ -37,6 +40,8 @@ interface RoleUserPickerProps {
   availableUsers: UserOption[];
   emptyNote: string;
   infoBulletPoints: string[];
+  isLoading?: boolean;
+  onReload?: () => void;
 }
 
 function RoleUserPicker({
@@ -50,6 +55,8 @@ function RoleUserPicker({
   availableUsers,
   emptyNote,
   infoBulletPoints,
+  isLoading = false,
+  onReload,
 }: RoleUserPickerProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -100,9 +107,9 @@ function RoleUserPicker({
     if (selectedIds.includes(u.id)) return false;
     if (!searchTerm.trim()) return true;
     const term = searchTerm.toLowerCase();
-    const nameMatch = u.name.toLowerCase().includes(term);
-    const posMatch = u.position?.toLowerCase().includes(term);
-    const deptMatch = u.department?.toLowerCase().includes(term);
+    const nameMatch = (u.name || "").toLowerCase().includes(term);
+    const posMatch = (u.position || "").toLowerCase().includes(term);
+    const deptMatch = (u.department || "").toLowerCase().includes(term);
     return nameMatch || !!posMatch || !!deptMatch;
   });
 
@@ -209,9 +216,23 @@ function RoleUserPicker({
 
         {isDropdownOpen && (
           <div className="absolute z-30 mt-1 w-full bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-100 dark:border-gray-700 max-h-60 overflow-y-auto divide-y divide-gray-100 dark:divide-gray-700">
-            {filteredUsers.length === 0 ? (
-              <div className="p-3 text-center text-sm text-gray-400">
-                {searchTerm.trim() ? "ไม่พบบุคลากรที่ตรงกับคำค้นหา" : "ไม่มีบุคลากรเพิ่มเติมให้เลือก"}
+            {isLoading ? (
+              <div className="p-4 text-center text-sm text-gray-500 dark:text-gray-400 flex items-center justify-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin text-purple-600 dark:text-purple-400" />
+                <span>กำลังโหลดรายชื่อบุคลากร...</span>
+              </div>
+            ) : filteredUsers.length === 0 ? (
+              <div className="p-4 text-center text-sm text-gray-400 space-y-1">
+                <p>{searchTerm.trim() ? "ไม่พบบุคลากรที่ตรงกับคำค้นหา" : "ไม่มีบุคลากรเพิ่มเติมให้เลือก"}</p>
+                {onReload && (
+                  <button
+                    type="button"
+                    onClick={onReload}
+                    className="text-xs text-purple-600 dark:text-purple-400 hover:underline font-medium"
+                  >
+                    ↻ กดเพื่อโหลดรายชื่อบุคลากรใหม่
+                  </button>
+                )}
               </div>
             ) : (
               filteredUsers.map((u) => (
@@ -264,28 +285,42 @@ export function PlanningSettingsCard({
   const [selectedBudgetOfficerIds, setSelectedBudgetOfficerIds] = useState<string[]>(initialPlanningBudgetOfficerUserIds);
   const [selectedDisburserIds, setSelectedDisburserIds] = useState<string[]>(initialPlanningDisburserUserIds);
   const [usersList, setUsersList] = useState<UserOption[]>(availableUsers);
+  const [isLoadingUsers, setIsLoadingUsers] = useState<boolean>(false);
+
+  const loadStaffUsers = React.useCallback(async (force = false) => {
+    setIsLoadingUsers(true);
+    try {
+      const res = await getPlanningStaffListAction();
+      if (res.success && Array.isArray(res.data) && res.data.length > 0) {
+        setUsersList(res.data);
+        return;
+      }
+      const fallback = await getSimpleUsersList();
+      if (fallback && Array.isArray(fallback) && fallback.length > 0) {
+        setUsersList(
+          fallback.map((u: any) => ({
+            id: u.id,
+            name: u.name || "ไม่ระบุชื่อ",
+            position: u.position || null,
+            department: u.department || u.subjectGroup || null,
+            email: u.email || null,
+          }))
+        );
+      }
+    } catch (err) {
+      console.error("Failed to load users for planning settings:", err);
+    } finally {
+      setIsLoadingUsers(false);
+    }
+  }, []);
 
   React.useEffect(() => {
     if (availableUsers && availableUsers.length > 0) {
       setUsersList(availableUsers);
     } else {
-      getSimpleUsersList()
-        .then((data) => {
-          if (data && Array.isArray(data) && data.length > 0) {
-            setUsersList(
-              data.map((u: any) => ({
-                id: u.id,
-                name: u.name,
-                position: u.position,
-                department: u.department || u.subjectGroup || null,
-                email: u.email,
-              }))
-            );
-          }
-        })
-        .catch(console.error);
+      loadStaffUsers();
     }
-  }, [availableUsers]);
+  }, [availableUsers, loadStaffUsers]);
 
   React.useEffect(() => {
     setEnablePlanning(initialEnablePlanning);
@@ -391,17 +426,19 @@ export function PlanningSettingsCard({
       {/* 1. General Planning Officers */}
       <RoleUserPicker
         title="1. เจ้าหน้าที่แผนงานหลัก (General Planning Officers)"
-        subtitle="ผู้ดูแลและบริหารจัดการแผนงานโครงการ กิจกรรม และเอกสารแนบ SAR ภาพรวมของสถานศึกษา"
+        subtitle="ผู้ดูแลและบริหารจัดการแผนงานโครงการ กิจกรรม และรายงานสรุปโครงการภาพรวมของสถานศึกษา"
         roleBadgeText="เจ้าหน้าที่แผนงานหลัก"
         icon={<ShieldCheck className="w-5 h-5 text-purple-600 dark:text-purple-400" />}
         theme="purple"
         selectedIds={selectedOfficerIds}
         onChange={setSelectedOfficerIds}
         availableUsers={usersList}
+        isLoading={isLoadingUsers}
+        onReload={() => loadStaffUsers(true)}
         emptyNote="ยังไม่มีการแต่งตั้งเจ้าหน้าที่แผนงานหลัก (เฉพาะผู้ดูแลระบบที่จะมีสิทธิ์จัดการโครงสร้างโครงการ)"
         infoBulletPoints={[
           "สร้างโครงการ, กำหนดกิจกรรมย่อย และจัดทำรายงานแผนปฏิบัติการประจำปี",
-          "จัดการเอกสารแนบประกันคุณภาพการศึกษา (SAR) และรายงานผลโครงการ",
+          "จัดการเอกสารแนบและรายงานสรุปโครงการ",
           "ดูภาพรวมสถิติโครงการและสถานะงบประมาณทั้งหมดของโรงเรียน",
         ]}
       />
@@ -418,6 +455,8 @@ export function PlanningSettingsCard({
         selectedIds={selectedBudgetOfficerIds}
         onChange={setSelectedBudgetOfficerIds}
         availableUsers={usersList}
+        isLoading={isLoadingUsers}
+        onReload={() => loadStaffUsers(true)}
         emptyNote="ยังไม่ได้ระบุเฉพาะเจาะจง (ระบบจะให้สิทธิ์แก่ผู้ดูแลระบบและเจ้าหน้าที่แผนงานหลักโดยอัตโนมัติ)"
         infoBulletPoints={[
           "กำหนดวงเงินงบประมาณเริ่มต้นของโครงการและกิจกรรมย่อย",
@@ -439,6 +478,8 @@ export function PlanningSettingsCard({
         selectedIds={selectedDisburserIds}
         onChange={setSelectedDisburserIds}
         availableUsers={usersList}
+        isLoading={isLoadingUsers}
+        onReload={() => loadStaffUsers(true)}
         emptyNote="ยังไม่ได้ระบุเฉพาะเจาะจง (ระบบจะให้สิทธิ์แก่ผู้ดูแลระบบและเจ้าหน้าที่แผนงานหลักโดยอัตโนมัติ)"
         infoBulletPoints={[
           "บันทึกข้อมูลการเบิกจ่ายจริง (PAID) พร้อมแนบใบสำคัญรับเงิน/หลักฐานการจ่าย",

@@ -168,7 +168,7 @@ export function AttachmentManagerModal({
             </div>
             <div>
               <h2 className="text-base font-bold text-slate-900 dark:text-white">
-                เอกสารแนบโครงการ & รายงานประกันคุณภาพ (SAR)
+                เอกสารแนบโครงการ & รายงานสรุปโครงการ
               </h2>
               <p className="text-xs text-slate-500 dark:text-slate-400">
                 {resolvedProjectName}

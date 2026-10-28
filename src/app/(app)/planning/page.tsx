@@ -16,7 +16,7 @@ export const dynamic = "force-dynamic";
 export const metadata = {
   title: "ระบบแผนงานโครงการและติดตามงบประมาณ",
   description:
-    "ระบบบริหารจัดการแผนปฏิบัติการประจำปี ติดตามการเบิกจ่ายงบประมาณ และจัดเก็บเอกสารประกันคุณภาพ (SAR)",
+    "ระบบบริหารจัดการแผนปฏิบัติการประจำปี ติดตามการเบิกจ่ายงบประมาณ และจัดเก็บรายงานสรุปโครงการ",
 };
 
 export default async function PlanningPage({ searchParams }: PlanningPageProps) {

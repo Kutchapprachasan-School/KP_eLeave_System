@@ -30,6 +30,7 @@ import { AttachmentManagerModal } from "./modals/AttachmentManagerModal";
 import { ExpenseFormModal } from "./modals/ExpenseFormModal";
 import { ExpenseHistoryDrawer } from "./modals/ExpenseHistoryDrawer";
 import { ConfirmDialog } from "./modals/ConfirmDialog";
+import { ActivityReportModal } from "./modals/ActivityReportModal";
 
 export type ActivePlanningModalState =
   | { type: "CREATE_PROJECT" }
@@ -41,6 +42,11 @@ export type ActivePlanningModalState =
       activity: ProjectActivityDTO;
     }
   | { type: "ATTACHMENTS"; project: ProjectDTO }
+  | {
+      type: "ACTIVITY_REPORT";
+      project: ProjectDTO;
+      activity: ProjectActivityDTO;
+    }
   | {
       type: "RECORD_EXPENSE";
       project: ProjectDTO;
@@ -360,7 +366,7 @@ export function PlanningDashboardClient({
               ระบบแผนงานโครงการและติดตามงบประมาณ
             </h1>
             <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
-              บริหารแผนปฏิบัติการประจำปี ติดตามยอดใช้งบประมาณแบบ Real-time และจัดเก็บเอกสารประกันคุณภาพ (SAR)
+              บริหารแผนปฏิบัติการประจำปี ติดตามยอดใช้งบประมาณแบบ Real-time และจัดเก็บรายงานสรุปโครงการ
             </p>
           </div>
         </div>
@@ -447,6 +453,9 @@ export function PlanningDashboardClient({
         onOpenAttachments={(project) =>
           setActiveModal({ type: "ATTACHMENTS", project })
         }
+        onOpenActivityReport={(project, activity) =>
+          setActiveModal({ type: "ACTIVITY_REPORT", project, activity })
+        }
         onRecordExpense={(project, activity) =>
           setActiveModal({ type: "RECORD_EXPENSE", project, activity })
         }
@@ -525,6 +534,15 @@ export function PlanningDashboardClient({
       {activeModal?.type === "ATTACHMENTS" && (
         <AttachmentManagerModal
           project={activeModal.project}
+          onClose={() => setActiveModal(null)}
+          onUpdated={() => router.refresh()}
+        />
+      )}
+
+      {activeModal?.type === "ACTIVITY_REPORT" && (
+        <ActivityReportModal
+          project={activeModal.project}
+          activity={activeModal.activity}
           onClose={() => setActiveModal(null)}
           onUpdated={() => router.refresh()}
         />

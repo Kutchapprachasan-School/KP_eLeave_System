@@ -15,6 +15,54 @@ export interface PlanningSettingsDTO {
   planningDisburserUserIds: string[];
 }
 
+export interface PlanningStaffOptionDTO {
+  id: string;
+  name: string;
+  position?: string | null;
+  department?: string | null;
+  email?: string | null;
+}
+
+/**
+ * ดึงรายชื่อบุคลากรที่ได้รับการอนุมัติ (Approved) สำหรับกำหนดสิทธิ์ในระบบแผนงาน
+ */
+export async function getPlanningStaffListAction(): Promise<
+  ActionResult<PlanningStaffOptionDTO[]>
+> {
+  try {
+    const users = await prisma.user.findMany({
+      where: { isApproved: true },
+      select: {
+        id: true,
+        name: true,
+        position: true,
+        subjectGroup: true,
+        email: true,
+      },
+      orderBy: { name: "asc" },
+    });
+
+    return {
+      success: true,
+      data: users.map((u) => ({
+        id: u.id,
+        name: u.name || "ไม่ระบุชื่อ",
+        position: u.position || null,
+        department: u.subjectGroup || null,
+        email: u.email || null,
+      })),
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "ไม่สามารถโหลดรายชื่อบุคลากรได้",
+    };
+  }
+}
+
 /**
  * ดึงค่าการตั้งค่าระบบแผนงานสำหรับหน้า Admin Settings
  */

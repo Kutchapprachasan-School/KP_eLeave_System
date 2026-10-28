@@ -9131,9 +9131,17 @@ function doPost(e) {
 
   // --- Planning & Budget Settings Section ---
   const renderPlanningSettingsSection = () => {
-    const availableUsers = (userList && userList.length > 0)
+    const rawUsers = (userList && userList.length > 0)
       ? userList
       : (simpleUsers && simpleUsers.length > 0 ? simpleUsers : []);
+
+    const availableUsers = rawUsers.map((u) => ({
+      id: u.id,
+      name: u.name || "ไม่ระบุชื่อ",
+      position: u.position || null,
+      department: (u as any).department || (u as any).subjectGroup || null,
+      email: u.email || null,
+    }));
 
     return (
       <div className="space-y-6">
@@ -9143,13 +9151,7 @@ function doPost(e) {
           initialPlanningOfficerUserIds={planningOfficerUserIds}
           initialPlanningBudgetOfficerUserIds={planningBudgetOfficerUserIds}
           initialPlanningDisburserUserIds={planningDisburserUserIds}
-          availableUsers={availableUsers.map((u) => ({
-            id: u.id,
-            name: u.name,
-            position: u.position,
-            department: (u as any).department || (u as any).subjectGroup || null,
-            email: u.email,
-          }))}
+          availableUsers={availableUsers}
           onSaved={() => {
             showToast("success", "บันทึกการตั้งค่าแผนงานเรียบร้อยแล้ว");
           }}

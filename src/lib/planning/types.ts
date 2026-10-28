@@ -42,7 +42,7 @@ export const EXPENSE_CATEGORY_LABELS: Record<ExpenseCategoryType, string> = {
 export const ATTACHMENT_TYPE_LABELS: Record<AttachmentCategoryType, string> = {
   PROPOSAL: "เล่มโครงการที่จัดทำแล้ว",
   APPROVAL: "แบบขออนุมัติโครงการ",
-  SUMMARY: "รายงานสรุปผลการดำเนินงาน (SAR)",
+  SUMMARY: "รายงานสรุปโครงการ",
   RECEIPT: "ใบเสร็จ/หลักฐานการจ่ายเงิน",
   OTHER: "เอกสารประกอบอื่น ๆ",
 };
@@ -134,6 +134,7 @@ export interface ActivityExpenseDTO {
 export interface ProjectAttachmentDTO {
   id: string;
   projectId: string;
+  activityId?: string | null;
   title: string;
   attachmentType: AttachmentCategoryType;
   storageType: StorageProviderType;
@@ -165,10 +166,12 @@ export interface ProjectActivityDTO {
   adjustedAmount?: number;
   financials: ActivityFinancialSummaryDTO;
   expenses: ActivityExpenseDTO[];
+  reportAttachment?: ProjectAttachmentDTO | null;
   permissions: {
     canRecordAndSettleExpenses: boolean;
     canManageProjectsAndBudget: boolean;
     canAdjustBudget?: boolean;
+    canUploadReport?: boolean;
   };
   createdAt: string;
   updatedAt: string;

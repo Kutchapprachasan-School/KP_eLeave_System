@@ -23,10 +23,20 @@ export function serializeAttachmentToDTO(att: any): ProjectAttachmentDTO {
   const uploadedUserId = att.uploadedByUserId || att.uploadedBy?.id || "";
   const uploadedName = att.uploadedByUser?.name || att.uploadedByName || att.uploadedBy?.name || "ไม่ระบุ";
 
+  let activityId: string | null = null;
+  let cleanTitle = att.title || att.originalFileName || "เอกสารโครงการ";
+
+  const actMatch = cleanTitle.match(/^\[ACT:([^\]]+)\]\s*(.*)$/);
+  if (actMatch) {
+    activityId = actMatch[1];
+    cleanTitle = actMatch[2] || "รายงานกิจกรรมย่อย";
+  }
+
   return {
     id: att.id,
     projectId: att.projectId,
-    title: att.title || att.originalFileName || "เอกสารโครงการ",
+    activityId,
+    title: cleanTitle,
     attachmentType: (att.attachmentType || "PROPOSAL") as AttachmentCategoryType,
     storageType: (att.storageType || "R2_UPLOAD") as StorageProviderType,
     fileUrl: att.fileUrl || att.objectKey || "",
@@ -90,7 +100,9 @@ export function serializeActivityToDTO(
     canRecordAndSettleExpenses?: boolean;
     canManageProjectsAndBudget?: boolean;
     canAdjustBudget?: boolean;
-  }
+  },
+  currentUserId?: string,
+  reportAttachment?: ProjectAttachmentDTO | null
 ): ProjectActivityDTO {
   const financials = calculateActivityFinancials(act);
   const expenses = (act.expenses || [])
@@ -112,6 +124,12 @@ export function serializeActivityToDTO(
     reservedExpenseCount: expenses.filter((e) => e.status === "RESERVED").length,
   };
 
+  const isResponsible = currentUserId ? act.responsibleUserId === currentUserId : false;
+  const canUploadReport = Boolean(
+    isResponsible ||
+    projectPermissions?.canManageProjectsAndBudget
+  );
+
   return {
     id: act.id,
     projectId: act.projectId,
@@ -127,10 +145,12 @@ export function serializeActivityToDTO(
     adjustedAmount: Number(act.adjustedAmount ?? financials.effectiveBudget),
     financials: enrichedFinancials,
     expenses,
+    reportAttachment: reportAttachment || null,
     permissions: {
       canRecordAndSettleExpenses: Boolean(projectPermissions?.canRecordAndSettleExpenses),
       canManageProjectsAndBudget: Boolean(projectPermissions?.canManageProjectsAndBudget),
       canAdjustBudget: Boolean(projectPermissions?.canAdjustBudget),
+      canUploadReport,
     },
     createdAt: act.createdAt instanceof Date ? act.createdAt.toISOString() : String(act.createdAt),
     updatedAt: act.updatedAt instanceof Date ? act.updatedAt.toISOString() : String(act.updatedAt),
@@ -159,18 +179,24 @@ export function serializeProjectToDTO(
       };
 
   const financials = calculateProjectFinancials(project);
+  const attachments = (project.attachments || []).map(serializeAttachmentToDTO);
+
   const activities = (project.activities || [])
     .filter((a: any) => a.deletedAt === null || a.deletedAt === undefined)
     .sort((a: any, b: any) => a.activityNo - b.activityNo)
-    .map((act: any) =>
-      serializeActivityToDTO(act, {
-        canRecordAndSettleExpenses: perms.canRecordAndSettleExpenses,
-        canManageProjectsAndBudget: perms.canManageProjectsAndBudget,
-        canAdjustBudget: perms.canAdjustBudget,
-      })
-    );
-
-  const attachments = (project.attachments || []).map(serializeAttachmentToDTO);
+    .map((act: any) => {
+      const actReport = attachments.find((att: ProjectAttachmentDTO) => att.activityId === act.id) || null;
+      return serializeActivityToDTO(
+        act,
+        {
+          canRecordAndSettleExpenses: perms.canRecordAndSettleExpenses,
+          canManageProjectsAndBudget: perms.canManageProjectsAndBudget,
+          canAdjustBudget: perms.canAdjustBudget,
+        },
+        currentUser?.id,
+        actReport
+      );
+    });
 
   const permissions = {
     canManageProject: perms.canManageProjectsAndBudget,

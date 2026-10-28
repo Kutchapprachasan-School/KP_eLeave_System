@@ -307,7 +307,7 @@ describe('Planning Core - Permissions Helper', () => {
   it('TC-15: Labels Parity and Settlement Delta available balance computation', () => {
     // 1. Label completeness
     assert.equal(ATTACHMENT_TYPE_LABELS.PROPOSAL, 'เล่มโครงการที่จัดทำแล้ว');
-    assert.equal(ATTACHMENT_TYPE_LABELS.SUMMARY, 'รายงานสรุปผลการดำเนินงาน (SAR)');
+    assert.equal(ATTACHMENT_TYPE_LABELS.SUMMARY, 'รายงานสรุปโครงการ');
     assert.equal(EXPENSE_STATUS_LABELS.PAID, 'เบิกจ่ายจริง (PAID)');
     assert.equal(EXPENSE_STATUS_LABELS.RESERVED, 'กันวงเงินจอง (RESERVED)');
 
@@ -380,5 +380,19 @@ describe('Planning Core - Permissions Helper', () => {
     assert.equal(pFallback.canManageProjectsAndBudget, true);
     assert.equal(pFallback.canAdjustBudget, true);
     assert.equal(pFallback.canRecordAndSettleExpenses, true);
+  });
+
+  it('TC-17: Sub-activity report attachment title tag parser and permission binding', () => {
+    // Test tag regex parser: [ACT:act-123] รายงานสรุปกิจกรรม
+    const rawTitle = '[ACT:act-123] รายงานสรุปการอบรมเชิงปฏิบัติการ';
+    const match = rawTitle.match(/^\[ACT:([^\]]+)\]\s*(.*)$/);
+    assert.ok(match, 'Title tag should match [ACT:id]');
+    assert.equal(match[1], 'act-123');
+    assert.equal(match[2], 'รายงานสรุปการอบรมเชิงปฏิบัติการ');
+
+    // Untagged title should have null activityId
+    const untaggedTitle = 'เล่มโครงการประจำปี.pdf';
+    const untaggedMatch = untaggedTitle.match(/^\[ACT:([^\]]+)\]\s*(.*)$/);
+    assert.equal(untaggedMatch, null);
   });
 });

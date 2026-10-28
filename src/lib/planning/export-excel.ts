@@ -36,13 +36,14 @@ export function exportPlanningToExcel(projects: ProjectDTO[], fiscalYear: number
       "ร้อยละการใช้ (%)": proj.financials?.usagePercentage ?? 0,
       "เล่มโครงการ": sar.hasProposal ? "มีเอกสาร" : "ไม่มี",
       "แบบขออนุมัติ": sar.hasApproval ? "มีเอกสาร" : "ไม่มี",
-      "สรุปผล SAR": sar.hasSummary ? "มีเอกสาร" : "ไม่มี",
+      "รายงานสรุปโครงการ": sar.hasSummary ? "มีเอกสาร" : "ไม่มี",
     });
 
     // Sub-activity Rows (Level 2)
     if (proj.activities && proj.activities.length > 0) {
       for (const act of proj.activities) {
         const actResponsibleName = act.responsibleUser?.name || act.responsibleUserName || "-";
+        const hasActReport = Boolean(act.reportAttachment);
         summaryRows.push({
           "ระดับ": "กิจกรรมย่อย",
           "ลำดับ": `${projSeq - 1}.${act.activityNo}`,
@@ -59,7 +60,7 @@ export function exportPlanningToExcel(projects: ProjectDTO[], fiscalYear: number
           "ร้อยละการใช้ (%)": act.financials?.usagePercentage ?? 0,
           "เล่มโครงการ": "-",
           "แบบขออนุมัติ": "-",
-          "สรุปผล SAR": "-",
+          "รายงานสรุปโครงการ": hasActReport ? "มีเอกสาร" : "-",
         });
       }
     }
@@ -120,7 +121,7 @@ export function exportPlanningToExcel(projects: ProjectDTO[], fiscalYear: number
       { wch: 14 }, // ร้อยละการใช้
       { wch: 12 }, // เล่มโครงการ
       { wch: 12 }, // แบบขออนุมัติ
-      { wch: 12 }, // สรุปผล SAR
+      { wch: 16 }, // รายงานสรุปโครงการ
     ];
   }
   XLSX.utils.book_append_sheet(wb, wsSummary, "สรุปโครงการและกิจกรรม");

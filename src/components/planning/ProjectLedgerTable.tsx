@@ -31,6 +31,8 @@ import {
   Building2,
   Coins,
   MoreVertical,
+  FileCheck2,
+  UploadCloud,
 } from "lucide-react";
 
 /**
@@ -120,6 +122,10 @@ export interface ProjectLedgerTableProps {
   onOpenAttachments: (project: ProjectDTO) => void;
   onRecordExpense: (project: ProjectDTO, activity: ProjectActivityDTO) => void;
   onOpenExpenseHistory: (
+    project: ProjectDTO,
+    activity: ProjectActivityDTO
+  ) => void;
+  onOpenActivityReport?: (
     project: ProjectDTO,
     activity: ProjectActivityDTO
   ) => void;
@@ -247,6 +253,7 @@ export function ProjectLedgerTable({
   onOpenAttachments,
   onRecordExpense,
   onOpenExpenseHistory,
+  onOpenActivityReport,
 }: ProjectLedgerTableProps) {
   const [activeActionMenuId, setActiveActionMenuId] = React.useState<string | null>(null);
   if (projects.length === 0) {
@@ -464,7 +471,7 @@ export function ProjectLedgerTable({
 
                             <div className="h-[1.5px] w-3.5 bg-slate-300 dark:bg-gray-700 shrink-0" />
 
-                            {/* SAR */}
+                            {/* สรุปโครงการ */}
                             <div className="flex items-center gap-1">
                               {sarReadiness.hasSummary ? (
                                 <CheckCircle2 className="h-4 w-4 fill-blue-600 text-white shrink-0" />
@@ -478,7 +485,7 @@ export function ProjectLedgerTable({
                                     : "text-slate-400 dark:text-gray-500"
                                 }
                               >
-                                SAR
+                                สรุปโครงการ
                               </span>
                             </div>
                           </div>
@@ -738,6 +745,47 @@ export function ProjectLedgerTable({
                                                     {respName}
                                                   </strong>
                                                 </span>
+                                                {/* รายงานสรุปกิจกรรมย่อย */}
+                                                {activity.reportAttachment ? (
+                                                  <span className="inline-flex items-center gap-1">
+                                                    <span>•</span>
+                                                    <a
+                                                      href={activity.reportAttachment.fileUrl}
+                                                      target="_blank"
+                                                      rel="noopener noreferrer"
+                                                      className="inline-flex items-center gap-1 rounded bg-emerald-50 dark:bg-emerald-950/60 px-1.5 py-0.5 text-[10.5px] font-semibold text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100 transition-colors"
+                                                      title={`ดูรายงาน: ${activity.reportAttachment.title}`}
+                                                    >
+                                                      <FileCheck2 className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
+                                                      <span>รายงานสรุป ↗</span>
+                                                    </a>
+                                                    {onOpenActivityReport && activity.permissions?.canUploadReport && (
+                                                      <button
+                                                        type="button"
+                                                        onClick={() => onOpenActivityReport(project, activity)}
+                                                        className="text-[10px] text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 underline cursor-pointer"
+                                                        title="จัดการรายงานกิจกรรมย่อย"
+                                                      >
+                                                        จัดการ
+                                                      </button>
+                                                    )}
+                                                  </span>
+                                                ) : (
+                                                  onOpenActivityReport && activity.permissions?.canUploadReport && (
+                                                    <span className="inline-flex items-center gap-1">
+                                                      <span>•</span>
+                                                      <button
+                                                        type="button"
+                                                        onClick={() => onOpenActivityReport(project, activity)}
+                                                        className="inline-flex items-center gap-1 rounded border border-dashed border-blue-300 dark:border-blue-700 bg-blue-50/50 dark:bg-blue-950/20 px-1.5 py-0.5 text-[10.5px] font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-100/70 transition-colors cursor-pointer"
+                                                        title="แนบไฟล์หรือลิงก์รายงานสรุปกิจกรรมย่อย"
+                                                      >
+                                                        <UploadCloud className="h-3 w-3" />
+                                                        <span>+ แนบรายงาน</span>
+                                                      </button>
+                                                    </span>
+                                                  )
+                                                )}
                                                 {actFin.usedCategories &&
                                                   actFin.usedCategories.length >
                                                     0 && (
@@ -1040,10 +1088,10 @@ export function ProjectLedgerTable({
                   />
                 </div>
 
-                {/* สถานะ SAR & เอกสารแนบในจอมือถือ */}
+                {/* สถานะรายงานสรุป & เอกสารแนบในจอมือถือ */}
                 <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-slate-100 dark:border-gray-800">
                   <div className="flex items-center gap-1.5 text-xs">
-                    <span className="text-[11px] text-slate-500 dark:text-slate-400">SAR:</span>
+                    <span className="text-[11px] text-slate-500 dark:text-slate-400">สถานะ:</span>
                     <span
                       className={`inline-flex items-center gap-0.5 ${
                         sarReadiness.hasProposal
@@ -1086,7 +1134,7 @@ export function ProjectLedgerTable({
                       ) : (
                         <Circle className="h-3.5 w-3.5" />
                       )}
-                      SAR
+                      สรุปโครงการ
                     </span>
                   </div>
 
@@ -1185,6 +1233,42 @@ export function ProjectLedgerTable({
                                   {respName}
                                 </strong>
                               </p>
+                              {/* รายงานสรุปกิจกรรมย่อย */}
+                              <div className="pt-1">
+                                {activity.reportAttachment ? (
+                                  <div className="flex items-center gap-2">
+                                    <a
+                                      href={activity.reportAttachment.fileUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 px-2.5 py-1 text-xs font-semibold text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100 transition-colors"
+                                    >
+                                      <FileCheck2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                                      <span>เปิดดูรายงานสรุป ↗</span>
+                                    </a>
+                                    {onOpenActivityReport && activity.permissions?.canUploadReport && (
+                                      <button
+                                        type="button"
+                                        onClick={() => onOpenActivityReport(project, activity)}
+                                        className="text-xs text-slate-500 hover:text-slate-700 dark:text-slate-400 underline"
+                                      >
+                                        จัดการ
+                                      </button>
+                                    )}
+                                  </div>
+                                ) : (
+                                  onOpenActivityReport && activity.permissions?.canUploadReport && (
+                                    <button
+                                      type="button"
+                                      onClick={() => onOpenActivityReport(project, activity)}
+                                      className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border border-dashed border-blue-300 dark:border-blue-700 bg-blue-50/50 dark:bg-blue-950/20 px-2.5 py-1 text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-100/70 transition-colors cursor-pointer"
+                                    >
+                                      <UploadCloud className="h-3.5 w-3.5" />
+                                      <span>+ แนบรายงานสรุปกิจกรรม</span>
+                                    </button>
+                                  )
+                                )}
+                              </div>
                             </div>
                             {canManageAct && (
                               <div className="flex items-center gap-1">

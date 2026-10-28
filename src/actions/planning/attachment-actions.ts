@@ -41,6 +41,7 @@ export async function addProjectAttachmentAction(
     const { user, settings } = await getPlanningActionContext();
 
     const projectId = String(formData.get("projectId") || "").trim();
+    const activityId = String(formData.get("activityId") || "").trim();
     const title = String(formData.get("title") || "").trim();
     const attachmentType = String(
       formData.get("attachmentType") || "PROPOSAL"
@@ -62,7 +63,7 @@ export async function addProjectAttachmentAction(
         fiscalYear: { select: { year: true } },
         activities: {
           where: { deletedAt: null },
-          select: { responsibleUserId: true },
+          select: { id: true, activityNo: true, name: true, responsibleUserId: true },
         },
       },
     });
@@ -74,6 +75,20 @@ export async function addProjectAttachmentAction(
       };
     }
 
+    let targetActivity: { id: string; activityNo: number; name: string; responsibleUserId: string } | null = null;
+    if (activityId) {
+      targetActivity = project.activities.find((a) => a.id === activityId) || null;
+      if (!targetActivity) {
+        return {
+          success: false,
+          error: "ไม่พบกิจกรรมย่อยที่ต้องการแนบรายงาน",
+        };
+      }
+    }
+
+    const isResponsibleForTargetActivity = targetActivity
+      ? targetActivity.responsibleUserId === user.id
+      : false;
     const isResponsibleForAnyActivity = project.activities.some(
       (a) => a.responsibleUserId === user.id
     );
@@ -84,11 +99,15 @@ export async function addProjectAttachmentAction(
       projectStatus: project.status,
     });
 
-    if (!perms.canManageAttachments) {
+    const canAttach = targetActivity
+      ? isResponsibleForTargetActivity || perms.canManageAttachments
+      : perms.canManageAttachments;
+
+    if (!canAttach) {
       return {
         success: false,
         error:
-          "คุณไม่มีสิทธิ์แนบเอกสารในโครงการนี้ หรือโครงการดำเนินการเสร็จสิ้นแล้ว",
+          "คุณไม่มีสิทธิ์แนบเอกสารในส่วนนี้ หรือโครงการดำเนินการเสร็จสิ้นแล้ว",
       };
     }
 
@@ -133,9 +152,12 @@ export async function addProjectAttachmentAction(
       }
 
       const fyYear = project.fiscalYear?.year || 2569;
+      const subFolder = targetActivity
+        ? `${project.code}/activities/${targetActivity.activityNo}`
+        : project.code;
       const objectKey = buildR2ObjectKey(
         fyYear,
-        project.code,
+        subFolder,
         file.name,
         "documents"
       );
@@ -155,11 +177,16 @@ export async function addProjectAttachmentAction(
       originalFileName = file.name;
     }
 
+    const finalTitle = targetActivity
+      ? `[ACT:${targetActivity.id}] ${title}`
+      : title;
+    const finalAttachmentType = targetActivity ? "SUMMARY" : attachmentType;
+
     const created = await prisma.projectAttachment.create({
       data: {
         projectId: project.id,
-        title,
-        attachmentType,
+        title: finalTitle,
+        attachmentType: finalAttachmentType,
         storageType,
         fileUrl,
         fileKey,
@@ -221,6 +248,14 @@ export async function deleteProjectAttachmentAction(
       };
     }
 
+    const actMatch = (attachment.title || "").match(/^\[ACT:([^\]]+)\]/);
+    const targetActivity = actMatch
+      ? attachment.project.activities.find((a) => a.id === actMatch[1])
+      : null;
+    const isResponsibleForTargetActivity = targetActivity
+      ? targetActivity.responsibleUserId === user.id
+      : false;
+
     const isResponsibleForAnyActivity = attachment.project.activities.some(
       (a) => a.responsibleUserId === user.id
     );
@@ -234,6 +269,7 @@ export async function deleteProjectAttachmentAction(
     const canDeleteThisAttachment =
       perms.isPlanningOfficer ||
       attachment.project.leaderUserId === user.id ||
+      isResponsibleForTargetActivity ||
       (attachment.uploadedByUserId === user.id && perms.canManageAttachments);
 
     if (!canDeleteThisAttachment) {
