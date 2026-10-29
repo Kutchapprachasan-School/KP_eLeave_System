@@ -48,6 +48,7 @@ export type ActivePlanningModalState =
       type: "ACTIVITY_REPORT";
       project: ProjectDTO;
       activity: ProjectActivityDTO;
+      initialTab?: "DOCUMENT" | "REPORT";
     }
   | {
       type: "RECORD_EXPENSE";
@@ -483,8 +484,8 @@ export function PlanningDashboardClient({
         onOpenAttachments={(project) =>
           setActiveModal({ type: "ATTACHMENTS", project })
         }
-        onOpenActivityReport={(project, activity) =>
-          setActiveModal({ type: "ACTIVITY_REPORT", project, activity })
+        onOpenActivityReport={(project, activity, initialTab) =>
+          setActiveModal({ type: "ACTIVITY_REPORT", project, activity, initialTab })
         }
         onRecordExpense={(project, activity) =>
           setActiveModal({ type: "RECORD_EXPENSE", project, activity })
@@ -575,6 +576,7 @@ export function PlanningDashboardClient({
         <ActivityReportModal
           project={activeModal.project}
           activity={activeModal.activity}
+          initialTab={activeModal.initialTab}
           onClose={() => setActiveModal(null)}
           onUpdated={() => router.refresh()}
         />

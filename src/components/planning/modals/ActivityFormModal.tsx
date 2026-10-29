@@ -90,9 +90,49 @@ export function ActivityFormModal({
       : allocatedAmount
   );
 
+  React.useEffect(() => {
+    if (activity) {
+      setActivityNo(String(activity.activityNo));
+      setName(activity.name);
+      setResponsibleUserId(
+        activity.responsibleUserId ||
+        activity.responsibleUser?.id ||
+        project?.leaderUserId ||
+        ""
+      );
+      setAllocatedAmount(
+        String(activity.allocatedAmount ?? activity.financials?.allocatedAmount ?? "")
+      );
+      setAdjustedAmount(
+        String(activity.adjustedAmount ?? activity.financials?.effectiveBudget ?? activity.allocatedAmount ?? "")
+      );
+    } else {
+      setActivityNo(String(nextActivityNo));
+      setName("");
+      setResponsibleUserId(
+        project?.leaderUserId ||
+        project?.leader?.id ||
+        (teachers && teachers.length > 0 ? teachers[0].id : "")
+      );
+      setAllocatedAmount(unallocatedBudget > 0 ? String(unallocatedBudget) : "0");
+      setAdjustedAmount(unallocatedBudget > 0 ? String(unallocatedBudget) : "0");
+    }
+  }, [activity, project, nextActivityNo, unallocatedBudget]);
+
+  React.useEffect(() => {
+    if (!responsibleUserId && teachers && teachers.length > 0) {
+      setResponsibleUserId(teachers[0].id);
+    }
+  }, [teachers, responsibleUserId]);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
+
+    if (!responsibleUserId || !responsibleUserId.trim()) {
+      setErrorMsg("กรุณาเลือกครูผู้รับผิดชอบกิจกรรม");
+      return;
+    }
 
     const parsedNo = parseInt(activityNo, 10);
     const parsedAllocated = parseFloat(allocatedAmount || "0");
@@ -240,6 +280,9 @@ export function ActivityFormModal({
               onChange={(e) => setResponsibleUserId(e.target.value)}
               className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-gray-800 dark:text-white"
             >
+              {teachers.length === 0 && (
+                <option value="">-- กำลังโหลดรายชื่อครู... --</option>
+              )}
               {teachers.map((t) => (
                 <option key={t.id} value={t.id}>
                   {t.name}

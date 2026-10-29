@@ -100,7 +100,7 @@ export async function addProjectAttachmentAction(
     });
 
     const isLocked = project.status === "COMPLETED";
-    if (isLocked && !perms.isPlanningOfficer) {
+    if (isLocked && !perms.canManageProjectsAndBudget) {
       return {
         success: false,
         error:
@@ -108,8 +108,9 @@ export async function addProjectAttachmentAction(
       };
     }
 
+    const isProjectLeader = project.leaderUserId === user.id;
     const canAttach = targetActivity
-      ? isResponsibleForTargetActivity || perms.canManageAttachments
+      ? isResponsibleForTargetActivity || isProjectLeader || perms.canManageProjectsAndBudget
       : perms.canManageAttachments;
 
     if (!canAttach) {
@@ -186,10 +187,14 @@ export async function addProjectAttachmentAction(
       originalFileName = file.name;
     }
 
-    const finalTitle = targetActivity
-      ? `[ACT:${targetActivity.id}] ${title}`
-      : title;
-    const finalAttachmentType = targetActivity ? "SUMMARY" : attachmentType;
+    let finalTitle = title;
+    let finalAttachmentType = attachmentType;
+
+    if (targetActivity) {
+      finalAttachmentType = attachmentType === "PROPOSAL" ? "PROPOSAL" : "SUMMARY";
+      const tag = finalAttachmentType === "PROPOSAL" ? `[ACT_DOC:${targetActivity.id}]` : `[ACT_REPORT:${targetActivity.id}]`;
+      finalTitle = `${tag} ${title}`;
+    }
 
     const created = await prisma.projectAttachment.create({
       data: {
@@ -257,7 +262,7 @@ export async function deleteProjectAttachmentAction(
       };
     }
 
-    const actMatch = (attachment.title || "").match(/^\[ACT:([^\]]+)\]/);
+    const actMatch = (attachment.title || "").match(/^\[ACT(?:_(?:DOC|REPORT))?:([^\]]+)\]/);
     const targetActivity = actMatch
       ? attachment.project.activities.find((a) => a.id === actMatch[1])
       : null;
@@ -280,7 +285,7 @@ export async function deleteProjectAttachmentAction(
     const isLocked = attachment.project.status === "COMPLETED";
 
     // หากปิดงบแล้ว (COMPLETED) เฉพาะ Admin / Planning Officer เท่านั้นที่สามารถลบเอกสารได้
-    if (isLocked && !perms.isPlanningOfficer) {
+    if (isLocked && !perms.canManageProjectsAndBudget) {
       return {
         success: false,
         error:
@@ -289,7 +294,7 @@ export async function deleteProjectAttachmentAction(
     }
 
     const canDeleteThisAttachment =
-      perms.isPlanningOfficer ||
+      perms.canManageProjectsAndBudget ||
       isProjectLeader ||
       isResponsibleForTargetActivity ||
       isUploader;

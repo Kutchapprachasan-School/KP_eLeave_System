@@ -16,9 +16,9 @@ import type {
   BudgetSourceCategoryType,
   ProjectStatusType,
   DocumentRequirementPolicy,
-} from "./types";
-import { calculateActivityFinancials, calculateProjectFinancials, toSatang, fromSatang } from "./calculator";
-import { getPlanningPermissions } from "./permissions";
+} from "./types.ts";
+import { calculateActivityFinancials, calculateProjectFinancials, toSatang, fromSatang } from "./calculator.ts";
+import { getPlanningPermissions } from "./permissions.ts";
 
 export function serializeAttachmentToDTO(att: any): ProjectAttachmentDTO {
   const uploadedUserId = att.uploadedByUserId || att.uploadedBy?.id || "";
@@ -27,10 +27,10 @@ export function serializeAttachmentToDTO(att: any): ProjectAttachmentDTO {
   let activityId: string | null = null;
   let cleanTitle = att.title || att.originalFileName || "เอกสารโครงการ";
 
-  const actMatch = cleanTitle.match(/^\[ACT:([^\]]+)\]\s*(.*)$/);
+  const actMatch = cleanTitle.match(/^\[ACT(?:_(?:DOC|REPORT))?:([^\]]+)\]\s*(.*)$/);
   if (actMatch) {
     activityId = actMatch[1];
-    cleanTitle = actMatch[2] || "รายงานกิจกรรมย่อย";
+    cleanTitle = actMatch[2] || (att.attachmentType === "PROPOSAL" ? "ไฟล์กิจกรรมย่อย" : "รายงานกิจกรรมย่อย");
   }
 
   return {
@@ -104,7 +104,9 @@ export function serializeActivityToDTO(
   },
   currentUserId?: string,
   reportAttachment?: ProjectAttachmentDTO | null,
-  isProjectClosed = false
+  isProjectClosed = false,
+  documentAttachment?: ProjectAttachmentDTO | null,
+  projectLeaderUserId?: string
 ): ProjectActivityDTO {
   const financials = calculateActivityFinancials(act);
   const expenses = (act.expenses || [])
@@ -127,8 +129,14 @@ export function serializeActivityToDTO(
   };
 
   const isResponsible = currentUserId ? act.responsibleUserId === currentUserId : false;
+  const isLeader = currentUserId ? projectLeaderUserId === currentUserId : false;
   const canUploadReport = Boolean(
-    (!isProjectClosed && isResponsible) ||
+    (!isProjectClosed && (isResponsible || isLeader)) ||
+    projectPermissions?.canManageProjectsAndBudget
+  );
+  const canManageFiles = canUploadReport;
+  const canEditActivity = Boolean(
+    (!isProjectClosed && (isResponsible || isLeader)) ||
     projectPermissions?.canManageProjectsAndBudget
   );
 
@@ -147,12 +155,15 @@ export function serializeActivityToDTO(
     adjustedAmount: Number(act.adjustedAmount ?? financials.effectiveBudget),
     financials: enrichedFinancials,
     expenses,
+    documentAttachment: documentAttachment || null,
     reportAttachment: reportAttachment || null,
     permissions: {
       canRecordAndSettleExpenses: Boolean(projectPermissions?.canRecordAndSettleExpenses),
       canManageProjectsAndBudget: Boolean(projectPermissions?.canManageProjectsAndBudget),
       canAdjustBudget: Boolean(projectPermissions?.canAdjustBudget),
       canUploadReport,
+      canEditActivity,
+      canManageFiles,
     },
     createdAt: act.createdAt instanceof Date ? act.createdAt.toISOString() : String(act.createdAt),
     updatedAt: act.updatedAt instanceof Date ? act.updatedAt.toISOString() : String(act.updatedAt),
@@ -190,7 +201,9 @@ export function serializeProjectToDTO(
     .filter((a: any) => a.deletedAt === null || a.deletedAt === undefined)
     .sort((a: any, b: any) => a.activityNo - b.activityNo)
     .map((act: any) => {
-      const actReport = attachments.find((att: ProjectAttachmentDTO) => att.activityId === act.id) || null;
+      const actAttachments = attachments.filter((att: ProjectAttachmentDTO) => att.activityId === act.id);
+      const documentAttachment = actAttachments.find((att: ProjectAttachmentDTO) => att.attachmentType === "PROPOSAL") || null;
+      const reportAttachment = actAttachments.find((att: ProjectAttachmentDTO) => att.attachmentType === "SUMMARY") || null;
       return serializeActivityToDTO(
         act,
         {
@@ -199,8 +212,10 @@ export function serializeProjectToDTO(
           canAdjustBudget: perms.canAdjustBudget,
         },
         currentUser?.id,
-        actReport,
-        isProjectClosed
+        reportAttachment,
+        isProjectClosed,
+        documentAttachment,
+        project.leaderUserId
       );
     });
 
@@ -256,7 +271,7 @@ export function serializeProjectToDTO(
     },
     budgetSourceType: bSource,
     budgetSource: bSource,
-    budgetSourceName: project.budgetSource?.name || "เงินอุดหนุนรายหัว",
+    budgetSourceName: project.budgetSource?.name || "จัดการเรียนการสอน",
     strategyCode: project.strategyCode || null,
     standardTags: project.standardTags || [],
     status: (project.status || "APPROVED") as ProjectStatusType,
@@ -272,4 +287,4 @@ export function serializeProjectToDTO(
   };
 }
 
-export { computePortfolioSummary, calculatePortfolioSummary } from "./calculator";
+export { computePortfolioSummary, calculatePortfolioSummary } from "./calculator.ts";

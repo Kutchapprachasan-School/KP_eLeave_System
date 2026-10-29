@@ -51,7 +51,7 @@ export function BudgetSourceBadge({
 
   switch (key) {
     case "FREE_EDUCATION_15Y":
-      // เงินเรียนฟรี 15 ปี: โทนเขียวมรกต (Emerald) + GraduationCap
+      // กิจกรรมพัฒนาผู้เรียน: โทนเขียวมรกต (Emerald) + GraduationCap
       return (
         <span
           className="inline-flex items-center gap-1 rounded-md bg-emerald-50 dark:bg-emerald-950/60 px-1.5 py-0.5 border border-emerald-200 dark:border-emerald-800 text-[10.5px] font-semibold text-emerald-800 dark:text-emerald-300 leading-none shadow-2xs"
@@ -63,7 +63,7 @@ export function BudgetSourceBadge({
       );
 
     case "SUBSIDY":
-      // เงินอุดหนุนรายหัว: โทนฟ้าสดใส (Sky) + Users
+      // จัดการเรียนการสอน: โทนฟ้าสดใส (Sky) + Users
       return (
         <span
           className="inline-flex items-center gap-1 rounded-md bg-sky-50 dark:bg-sky-950/60 px-1.5 py-0.5 border border-sky-200 dark:border-sky-800 text-[10.5px] font-semibold text-sky-800 dark:text-sky-300 leading-none shadow-2xs"
@@ -74,6 +74,7 @@ export function BudgetSourceBadge({
         </span>
       );
 
+    case "SCHOOL_REVENUE":
     case "SCHOOL_INCOME":
       // เงินรายได้สถานศึกษา: โทนส้มอำพัน (Amber) + Landmark
       return (
@@ -130,7 +131,8 @@ export interface ProjectLedgerTableProps {
   ) => void;
   onOpenActivityReport?: (
     project: ProjectDTO,
-    activity: ProjectActivityDTO
+    activity: ProjectActivityDTO,
+    initialTab?: "DOCUMENT" | "REPORT"
   ) => void;
   onLockProject?: (project: ProjectDTO) => void;
   onUnlockProject?: (project: ProjectDTO) => void;
@@ -818,8 +820,8 @@ export function ProjectLedgerTable({
                                           ?.canRecordAndSettleExpenses ??
                                         canManageBudget;
                                       const canManageAct =
-                                        activity.permissions
-                                          ?.canManageProjectsAndBudget ??
+                                        (activity.permissions?.canEditActivity ??
+                                          activity.permissions?.canManageProjectsAndBudget) ??
                                         canManageBudget;
 
                                       return (
@@ -845,7 +847,49 @@ export function ProjectLedgerTable({
                                                     {respName}
                                                   </strong>
                                                 </span>
-                                                {/* รายงานสรุปกิจกรรมย่อย */}
+                                                {/* 1. ไฟล์กิจกรรมย่อย */}
+                                                {activity.documentAttachment ? (
+                                                  <span className="inline-flex items-center gap-1">
+                                                    <span>•</span>
+                                                    <a
+                                                      href={activity.documentAttachment.fileUrl}
+                                                      target="_blank"
+                                                      rel="noopener noreferrer"
+                                                      className="inline-flex items-center gap-1 rounded bg-blue-50 dark:bg-blue-950/60 px-1.5 py-0.5 text-[10.5px] font-semibold text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 hover:bg-blue-100 transition-colors"
+                                                      title={`ดูไฟล์กิจกรรม: ${activity.documentAttachment.title}`}
+                                                    >
+                                                      <FileText className="h-3 w-3 text-blue-600 dark:text-blue-400" />
+                                                      <span>ไฟล์กิจกรรม ↗</span>
+                                                    </a>
+                                                    {onOpenActivityReport && (activity.permissions?.canManageFiles || activity.permissions?.canUploadReport) && (
+                                                      <button
+                                                        type="button"
+                                                        onClick={() => onOpenActivityReport(project, activity, "DOCUMENT")}
+                                                        className="text-[10px] text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 underline cursor-pointer"
+                                                        title="จัดการไฟล์กิจกรรมย่อย"
+                                                      >
+                                                        จัดการ
+                                                      </button>
+                                                    )}
+                                                  </span>
+                                                ) : (
+                                                  onOpenActivityReport && (activity.permissions?.canManageFiles || activity.permissions?.canUploadReport) && (
+                                                    <span className="inline-flex items-center gap-1">
+                                                      <span>•</span>
+                                                      <button
+                                                        type="button"
+                                                        onClick={() => onOpenActivityReport(project, activity, "DOCUMENT")}
+                                                        className="inline-flex items-center gap-1 rounded border border-dashed border-blue-300 dark:border-blue-700 bg-blue-50/50 dark:bg-blue-950/20 px-1.5 py-0.5 text-[10.5px] font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-100/70 transition-colors cursor-pointer"
+                                                        title="แนบไฟล์กิจกรรมย่อย"
+                                                      >
+                                                        <UploadCloud className="h-3 w-3" />
+                                                        <span>+ แนบไฟล์กิจกรรม</span>
+                                                      </button>
+                                                    </span>
+                                                  )
+                                                )}
+
+                                                {/* 2. รายงานสรุปกิจกรรมย่อย */}
                                                 {activity.reportAttachment ? (
                                                   <span className="inline-flex items-center gap-1">
                                                     <span>•</span>
@@ -859,10 +903,10 @@ export function ProjectLedgerTable({
                                                       <FileCheck2 className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
                                                       <span>รายงานสรุป ↗</span>
                                                     </a>
-                                                    {onOpenActivityReport && activity.permissions?.canUploadReport && (
+                                                    {onOpenActivityReport && (activity.permissions?.canUploadReport || activity.permissions?.canManageFiles) && (
                                                       <button
                                                         type="button"
-                                                        onClick={() => onOpenActivityReport(project, activity)}
+                                                        onClick={() => onOpenActivityReport(project, activity, "REPORT")}
                                                         className="text-[10px] text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 underline cursor-pointer"
                                                         title="จัดการรายงานกิจกรรมย่อย"
                                                       >
@@ -871,13 +915,13 @@ export function ProjectLedgerTable({
                                                     )}
                                                   </span>
                                                 ) : (
-                                                  onOpenActivityReport && activity.permissions?.canUploadReport && (
+                                                  onOpenActivityReport && (activity.permissions?.canUploadReport || activity.permissions?.canManageFiles) && (
                                                     <span className="inline-flex items-center gap-1">
                                                       <span>•</span>
                                                       <button
                                                         type="button"
-                                                        onClick={() => onOpenActivityReport(project, activity)}
-                                                        className="inline-flex items-center gap-1 rounded border border-dashed border-blue-300 dark:border-blue-700 bg-blue-50/50 dark:bg-blue-950/20 px-1.5 py-0.5 text-[10.5px] font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-100/70 transition-colors cursor-pointer"
+                                                        onClick={() => onOpenActivityReport(project, activity, "REPORT")}
+                                                        className="inline-flex items-center gap-1 rounded border border-dashed border-emerald-300 dark:border-emerald-700 bg-emerald-50/50 dark:bg-emerald-950/20 px-1.5 py-0.5 text-[10.5px] font-medium text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100/70 transition-colors cursor-pointer"
                                                         title="แนบไฟล์หรือลิงก์รายงานสรุปกิจกรรมย่อย"
                                                       >
                                                         <UploadCloud className="h-3 w-3" />
@@ -1362,7 +1406,8 @@ export function ProjectLedgerTable({
                         activity.permissions?.canRecordAndSettleExpenses ??
                         canManageBudget;
                       const canManageAct =
-                        activity.permissions?.canManageProjectsAndBudget ??
+                        (activity.permissions?.canEditActivity ??
+                          activity.permissions?.canManageProjectsAndBudget) ??
                         canManageBudget;
 
                       return (
@@ -1384,23 +1429,23 @@ export function ProjectLedgerTable({
                                   {respName}
                                 </strong>
                               </p>
-                              {/* รายงานสรุปกิจกรรมย่อย */}
-                              <div className="pt-1">
-                                {activity.reportAttachment ? (
-                                  <div className="flex items-center gap-2">
+                              {/* 1. ไฟล์กิจกรรมย่อย */}
+                              <div className="pt-1.5 flex flex-wrap items-center gap-2">
+                                {activity.documentAttachment ? (
+                                  <div className="flex items-center gap-1.5">
                                     <a
-                                      href={activity.reportAttachment.fileUrl}
+                                      href={activity.documentAttachment.fileUrl}
                                       target="_blank"
                                       rel="noopener noreferrer"
-                                      className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 px-2.5 py-1 text-xs font-semibold text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100 transition-colors"
+                                      className="inline-flex min-h-[32px] items-center gap-1.5 rounded-lg bg-blue-50 dark:bg-blue-950/60 px-2 py-1 text-xs font-semibold text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 hover:bg-blue-100 transition-colors"
                                     >
-                                      <FileCheck2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
-                                      <span>เปิดดูรายงานสรุป ↗</span>
+                                      <FileText className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
+                                      <span>ไฟล์กิจกรรม ↗</span>
                                     </a>
-                                    {onOpenActivityReport && activity.permissions?.canUploadReport && (
+                                    {onOpenActivityReport && (activity.permissions?.canManageFiles || activity.permissions?.canUploadReport) && (
                                       <button
                                         type="button"
-                                        onClick={() => onOpenActivityReport(project, activity)}
+                                        onClick={() => onOpenActivityReport(project, activity, "DOCUMENT")}
                                         className="text-xs text-slate-500 hover:text-slate-700 dark:text-slate-400 underline"
                                       >
                                         จัดการ
@@ -1408,14 +1453,49 @@ export function ProjectLedgerTable({
                                     )}
                                   </div>
                                 ) : (
-                                  onOpenActivityReport && activity.permissions?.canUploadReport && (
+                                  onOpenActivityReport && (activity.permissions?.canManageFiles || activity.permissions?.canUploadReport) && (
                                     <button
                                       type="button"
-                                      onClick={() => onOpenActivityReport(project, activity)}
-                                      className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border border-dashed border-blue-300 dark:border-blue-700 bg-blue-50/50 dark:bg-blue-950/20 px-2.5 py-1 text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-100/70 transition-colors cursor-pointer"
+                                      onClick={() => onOpenActivityReport(project, activity, "DOCUMENT")}
+                                      className="inline-flex min-h-[32px] items-center gap-1.5 rounded-lg border border-dashed border-blue-300 dark:border-blue-700 bg-blue-50/50 dark:bg-blue-950/20 px-2 py-1 text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-100/70 transition-colors cursor-pointer"
                                     >
                                       <UploadCloud className="h-3.5 w-3.5" />
-                                      <span>+ แนบรายงานสรุปกิจกรรม</span>
+                                      <span>+ แนบไฟล์กิจกรรม</span>
+                                    </button>
+                                  )
+                                )}
+
+                                {/* 2. รายงานสรุปกิจกรรมย่อย */}
+                                {activity.reportAttachment ? (
+                                  <div className="flex items-center gap-1.5">
+                                    <a
+                                      href={activity.reportAttachment.fileUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="inline-flex min-h-[32px] items-center gap-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 px-2 py-1 text-xs font-semibold text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100 transition-colors"
+                                    >
+                                      <FileCheck2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                                      <span>รายงานสรุป ↗</span>
+                                    </a>
+                                    {onOpenActivityReport && (activity.permissions?.canUploadReport || activity.permissions?.canManageFiles) && (
+                                      <button
+                                        type="button"
+                                        onClick={() => onOpenActivityReport(project, activity, "REPORT")}
+                                        className="text-xs text-slate-500 hover:text-slate-700 dark:text-slate-400 underline"
+                                      >
+                                        จัดการ
+                                      </button>
+                                    )}
+                                  </div>
+                                ) : (
+                                  onOpenActivityReport && (activity.permissions?.canUploadReport || activity.permissions?.canManageFiles) && (
+                                    <button
+                                      type="button"
+                                      onClick={() => onOpenActivityReport(project, activity, "REPORT")}
+                                      className="inline-flex min-h-[32px] items-center gap-1.5 rounded-lg border border-dashed border-emerald-300 dark:border-emerald-700 bg-emerald-50/50 dark:bg-emerald-950/20 px-2 py-1 text-xs font-medium text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100/70 transition-colors cursor-pointer"
+                                    >
+                                      <UploadCloud className="h-3.5 w-3.5" />
+                                      <span>+ แนบรายงาน</span>
                                     </button>
                                   )
                                 )}

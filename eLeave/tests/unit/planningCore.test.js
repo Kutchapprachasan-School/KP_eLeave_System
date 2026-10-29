@@ -28,6 +28,12 @@ import {
   buildR2ObjectKey,
 } from '../../../src/lib/planning/storage-keys.ts';
 
+import {
+  serializeAttachmentToDTO,
+  serializeActivityToDTO,
+  serializeProjectToDTO,
+} from '../../../src/lib/planning/serializers.ts';
+
 describe('Planning Core - Financial Engine & Invariants', () => {
   it('TC-01: Satang-safe addition (100.25 + 200.50 = 300.75)', () => {
     const s1 = toSatang('100.25');
@@ -231,7 +237,8 @@ describe('Planning Core - Permissions Helper', () => {
       },
     ];
 
-    assert.equal(BUDGET_SOURCE_LABELS[mockProjects[0].budgetSourceType], 'เงินอุดหนุนรายหัว');
+    assert.equal(BUDGET_SOURCE_LABELS[mockProjects[0].budgetSourceType], 'จัดการเรียนการสอน');
+    assert.equal(BUDGET_SOURCE_LABELS['FREE_EDUCATION_15Y'], 'กิจกรรมพัฒนาผู้เรียน');
     assert.equal(EXPENSE_CATEGORY_LABELS[mockProjects[0].activities[0].expenses[0].expenseCategory], 'ค่าวัสดุ');
   });
 
@@ -496,5 +503,73 @@ describe('Planning Core - Permissions Helper', () => {
     assert.equal(pClosedAdmin.canAdjustBudget, true);
     assert.equal(pClosedAdmin.canRecordAndSettleExpenses, true);
     assert.equal(pClosedAdmin.canManageAttachments, true);
+  });
+
+  it('TC-20: Sub-activity Dual Files and Responsible Teacher Permissions', () => {
+    const rawProject = {
+      id: 'p-100',
+      code: 'PRJ-2569-01',
+      name: 'โครงการทดสอบ 2 ไฟล์',
+      leaderUserId: 'leader-1',
+      status: 'APPROVED',
+      activities: [
+        {
+          id: 'act-1',
+          projectId: 'p-100',
+          activityNo: 1,
+          name: 'กิจกรรมย่อย 1',
+          responsibleUserId: 'teacher-resp-1',
+          allocatedAmount: 10000,
+          adjustedAmount: 10000,
+          expenses: [],
+        },
+      ],
+      attachments: [
+        {
+          id: 'att-doc-1',
+          projectId: 'p-100',
+          title: '[ACT_DOC:act-1] ไฟล์กิจกรรมทดสอบ.pdf',
+          attachmentType: 'PROPOSAL',
+          storageType: 'R2_UPLOAD',
+          fileUrl: 'https://r2.test/doc.pdf',
+        },
+        {
+          id: 'att-rep-1',
+          projectId: 'p-100',
+          title: '[ACT_REPORT:act-1] รายงานสรุปผลกิจกรรม.pdf',
+          attachmentType: 'SUMMARY',
+          storageType: 'R2_UPLOAD',
+          fileUrl: 'https://r2.test/report.pdf',
+        },
+      ],
+    };
+
+    const teacherRespUser = { id: 'teacher-resp-1', role: 'TEACHER' };
+    const otherTeacherUser = { id: 'other-teacher', role: 'TEACHER' };
+    const settings = { enablePlanning: true };
+
+    const dto = serializeProjectToDTO(rawProject, teacherRespUser, settings);
+    assert.equal(dto.activities.length, 1);
+    const act = dto.activities[0];
+
+    // Dual files verified
+    assert.ok(act.documentAttachment, 'documentAttachment must be present');
+    assert.equal(act.documentAttachment?.attachmentType, 'PROPOSAL');
+    assert.equal(act.documentAttachment?.title, 'ไฟล์กิจกรรมทดสอบ.pdf');
+
+    assert.ok(act.reportAttachment, 'reportAttachment must be present');
+    assert.equal(act.reportAttachment?.attachmentType, 'SUMMARY');
+    assert.equal(act.reportAttachment?.title, 'รายงานสรุปผลกิจกรรม.pdf');
+
+    // Responsible teacher has permissions to edit activity and manage files
+    assert.equal(act.permissions.canEditActivity, true, 'Responsible teacher can edit activity');
+    assert.equal(act.permissions.canManageFiles, true, 'Responsible teacher can manage dual files');
+    assert.equal(act.permissions.canUploadReport, true);
+
+    // Other teacher cannot edit activity or manage files
+    const otherDto = serializeProjectToDTO(rawProject, otherTeacherUser, settings);
+    const otherAct = otherDto.activities[0];
+    assert.equal(otherAct.permissions.canEditActivity, false, 'Unrelated teacher cannot edit');
+    assert.equal(otherAct.permissions.canManageFiles, false, 'Unrelated teacher cannot manage files');
   });
 });

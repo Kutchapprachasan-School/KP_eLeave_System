@@ -37,6 +37,7 @@ import { useI18n } from "@/lib/i18n";
 import { removeClientCache } from "@/lib/client-cache";
 import { getUserRoleKey } from "@/lib/permissions";
 import { PlanningSettingsCard } from "./_components/PlanningSettingsCard";
+import { getPlanningStaffListAction } from "@/actions/planning/settings-actions";
 
 type DocTab = "sections" | "patterns" | "signees";
 
@@ -1024,9 +1025,17 @@ export default function SettingsPage() {
     }
 
     if ((activeSection === "repair-settings" || activeSection === "subsystems" || activeSection === "planning-settings") && userList.length === 0) {
-
-      getSimpleUsersList().then(setUserList).catch(console.error);
-
+      getPlanningStaffListAction()
+        .then((res) => {
+          if (res.success && res.data && res.data.length > 0) {
+            setUserList(res.data);
+          } else {
+            getSimpleUsersList().then(setUserList).catch(console.error);
+          }
+        })
+        .catch(() => {
+          getSimpleUsersList().then(setUserList).catch(console.error);
+        });
     }
 
   }, [activeSection, holidaysYear, userList.length]);

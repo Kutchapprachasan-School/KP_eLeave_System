@@ -30,6 +30,7 @@ export interface PlanningPermissionsResult {
   canAdjustBudget: boolean;
   canRecordAndSettleExpenses: boolean;
   canManageAttachments: boolean;
+  isPlanningOfficer: boolean;
 }
 
 export type PlanningUserPermissions = PlanningPermissionsResult;
@@ -94,5 +95,6 @@ export function getPlanningPermissions(
     canAdjustBudget,
     canRecordAndSettleExpenses,
     canManageAttachments: isPlanningOfficer || (isProjectOwner && isEditableProjectStatus),
+    isPlanningOfficer,
   };
 }

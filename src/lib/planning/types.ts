@@ -23,8 +23,8 @@ export const PROJECT_STATUS_LABELS: Record<ProjectStatusType, string> = {
 };
 
 export const BUDGET_SOURCE_LABELS: Record<BudgetSourceCategoryType, string> = {
-  SUBSIDY: "เงินอุดหนุนรายหัว",
-  FREE_EDUCATION_15Y: "เงินเรียนฟรี 15 ปี",
+  SUBSIDY: "จัดการเรียนการสอน",
+  FREE_EDUCATION_15Y: "กิจกรรมพัฒนาผู้เรียน",
   SCHOOL_INCOME: "เงินรายได้สถานศึกษา",
   LOCAL_GOV: "เงินอุดหนุน อปท./อบจ.",
   OTHER: "เงินนอกงบประมาณ/อื่นๆ",
@@ -194,12 +194,15 @@ export interface ProjectActivityDTO {
   adjustedAmount?: number;
   financials: ActivityFinancialSummaryDTO;
   expenses: ActivityExpenseDTO[];
+  documentAttachment?: ProjectAttachmentDTO | null;
   reportAttachment?: ProjectAttachmentDTO | null;
   permissions: {
     canRecordAndSettleExpenses: boolean;
     canManageProjectsAndBudget: boolean;
     canAdjustBudget?: boolean;
     canUploadReport?: boolean;
+    canEditActivity?: boolean;
+    canManageFiles?: boolean;
   };
   createdAt: string;
   updatedAt: string;

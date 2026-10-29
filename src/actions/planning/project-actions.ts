@@ -57,7 +57,7 @@ export async function getPlanningDashboardDataAction(params?: number | {
         ? params
         : (params?.fiscalYear ?? defaultThaiYear);
 
-    const [rawProjects, departments, teachers] = await Promise.all([
+    const [rawProjects, departments, initialTeachers] = await Promise.all([
       prisma.project.findMany({
         where: {
           fiscalYear: { year: targetFiscalYear },
@@ -99,6 +99,14 @@ export async function getPlanningDashboardDataAction(params?: number | {
         select: { id: true, name: true, email: true, position: true },
       }),
     ]);
+
+    let teachers = initialTeachers;
+    if (teachers.length === 0) {
+      teachers = await prisma.user.findMany({
+        orderBy: { name: "asc" },
+        select: { id: true, name: true, email: true, position: true },
+      });
+    }
 
     const projects = rawProjects.map((prj) =>
       serializeProjectToDTO(prj, user, settings)
@@ -723,10 +731,42 @@ export async function updateActivityAction(
     const { user, settings } = await getPlanningActionContext();
     const perms = getPlanningPermissions(user, settings);
 
-    if (!perms.canManageProjectsAndBudget) {
+    const currentAct = await prisma.projectActivity.findUnique({
+      where: { id: input.id },
+      include: {
+        project: {
+          select: { id: true, leaderUserId: true, status: true },
+        },
+      },
+    });
+    if (!currentAct) {
+      return { success: false, error: "ไม่พบกิจกรรมย่อยที่ต้องการแก้ไข" };
+    }
+
+    const isLocked = currentAct.project.status === "COMPLETED";
+    if (isLocked && !perms.canManageProjectsAndBudget) {
       return {
         success: false,
-        error: "คุณไม่มีสิทธิ์ในการแก้ไขกิจกรรมย่อย",
+        error: "โครงการนี้ถูกปิดงบประมาณเรียบร้อยแล้ว ไม่สามารถแก้ไขได้ หากต้องการแก้ไขกรุณาติดต่อผู้ดูแลระบบเพื่อปลดล็อค",
+      };
+    }
+
+    const isResponsible = currentAct.responsibleUserId === user.id;
+    const isProjectLeader = currentAct.project.leaderUserId === user.id;
+    const canManageThis = perms.canManageProjectsAndBudget || isProjectLeader || isResponsible;
+
+    if (!canManageThis) {
+      return {
+        success: false,
+        error: "คุณไม่มีสิทธิ์ในการแก้ไขกิจกรรมย่อยนี้ (อนุญาตเฉพาะเจ้าหน้าที่แผนงาน, หัวหน้าโครงการ หรือครูผู้รับผิดชอบกิจกรรม)",
+      };
+    }
+
+    const respUserId = (input.responsibleUserId || "").trim() || currentAct.responsibleUserId;
+    if (!respUserId) {
+      return {
+        success: false,
+        error: "กรุณาระบุครูผู้รับผิดชอบกิจกรรม",
       };
     }
 
@@ -741,19 +781,6 @@ export async function updateActivityAction(
         success: false,
         error: "วงเงินงบประมาณต้องไม่ติดลบ",
       };
-    }
-
-    const currentAct = await prisma.projectActivity.findUnique({
-      where: { id: input.id },
-      select: {
-        projectId: true,
-        activityNo: true,
-        allocatedAmount: true,
-        adjustedAmount: true,
-      },
-    });
-    if (!currentAct) {
-      return { success: false, error: "ไม่พบกิจกรรมย่อยที่ต้องการแก้ไข" };
     }
 
     const existingAllocatedSatang = toSatang(Number(currentAct.allocatedAmount));
@@ -792,9 +819,9 @@ export async function updateActivityAction(
       data: {
         activityNo: input.activityNo,
         name: input.name.trim(),
-        responsibleUserId: input.responsibleUserId,
-        allocatedAmount: fromSatang(allocatedSatang),
-        adjustedAmount: fromSatang(adjustedSatang),
+        responsibleUserId: respUserId,
+        allocatedAmount: perms.canAdjustBudget ? fromSatang(allocatedSatang) : currentAct.allocatedAmount,
+        adjustedAmount: perms.canAdjustBudget ? fromSatang(adjustedSatang) : currentAct.adjustedAmount,
       },
     });
 

@@ -151,7 +151,7 @@ export function calculateProjectFinancials(
 
   // 1. Project-level attachments (not tagged to any sub-activity)
   const isActivityAttachment = (a: any) =>
-    Boolean(a.activityId) || Boolean((a.title || "").match(/^\[ACT:[^\]]+\]/));
+    Boolean(a.activityId) || Boolean((a.title || "").match(/^\[ACT(?:_(?:DOC|REPORT))?:[^\]]+\]/));
 
   const hasProposal = attachments.some(
     (a: any) => a.attachmentType === "PROPOSAL" && !isActivityAttachment(a)
@@ -168,9 +168,11 @@ export function calculateProjectFinancials(
   const submittedActivities = activeActivities.filter((act: any) => {
     if (act.reportAttachment) return true;
     const tag = `[ACT:${act.id}]`;
+    const tagReport = `[ACT_REPORT:${act.id}]`;
     return attachments.some(
       (att: any) =>
-        att.activityId === act.id || (att.title && att.title.startsWith(tag))
+        (att.activityId === act.id && att.attachmentType === "SUMMARY") ||
+        (att.title && (att.title.startsWith(tag) || att.title.startsWith(tagReport)) && att.attachmentType === "SUMMARY")
     );
   }).length;
 

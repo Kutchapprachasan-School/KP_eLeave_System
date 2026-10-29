@@ -322,15 +322,14 @@ export function PlanningSettingsCard({
   React.useEffect(() => {
     if (availableUsers && availableUsers.length > 0) {
       setUsersList(availableUsers);
-    } else {
+    } else if (usersList.length === 0) {
       loadStaffUsers();
     }
-  }, [availableUsers, loadStaffUsers]);
+  }, [availableUsers, loadStaffUsers, usersList.length]);
 
   React.useEffect(() => {
-    if (usersList.length === 0) {
-      loadStaffUsers();
-    }
+    // โหลดรายชื่อบุคลากรทันทีเมื่อเปิดแท็บตั้งค่า
+    loadStaffUsers();
   }, [loadStaffUsers]);
 
   React.useEffect(() => {
