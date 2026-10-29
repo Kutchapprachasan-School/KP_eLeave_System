@@ -47,6 +47,27 @@ export const ATTACHMENT_TYPE_LABELS: Record<AttachmentCategoryType, string> = {
   OTHER: "เอกสารประกอบอื่น ๆ",
 };
 
+export type DocumentRequirementPolicy = "BOTH" | "PROJECT_ONLY" | "ACTIVITY_ONLY" | "EITHER";
+
+export const DOCUMENT_REQUIREMENT_LABELS: Record<DocumentRequirementPolicy, { label: string; desc: string }> = {
+  BOTH: {
+    label: "รายงานกิจกรรม + รายงานโครงการ",
+    desc: "ต้องส่งรายงานครบทุกกิจกรรมย่อย และต้องมีเล่มรายงานสรุปโครงการภาพรวม",
+  },
+  PROJECT_ONLY: {
+    label: "เฉพาะรายงานสรุปโครงการ",
+    desc: "ส่งเฉพาะรายงานสรุปโครงการภาพรวม (ไม่บังคับรายงานกิจกรรมย่อย)",
+  },
+  ACTIVITY_ONLY: {
+    label: "เฉพาะรายงานกิจกรรมย่อย",
+    desc: "ส่งเฉพาะรายงานสรุปกิจกรรมย่อยให้ครบ (ไม่บังคับเล่มสรุปโครงการภาพรวม)",
+  },
+  EITHER: {
+    label: "อย่างใดอย่างหนึ่ง",
+    desc: "ส่งรายงานกิจกรรมย่อย หรือมีเล่มสรุปโครงการภาพรวม อย่างใดอย่างหนึ่งถือว่าผ่าน",
+  },
+};
+
 export const EXPENSE_STATUS_LABELS: Record<ExpenseStatusType, string> = {
   PAID: "เบิกจ่ายจริง (PAID)",
   RESERVED: "กันวงเงินจอง (RESERVED)",
@@ -88,6 +109,13 @@ export interface ProjectFinancialSummaryDTO {
   sarReadiness: {
     hasProposal: boolean;
     hasApproval: boolean;
+    hasProjectSummary: boolean;
+    activityReports: {
+      total: number;
+      submitted: number;
+      isComplete: boolean;
+      isPartial: boolean;
+    };
     hasSummary: boolean;
   };
 }

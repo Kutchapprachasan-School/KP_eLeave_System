@@ -6,6 +6,8 @@ import {
   PlanningDashboardPayload,
   softDeleteActivityAction,
   softDeleteProjectAction,
+  lockProjectAction,
+  unlockProjectAction,
 } from "@/actions/planning/project-actions";
 import { calculatePortfolioSummary } from "@/lib/planning/calculator";
 import {
@@ -328,6 +330,34 @@ export function PlanningDashboardClient({
     }
   };
 
+  const handleLockProject = async (project: ProjectDTO) => {
+    try {
+      const res = await lockProjectAction(project.id);
+      if (!res.success) {
+        showToast("error", res.error || "เกิดข้อผิดพลาดในการปิดงบประมาณ");
+        return;
+      }
+      showToast("success", `ปิดงบประมาณและล็อคโครงการ "${project.name}" เรียบร้อยแล้ว`);
+      router.refresh();
+    } catch (err: any) {
+      showToast("error", err?.message || "เกิดข้อผิดพลาดในการล็อคโครงการ");
+    }
+  };
+
+  const handleUnlockProject = async (project: ProjectDTO) => {
+    try {
+      const res = await unlockProjectAction(project.id);
+      if (!res.success) {
+        showToast("error", res.error || "เกิดข้อผิดพลาดในการปลดล็อคโครงการ");
+        return;
+      }
+      showToast("success", `ปลดล็อคโครงการ "${project.name}" ให้สามารถแก้ไขได้แล้ว`);
+      router.refresh();
+    } catch (err: any) {
+      showToast("error", err?.message || "เกิดข้อผิดพลาดในการปลดล็อคโครงการ");
+    }
+  };
+
   const handleExportExcel = async () => {
     try {
       const { exportPlanningToExcel } = await import(
@@ -462,6 +492,8 @@ export function PlanningDashboardClient({
         onOpenExpenseHistory={(project, activity) =>
           setActiveModal({ type: "EXPENSE_HISTORY", project, activity })
         }
+        onLockProject={handleLockProject}
+        onUnlockProject={handleUnlockProject}
       />
 
       {/* Modals & Drawers */}

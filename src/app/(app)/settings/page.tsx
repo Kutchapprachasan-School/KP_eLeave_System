@@ -404,6 +404,7 @@ export default function SettingsPage() {
   const [planningOfficerUserIds, setPlanningOfficerUserIds] = useState<string[]>([]);
   const [planningBudgetOfficerUserIds, setPlanningBudgetOfficerUserIds] = useState<string[]>([]);
   const [planningDisburserUserIds, setPlanningDisburserUserIds] = useState<string[]>([]);
+  const [planningDocumentRequirement, setPlanningDocumentRequirement] = useState<string>("BOTH");
   const [enableStudentAffairs, setEnableStudentAffairs] = useState(false);
   const [enableStudentCouncil, setEnableStudentCouncil] = useState(false);
   const [enableAcademicPlanning, setEnableAcademicPlanning] = useState(false);
@@ -830,6 +831,9 @@ export default function SettingsPage() {
         setPlanningDisburserUserIds(
           (data as any).planningDisburserUserIds.split(",").map((s: string) => s.trim()).filter(Boolean)
         );
+      }
+      if ((data as any).planningDocumentRequirement) {
+        setPlanningDocumentRequirement((data as any).planningDocumentRequirement);
       }
       setEnableStudentAffairs((data as any).enableStudentAffairs === true);
       setEnableStudentCouncil((data as any).enableStudentCouncil === true);
@@ -9151,6 +9155,7 @@ function doPost(e) {
           initialPlanningOfficerUserIds={planningOfficerUserIds}
           initialPlanningBudgetOfficerUserIds={planningBudgetOfficerUserIds}
           initialPlanningDisburserUserIds={planningDisburserUserIds}
+          initialPlanningDocumentRequirement={planningDocumentRequirement as any}
           availableUsers={availableUsers}
           onSaved={() => {
             showToast("success", "บันทึกการตั้งค่าแผนงานเรียบร้อยแล้ว");

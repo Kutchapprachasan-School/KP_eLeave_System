@@ -10,6 +10,7 @@ import type {
   ExpenseCategoryType,
   ProjectDTO,
   PortfolioSummaryDTO,
+  DocumentRequirementPolicy,
 } from "./types";
 
 /**
@@ -112,7 +113,10 @@ export function calculateActivityFinancials(activity: RawActivityItem): Activity
  * Calculate Project-level financial aggregates.
  * Invariant: Project effective budget is authoritative; activity sum is tracked for unallocated checking.
  */
-export function calculateProjectFinancials(project: RawProjectItem): ProjectFinancialSummaryDTO {
+export function calculateProjectFinancials(
+  project: RawProjectItem,
+  policy: DocumentRequirementPolicy = "BOTH"
+): ProjectFinancialSummaryDTO {
   const allocatedSatang = toSatang(project.allocatedAmount);
   const effectiveSatang =
     project.adjustedAmount !== undefined && project.adjustedAmount !== null
@@ -139,12 +143,72 @@ export function calculateProjectFinancials(project: RawProjectItem): ProjectFina
       ? 0
       : Math.min(100, Number(((totalSpentSatang / effectiveSatang) * 100).toFixed(1)));
 
-  // Check SAR readiness
-  const attachmentTypes = new Set((project.attachments || []).map((a) => a.attachmentType));
+  // Check document & report readiness
+  const attachments = project.attachments || [];
+  const activeActivities = (project.activities || []).filter(
+    (a: any) => a.deletedAt === null || a.deletedAt === undefined
+  );
+
+  // 1. Project-level attachments (not tagged to any sub-activity)
+  const isActivityAttachment = (a: any) =>
+    Boolean(a.activityId) || Boolean((a.title || "").match(/^\[ACT:[^\]]+\]/));
+
+  const hasProposal = attachments.some(
+    (a: any) => a.attachmentType === "PROPOSAL" && !isActivityAttachment(a)
+  );
+  const hasApproval = attachments.some(
+    (a: any) => a.attachmentType === "APPROVAL" && !isActivityAttachment(a)
+  );
+  const hasProjectSummary = attachments.some(
+    (a: any) => a.attachmentType === "SUMMARY" && !isActivityAttachment(a)
+  );
+
+  // 2. Sub-activity reports calculation
+  const totalActivities = activeActivities.length;
+  const submittedActivities = activeActivities.filter((act: any) => {
+    if (act.reportAttachment) return true;
+    const tag = `[ACT:${act.id}]`;
+    return attachments.some(
+      (att: any) =>
+        att.activityId === act.id || (att.title && att.title.startsWith(tag))
+    );
+  }).length;
+
+  const isAllActivitiesComplete = totalActivities > 0 && submittedActivities >= totalActivities;
+  const isActivityPartial = submittedActivities > 0 && submittedActivities < totalActivities;
+
+  // 3. Overall hasSummary evaluated against school's document requirement policy
+  let hasSummary = false;
+  switch (policy) {
+    case "PROJECT_ONLY":
+      hasSummary = hasProjectSummary;
+      break;
+    case "ACTIVITY_ONLY":
+      hasSummary = totalActivities === 0 ? hasProjectSummary : isAllActivitiesComplete;
+      break;
+    case "EITHER":
+      hasSummary = hasProjectSummary || isAllActivitiesComplete;
+      break;
+    case "BOTH":
+    default:
+      hasSummary = totalActivities === 0
+        ? hasProjectSummary
+        : (hasProjectSummary && isAllActivitiesComplete);
+      break;
+  }
+
   const sarReadiness = {
-    hasProposal: attachmentTypes.has("PROPOSAL"),
-    hasApproval: attachmentTypes.has("APPROVAL"),
-    hasSummary: attachmentTypes.has("SUMMARY"),
+    hasProposal,
+    hasApproval,
+    hasProjectSummary,
+    activityReports: {
+      total: totalActivities,
+      submitted: submittedActivities,
+      isComplete: isAllActivitiesComplete,
+      isPartial: isActivityPartial,
+    },
+    hasSummary,
+    isComplete: hasProposal && hasApproval && hasSummary,
   };
 
   return {

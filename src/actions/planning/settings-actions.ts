@@ -6,6 +6,7 @@ import {
   formatCommaSeparatedIds,
   parseCommaSeparatedIds,
 } from "@/lib/planning/permissions";
+import { DocumentRequirementPolicy } from "@/lib/planning/types";
 import { ActionResult, getPlanningActionContext } from "./_context";
 
 export interface PlanningSettingsDTO {
@@ -13,6 +14,7 @@ export interface PlanningSettingsDTO {
   planningOfficerUserIds: string[];
   planningBudgetOfficerUserIds: string[];
   planningDisburserUserIds: string[];
+  planningDocumentRequirement?: DocumentRequirementPolicy;
 }
 
 export interface PlanningStaffOptionDTO {
@@ -30,7 +32,7 @@ export async function getPlanningStaffListAction(): Promise<
   ActionResult<PlanningStaffOptionDTO[]>
 > {
   try {
-    const users = await prisma.user.findMany({
+    let users = await prisma.user.findMany({
       where: { isApproved: true },
       select: {
         id: true,
@@ -41,6 +43,19 @@ export async function getPlanningStaffListAction(): Promise<
       },
       orderBy: { name: "asc" },
     });
+
+    if (users.length === 0) {
+      users = await prisma.user.findMany({
+        select: {
+          id: true,
+          name: true,
+          position: true,
+          subjectGroup: true,
+          email: true,
+        },
+        orderBy: { name: "asc" },
+      });
+    }
 
     return {
       success: true,
@@ -84,6 +99,7 @@ export async function getPlanningSettingsAction(): Promise<
         planningDisburserUserIds: parseCommaSeparatedIds(
           settings.planningDisburserUserIds
         ),
+        planningDocumentRequirement: (settings.planningDocumentRequirement as DocumentRequirementPolicy) || "BOTH",
       },
     };
   } catch (error) {
@@ -105,6 +121,7 @@ export async function updatePlanningSettingsAction(input: {
   planningOfficerUserIds: string[];
   planningBudgetOfficerUserIds?: string[];
   planningDisburserUserIds?: string[];
+  planningDocumentRequirement?: DocumentRequirementPolicy;
 }): Promise<ActionResult<PlanningSettingsDTO>> {
   try {
     const { user } = await getPlanningActionContext();
@@ -120,6 +137,7 @@ export async function updatePlanningSettingsAction(input: {
     const formattedOfficerIds = formatCommaSeparatedIds(input.planningOfficerUserIds);
     const formattedBudgetOfficerIds = formatCommaSeparatedIds(input.planningBudgetOfficerUserIds ?? []);
     const formattedDisburserIds = formatCommaSeparatedIds(input.planningDisburserUserIds ?? []);
+    const docRequirement = input.planningDocumentRequirement || "BOTH";
 
     const updated = await prisma.systemSettings.upsert({
       where: { id: "default" },
@@ -128,6 +146,7 @@ export async function updatePlanningSettingsAction(input: {
         planningOfficerUserIds: formattedOfficerIds,
         planningBudgetOfficerUserIds: formattedBudgetOfficerIds,
         planningDisburserUserIds: formattedDisburserIds,
+        planningDocumentRequirement: docRequirement,
       },
       create: {
         id: "default",
@@ -135,6 +154,7 @@ export async function updatePlanningSettingsAction(input: {
         planningOfficerUserIds: formattedOfficerIds,
         planningBudgetOfficerUserIds: formattedBudgetOfficerIds,
         planningDisburserUserIds: formattedDisburserIds,
+        planningDocumentRequirement: docRequirement,
       },
     });
 
@@ -154,6 +174,7 @@ export async function updatePlanningSettingsAction(input: {
         planningDisburserUserIds: parseCommaSeparatedIds(
           updated.planningDisburserUserIds
         ),
+        planningDocumentRequirement: (updated.planningDocumentRequirement as DocumentRequirementPolicy) || "BOTH",
       },
     };
   } catch (error) {

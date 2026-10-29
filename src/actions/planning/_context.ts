@@ -40,6 +40,7 @@ export async function getPlanningActionContext(): Promise<{
     planningOfficerUserIds?: string | null;
     planningBudgetOfficerUserIds?: string | null;
     planningDisburserUserIds?: string | null;
+    planningDocumentRequirement?: string | null;
   } | null = null;
 
   try {
@@ -50,6 +51,7 @@ export async function getPlanningActionContext(): Promise<{
         planningOfficerUserIds: true,
         planningBudgetOfficerUserIds: true,
         planningDisburserUserIds: true,
+        planningDocumentRequirement: true,
       },
     });
   } catch (err) {
@@ -61,6 +63,7 @@ export async function getPlanningActionContext(): Promise<{
     planningOfficerUserIds: rawSettings?.planningOfficerUserIds ?? "",
     planningBudgetOfficerUserIds: rawSettings?.planningBudgetOfficerUserIds ?? "",
     planningDisburserUserIds: rawSettings?.planningDisburserUserIds ?? "",
+    planningDocumentRequirement: rawSettings?.planningDocumentRequirement ?? "BOTH",
   };
 
   return {

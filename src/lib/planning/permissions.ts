@@ -39,6 +39,7 @@ export interface PlanningSettingsForPermissions {
   planningOfficerUserIds?: string | null;
   planningBudgetOfficerUserIds?: string | null;
   planningDisburserUserIds?: string | null;
+  planningDocumentRequirement?: string | null;
 }
 
 export type PermissionCheckUser = { id: string; role: string };
@@ -57,11 +58,12 @@ export function getPlanningPermissions(
   const disburserIds = parseCommaSeparatedIds(settings.planningDisburserUserIds);
 
   const isPlanningOfficer = isAdmin || officerIds.includes(user.id);
+  const isClosed = context?.projectStatus === "COMPLETED";
 
   // ผู้มีสิทธิ์แก้ไขข้อมูลจำนวนเงินและโอนเกลี่ยงบประมาณ:
   // หากระบุรายชื่อ ให้สิทธิ์เฉพาะผู้มีรายชื่อและ Admin
   // หากยังไม่ระบุ ให้ fallback ใช้สิทธิ์เดียวกับเจ้าหน้าที่แผนงานหลัก
-  const canAdjustBudget =
+  const rawCanAdjustBudget =
     isAdmin ||
     (budgetOfficerIds.length > 0
       ? budgetOfficerIds.includes(user.id)
@@ -70,7 +72,7 @@ export function getPlanningPermissions(
   // ผู้มีสิทธิ์เพิ่มและบันทึกข้อมูลการเบิกจ่ายงบประมาณ:
   // หากระบุรายชื่อ ให้สิทธิ์เฉพาะผู้มีรายชื่อและ Admin
   // หากยังไม่ระบุ ให้ fallback ใช้สิทธิ์เดียวกับเจ้าหน้าที่แผนงานหลัก
-  const canRecordAndSettleExpenses =
+  const rawCanRecordAndSettleExpenses =
     isAdmin ||
     (disburserIds.length > 0
       ? disburserIds.includes(user.id)
@@ -81,6 +83,10 @@ export function getPlanningPermissions(
     Boolean(context?.responsibleUserId && context.responsibleUserId === user.id);
   const isEditableProjectStatus =
     context?.projectStatus !== "COMPLETED" && context?.projectStatus !== "CANCELLED";
+
+  // หากโครงการปิดงบประมาณแล้ว (COMPLETED) ผู้รับผิดชอบทั่วไปที่ไม่ใช่ Admin หรือเจ้าหน้าที่แผนงานจะไม่สามารถแก้ไข/เบิกจ่ายได้
+  const canAdjustBudget = isClosed && !isPlanningOfficer ? false : rawCanAdjustBudget;
+  const canRecordAndSettleExpenses = isClosed && !isPlanningOfficer ? false : rawCanRecordAndSettleExpenses;
 
   return {
     canViewModule: Boolean(settings.enablePlanning ?? true) || isAdmin,

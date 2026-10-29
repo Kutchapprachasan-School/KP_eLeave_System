@@ -13,13 +13,15 @@ import {
   Search, 
   Info,
   Coins,
-  Receipt
+  Receipt,
+  FileCheck
 } from "lucide-react";
 import { 
   updatePlanningSettingsAction,
   getPlanningStaffListAction,
 } from "@/actions/planning/settings-actions";
 import { getSimpleUsersList } from "@/app/actions/settings";
+import { DocumentRequirementPolicy } from "@/lib/planning/types";
 
 export interface UserOption {
   id: string;
@@ -268,6 +270,7 @@ interface PlanningSettingsCardProps {
   initialPlanningOfficerUserIds?: string[];
   initialPlanningBudgetOfficerUserIds?: string[];
   initialPlanningDisburserUserIds?: string[];
+  initialPlanningDocumentRequirement?: DocumentRequirementPolicy;
   availableUsers: UserOption[];
   onSaved?: () => void;
 }
@@ -277,6 +280,7 @@ export function PlanningSettingsCard({
   initialPlanningOfficerUserIds = [],
   initialPlanningBudgetOfficerUserIds = [],
   initialPlanningDisburserUserIds = [],
+  initialPlanningDocumentRequirement = "BOTH",
   availableUsers = [],
   onSaved,
 }: PlanningSettingsCardProps) {
@@ -284,6 +288,7 @@ export function PlanningSettingsCard({
   const [selectedOfficerIds, setSelectedOfficerIds] = useState<string[]>(initialPlanningOfficerUserIds);
   const [selectedBudgetOfficerIds, setSelectedBudgetOfficerIds] = useState<string[]>(initialPlanningBudgetOfficerUserIds);
   const [selectedDisburserIds, setSelectedDisburserIds] = useState<string[]>(initialPlanningDisburserUserIds);
+  const [documentRequirement, setDocumentRequirement] = useState<DocumentRequirementPolicy>(initialPlanningDocumentRequirement);
   const [usersList, setUsersList] = useState<UserOption[]>(availableUsers);
   const [isLoadingUsers, setIsLoadingUsers] = useState<boolean>(false);
 
@@ -323,6 +328,12 @@ export function PlanningSettingsCard({
   }, [availableUsers, loadStaffUsers]);
 
   React.useEffect(() => {
+    if (usersList.length === 0) {
+      loadStaffUsers();
+    }
+  }, [loadStaffUsers]);
+
+  React.useEffect(() => {
     setEnablePlanning(initialEnablePlanning);
   }, [initialEnablePlanning]);
 
@@ -338,6 +349,10 @@ export function PlanningSettingsCard({
     setSelectedDisburserIds(initialPlanningDisburserUserIds);
   }, [initialPlanningDisburserUserIds]);
 
+  React.useEffect(() => {
+    setDocumentRequirement(initialPlanningDocumentRequirement);
+  }, [initialPlanningDocumentRequirement]);
+
   const [statusMessage, setStatusMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -349,6 +364,7 @@ export function PlanningSettingsCard({
         planningOfficerUserIds: selectedOfficerIds,
         planningBudgetOfficerUserIds: selectedBudgetOfficerIds,
         planningDisburserUserIds: selectedDisburserIds,
+        planningDocumentRequirement: documentRequirement,
       });
 
       if (res.success) {
@@ -488,6 +504,88 @@ export function PlanningSettingsCard({
           "หากไม่มีการระบุรายชื่อ สิทธิ์นี้จะตกเป็นของผู้ดูแลระบบ (Admin) และเจ้าหน้าที่แผนงานหลัก",
         ]}
       />
+
+      <hr className="border-gray-100 dark:border-gray-800" />
+
+      {/* 4. Document Requirement Policy */}
+      <div className="space-y-4 pt-2">
+        <div className="flex items-center gap-2">
+          <FileCheck className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+          <div>
+            <h3 className="font-semibold text-gray-900 dark:text-white">
+              4. เกณฑ์การตรวจสอบเอกสารสรุปผลโครงการและกิจกรรม (Document Requirement Policy)
+            </h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              กำหนดเงื่อนไขในการพิจารณาว่าโครงการและกิจกรรมย่อยดำเนินการส่งรายงานครบถ้วนตามเกณฑ์ของโรงเรียน
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {[
+            {
+              id: "BOTH" as DocumentRequirementPolicy,
+              title: "ส่งทั้ง สรุปกิจกรรม + สรุปโครงการ",
+              desc: "บังคับส่งรายงานกิจกรรมย่อยครบทุกกิจกรรม และต้องมีเล่มรายงานสรุปโครงการภาพรวม (แนะนำสำหรับโรงเรียนทั่วไป)",
+              badge: "มาตรฐานสูงสุด (Recommended)",
+              badgeColor: "bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800",
+            },
+            {
+              id: "PROJECT_ONLY" as DocumentRequirementPolicy,
+              title: "ส่งเฉพาะ เล่มสรุปโครงการ",
+              desc: "ผู้รับผิดชอบโครงการส่งเฉพาะเล่มรายงานสรุปโครงการภาพรวม (ไม่บังคับรายงานกิจกรรมย่อยแยกรายกิจกรรม)",
+              badge: "สรุปโครงการเท่านั้น",
+              badgeColor: "bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 border-blue-200 dark:border-blue-800",
+            },
+            {
+              id: "ACTIVITY_ONLY" as DocumentRequirementPolicy,
+              title: "ส่งเฉพาะ รายงานกิจกรรมย่อย",
+              desc: "ผู้รับผิดชอบกิจกรรมย่อยส่งรายงานครบทุกกิจกรรม (ไม่บังคับทำเล่มสรุปโครงการรวมอีกฉบับ)",
+              badge: "สรุปกิจกรรมเท่านั้น",
+              badgeColor: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800",
+            },
+            {
+              id: "EITHER" as DocumentRequirementPolicy,
+              title: "ส่งอย่างใดอย่างหนึ่ง",
+              desc: "ถือว่าสมบูรณ์หากมีรายงานกิจกรรมย่อยครบทุกกิจกรรม หรือมีเล่มสรุปโครงการภาพรวมอย่างใดอย่างหนึ่ง",
+              badge: "ยืดหยุ่นสูง",
+              badgeColor: "bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 border-amber-200 dark:border-amber-800",
+            },
+          ].map((opt) => {
+            const isSelected = documentRequirement === opt.id;
+            return (
+              <div
+                key={opt.id}
+                onClick={() => setDocumentRequirement(opt.id)}
+                className={`p-4 rounded-xl border-2 cursor-pointer transition-all flex flex-col justify-between ${
+                  isSelected
+                    ? "border-indigo-600 bg-indigo-50/40 dark:bg-indigo-950/30 shadow-xs"
+                    : "border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700 bg-white dark:bg-gray-800/50"
+                }`}
+              >
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="font-semibold text-sm text-gray-900 dark:text-white flex items-center gap-2">
+                      <span className={`w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center ${
+                        isSelected ? "border-indigo-600 bg-indigo-600" : "border-gray-300 dark:border-gray-600"
+                      }`}>
+                        {isSelected && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
+                      </span>
+                      {opt.title}
+                    </span>
+                    <span className={`text-[10px] font-medium px-2 py-0.5 rounded-md border ${opt.badgeColor}`}>
+                      {opt.badge}
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 pl-5 leading-relaxed">
+                    {opt.desc}
+                  </p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
 
       {/* Action Footer */}
       <div className="pt-4 border-t border-gray-100 dark:border-gray-800 flex justify-end">

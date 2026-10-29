@@ -134,6 +134,10 @@ export async function recordExpenseAction(
         throw new Error("ไม่สามารถบันทึกค่าใช้จ่ายในโครงการที่ยกเลิกแล้วได้");
       }
 
+      if (activity.project.status === "COMPLETED" && !perms.canManageProjectsAndBudget) {
+        throw new Error("โครงการนี้ปิดงบประมาณเรียบร้อยแล้วและอยู่ในสถานะล็อค กรุณาติดต่อผู้ดูแลระบบเพื่อขอปลดล็อคการแก้ไข");
+      }
+
       // 3. คำนวณยอดคงเหลือปัจจุบันของกิจกรรม
       const financials = calculateActivityFinancials(activity as any);
 
@@ -248,6 +252,9 @@ export async function settleReservedExpenseAction(
         include: {
           activity: {
             include: {
+              project: {
+                select: { status: true },
+              },
               expenses: {
                 where: { deletedAt: null },
               },
@@ -262,6 +269,10 @@ export async function settleReservedExpenseAction(
 
       if (!existingExpense.activity) {
         throw new Error("ไม่พบข้อมูลกิจกรรมย่อยที่เชื่อมโยงกับรายการนี้");
+      }
+
+      if (existingExpense.activity.project?.status === "COMPLETED" && !perms.canManageProjectsAndBudget) {
+        throw new Error("โครงการนี้ปิดงบประมาณเรียบร้อยแล้วและอยู่ในสถานะล็อค กรุณาติดต่อผู้ดูแลระบบเพื่อขอปลดล็อคการแก้ไข");
       }
 
       // Pessimistic Lock บนกิจกรรมย่อยเพื่อป้องกัน Race Condition ระหว่าง settlement
@@ -378,10 +389,23 @@ export async function voidExpenseAction(
     await prisma.$transaction(async (tx) => {
       const existing = await tx.activityExpense.findFirst({
         where: { id: input.expenseId, deletedAt: null },
+        include: {
+          activity: {
+            include: {
+              project: {
+                select: { status: true },
+              },
+            },
+          },
+        },
       });
 
       if (!existing) {
         throw new Error("ไม่พบรายการใช้จ่าย หรือรายการนี้ถูกยกเลิกไปแล้ว");
+      }
+
+      if (existing.activity?.project?.status === "COMPLETED" && !perms.canManageProjectsAndBudget) {
+        throw new Error("โครงการนี้ปิดงบประมาณเรียบร้อยแล้วและอยู่ในสถานะล็อค กรุณาติดต่อผู้ดูแลระบบเพื่อขอปลดล็อคการแก้ไข");
       }
 
       if (existing.activityId) {

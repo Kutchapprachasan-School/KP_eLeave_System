@@ -269,6 +269,7 @@ model SystemSettings {
   planningOfficerUserIds       String   @default("")
   planningBudgetOfficerUserIds String   @default("")
   planningDisburserUserIds     String   @default("")
+  planningDocumentRequirement  String   @default("BOTH")
   enableStudentAffairs         Boolean  @default(false)
   enableStudentCouncil         Boolean  @default(false)
   enableAcademicPlanning       Boolean  @default(false)

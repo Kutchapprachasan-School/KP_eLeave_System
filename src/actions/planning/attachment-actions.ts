@@ -99,6 +99,15 @@ export async function addProjectAttachmentAction(
       projectStatus: project.status,
     });
 
+    const isLocked = project.status === "COMPLETED";
+    if (isLocked && !perms.isPlanningOfficer) {
+      return {
+        success: false,
+        error:
+          "โครงการนี้ถูกปิดงบประมาณเรียบร้อยแล้ว ไม่สามารถเพิ่มเอกสารได้ หากต้องการแก้ไขกรุณาติดต่อผู้ดูแลระบบเพื่อปลดล็อค",
+      };
+    }
+
     const canAttach = targetActivity
       ? isResponsibleForTargetActivity || perms.canManageAttachments
       : perms.canManageAttachments;
@@ -234,7 +243,7 @@ export async function deleteProjectAttachmentAction(
           include: {
             activities: {
               where: { deletedAt: null },
-              select: { responsibleUserId: true },
+              select: { id: true, responsibleUserId: true },
             },
           },
         },
@@ -266,17 +275,30 @@ export async function deleteProjectAttachmentAction(
       projectStatus: attachment.project.status,
     });
 
+    const isUploader = attachment.uploadedByUserId === user.id;
+    const isProjectLeader = attachment.project.leaderUserId === user.id;
+    const isLocked = attachment.project.status === "COMPLETED";
+
+    // หากปิดงบแล้ว (COMPLETED) เฉพาะ Admin / Planning Officer เท่านั้นที่สามารถลบเอกสารได้
+    if (isLocked && !perms.isPlanningOfficer) {
+      return {
+        success: false,
+        error:
+          "โครงการนี้ถูกปิดงบประมาณเรียบร้อยแล้ว ไม่สามารถลบเอกสารได้ หากต้องการแก้ไขกรุณาติดต่อผู้ดูแลระบบเพื่อปลดล็อค",
+      };
+    }
+
     const canDeleteThisAttachment =
       perms.isPlanningOfficer ||
-      attachment.project.leaderUserId === user.id ||
+      isProjectLeader ||
       isResponsibleForTargetActivity ||
-      (attachment.uploadedByUserId === user.id && perms.canManageAttachments);
+      isUploader;
 
     if (!canDeleteThisAttachment) {
       return {
         success: false,
         error:
-          "คุณไม่มีสิทธิ์ลบเอกสารนี้ (อนุญาตเฉพาะเจ้าหน้าที่แผนงาน, หัวหน้าโครงการ, หรือผู้ที่อัปโหลดเอกสารนี้เท่านั้น)",
+          "คุณไม่มีสิทธิ์ลบเอกสารนี้ (อนุญาตเฉพาะเจ้าหน้าที่แผนงาน, หัวหน้าโครงการ, ผู้รับผิดชอบกิจกรรม หรือผู้ที่อัปโหลดเอกสารนี้เท่านั้น)",
       };
     }
 

@@ -15,6 +15,7 @@ import type {
   StorageProviderType,
   BudgetSourceCategoryType,
   ProjectStatusType,
+  DocumentRequirementPolicy,
 } from "./types";
 import { calculateActivityFinancials, calculateProjectFinancials, toSatang, fromSatang } from "./calculator";
 import { getPlanningPermissions } from "./permissions";
@@ -102,7 +103,8 @@ export function serializeActivityToDTO(
     canAdjustBudget?: boolean;
   },
   currentUserId?: string,
-  reportAttachment?: ProjectAttachmentDTO | null
+  reportAttachment?: ProjectAttachmentDTO | null,
+  isProjectClosed = false
 ): ProjectActivityDTO {
   const financials = calculateActivityFinancials(act);
   const expenses = (act.expenses || [])
@@ -126,7 +128,7 @@ export function serializeActivityToDTO(
 
   const isResponsible = currentUserId ? act.responsibleUserId === currentUserId : false;
   const canUploadReport = Boolean(
-    isResponsible ||
+    (!isProjectClosed && isResponsible) ||
     projectPermissions?.canManageProjectsAndBudget
   );
 
@@ -166,6 +168,7 @@ export function serializeProjectToDTO(
     planningOfficerUserIds?: string | null;
     planningBudgetOfficerUserIds?: string | null;
     planningDisburserUserIds?: string | null;
+    planningDocumentRequirement?: string | null;
   }
 ): ProjectDTO {
   const perms = currentUser && settings
@@ -178,8 +181,10 @@ export function serializeProjectToDTO(
         canViewModule: false,
       };
 
-  const financials = calculateProjectFinancials(project);
+  const docPolicy = (((settings as any)?.planningDocumentRequirement || "BOTH") as DocumentRequirementPolicy);
+  const financials = calculateProjectFinancials(project, docPolicy);
   const attachments = (project.attachments || []).map(serializeAttachmentToDTO);
+  const isProjectClosed = project.status === "COMPLETED";
 
   const activities = (project.activities || [])
     .filter((a: any) => a.deletedAt === null || a.deletedAt === undefined)
@@ -194,7 +199,8 @@ export function serializeProjectToDTO(
           canAdjustBudget: perms.canAdjustBudget,
         },
         currentUser?.id,
-        actReport
+        actReport,
+        isProjectClosed
       );
     });
 

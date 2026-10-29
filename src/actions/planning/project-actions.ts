@@ -866,3 +866,75 @@ export async function softDeleteActivityAction(
     };
   }
 }
+
+/**
+ * ปิดงบประมาณและล็อคโครงการ (เฉพาะผู้ดูแลระบบและเจ้าหน้าที่แผนงาน)
+ */
+export async function lockProjectAction(
+  projectId: string
+): Promise<ActionResult<{ id: string; status: string }>> {
+  try {
+    const { user, settings } = await getPlanningActionContext();
+    const perms = getPlanningPermissions(user, settings);
+
+    if (!perms.canManageProjectsAndBudget) {
+      return {
+        success: false,
+        error: "เฉพาะผู้ดูแลระบบหรือเจ้าหน้าที่แผนงานเท่านั้นที่สามารถปิดงบประมาณและล็อคโครงการได้",
+      };
+    }
+
+    const updated = await prisma.project.update({
+      where: { id: projectId },
+      data: { status: "COMPLETED" },
+      select: { id: true, status: true },
+    });
+
+    revalidatePath("/planning");
+    return {
+      success: true,
+      data: updated,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "ไม่สามารถปิดงบประมาณและล็อคโครงการได้",
+    };
+  }
+}
+
+/**
+ * ปลดล็อคโครงการเพื่อให้สามารถแก้ไขได้อีกครั้ง (เฉพาะผู้ดูแลระบบและเจ้าหน้าที่แผนงาน)
+ */
+export async function unlockProjectAction(
+  projectId: string
+): Promise<ActionResult<{ id: string; status: string }>> {
+  try {
+    const { user, settings } = await getPlanningActionContext();
+    const perms = getPlanningPermissions(user, settings);
+
+    if (!perms.canManageProjectsAndBudget) {
+      return {
+        success: false,
+        error: "เฉพาะผู้ดูแลระบบหรือเจ้าหน้าที่แผนงานเท่านั้นที่สามารถปลดล็อคโครงการได้",
+      };
+    }
+
+    const updated = await prisma.project.update({
+      where: { id: projectId },
+      data: { status: "IN_PROGRESS" },
+      select: { id: true, status: true },
+    });
+
+    revalidatePath("/planning");
+    return {
+      success: true,
+      data: updated,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "ไม่สามารถปลดล็อคโครงการได้",
+    };
+  }
+}

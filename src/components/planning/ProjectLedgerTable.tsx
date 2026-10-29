@@ -33,6 +33,9 @@ import {
   MoreVertical,
   FileCheck2,
   UploadCloud,
+  Clock,
+  Lock,
+  Unlock,
 } from "lucide-react";
 
 /**
@@ -129,6 +132,8 @@ export interface ProjectLedgerTableProps {
     project: ProjectDTO,
     activity: ProjectActivityDTO
   ) => void;
+  onLockProject?: (project: ProjectDTO) => void;
+  onUnlockProject?: (project: ProjectDTO) => void;
 }
 
 /**
@@ -229,6 +234,18 @@ export function ProjectStatusBadge({ status }: { status: ProjectDTO["status"] })
     },
   };
 
+  if (status === "COMPLETED") {
+    return (
+      <span
+        className="inline-flex items-center gap-1.5 rounded-full border border-teal-200 dark:border-teal-800 bg-teal-50 dark:bg-teal-950/40 px-2.5 py-0.5 text-xs font-semibold text-teal-700 dark:text-teal-300 shadow-2xs whitespace-nowrap"
+        title="โครงการนี้ปิดงบประมาณเรียบร้อยแล้ว (ล็อคข้อมูล)"
+      >
+        <Lock className="h-3 w-3 shrink-0 text-teal-600 dark:text-teal-400" />
+        <span>ปิดงบแล้ว</span>
+      </span>
+    );
+  }
+
   const config = configs[status] || configs.DRAFT;
 
   return (
@@ -254,6 +271,8 @@ export function ProjectLedgerTable({
   onRecordExpense,
   onOpenExpenseHistory,
   onOpenActivityReport,
+  onLockProject,
+  onUnlockProject,
 }: ProjectLedgerTableProps) {
   const [activeActionMenuId, setActiveActionMenuId] = React.useState<string | null>(null);
   if (projects.length === 0) {
@@ -431,8 +450,8 @@ export function ProjectLedgerTable({
                       <td className="py-4 px-3 align-top">
                         <div className="space-y-2">
                           <div className="flex items-center gap-1.5 text-xs">
-                            {/* เล่ม */}
-                            <div className="flex items-center gap-1">
+                            {/* 1. เล่ม */}
+                            <div className="flex items-center gap-1" title={sarReadiness.hasProposal ? "มีไฟล์เล่มโครงการแล้ว" : "ยังไม่มีไฟล์เล่มโครงการ"}>
                               {sarReadiness.hasProposal ? (
                                 <CheckCircle2 className="h-4 w-4 fill-blue-600 text-white shrink-0" />
                               ) : (
@@ -449,10 +468,10 @@ export function ProjectLedgerTable({
                               </span>
                             </div>
 
-                            <div className="h-[1.5px] w-3.5 bg-slate-300 dark:bg-gray-700 shrink-0" />
+                            <div className="h-[1.5px] w-2.5 bg-slate-300 dark:bg-gray-700 shrink-0" />
 
-                            {/* อนุมัติ */}
-                            <div className="flex items-center gap-1">
+                            {/* 2. อนุมัติ */}
+                            <div className="flex items-center gap-1" title={sarReadiness.hasApproval ? "มีไฟล์อนุมัติโครงการแล้ว" : "ยังไม่มีไฟล์อนุมัติ"}>
                               {sarReadiness.hasApproval ? (
                                 <CheckCircle2 className="h-4 w-4 fill-blue-600 text-white shrink-0" />
                               ) : (
@@ -469,18 +488,67 @@ export function ProjectLedgerTable({
                               </span>
                             </div>
 
-                            <div className="h-[1.5px] w-3.5 bg-slate-300 dark:bg-gray-700 shrink-0" />
+                            <div className="h-[1.5px] w-2.5 bg-slate-300 dark:bg-gray-700 shrink-0" />
 
-                            {/* สรุปโครงการ */}
-                            <div className="flex items-center gap-1">
-                              {sarReadiness.hasSummary ? (
+                            {/* 3. สรุปกิจกรรม */}
+                            {(() => {
+                              const actReports = sarReadiness.activityReports || {
+                                total: 0,
+                                submitted: 0,
+                                isComplete: false,
+                                isPartial: false,
+                              };
+                              return (
+                                <div
+                                  className="flex items-center gap-1"
+                                  title={
+                                    actReports.total === 0
+                                      ? "ไม่มีกิจกรรมย่อย"
+                                      : actReports.isComplete
+                                      ? `ส่งรายงานกิจกรรมครบแล้ว (${actReports.submitted}/${actReports.total})`
+                                      : actReports.isPartial
+                                      ? `ส่งรายงานแล้วแต่ยังไม่ครบ (${actReports.submitted}/${actReports.total} กิจกรรม)`
+                                      : `ยังไม่ได้ส่งรายงานกิจกรรม (0/${actReports.total})`
+                                  }
+                                >
+                                  {actReports.total === 0 ? (
+                                    <Circle className="h-4 w-4 text-slate-300 dark:text-gray-600 shrink-0" />
+                                  ) : actReports.isComplete ? (
+                                    <CheckCircle2 className="h-4 w-4 fill-emerald-600 text-white shrink-0" />
+                                  ) : actReports.isPartial ? (
+                                    <Clock className="h-4 w-4 text-amber-500 shrink-0 animate-pulse" />
+                                  ) : (
+                                    <Circle className="h-4 w-4 text-slate-300 dark:text-gray-600 shrink-0" />
+                                  )}
+                                  <span
+                                    className={
+                                      actReports.total === 0
+                                        ? "text-slate-400 dark:text-gray-500"
+                                        : actReports.isComplete
+                                        ? "font-medium text-emerald-700 dark:text-emerald-400"
+                                        : actReports.isPartial
+                                        ? "font-semibold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/50 px-1 py-0.5 rounded text-[11px]"
+                                        : "text-slate-400 dark:text-gray-500"
+                                    }
+                                  >
+                                    สรุปกิจกรรม {actReports.total > 0 ? `(${actReports.submitted}/${actReports.total})` : ""}
+                                  </span>
+                                </div>
+                              );
+                            })()}
+
+                            <div className="h-[1.5px] w-2.5 bg-slate-300 dark:bg-gray-700 shrink-0" />
+
+                            {/* 4. สรุปโครงการ */}
+                            <div className="flex items-center gap-1" title={sarReadiness.hasProjectSummary ? "มีเล่มรายงานสรุปโครงการภาพรวมแล้ว" : "ยังไม่มีเล่มรายงานสรุปโครงการ"}>
+                              {sarReadiness.hasProjectSummary ? (
                                 <CheckCircle2 className="h-4 w-4 fill-blue-600 text-white shrink-0" />
                               ) : (
                                 <Circle className="h-4 w-4 text-slate-300 dark:text-gray-600 shrink-0" />
                               )}
                               <span
                                 className={
-                                  sarReadiness.hasSummary
+                                  sarReadiness.hasProjectSummary
                                     ? "font-medium text-slate-800 dark:text-slate-200"
                                     : "text-slate-400 dark:text-gray-500"
                                 }
@@ -581,7 +649,36 @@ export function ProjectLedgerTable({
                                   className="fixed inset-0 z-20"
                                   onClick={() => setActiveActionMenuId(null)}
                                 />
-                                <div className="absolute right-0 top-full mt-1 w-44 rounded-xl border border-slate-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-1 shadow-lg z-30 text-xs">
+                                <div className="absolute right-0 top-full mt-1 w-48 rounded-xl border border-slate-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-1 shadow-lg z-30 text-xs">
+                                  {/* Lock / Unlock Option */}
+                                  {canManageBudget && (
+                                    project.status === "COMPLETED" ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setActiveActionMenuId(null);
+                                          onUnlockProject?.(project);
+                                        }}
+                                        className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/40 transition-colors cursor-pointer font-medium"
+                                      >
+                                        <Unlock className="h-3.5 w-3.5" />
+                                        <span>ปลดล็อคแก้ไข</span>
+                                      </button>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setActiveActionMenuId(null);
+                                          onLockProject?.(project);
+                                        }}
+                                        className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-gray-700 transition-colors cursor-pointer font-medium"
+                                      >
+                                        <Lock className="h-3.5 w-3.5 text-slate-500" />
+                                        <span>ปิดงบประมาณ (ล็อค)</span>
+                                      </button>
+                                    )
+                                  )}
+
                                   {canManageBudget && (
                                     <>
                                       <button
@@ -590,7 +687,8 @@ export function ProjectLedgerTable({
                                           setActiveActionMenuId(null);
                                           onAddActivity(project);
                                         }}
-                                        className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-gray-700 transition-colors cursor-pointer font-medium"
+                                        disabled={project.status === "COMPLETED"}
+                                        className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-gray-700 transition-colors cursor-pointer font-medium disabled:opacity-40 disabled:cursor-not-allowed"
                                       >
                                         <Plus className="h-3.5 w-3.5 text-blue-600" />
                                         <span>เพิ่มกิจกรรมย่อย</span>
@@ -601,7 +699,8 @@ export function ProjectLedgerTable({
                                           setActiveActionMenuId(null);
                                           onEditProject(project);
                                         }}
-                                        className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-gray-700 transition-colors cursor-pointer font-medium"
+                                        disabled={project.status === "COMPLETED"}
+                                        className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-gray-700 transition-colors cursor-pointer font-medium disabled:opacity-40 disabled:cursor-not-allowed"
                                       >
                                         <Edit3 className="h-3.5 w-3.5 text-slate-500" />
                                         <span>แก้ไขโครงการ / ปรับงบ</span>
@@ -626,7 +725,8 @@ export function ProjectLedgerTable({
                                         setActiveActionMenuId(null);
                                         onDeleteProject(project);
                                       }}
-                                      className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer font-medium"
+                                      disabled={project.status === "COMPLETED"}
+                                      className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer font-medium disabled:opacity-40 disabled:cursor-not-allowed"
                                     >
                                       <Trash2 className="h-3.5 w-3.5" />
                                       <span>ลบโครงการ</span>
@@ -1090,7 +1190,7 @@ export function ProjectLedgerTable({
 
                 {/* สถานะรายงานสรุป & เอกสารแนบในจอมือถือ */}
                 <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-slate-100 dark:border-gray-800">
-                  <div className="flex items-center gap-1.5 text-xs">
+                  <div className="flex flex-wrap items-center gap-1.5 text-xs">
                     <span className="text-[11px] text-slate-500 dark:text-slate-400">สถานะ:</span>
                     <span
                       className={`inline-flex items-center gap-0.5 ${
@@ -1122,14 +1222,43 @@ export function ProjectLedgerTable({
                       อนุมัติ
                     </span>
                     <span className="text-slate-300">|</span>
+                    {(() => {
+                      const actReports = sarReadiness.activityReports || {
+                        total: 0,
+                        submitted: 0,
+                        isComplete: false,
+                        isPartial: false,
+                      };
+                      return (
+                        <span
+                          className={`inline-flex items-center gap-0.5 ${
+                            actReports.isComplete
+                              ? "text-emerald-700 dark:text-emerald-400 font-medium"
+                              : actReports.isPartial
+                              ? "text-amber-600 dark:text-amber-400 font-semibold bg-amber-50 dark:bg-amber-950/50 px-1 rounded text-[11px]"
+                              : "text-slate-400"
+                          }`}
+                        >
+                          {actReports.isComplete ? (
+                            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                          ) : actReports.isPartial ? (
+                            <Clock className="h-3.5 w-3.5 text-amber-500 animate-pulse" />
+                          ) : (
+                            <Circle className="h-3.5 w-3.5" />
+                          )}
+                          สรุปกิจกรรม {actReports.total > 0 ? `(${actReports.submitted}/${actReports.total})` : ""}
+                        </span>
+                      );
+                    })()}
+                    <span className="text-slate-300">|</span>
                     <span
                       className={`inline-flex items-center gap-0.5 ${
-                        sarReadiness.hasSummary
+                        sarReadiness.hasProjectSummary
                           ? "text-emerald-700 dark:text-emerald-400 font-medium"
                           : "text-slate-400"
                       }`}
                     >
-                      {sarReadiness.hasSummary ? (
+                      {sarReadiness.hasProjectSummary ? (
                         <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
                       ) : (
                         <Circle className="h-3.5 w-3.5" />
@@ -1153,32 +1282,54 @@ export function ProjectLedgerTable({
                 {/* ปุ่มจัดการโครงการระดับมือถือ */}
                 {canManageBudget && (
                   <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-gray-800">
-                    <button
-                      type="button"
-                      onClick={() => onAddActivity(project)}
-                      className="inline-flex min-h-[44px] flex-1 items-center justify-center gap-1.5 rounded-xl bg-slate-900 dark:bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800 cursor-pointer"
-                    >
-                      <Plus className="h-4 w-4" />
-                      เพิ่มกิจกรรมย่อย
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => onEditProject(project)}
-                      aria-label="แก้ไขโครงการ"
-                      className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl border border-slate-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-2 text-slate-700 dark:text-slate-300"
-                      title="แก้ไขโครงการ"
-                    >
-                      <Edit3 className="h-4 w-4" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => onDeleteProject(project)}
-                      aria-label="ลบโครงการ"
-                      className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl border border-slate-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-2 text-rose-600"
-                      title="ลบโครงการ"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
+                    {project.status === "COMPLETED" ? (
+                      <button
+                        type="button"
+                        onClick={() => onUnlockProject?.(project)}
+                        className="inline-flex min-h-[44px] flex-1 items-center justify-center gap-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 px-3 py-2 text-xs font-semibold text-white cursor-pointer shadow-xs"
+                      >
+                        <Unlock className="h-4 w-4" />
+                        ปลดล็อคแก้ไขโครงการ
+                      </button>
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => onAddActivity(project)}
+                          className="inline-flex min-h-[44px] flex-1 items-center justify-center gap-1.5 rounded-xl bg-slate-900 dark:bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800 cursor-pointer"
+                        >
+                          <Plus className="h-4 w-4" />
+                          เพิ่มกิจกรรมย่อย
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onLockProject?.(project)}
+                          aria-label="ปิดงบประมาณ (ล็อค)"
+                          className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl border border-slate-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-2 text-slate-700 dark:text-slate-300"
+                          title="ปิดงบประมาณ (ล็อคโครงการ)"
+                        >
+                          <Lock className="h-4 w-4 text-slate-500" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onEditProject(project)}
+                          aria-label="แก้ไขโครงการ"
+                          className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl border border-slate-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-2 text-slate-700 dark:text-slate-300"
+                          title="แก้ไขโครงการ"
+                        >
+                          <Edit3 className="h-4 w-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onDeleteProject(project)}
+                          aria-label="ลบโครงการ"
+                          className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl border border-slate-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-2 text-rose-600"
+                          title="ลบโครงการ"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </>
+                    )}
                   </div>
                 )}
               </div>

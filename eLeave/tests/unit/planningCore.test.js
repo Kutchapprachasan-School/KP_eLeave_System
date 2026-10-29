@@ -395,4 +395,106 @@ describe('Planning Core - Permissions Helper', () => {
     const untaggedMatch = untaggedTitle.match(/^\[ACT:([^\]]+)\]\s*(.*)$/);
     assert.equal(untaggedMatch, null);
   });
+
+  it('TC-18: Sub-activity reports partial progress & Document Requirement Policy evaluation', () => {
+    // Project with 2 activities, 1 activity report submitted, and 1 project summary report
+    const mockProject = {
+      allocatedAmount: 10000,
+      adjustedAmount: 10000,
+      activities: [
+        { id: 'act-1', allocatedAmount: 5000, adjustedAmount: 5000, expenses: [] },
+        { id: 'act-2', allocatedAmount: 5000, adjustedAmount: 5000, expenses: [] },
+      ],
+      attachments: [
+        { id: 'att-1', attachmentType: 'PROPOSAL', title: 'เล่มโครงการ' },
+        { id: 'att-2', attachmentType: 'APPROVAL', title: 'อนุมัติโครงการ' },
+        { id: 'att-3', attachmentType: 'SUMMARY', title: '[ACT:act-1] รายงานกิจกรรม 1' },
+      ],
+    };
+
+    // 1. With default policy 'BOTH': 1/2 activity report is partial, project summary is missing
+    const finBoth = calculateProjectFinancials(mockProject, 'BOTH');
+    assert.equal(finBoth.sarReadiness.hasProposal, true);
+    assert.equal(finBoth.sarReadiness.hasApproval, true);
+    assert.equal(finBoth.sarReadiness.hasProjectSummary, false);
+    assert.equal(finBoth.sarReadiness.activityReports.total, 2);
+    assert.equal(finBoth.sarReadiness.activityReports.submitted, 1);
+    assert.equal(finBoth.sarReadiness.activityReports.isPartial, true);
+    assert.equal(finBoth.sarReadiness.activityReports.isComplete, false);
+    assert.equal(finBoth.sarReadiness.hasSummary, false); // NOT complete under BOTH
+    assert.equal(finBoth.sarReadiness.isComplete, false);
+
+    // 2. Add second activity report: activities become complete
+    const mockProjectAllActs = {
+      ...mockProject,
+      attachments: [
+        ...mockProject.attachments,
+        { id: 'att-4', attachmentType: 'SUMMARY', title: '[ACT:act-2] รายงานกิจกรรม 2' },
+      ],
+    };
+
+    // Under ACTIVITY_ONLY: should be hasSummary = true
+    const finActOnly = calculateProjectFinancials(mockProjectAllActs, 'ACTIVITY_ONLY');
+    assert.equal(finActOnly.sarReadiness.activityReports.isComplete, true);
+    assert.equal(finActOnly.sarReadiness.hasSummary, true);
+    assert.equal(finActOnly.sarReadiness.isComplete, true);
+
+    // Under PROJECT_ONLY: still false because no untagged project summary
+    const finProjOnly = calculateProjectFinancials(mockProjectAllActs, 'PROJECT_ONLY');
+    assert.equal(finProjOnly.sarReadiness.hasProjectSummary, false);
+    assert.equal(finProjOnly.sarReadiness.hasSummary, false);
+
+    // Under EITHER: complete because activities are complete
+    const finEither = calculateProjectFinancials(mockProjectAllActs, 'EITHER');
+    assert.equal(finEither.sarReadiness.hasSummary, true);
+    assert.equal(finEither.sarReadiness.isComplete, true);
+  });
+
+  it('TC-19: Project closure lock blocks non-planning officers from mutating or disbursing', () => {
+    const settings = {
+      enablePlanning: true,
+      planningOfficerUserIds: 'planning-officer',
+      planningBudgetOfficerUserIds: 'budget-officer',
+      planningDisburserUserIds: 'disburser-user',
+    };
+
+    const disburserUser = { id: 'disburser-user', role: 'TEACHER' };
+    const projectLeader = { id: 'leader-user', role: 'TEACHER' };
+    const adminUser = { id: 'admin-user', role: 'ADMIN' };
+
+    // When project is active (IN_PROGRESS)
+    const pActiveLeader = getPlanningPermissions(projectLeader, settings, {
+      leaderUserId: 'leader-user',
+      projectStatus: 'IN_PROGRESS',
+    });
+    assert.equal(pActiveLeader.canManageAttachments, true);
+
+    const pActiveDisburser = getPlanningPermissions(disburserUser, settings, {
+      projectStatus: 'IN_PROGRESS',
+    });
+    assert.equal(pActiveDisburser.canRecordAndSettleExpenses, true);
+
+    // When project is closed (COMPLETED)
+    const pClosedLeader = getPlanningPermissions(projectLeader, settings, {
+      leaderUserId: 'leader-user',
+      projectStatus: 'COMPLETED',
+    });
+    assert.equal(pClosedLeader.canManageAttachments, false, 'Project leader cannot manage attachments on COMPLETED');
+    assert.equal(pClosedLeader.canManageProjectsAndBudget, false);
+
+    const pClosedDisburser = getPlanningPermissions(disburserUser, settings, {
+      projectStatus: 'COMPLETED',
+    });
+    assert.equal(pClosedDisburser.canRecordAndSettleExpenses, false, 'Disburser cannot disburse on COMPLETED without Admin unlock');
+    assert.equal(pClosedDisburser.canAdjustBudget, false);
+
+    // Admin retains full unlock and control even when COMPLETED
+    const pClosedAdmin = getPlanningPermissions(adminUser, settings, {
+      projectStatus: 'COMPLETED',
+    });
+    assert.equal(pClosedAdmin.canManageProjectsAndBudget, true);
+    assert.equal(pClosedAdmin.canAdjustBudget, true);
+    assert.equal(pClosedAdmin.canRecordAndSettleExpenses, true);
+    assert.equal(pClosedAdmin.canManageAttachments, true);
+  });
 });
