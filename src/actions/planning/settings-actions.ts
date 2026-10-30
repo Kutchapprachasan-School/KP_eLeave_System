@@ -89,7 +89,7 @@ export async function getPlanningSettingsAction(): Promise<
     return {
       success: true,
       data: {
-        enablePlanning: settings.enablePlanning,
+        enablePlanning: settings.enablePlanning ?? true,
         planningOfficerUserIds: parseCommaSeparatedIds(
           settings.planningOfficerUserIds
         ),

@@ -21,7 +21,7 @@ import {
 import { FinancialMetricCards } from "./FinancialMetricCards";
 import { PlanningFilterToolbar } from "./PlanningFilterToolbar";
 import { ProjectLedgerTable } from "./ProjectLedgerTable";
-import { Landmark, Calendar, Settings, ShieldCheck } from "lucide-react";
+import { Landmark, Calendar, Settings, ShieldCheck, ChevronDown } from "lucide-react";
 import Link from "next/link";
 import { useToast } from "@/components/toast-provider";
 

@@ -503,7 +503,7 @@ export async function updateProjectAction(
     if (input.departmentId !== undefined) {
       if (input.departmentId) {
         dataToUpdate.department = { connect: { id: input.departmentId } };
-        let dName = input.departmentName;
+        let dName: string | null | undefined = input.departmentName;
         if (!dName) {
           const dept = await prisma.department.findUnique({
             where: { id: input.departmentId },
