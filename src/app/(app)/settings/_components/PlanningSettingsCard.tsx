@@ -105,8 +105,9 @@ function RoleUserPicker({
     },
   }[theme];
 
-  const filteredUsers = availableUsers.filter((u) => {
-    if (selectedIds.includes(u.id)) return false;
+  const filteredUsers = (availableUsers || []).filter((u) => {
+    if (!u || !u.id) return false;
+    if (selectedIds && selectedIds.includes(u.id)) return false;
     if (!searchTerm.trim()) return true;
     const term = searchTerm.toLowerCase();
     const nameMatch = (u.name || "").toLowerCase().includes(term);
@@ -225,12 +226,18 @@ function RoleUserPicker({
               </div>
             ) : filteredUsers.length === 0 ? (
               <div className="p-4 text-center text-sm text-gray-400 space-y-1">
-                <p>{searchTerm.trim() ? "ไม่พบบุคลากรที่ตรงกับคำค้นหา" : "ไม่มีบุคลากรเพิ่มเติมให้เลือก"}</p>
+                <p>
+                  {searchTerm.trim()
+                    ? `ไม่พบบุคลากรที่ตรงกับคำค้นหา "${searchTerm}"`
+                    : (availableUsers || []).length === 0
+                    ? "ยังไม่พบรายชื่อบุคลากรในระบบ"
+                    : "บุคลากรทุกคนได้รับการแต่งตั้งแล้ว"}
+                </p>
                 {onReload && (
                   <button
                     type="button"
                     onClick={onReload}
-                    className="text-xs text-purple-600 dark:text-purple-400 hover:underline font-medium"
+                    className="text-xs text-purple-600 dark:text-purple-400 hover:underline font-medium cursor-pointer"
                   >
                     ↻ กดเพื่อโหลดรายชื่อบุคลากรใหม่
                   </button>
@@ -290,7 +297,7 @@ export function PlanningSettingsCard({
   const [selectedDisburserIds, setSelectedDisburserIds] = useState<string[]>(initialPlanningDisburserUserIds);
   const [documentRequirement, setDocumentRequirement] = useState<DocumentRequirementPolicy>(initialPlanningDocumentRequirement);
   const [usersList, setUsersList] = useState<UserOption[]>(availableUsers);
-  const [isLoadingUsers, setIsLoadingUsers] = useState<boolean>(false);
+  const [isLoadingUsers, setIsLoadingUsers] = useState<boolean>(!availableUsers || availableUsers.length === 0);
 
   const loadStaffUsers = React.useCallback(async (force = false) => {
     setIsLoadingUsers(true);
@@ -322,15 +329,11 @@ export function PlanningSettingsCard({
   React.useEffect(() => {
     if (availableUsers && availableUsers.length > 0) {
       setUsersList(availableUsers);
-    } else if (usersList.length === 0) {
+      setIsLoadingUsers(false);
+    } else {
       loadStaffUsers();
     }
-  }, [availableUsers, loadStaffUsers, usersList.length]);
-
-  React.useEffect(() => {
-    // โหลดรายชื่อบุคลากรทันทีเมื่อเปิดแท็บตั้งค่า
-    loadStaffUsers();
-  }, [loadStaffUsers]);
+  }, [availableUsers, loadStaffUsers]);
 
   React.useEffect(() => {
     setEnablePlanning(initialEnablePlanning);

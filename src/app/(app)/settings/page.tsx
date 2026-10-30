@@ -9144,6 +9144,20 @@ function doPost(e) {
 
   // --- Planning & Budget Settings Section ---
   const renderPlanningSettingsSection = () => {
+    if (userList.length === 0) {
+      getPlanningStaffListAction()
+        .then((res) => {
+          if (res.success && res.data && res.data.length > 0) {
+            setUserList(res.data);
+          } else {
+            getSimpleUsersList().then(setUserList).catch(console.error);
+          }
+        })
+        .catch(() => {
+          getSimpleUsersList().then(setUserList).catch(console.error);
+        });
+    }
+
     const rawUsers = (userList && userList.length > 0)
       ? userList
       : (simpleUsers && simpleUsers.length > 0 ? simpleUsers : []);

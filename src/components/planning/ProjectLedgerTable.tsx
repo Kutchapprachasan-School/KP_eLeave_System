@@ -470,7 +470,7 @@ export function ProjectLedgerTable({
                               </span>
                             </div>
 
-                            <div className="h-[1.5px] w-2.5 bg-slate-300 dark:bg-gray-700 shrink-0" />
+                            <div className="h-[1.5px] w-2 bg-slate-300 dark:bg-gray-700 shrink-0 self-center" />
 
                             {/* 2. อนุมัติ */}
                             <div className="flex items-center gap-1" title={sarReadiness.hasApproval ? "มีไฟล์อนุมัติโครงการแล้ว" : "ยังไม่มีไฟล์อนุมัติ"}>
@@ -490,7 +490,7 @@ export function ProjectLedgerTable({
                               </span>
                             </div>
 
-                            <div className="h-[1.5px] w-2.5 bg-slate-300 dark:bg-gray-700 shrink-0" />
+                            <div className="h-[1.5px] w-2 bg-slate-300 dark:bg-gray-700 shrink-0 self-center" />
 
                             {/* 3. สรุปกิจกรรม */}
                             {(() => {
@@ -516,30 +516,41 @@ export function ProjectLedgerTable({
                                   {actReports.total === 0 ? (
                                     <Circle className="h-4 w-4 text-slate-300 dark:text-gray-600 shrink-0" />
                                   ) : actReports.isComplete ? (
-                                    <CheckCircle2 className="h-4 w-4 fill-emerald-600 text-white shrink-0" />
+                                    <CheckCircle2 className="h-4 w-4 fill-blue-600 text-white shrink-0" />
                                   ) : actReports.isPartial ? (
                                     <Clock className="h-4 w-4 text-amber-500 shrink-0 animate-pulse" />
                                   ) : (
                                     <Circle className="h-4 w-4 text-slate-300 dark:text-gray-600 shrink-0" />
                                   )}
-                                  <span
-                                    className={
-                                      actReports.total === 0
-                                        ? "text-slate-400 dark:text-gray-500"
-                                        : actReports.isComplete
-                                        ? "font-medium text-emerald-700 dark:text-emerald-400"
-                                        : actReports.isPartial
-                                        ? "font-semibold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/50 px-1 py-0.5 rounded text-[11px]"
-                                        : "text-slate-400 dark:text-gray-500"
-                                    }
-                                  >
-                                    สรุปกิจกรรม {actReports.total > 0 ? `(${actReports.submitted}/${actReports.total})` : ""}
-                                  </span>
+                                  <div className="leading-tight text-[11px] whitespace-nowrap">
+                                    <div
+                                      className={
+                                        actReports.isComplete
+                                          ? "font-medium text-slate-800 dark:text-slate-200"
+                                          : actReports.isPartial
+                                          ? "font-semibold text-amber-600 dark:text-amber-400"
+                                          : "text-slate-400 dark:text-gray-500"
+                                      }
+                                    >
+                                      สรุป
+                                    </div>
+                                    <div
+                                      className={
+                                        actReports.isComplete
+                                          ? "font-medium text-slate-800 dark:text-slate-200"
+                                          : actReports.isPartial
+                                          ? "font-semibold text-amber-600 dark:text-amber-400"
+                                          : "text-slate-400 dark:text-gray-500"
+                                      }
+                                    >
+                                      กิจกรรม {actReports.total > 0 ? `(${actReports.submitted}/${actReports.total})` : "(0/0)"}
+                                    </div>
+                                  </div>
                                 </div>
                               );
                             })()}
 
-                            <div className="h-[1.5px] w-2.5 bg-slate-300 dark:bg-gray-700 shrink-0" />
+                            <div className="h-[1.5px] w-2 bg-slate-300 dark:bg-gray-700 shrink-0 self-center" />
 
                             {/* 4. สรุปโครงการ */}
                             <div className="flex items-center gap-1" title={sarReadiness.hasProjectSummary ? "มีเล่มรายงานสรุปโครงการภาพรวมแล้ว" : "ยังไม่มีเล่มรายงานสรุปโครงการ"}>
@@ -548,15 +559,26 @@ export function ProjectLedgerTable({
                               ) : (
                                 <Circle className="h-4 w-4 text-slate-300 dark:text-gray-600 shrink-0" />
                               )}
-                              <span
-                                className={
-                                  sarReadiness.hasProjectSummary
-                                    ? "font-medium text-slate-800 dark:text-slate-200"
-                                    : "text-slate-400 dark:text-gray-500"
-                                }
-                              >
-                                สรุปโครงการ
-                              </span>
+                              <div className="leading-tight text-[11px] whitespace-nowrap">
+                                <div
+                                  className={
+                                    sarReadiness.hasProjectSummary
+                                      ? "font-medium text-slate-800 dark:text-slate-200"
+                                      : "text-slate-400 dark:text-gray-500"
+                                  }
+                                >
+                                  สรุป
+                                </div>
+                                <div
+                                  className={
+                                    sarReadiness.hasProjectSummary
+                                      ? "font-medium text-slate-800 dark:text-slate-200"
+                                      : "text-slate-400 dark:text-gray-500"
+                                  }
+                                >
+                                  โครงการ
+                                </div>
+                              </div>
                             </div>
                           </div>
 

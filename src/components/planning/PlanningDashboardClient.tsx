@@ -403,26 +403,23 @@ export function PlanningDashboardClient({
         </div>
 
         {/* ส่วนตั้งค่าผู้รับผิดชอบ และตัวเลือกปีงบประมาณ */}
-        <div className="flex flex-wrap items-center gap-3 self-start sm:self-center">
+        <div className="flex flex-wrap items-center gap-2.5 self-start sm:self-center">
           {/* ปุ่มตั้งค่าผู้รับผิดชอบระบบ (สำหรับ Admin / Planning Officers) */}
           {canManageProjectsAndBudget && (
             <Link
               href="/settings?section=planning-settings"
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3.5 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 shadow-2xs hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-blue-600 dark:hover:text-blue-400 hover:border-blue-300 dark:hover:border-blue-700 transition-all cursor-pointer"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-200 shadow-2xs hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-blue-600 dark:hover:text-blue-400 transition-all cursor-pointer"
               title="ตั้งค่าผู้รับผิดชอบระบบแผนงาน ผู้แก้ไขวงเงิน และผู้ตัดยอดเบิกจ่าย"
             >
-              <Settings className="h-4 w-4 text-slate-500 dark:text-slate-400" />
+              <Settings className="h-3.5 w-3.5 text-slate-500 dark:text-slate-400" />
               <span>ตั้งค่าผู้รับผิดชอบ</span>
             </Link>
           )}
 
-          {/* ตัวเลือกปีงบประมาณ */}
-          <div className="flex items-center gap-2">
-            <Calendar className="h-4 w-4 text-slate-500 dark:text-slate-400" />
-            <label
-              htmlFor="fiscal-year-select"
-              className="text-sm font-medium text-slate-700 dark:text-slate-300"
-            >
+          {/* ตัวเลือกปีงบประมาณแบบบูรณาการในกรอบเดียว */}
+          <div className="relative inline-flex items-center gap-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-200 shadow-2xs">
+            <Calendar className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+            <label htmlFor="fiscal-year-select" className="text-xs text-slate-600 dark:text-slate-300 font-medium">
               ปีงบประมาณ พ.ศ.
             </label>
             <select
@@ -430,14 +427,16 @@ export function PlanningDashboardClient({
               value={currentFiscalYear}
               disabled={isPending}
               onChange={(e) => handleFiscalYearChange(Number(e.target.value))}
-              className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-900 focus:border-blue-600 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+              aria-label="เลือกปีงบประมาณ"
+              className="bg-transparent font-bold text-slate-900 dark:text-white cursor-pointer focus:outline-none pl-1 pr-0"
             >
               {fiscalYearOptions.map((yr) => (
-                <option key={yr} value={yr}>
+                <option key={yr} value={yr} className="text-slate-900 dark:text-white dark:bg-gray-800">
                   {yr}
                 </option>
               ))}
             </select>
+            <ChevronDown className="h-3.5 w-3.5 text-slate-400 shrink-0 pointer-events-none" />
           </div>
         </div>
       </div>
